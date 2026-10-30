@@ -1,3 +1,5 @@
+import i18n from '../i18n'
+import { useTranslation } from 'react-i18next'
 import { useShowPart } from '../lib/widgetParts'
 import { useTouchSizes } from '../components/ui/PrepTier'
 import { CAPABILITIES } from 'shared-types'
@@ -12,9 +14,24 @@ import { clickLayout, READOUT_MIN } from '../lib/gigWidgetLayout'
 import { useElementSize } from '../lib/useElementSize'
 
 const OVERRIDE_OPTIONS: Array<{ value: 'on' | 'off' | null; label: string }> = [
-  { value: null, label: 'Standard' },
-  { value: 'on', label: 'An' },
-  { value: 'off', label: 'Aus' },
+  {
+    value: null,
+    get label() {
+      return i18n.t('widgets:click.standard')
+    },
+  },
+  {
+    value: 'on',
+    get label() {
+      return i18n.t('widgets:click.on')
+    },
+  },
+  {
+    value: 'off',
+    get label() {
+      return i18n.t('widgets:click.off')
+    },
+  },
 ]
 
 /**
@@ -39,6 +56,7 @@ const OVERRIDE_OPTIONS: Array<{ value: 'on' | 'off' | null; label: string }> = [
  * tile (Marco, 2026-09-14).
  */
 export function ClickTrackWidget({ config }: { config: ClickTrackConfig }) {
+  const { t } = useTranslation('widgets')
   // Parts left out under "Anzeigen" in the ⋯ menu (Marco, 2026-10-17: declutter every widget).
   const showCaption = useShowPart('caption')
   const showState = useShowPart('state')
@@ -58,7 +76,7 @@ export function ClickTrackWidget({ config }: { config: ClickTrackConfig }) {
   if (engine === 'none') {
     return (
       <div className="flex h-full items-center justify-center text-center text-sm text-ink-faint">
-        Kein Klick-Ausgabegerät eingerichtet
+        {t('click.noOutput')}
       </div>
     )
   }
@@ -73,14 +91,15 @@ export function ClickTrackWidget({ config }: { config: ClickTrackConfig }) {
     >
       {showCaption && layout.showLabel && (
         <span className="flex-none text-xs uppercase tracking-widest text-ink-faint">
-          Klick{isMyDeviceClickOutput ? ' · dieses Gerät' : ''}
+          {t('click.caption')}
+          {isMyDeviceClickOutput ? t('click.thisDevice') : ''}
         </span>
       )}
       {showState && layout.showState && (
         <div className={`flex items-center justify-center overflow-hidden ${layout.row ? 'flex-none px-2' : 'w-full flex-1'}`}>
           {/* The click state is the readout here - never below 24px, in every layout. */}
           <span style={{ fontSize: stateFontSize }} className="whitespace-nowrap font-bold leading-none">
-            {enabled ? 'An' : 'Aus'}
+            {enabled ? t('click.on') : t('click.off')}
           </span>
         </div>
       )}
@@ -89,7 +108,7 @@ export function ClickTrackWidget({ config }: { config: ClickTrackConfig }) {
           44 px there, under the phone minimum of 48 (docs/15 D2, 2026-10-16). */}
       <div
         role="radiogroup"
-        aria-label="Klick"
+        aria-label={t('click.caption')}
         className={`grid grid-cols-3 gap-0 rounded-control bg-control ${layout.showState ? 'border border-line p-1' : ''} ${layout.row ? 'min-w-0 flex-1' : layout.showState ? 'w-full flex-none' : 'w-full min-h-0 flex-1 grid-rows-[minmax(0,1fr)]'}`}
       >
         {OVERRIDE_OPTIONS.map((option) => (
@@ -106,7 +125,7 @@ export function ClickTrackWidget({ config }: { config: ClickTrackConfig }) {
                 : 'text-ink-soft [@media(hover:hover)]:hover:bg-control-hover'
             }`}
           >
-            {layout.shortLabels && option.label === 'Standard' ? 'Std.' : option.label}
+            {layout.shortLabels && option.value === null ? t('click.standardShort') : option.label}
           </button>
         ))}
       </div>
@@ -121,9 +140,10 @@ export function ClickTrackConfigPanel({
   config: ClickTrackConfig
   onChange: (next: ClickTrackConfig) => void
 }) {
+  const { t } = useTranslation('widgets')
   return (
     <SizeRatioSlider
-      label="Größe"
+      label={t('w.size')}
       ratio={config.sizeRatio ?? DEFAULT_SIZE_RATIO}
       onChange={(sizeRatio) => onChange({ ...config, sizeRatio })}
     />

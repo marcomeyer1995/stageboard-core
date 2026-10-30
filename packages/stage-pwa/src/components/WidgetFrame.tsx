@@ -3,6 +3,7 @@ import type { CapabilityStatus } from '../lib/capabilities'
 import { Button, ChipGroup, CompactTier, Dialog, Switch, ToggleChip, menuIcon } from './ui'
 import { WidgetPartsProvider, type WidgetPart } from '../lib/widgetParts'
 import { Icon } from './Icon'
+import { useTranslation } from 'react-i18next'
 
 const NONE_HIDDEN: readonly string[] = []
 
@@ -72,6 +73,7 @@ export function WidgetFrame({
   onToggleHidden,
   tooSmall = false,
 }: WidgetFrameProps) {
+  const { t } = useTranslation('dashboard')
   const isDisabled = status === 'degraded'
   const [menuOpen, setMenuOpen] = useState(false)
   const inert = isDisabled || isEditing
@@ -109,12 +111,12 @@ export function WidgetFrame({
         <div className="pointer-events-none absolute inset-x-2 top-5 flex items-center justify-between gap-2">
           <span className="truncate rounded-control bg-stage/70 px-2 py-0.5 text-xs text-ink-soft">
             {title}
-            {tooSmall && <span className="font-bold text-danger"> · zu klein</span>}
+            {tooSmall && <span className="font-bold text-danger">{t('frame.tooSmall')}</span>}
           </span>
           <button
             type="button"
             onClick={() => setMenuOpen(true)}
-            title="Widget-Menü"
+            title={t('frame.menu')}
             className="widget-menu pointer-events-auto flex h-touch w-touch flex-shrink-0 items-center justify-center rounded-control bg-stage/70 text-lg leading-none text-ink-soft [@media(hover:hover)]:hover:bg-control-hover"
           >
             <Icon name={menuIcon('entry')} size="1.5rem" />
@@ -125,7 +127,7 @@ export function WidgetFrame({
       {isDisabled && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
           <span
-            title="Hardware nicht erreichbar"
+            title={t('frame.offline')}
             className="rounded-control bg-stage/80 px-2 py-1 text-xs font-bold uppercase tracking-widest text-ink-muted"
           >
             ⃠ Offline
@@ -142,7 +144,7 @@ export function WidgetFrame({
           {/* The same "Anzeigen" group in every widget (Marco, 2026-10-17: declutter everywhere,
               one look - chips even for a single part, never a switch here and chips there). */}
           {parts.length > 0 && onToggleHidden && (
-            <ChipGroup label="Anzeigen" showLabel hint={null}>
+            <ChipGroup label={t('frame.show')} showLabel hint={null}>
               {parts.map((part) => (
                 <ToggleChip key={part.id} label={part.label} selected={!hidden.includes(part.id)} onToggle={() => onToggleHidden(part.id)} />
               ))}
@@ -150,11 +152,11 @@ export function WidgetFrame({
           )}
           {configPanel}
 
-          {onToggleFrameless && <Switch label="Rahmen anzeigen" checked={!frameless} onChange={onToggleFrameless} />}
+          {onToggleFrameless && <Switch label={t('frame.border')} checked={!frameless} onChange={onToggleFrameless} />}
           {onToggleCompact && (
             <Switch
-              label="Kompakt"
-              info="Knöpfe 48 px statt 56 / 72 - für Widgets, die mitten im Song nicht bedient werden."
+              label={t('frame.compact')}
+              info={t('frame.compactInfo')}
               checked={compact}
               onChange={onToggleCompact}
             />
@@ -166,13 +168,14 @@ export function WidgetFrame({
           <div className="mt-2 border-t border-line pt-4">
             <Button
               variant="danger"
+              icon="remove"
               fullWidth
               onClick={() => {
                 setMenuOpen(false)
                 onRemove()
               }}
             >
-              Entfernen
+              {t('frame.remove')}
             </Button>
           </div>
         </Dialog>

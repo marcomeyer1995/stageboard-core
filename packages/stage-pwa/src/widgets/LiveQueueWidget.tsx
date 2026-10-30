@@ -1,3 +1,5 @@
+import i18n from '../i18n'
+import { useTranslation } from 'react-i18next'
 import { useShowPart } from '../lib/widgetParts'
 import { useEffect, useRef, useState } from 'react'
 import { DndContext, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
@@ -53,6 +55,7 @@ interface QueueRowProps {
  * the row, the widget's in its header.
  */
 function QueueRow({ item, number, status, canManage, sorting, onPlayNext, onRemove, currentRowRef }: QueueRowProps) {
+  const { t } = useTranslation('widgets')
   // Parts left out under "Anzeigen" in the ⋯ menu (Marco, 2026-10-17: declutter every widget).
   const showNumbers = useShowPart('numbers')
   const showVariant = useShowPart('variant')
@@ -97,7 +100,7 @@ function QueueRow({ item, number, status, canManage, sorting, onPlayNext, onRemo
           className={`flex h-form w-10 flex-shrink-0 cursor-grab items-center justify-center active:cursor-grabbing ${
             status === 'current' ? 'text-accent-ink' : 'text-ink-faint'
           }`}
-          aria-label="Ziehen zum Sortieren"
+          aria-label={t('q.drag')}
         >
           ⠿
         </button>
@@ -114,7 +117,7 @@ function QueueRow({ item, number, status, canManage, sorting, onPlayNext, onRemo
       ) : isTransition ? (
         <span className="line-clamp-2 min-w-0 flex-1 break-words italic">
           <span className={`mr-2 text-xs font-bold not-italic uppercase tracking-wider ${status === 'current' ? '' : 'text-accent'}`}>
-            Ansage
+            {t('w.announcement')}
           </span>
           {queueItemTitle(item)}
           {showDuration && isTransitionEntry(item.entry) && item.entry.estimatedDurationMs ? (
@@ -149,9 +152,9 @@ function QueueRow({ item, number, status, canManage, sorting, onPlayNext, onRemo
           onOpenChange={setMenuOpen}
           actions={[
             ...(onPlayNext
-              ? [{ label: 'Als nächstes spielen', onClick: () => onPlayNext(item.entry.id) }]
+              ? [{ icon: 'playNext' as const, label: t('q.playNext'), onClick: () => onPlayNext(item.entry.id) }]
               : []),
-            { label: 'Aus Queue entfernen', danger: true, onClick: () => onRemove(item.entry.id) },
+            { icon: 'remove' as const, label: t('q.remove'), danger: true, onClick: () => onRemove(item.entry.id) },
           ]}
         />
       )}
@@ -168,6 +171,7 @@ function QueueRow({ item, number, status, canManage, sorting, onPlayNext, onRemo
  * 2026-09-27). Per-row actions open on a long press, in sort mode also from the row's "⋮".
  */
 export function LiveQueueWidget({ config }: { config: ContentFontSizeConfig }) {
+  const { t } = useTranslation('widgets')
   // Parts left out under "Anzeigen" in the ⋯ menu (Marco, 2026-10-17: declutter every widget).
   const showCaption = useShowPart('caption')
   const {
@@ -230,7 +234,7 @@ export function LiveQueueWidget({ config }: { config: ContentFontSizeConfig }) {
   return (
     <div className="flex h-full flex-col gap-1 overflow-y-auto text-ink-soft" style={{ fontSize }}>
       <div className="flex flex-none items-center justify-between gap-2">
-        {showCaption && <p className="min-w-0 truncate text-xs font-bold uppercase tracking-widest text-ink-faint">Queue</p>}
+        {showCaption && <p className="min-w-0 truncate text-xs font-bold uppercase tracking-widest text-ink-faint">{t('q.caption')}</p>}
         {canManage && (
           <button
             type="button"
@@ -241,10 +245,10 @@ export function LiveQueueWidget({ config }: { config: ContentFontSizeConfig }) {
             }`}
           >
             {sorting ? (
-              'Fertig'
+              t('w.done')
             ) : (
               <span className="flex items-center gap-1">
-                <Icon name="sort" /> Sortieren
+                <Icon name="sort" /> {t('q.sort')}
               </span>
             )}
           </button>
@@ -257,7 +261,7 @@ export function LiveQueueWidget({ config }: { config: ContentFontSizeConfig }) {
       </div>
 
       {orderedItems.length === 0 && (
-        <p className="text-ink-faint">{activeSetlist ? 'Keine Songs in der Setlist.' : 'Keine Setlist aktiv.'}</p>
+        <p className="text-ink-faint">{activeSetlist ? t('q.noSongs') : t('q.noSetlist')}</p>
       )}
 
       <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
@@ -291,7 +295,7 @@ export function LiveQueueWidget({ config }: { config: ContentFontSizeConfig }) {
 const PREVIEW_ROWS: { kind: 'section' | 'song' | 'announcement'; title: string }[] = [
   { kind: 'section', title: 'Set 1' },
   { kind: 'song', title: 'Highway to Hell' },
-  { kind: 'announcement', title: 'Ansage Merch-Stand' },
+  { kind: 'announcement', title: i18n.t('widgets:q.previewAnnouncement') },
   { kind: 'song', title: 'Wie ein schützender Engel' },
   { kind: 'song', title: 'Sweet Home Alabama' },
 ]
@@ -305,11 +309,12 @@ const PREVIEW_ROWS: { kind: 'section' | 'song' | 'announcement'; title: string }
  * announcement so the special items are recognisable.
  */
 export function LiveQueueWidgetPreview() {
+  const { t } = useTranslation('widgets')
   let songNumber = 0
   let currentShown = false
   return (
     <div className="flex h-full flex-col gap-1 overflow-y-auto text-sm text-ink-soft">
-      <p className="text-xs font-bold uppercase tracking-widest text-ink-faint">Queue</p>
+      <p className="text-xs font-bold uppercase tracking-widest text-ink-faint">{t('q.caption')}</p>
       {PREVIEW_ROWS.map((row) => {
         if (row.kind === 'section') {
           return (
@@ -330,7 +335,7 @@ export function LiveQueueWidgetPreview() {
           >
             <span className="min-w-0 flex-1 truncate">
               {row.kind === 'announcement' ? (
-                <span className="mr-2 text-xs font-bold not-italic uppercase tracking-wider text-accent">Ansage</span>
+                <span className="mr-2 text-xs font-bold not-italic uppercase tracking-wider text-accent">{t('w.announcement')}</span>
               ) : (
                 <span className={`mr-2 ${current ? '' : 'text-ink-faint'}`}>{songNumber}.</span>
               )}

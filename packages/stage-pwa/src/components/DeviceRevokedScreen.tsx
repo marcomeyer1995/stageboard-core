@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { Icon } from './Icon'
 /**
  * The actual "kick" behind the Device Ledger's admin revoke action (DeviceLedgerView.tsx,
@@ -12,13 +13,13 @@ import { Icon } from './Icon'
  * for the device itself to redo.
  */
 export function DeviceRevokedScreen() {
+  const { t } = useTranslation('common')
   return (
     <div className="flex h-full flex-col items-center justify-center gap-4 bg-alarm p-8 text-center text-alarm-ink">
       <Icon name="blocked" size="3.5rem" />
-      <h1 className="text-xl font-bold">Dieses Gerät wurde entfernt</h1>
+      <h1 className="text-xl font-bold">{t('rv.title')}</h1>
       <p className="max-w-sm text-sm text-alarm-ink/80">
-        Ein Admin hat dieses Gerät aus der Band entfernt. Wende dich an einen Admin, wenn das ein
-        Irrtum war - sobald das Gerät wieder zugelassen wird, geht es hier automatisch weiter.
+        {t('rv.text')}
       </p>
     </div>
   )

@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { useShowPart } from '../lib/widgetParts'
 import { Segmented } from '../components/ui'
 import { useState } from 'react'
@@ -22,6 +23,7 @@ const chip = (selected: boolean) =>
  * transient state: a lookup, not a setting worth a PouchDB write.
  */
 export function ChordReferenceWidget({ config }: { config: ChordReferenceConfig }) {
+  const { t } = useTranslation('widgets')
   // Parts left out under "Anzeigen" in the ⋯ menu (Marco, 2026-10-17: declutter every widget).
   const showGuitar = useShowPart('guitar')
   const showPiano = useShowPart('piano')
@@ -38,14 +40,14 @@ export function ChordReferenceWidget({ config }: { config: ChordReferenceConfig 
 
   return (
     <div className="flex h-full flex-col gap-2 overflow-y-auto text-ink-soft">
-      <div className="flex flex-wrap gap-2" role="group" aria-label="Grundton">
+      <div className="flex flex-wrap gap-2" role="group" aria-label={t('chord.root')}>
         {Array.from({ length: 12 }, (_, pitchClass) => (
           <button key={pitchClass} type="button" aria-pressed={root === pitchClass} onClick={() => setRoot(pitchClass)} className={chip(root === pitchClass)}>
             {rootName(pitchClass, naming)}
           </button>
         ))}
       </div>
-      <div className="flex flex-wrap gap-2" role="group" aria-label="Akkordart">
+      <div className="flex flex-wrap gap-2" role="group" aria-label={t('chord.quality')}>
         {CHORD_QUALITIES.map((quality) => (
           <button key={quality.id} type="button" aria-pressed={qualityId === quality.id} onClick={() => setQualityId(quality.id)} className={chip(qualityId === quality.id)}>
             {quality.label}
@@ -71,7 +73,7 @@ export function ChordReferenceWidget({ config }: { config: ChordReferenceConfig 
 
       {(showGuitar || showPiano) && (
         <div className="flex flex-wrap items-start gap-4">
-          {showGuitar && (shape ? <GuitarChordDiagram shape={shape} /> : <span className="text-sm text-ink-faint">Kein Griffbild</span>)}
+          {showGuitar && (shape ? <GuitarChordDiagram shape={shape} /> : <span className="text-sm text-ink-faint">{t('chord.noShape')}</span>)}
           {showPiano && <PianoChordDiagram rootPitchClass={root} semitones={chord.semitones} />}
         </div>
       )}
@@ -86,16 +88,17 @@ export function ChordReferenceConfigPanel({
   config: ChordReferenceConfig
   onChange: (next: ChordReferenceConfig) => void
 }) {
+  const { t } = useTranslation('widgets')
   return (
     <div className="flex flex-col gap-3">
       <Segmented
-        label="Notenname"
+        label={t('w.noteName')}
         showLabel
         value={config.noteNaming ?? 'sharp'}
         onChange={(value) => onChange({ ...config, noteNaming: value as ChordReferenceConfig['noteNaming'] })}
-        options={[{ value: 'sharp', label: 'Kreuz (F#)' }, { value: 'flat', label: 'B (Gb)' }]}
+        options={[{ value: 'sharp', label: t('w.sharp') }, { value: 'flat', label: t('w.flat') }]}
       />
-      <SizeRatioSlider label="Akkordname" ratio={config.sizeRatio ?? DEFAULT_SIZE_RATIO} onChange={(sizeRatio) => onChange({ ...config, sizeRatio })} />
+      <SizeRatioSlider label={t('chord.name')} ratio={config.sizeRatio ?? DEFAULT_SIZE_RATIO} onChange={(sizeRatio) => onChange({ ...config, sizeRatio })} />
     </div>
   )
 }

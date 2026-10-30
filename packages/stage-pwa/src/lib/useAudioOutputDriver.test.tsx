@@ -22,6 +22,7 @@ vi.mock('./webAudioTrackEngine', () => ({
   loadWebAudioTrack: vi.fn(),
   preloadWebAudioTrack: vi.fn(),
   syncWebAudioTrack: vi.fn(() => ({ blocked: false })),
+  setWebAudioTrackLevelCurve: vi.fn(),
   unloadWebAudioTrack: vi.fn(),
   resumeWebAudio: vi.fn(),
 }))

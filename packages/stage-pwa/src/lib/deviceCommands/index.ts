@@ -1,8 +1,10 @@
+import i18n from '../../i18n'
 import { CAPABILITIES, type CapabilityId, type ShowCue } from 'shared-types'
 import { KEMPER_CAPABILITY, MG30_CAPABILITY, RC500_CAPABILITY } from '../midiDeviceProtocols'
 import { KEMPER_COMMANDS } from './kemper'
 import { MG30_COMMANDS, RC500_COMMANDS } from './midiPedals'
 import { CQ18T_COMMANDS, UI24R_COMMANDS } from './mixers'
+import { OSC_CAPABILITY, OSC_COMMANDS } from './osc'
 import type { CommandField, DeviceCommand } from './types'
 
 export type { CommandField, DeviceCommand } from './types'
@@ -27,6 +29,7 @@ const COMMANDS: Record<string, DeviceCommand[]> = {
   'cq18t-control': CQ18T_COMMANDS,
   'ui24r-control': UI24R_COMMANDS,
   [CAPABILITIES.clickTrack]: CLICK_COMMANDS,
+  [OSC_CAPABILITY]: OSC_COMMANDS,
 }
 
 /** The commands a device of this capability understands - empty when none are described (the
@@ -61,7 +64,14 @@ export function fieldOptions(field: CommandField): { value: string; label: strin
         { value: 'true', label: 'Ja' },
         { value: 'false', label: 'Nein' },
       ]
+    case 'text':
+      return []
   }
+}
+
+/** Whether a field still needs an answer before the cue can be saved. */
+export function fieldAnswered(field: CommandField, answer: string | undefined): boolean {
+  return (field.kind === 'text' && field.optional === true) || (answer ?? '').trim() !== ''
 }
 
 /**
@@ -76,25 +86,32 @@ export function payloadFromAnswers(fields: readonly CommandField[], answers: Rec
     switch (field.kind) {
       case 'int': {
         const n = Number(raw)
-        if (!raw || !Number.isInteger(n) || n < field.min || n > field.max) return { error: `${field.label}: ganze Zahl von ${field.min} bis ${field.max}.` }
+        if (!raw || !Number.isInteger(n) || n < field.min || n > field.max) return { error: i18n.t('messages:fieldInt', { label: field.label, min: field.min, max: field.max }) }
         payload[field.key] = n
         break
       }
       case 'number': {
         const n = Number(raw.replace(',', '.'))
-        if (!raw || !Number.isFinite(n)) return { error: `${field.label}: eine Zahl${field.unit ? ` in ${field.unit}` : ''}.` }
+        if (!raw || !Number.isFinite(n)) return { error: (field.unit ? i18n.t('messages:fieldNumberUnit', { label: field.label, unit: field.unit }) : i18n.t('messages:fieldNumber', { label: field.label })) }
         payload[field.key] = n
         break
       }
       case 'choice': {
         const option = field.options.find((o) => String(o.value) === raw)
-        if (!option) return { error: `${field.label}: bitte auswählen.` }
+        if (!option) return { error: i18n.t('messages:fieldChoose', { label: field.label }) }
         payload[field.key] = option.value
         break
       }
       case 'bool':
         payload[field.key] = raw === 'true'
         break
+      case 'text': {
+        if (!raw && !field.optional) return { error: i18n.t('messages:fieldFill', { label: field.label }) }
+        const problem = raw ? (field.validate?.(raw) ?? null) : null
+        if (problem) return { error: `${field.label}: ${problem}` }
+        if (raw) payload[field.key] = raw
+        break
+      }
     }
   }
   return { payload }

@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { useMemo, useState } from 'react'
 import { randomId } from '../lib/id'
 import { searchRank } from '../lib/widgetSearch'
@@ -16,17 +17,9 @@ import { ALL_WIDGETS, type StageTier, type WidgetCategory, type WidgetDefinition
 import { WidgetPreviewErrorBoundary } from './WidgetPreviewErrorBoundary'
 import { useBackHandler } from '../lib/backNavigation'
 import { INPUT } from './ui/styles'
-import { Button, Dialog } from './ui'
+import { Button, Dialog, InfoHint } from './ui'
+import { useWidgetText } from '../lib/widgetText'
 
-const CATEGORY_LABEL: Record<WidgetCategory, string> = {
-  performance: 'Performance',
-  monitoring: 'Monitoring',
-  'show-control': 'Show Control',
-  'system-crew': 'System & Crew',
-  utility: 'Utility',
-  reference: 'Nachschlagen',
-  'post-show': 'Nach der Show',
-}
 
 const CATEGORY_ORDER: WidgetCategory[] = [
   'performance',
@@ -88,7 +81,9 @@ function ScaledPreview({ definition }: { definition: WidgetDefinition }) {
  * out of the way.
  */
 /** Badge per stage tier (registry.tsx StageTier); layout-only widgets get none. */
-const TIER_BADGE: Record<StageTier, string | null> = { gig: 'Gig', glance: 'Gig-Blick', rehearsal: 'Probe', layout: null }
+/** The badge for how a widget is used on stage (registry StageTier) - names from 2026-10-28
+ * (Marco: "Gig-Blick" said nothing): Im Song / Zwischen Songs / Probe. */
+const TIER_BADGE: Record<StageTier, 'gig' | 'glance' | 'rehearsal' | null> = { gig: 'gig', glance: 'glance', rehearsal: 'rehearsal', layout: null }
 
 export function WidgetLibrary({
   dashboard,
@@ -108,9 +103,17 @@ export function WidgetLibrary({
   const [noRoom, setNoRoom] = useState<WidgetDefinition | null>(null)
   useBackHandler(noRoom ? () => setNoRoom(null) : null)
 
+  // Names and descriptions in this device's language (#456) - search, cards and dialogs alike.
+  const widgetText = useWidgetText()
+  const { t: tc } = useTranslation('common')
   const available = useMemo(
-    () => availableWidgets(ALL_WIDGETS, capabilities, activeRoles),
-    [capabilities, activeRoles],
+    () =>
+      availableWidgets(ALL_WIDGETS, capabilities, activeRoles).map((definition) => ({
+        ...definition,
+        title: widgetText.title(definition),
+        description: widgetText.description(definition),
+      })),
+    [capabilities, activeRoles, widgetText],
   )
 
   const term = search.trim().toLowerCase()
@@ -134,10 +137,10 @@ export function WidgetLibrary({
       list.push(definition)
       byCategory.set(definition.category, list)
     }
-    return CATEGORY_ORDER.map((category) => [CATEGORY_LABEL[category], byCategory.get(category) ?? []] as const).filter(
+    return CATEGORY_ORDER.map((category) => [tc(`widgetLibrary.categories.${category}`), byCategory.get(category) ?? []] as const).filter(
       ([, list]) => list.length > 0,
     )
-  }, [available, ranked, term])
+  }, [available, ranked, term, tc])
 
   function add(definition: WidgetDefinition) {
     if (!hasRoomFor(dashboard.layouts[breakpoint] ?? [], definition.defaultLayout)) {
@@ -160,43 +163,46 @@ export function WidgetLibrary({
 
   // Picking a widget adds it and closes - so the way out at the bottom is "Abbrechen" (docs/15 D6).
   return (
-    <Dialog title="Widget hinzufügen" size="l" closeLabel="Abbrechen" onClose={onClose}>
+    <Dialog title={tc('widgetLibrary.title')} size="l" closeLabel={tc('actions.cancel')} onClose={onClose}>
 
         {/* flex-shrink-0: the panel is a scrolling flex column, which shrank the field to 19px on
             the tablet despite h-touch. */}
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Widget suchen…"
-          className={`h-touch flex-shrink-0 px-3 placeholder:text-ink-faint ${INPUT}`}
-        />
+        <div className="flex flex-shrink-0 items-center gap-2">
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={tc('widgetLibrary.search')}
+            className={`h-touch flex-1 min-w-0 px-3 placeholder:text-ink-faint ${INPUT}`}
+          />
+          {/* What the badges on the cards mean. */}
+          <InfoHint text={tc('tiers.explain')} />
+        </div>
 
         {noRoom && (
           // Its own dialog above the library: the tapped card can be far down the scrolled list.
           <Dialog
-            title={`Kein Platz für „${noRoom.title}“`}
+            title={tc('widgetLibrary.noRoomTitle', { title: noRoom.title })}
             onClose={() => setNoRoom(null)}
             actions={
               <>
-                <Button onClick={() => setNoRoom(null)}>Abbrechen</Button>
+                <Button onClick={() => setNoRoom(null)}>{tc('actions.cancel')}</Button>
                 <div className="flex flex-wrap justify-end gap-2">
-                  <Button onClick={() => addHere(noRoom)}>Trotzdem hier hinzufügen</Button>
+                  <Button onClick={() => addHere(noRoom)}>{tc('widgetLibrary.addHereAnyway')}</Button>
                   <Button variant="primary" onClick={() => onAddToNewDashboard(noRoom)}>
-                    Neues Dashboard mit diesem Widget
+                    {tc('widgetLibrary.newDashboard')}
                   </Button>
                 </div>
               </>
             }
           >
             <p role="alert" className="text-base text-ink">
-              In voller Größe ({noRoom.defaultLayout.w} × {noRoom.defaultLayout.h}) ist auf diesem Dashboard kein Platz - es
-              würde verkleinert und zeigt dann womöglich nicht alles. Anderes Dashboard wählen oder erst Platz schaffen.
+              {tc('widgetLibrary.noRoomText', { w: noRoom.defaultLayout.w, h: noRoom.defaultLayout.h })}
             </p>
           </Dialog>
         )}
 
-        {grouped.length === 0 && <p className="text-ink-faint">Kein Widget gefunden.</p>}
+        {grouped.length === 0 && <p className="text-ink-faint">{tc('widgetLibrary.noneFound')}</p>}
 
         {grouped.map(([label, definitions]) => (
           <div key={label} className="flex flex-col gap-1">
@@ -231,7 +237,7 @@ export function WidgetLibrary({
                     <WidgetPreviewErrorBoundary
                       fallback={
                         <div className="flex h-full items-center justify-center text-center text-xs text-ink-faint">
-                          Keine Vorschau
+                          {tc('widgetLibrary.noPreview')}
                         </div>
                       }
                     >
@@ -239,18 +245,18 @@ export function WidgetLibrary({
                     </WidgetPreviewErrorBoundary>
                   </div>
                   <div className="flex flex-col gap-1 px-3 py-2">
-                    <span className="flex items-start justify-between gap-2">
-                      <span className="font-semibold">{definition.title}</span>
-                      {TIER_BADGE[definition.stageTier] && (
-                        <span className="whitespace-nowrap rounded-control bg-control-strong px-1.5 text-xs font-bold uppercase tracking-wide text-ink-soft">
-                          {TIER_BADGE[definition.stageTier]}
-                        </span>
-                      )}
-                    </span>
+                    <span className="font-semibold">{definition.title}</span>
+                    {TIER_BADGE[definition.stageTier] && (
+                      // Below the title, not beside it: "Zwischen Songs" / "Between songs" squeezed
+                      // the title on a narrow card (Marco, 2026-10-28).
+                      <span className="self-start whitespace-nowrap rounded-control bg-control-strong px-1.5 text-xs font-bold uppercase tracking-wide text-ink-soft">
+                        {tc(`tiers.${TIER_BADGE[definition.stageTier]!}`)}
+                      </span>
+                    )}
                     <span className="block text-sm text-ink-muted">{definition.description}</span>
                     {definition.stageTier === 'rehearsal' && offeredInGig && (
                       <span className="block text-sm text-accent">
-                        Für Probe gedacht - dieses Dashboard ist auch im Gig verfügbar.
+                        {tc('widgetLibrary.rehearsalInGig')}
                       </span>
                     )}
                   </div>

@@ -1,3 +1,4 @@
+import i18n from '../i18n'
 import { CAPABILITIES, SERVER_EXECUTION_TARGET, type CapabilityId, type LogicalDevice } from 'shared-types'
 import { pluginProviding } from '../lib/capabilities'
 import { getDeviceId } from '../lib/deviceId'
@@ -7,6 +8,7 @@ import { useDevicesStore } from '../store/useDevicesStore'
 import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
 import { usePluginsStore } from '../store/usePluginsStore'
 import { Select } from './ui'
+import { useTranslation } from 'react-i18next'
 
 interface BuiltInOutput {
   capability: CapabilityId
@@ -18,9 +20,33 @@ interface BuiltInOutput {
 /** The outputs every band has without a device plugin (System split + review, Marco 2026-10-16).
  * Ansagen only once its add-on is installed. */
 export const BUILT_IN_OUTPUTS: BuiltInOutput[] = [
-  { capability: CAPABILITIES.clickTrack, label: 'Klick', fallback: 'Gerät, das die Show führt' },
-  { capability: CAPABILITIES.audioPlayback, label: 'Backing-Track', fallback: 'Gerät, das die Show führt' },
-  { capability: CAPABILITIES.sectionAnnouncements, label: 'Ansagen', fallback: 'wie der Klick' },
+  {
+    capability: CAPABILITIES.clickTrack,
+    get label() {
+      return i18n.t('hardware:out.click')
+    },
+    get fallback() {
+      return i18n.t('hardware:out.showDevice')
+    },
+  },
+  {
+    capability: CAPABILITIES.audioPlayback,
+    get label() {
+      return i18n.t('hardware:out.track')
+    },
+    get fallback() {
+      return i18n.t('hardware:out.showDevice')
+    },
+  },
+  {
+    capability: CAPABILITIES.sectionAnnouncements,
+    get label() {
+      return i18n.t('hardware:out.announcements')
+    },
+    get fallback() {
+      return i18n.t('hardware:out.likeClick')
+    },
+  },
 ]
 
 /** The role each built-in output reads - the first one with its capability, as routing does. */
@@ -38,6 +64,7 @@ const FALLBACK = ''
  * the click (useAnnouncementDriver). Can't be removed, only pointed elsewhere.
  */
 export function BuiltInOutputs() {
+  const { t } = useTranslation('hardware')
   const devices = useLogicalDevicesStore((state) => state.devices)
   const save = useLogicalDevicesStore((state) => state.save)
   const knownDevices = useDevicesStore((state) => state.devices)
@@ -52,9 +79,9 @@ export function BuiltInOutputs() {
         const tablets = knownDevices.filter((device) => !device.revoked || device.id === target)
         const options = [
           { value: FALLBACK, label: fallback },
-          ...tablets.map((device) => ({ value: device.id, label: device.id === getDeviceId() ? `${device.name} (dieses Gerät)` : device.name })),
+          ...tablets.map((device) => ({ value: device.id, label: device.id === getDeviceId() ? t('out.thisDevice', { name: device.name }) : device.name })),
           // A tablet no longer in the band's list stays visible, so the choice isn't silently wrong.
-          ...(target !== FALLBACK && !tablets.some((device) => device.id === target) ? [{ value: target, label: 'unbekanntes Gerät' }] : []),
+          ...(target !== FALLBACK && !tablets.some((device) => device.id === target) ? [{ value: target, label: t('unknownDevice') }] : []),
         ]
         return (
           // One list row like the gear below (docs/15 D10): name left, the playing device right.
@@ -65,7 +92,7 @@ export function BuiltInOutputs() {
             <div className="min-w-[12rem] flex-1">
               <Select
                 id={`output-${capability}`}
-                aria-label={`${label} - spielt auf`}
+                aria-label={t('builtIn.playsOn', { label })}
                 value={target}
                 options={options}
                 onChange={(e) => {

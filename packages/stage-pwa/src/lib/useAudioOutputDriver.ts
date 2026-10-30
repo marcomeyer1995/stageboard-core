@@ -1,3 +1,4 @@
+import i18n from '../i18n'
 import { useEffect, useRef } from 'react'
 import type { PlaybackStatus } from 'shared-types'
 import { CAPABILITIES } from 'shared-types'
@@ -16,6 +17,7 @@ import { triggerShowControl } from './showControlClient'
 import {
   loadWebAudioTrack,
   preloadWebAudioTrack,
+  setWebAudioTrackLevelCurve,
   syncWebAudioTrack,
   type TrackJump,
   unloadWebAudioTrack,
@@ -27,6 +29,7 @@ import { useShowMode } from './showMode'
 import { getServerTime } from './clockSync'
 import { computeActiveMs, jumpBoundaryMs, transportOf } from './playbackTransport'
 import { useAudioOutputLatencyMs } from './latencyCompensation'
+import { useTrackLevelCurve } from './trackLevel'
 import { useLocalAudioOutputStore } from '../store/useLocalAudioOutputStore'
 import { useShowStateStore } from '../store/useShowStateStore'
 
@@ -51,6 +54,10 @@ import { useShowStateStore } from '../store/useShowStateStore'
 export function useAudioOutputDriver(): void {
   const { mode, queue, elapsedMs, playbackStatus, trackOverride, drivesAutomation: canControl } = useShowMode()
   const { currentEntry, currentSong, currentVariant, nextEntry, nextVariant } = queue
+
+  // Track level, fades and mute by cue (#485), played by the Web Audio engine.
+  const levelCurve = useTrackLevelCurve(queue)
+  useEffect(() => setWebAudioTrackLevelCurve(levelCurve), [levelCurve])
 
   // Kept fresh every render without being a dependency of the load/play effects below (same
   // reasoning as useClickOutputDriver.ts's stateRef) - those must fire only on a genuine
@@ -101,7 +108,7 @@ export function useAudioOutputDriver(): void {
       return
     }
     void loadLocalTrack(currentVariant.id, track.id, elapsedMsRef.current ?? 0).then((result) => {
-      useLocalAudioOutputStore.setState({ error: result.status === 'error' ? (result.message ?? 'Fehler') : null })
+      useLocalAudioOutputStore.setState({ error: result.status === 'error' ? (result.message ?? i18n.t('messages:error')) : null })
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [usesLocalEngine, currentSong?.id, currentVariant?.id, track?.id])
@@ -117,7 +124,7 @@ export function useAudioOutputDriver(): void {
       return
     }
     void loadWebAudioTrack(currentVariant.id, track.id).then((result) => {
-      useLocalAudioOutputStore.setState({ error: result.status === 'error' ? (result.message ?? 'Fehler') : null })
+      useLocalAudioOutputStore.setState({ error: result.status === 'error' ? (result.message ?? i18n.t('messages:error')) : null })
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [webAudio, currentSong?.id, currentVariant?.id, track?.id])

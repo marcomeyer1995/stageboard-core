@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { useShowPart } from '../lib/widgetParts'
 import { INPUT } from '../components/ui/styles'
 import { useState } from 'react'
@@ -15,6 +16,7 @@ import type { ContentFontSizeConfig } from './contentFontSizeConfig'
  * show, per the Post-Gig Report discussion.
  */
 export function ShowNoteWidget({ config }: { config: ContentFontSizeConfig }) {
+  const { t } = useTranslation('widgets')
   // Parts left out under "Anzeigen" in the ⋯ menu (Marco, 2026-10-17: declutter every widget).
   const showAuthor = useShowPart('author')
   const showInput = useShowPart('input')
@@ -34,7 +36,7 @@ export function ShowNoteWidget({ config }: { config: ContentFontSizeConfig }) {
 
   function authorName(authorProfileId: string | null): string {
     if (!authorProfileId) return 'Unbekannt'
-    return profiles.find((profile) => profile.id === authorProfileId)?.name ?? 'Unbekannt'
+    return profiles.find((profile) => profile.id === authorProfileId)?.name ?? t('w.unknown')
   }
 
   function submit() {
@@ -47,8 +49,8 @@ export function ShowNoteWidget({ config }: { config: ContentFontSizeConfig }) {
   return (
     <div className="flex h-full flex-col gap-2 text-ink-soft" style={{ fontSize }}>
       <div className="min-h-0 flex-1 space-y-1 overflow-y-auto">
-        {!showId && <p className="text-ink-faint">Noch keine Show aktiv.</p>}
-        {showId && notes.length === 0 && <p className="text-ink-faint">Noch keine Notizen.</p>}
+        {!showId && <p className="text-ink-faint">{t('note.noShow')}</p>}
+        {showId && notes.length === 0 && <p className="text-ink-faint">{t('note.none')}</p>}
         {notes.map((note) => (
           <div key={note.id} className="rounded-control bg-control px-2 py-1">
             <p className="text-ink">{note.text}</p>
@@ -64,7 +66,7 @@ export function ShowNoteWidget({ config }: { config: ContentFontSizeConfig }) {
           onKeyDown={(e) => {
             if (e.key === 'Enter') submit()
           }}
-          placeholder="Notiz hinzufügen…"
+          placeholder={t('note.placeholder')}
           disabled={!showId}
           className={`min-h-touch min-w-0 flex-1 min-w-0 px-3 ${INPUT}`}
         />
@@ -74,7 +76,7 @@ export function ShowNoteWidget({ config }: { config: ContentFontSizeConfig }) {
           disabled={!showId}
           className="min-h-touch flex-shrink-0 rounded-control bg-control-strong px-4 font-semibold text-ink [@media(hover:hover)]:hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-40"
         >
-          Hinzufügen
+          {t('note.add')}
         </button>
       </div>
       )}

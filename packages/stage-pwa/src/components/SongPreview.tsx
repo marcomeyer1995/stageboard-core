@@ -7,14 +7,17 @@ import { variantToOpen } from '../lib/songVariantsDb'
 import { useSongsStore } from '../store/useSongsStore'
 import { useSongVariantsStore } from '../store/useSongVariantsStore'
 import { ChordProLyrics } from './ChordProLyrics'
-import { Button, Select } from './ui'
+import { PageHeader, Select } from './ui'
 import { playableTracks } from '../lib/stems'
+import { useTranslation } from 'react-i18next'
 
 interface SongPreviewProps {
   songId: string
   variantId: string | null
   /** Opens the editor on the variant the preview currently shows. */
   onEdit: (variantId: string) => void
+  /** Back to the list on narrow screens (LibraryView) - ← at the start of the title row. */
+  onBack?: () => void
 }
 
 /**
@@ -27,7 +30,8 @@ interface SongPreviewProps {
  * #601: a dropdown switches between the song's variants - view only, it changes nothing in the
  * ShowState, queue or default; it only decides which variant "Bearbeiten" opens.
  */
-export function SongPreview({ songId, variantId, onEdit }: SongPreviewProps) {
+export function SongPreview({ songId, variantId, onEdit, onBack }: SongPreviewProps) {
+  const { t } = useTranslation('editor')
   const songs = useSongsStore((state) => state.songs)
   const allVariants = useSongVariantsStore((state) => state.variants)
   const [variant, setVariant] = useState<SongVariant | null>(null)
@@ -60,17 +64,31 @@ export function SongPreview({ songId, variantId, onEdit }: SongPreviewProps) {
   }, [songId, variantId, pickedId, !!song])
 
   if (!song || !variant) {
-    return <div className="flex h-full items-center justify-center text-ink-faint">Lade…</div>
+    return (
+      <div className="flex h-full flex-col">
+        <PageHeader back={onBack && { label: t('library'), onClick: onBack }} />
+        <div className="flex flex-1 items-center justify-center text-ink-faint">{t('loading')}</div>
+      </div>
+    )
   }
 
   // The grips as on stage: transpose, played and chart tuning (lib/pitch.ts).
   const lines = transposeLines(parseChordPro(variant.chordProContent), variantChordShift(variant), soundingKey(variant))
   const tuning = stageTuning(variant)
   const unknownTuning = unrecognisedTuningText(variant)
+  const facts = [
+    song.artist,
+    variant.key && t('sp.key', { key: soundingKey(variant) }),
+    (variant.transpose ?? 0) !== 0 && t('sp.transposed', { steps: signedSteps(variant.transpose ?? 0) }),
+    !isStandard(tuning) && t('sp.tuning', { tuning: tuningLabel(tuning) }),
+    unknownTuning && t('sp.rawTuning', { tuning: unknownTuning }),
+    variant.capo !== undefined && t('sp.capo', { capo: variant.capo }),
+    `${variant.bpm} BPM · ${variant.timeSignature}`,
+  ].filter((fact): fact is string => !!fact)
   const contentBadges = [
-    { label: 'Cues', count: variant.cues.length },
-    { label: 'Audio', count: playableTracks(variant.tracks).length },
-    { label: 'Klick-Punkte', count: variant.beatGrid?.points.length ?? 0 },
+    { label: t('sp.cues'), count: variant.cues.length },
+    { label: t('sp.audio'), count: playableTracks(variant.tracks).length },
+    { label: t('sp.points'), count: variant.beatGrid?.points.length ?? 0 },
   ]
 
   return (
@@ -79,25 +97,22 @@ export function SongPreview({ songId, variantId, onEdit }: SongPreviewProps) {
     // of that shared space and overflow by the button's own height whenever it's visible,
     // same "whole page scrolls" bug SetlistDetail had (Marco, explicit report there).
     <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-x-hidden overflow-y-auto">
-      {/* Phone: the title wraps instead of "All the small thi…", and the button keeps clear of
-          the scrollbar (2026-10-16). */}
-      <div className="flex items-start justify-between gap-3 max-[599px]:pr-2">
-        <div className="min-w-0">
-          <h2 className="truncate text-2xl font-bold text-ink max-[599px]:whitespace-normal max-[599px]:break-words">{song.title || '(ohne Titel)'}</h2>
-          {song.artist && <p className="truncate text-ink-faint">{song.artist}</p>}
-        </div>
-        <Button variant="primary" className="flex-shrink-0" onClick={() => onEdit(variant.id)}>
-          Bearbeiten
-        </Button>
-      </div>
+      {/* The page header every page has (docs/15 D12); the song's facts as one grey line under the
+          artist, like the setlist's (Marco, 2026-10-30: save space). */}
+      <PageHeader
+        back={onBack && { label: t('library'), onClick: onBack }}
+        actions={[{ icon: 'edit', label: t('edit'), variant: 'primary', onClick: () => onEdit(variant.id) }]}
+        title={song.title || t('untitled')}
+        subtitle={facts.join(' · ')}
+      />
 
       {variantsOfSong.length > 1 && (
         <Select
-          aria-label="Variante"
+          aria-label={t('variant')}
           className="min-w-0"
           value={variant.id}
           onChange={(e) => setPickedId(e.target.value)}
-          options={variantsOfSong.map((v) => ({ value: v.id, label: v.isDefault ? `${v.label} (Standard)` : v.label }))}
+          options={variantsOfSong.map((v) => ({ value: v.id, label: v.isDefault ? t('variantDefault', { name: v.label }) : v.label }))}
         />
       )}
 
@@ -118,22 +133,7 @@ export function SongPreview({ songId, variantId, onEdit }: SongPreviewProps) {
         ))}
       </div>
 
-      <div className="flex flex-wrap gap-2 text-sm text-ink-muted">
-        {variant.key && <span className="rounded-control bg-control px-2 py-1">Key: {soundingKey(variant)}</span>}
-        {(variant.transpose ?? 0) !== 0 && (
-          <span className="rounded-control bg-control px-2 py-1">Transponiert: {signedSteps(variant.transpose ?? 0)}</span>
-        )}
-        {!isStandard(tuning) && <span className="rounded-control bg-control px-2 py-1">Stimmung: {tuningLabel(tuning)}</span>}
-        {unknownTuning && <span className="rounded-control bg-control px-2 py-1">Tuning: {unknownTuning}</span>}
-        {variant.capo !== undefined && (
-          <span className="rounded-control bg-control px-2 py-1">Capo: {variant.capo}</span>
-        )}
-        <span className="rounded-control bg-control px-2 py-1">
-          {variant.bpm} BPM · {variant.timeSignature}
-        </span>
-      </div>
-
-      <ChordProLyrics lines={lines} />
+      <ChordProLyrics lines={lines} chordInfo />
     </div>
   )
 }

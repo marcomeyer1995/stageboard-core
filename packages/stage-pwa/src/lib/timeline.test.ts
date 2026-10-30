@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { barQuality, clampView, grabbableAt, laneLayout, barLabelEvery, formatTimelineTime, minimapGrab, minimapTime, minimapX, nextProblemBar, tokenColor, timeToX, wrapText, xToTime, zoomAround } from './timeline'
+import { barQuality, clampView, grabbableAt, laneLayout, barLabelEvery, formatTimelineTime, parseTimelineTime, minimapGrab, minimapTime, minimapX, nextProblemBar, tokenColor, timeToX, wrapText, xToTime, zoomAround } from './timeline'
 
 const grid = Array.from({ length: 16 }, (_, i) => ({ timeMs: 1000 + i * 500, beatInBar: i % 4 }))
 
@@ -165,5 +165,20 @@ describe('grabbableAt (#331)', () => {
 
   it('markers at the same position count as one', () => {
     expect(grabbableAt([100, 100, 400], 100, 24)).not.toBeNull()
+  })
+})
+
+describe('parseTimelineTime (#8)', () => {
+  it('reads what formatTimelineTime writes, plain seconds and a German comma', () => {
+    expect(parseTimelineTime('1:23.4')).toBe(83_400)
+    expect(parseTimelineTime(formatTimelineTime(83_400))).toBe(83_400)
+    expect(parseTimelineTime('83,4')).toBe(83_400)
+    expect(parseTimelineTime(' 12 ')).toBe(12_000)
+  })
+
+  it('nothing for what is no time', () => {
+    expect(parseTimelineTime('')).toBeNull()
+    expect(parseTimelineTime('1:75')).toBeNull()
+    expect(parseTimelineTime('abc')).toBeNull()
   })
 })

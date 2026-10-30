@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { useState } from 'react'
 import { hasAnswered } from '../lib/readyCheck'
 import { reportReady } from '../lib/reportReady'
@@ -23,6 +24,7 @@ import { useWorkspaceStore } from '../store/useWorkspaceStore'
  * "Schließen". A failed answer keeps the overlay up with a retry hint instead of pretending.
  */
 export function ReadyCheckOverlay() {
+  const { t } = useTranslation('common')
   const mode = useAppModeStore((state) => state.mode)
   const checkId = useShowStateStore((state) => state.state.readyCheckId)
   const isMaster = useShowStateStore((state) => state.isMaster)
@@ -48,10 +50,10 @@ export function ReadyCheckOverlay() {
   }
 
   return (
-    <div role="dialog" aria-label="Ready-Check" className="fixed inset-0 z-menu flex flex-col items-center justify-center gap-8 bg-scrim/90 sb-pad-safe [--sb-pad:1.5rem] text-center">
-      <p className="text-2xl font-bold uppercase tracking-widest text-ink-faint">Ready-Check</p>
+    <div role="dialog" aria-label={t('rc.title')} className="fixed inset-0 z-menu flex flex-col items-center justify-center gap-8 bg-scrim/90 sb-pad-safe [--sb-pad:1.5rem] text-center">
+      <p className="text-2xl font-bold uppercase tracking-widest text-ink-faint">{t('rc.title')}</p>
       <p className="max-w-md text-lg text-ink-soft">
-        {profile ? 'Auf der Bühne, In-Ears sitzen, Instrument an?' : 'Kein Profil gewählt - dieses Gerät kann nicht antworten.'}
+        {profile ? t('rc.question') : t('rc.noProfile')}
       </p>
       <button
         type="button"
@@ -59,9 +61,9 @@ export function ReadyCheckOverlay() {
         onClick={answer}
         className="w-full max-w-xl rounded-control bg-accent px-8 py-12 text-4xl font-bold uppercase tracking-wide text-accent-ink [@media(hover:hover)]:hover:opacity-90 disabled:opacity-40"
       >
-        {profile ? 'Ich bin bereit' : 'Schließen'}
+        {profile ? t('rc.ready') : t('rc.close')}
       </button>
-      {failed && <p className="text-base text-danger">Keine Verbindung zum Stage-Server - bitte nochmal tippen.</p>}
+      {failed && <p className="text-base text-danger">{t('rc.failed')}</p>}
     </div>
   )
 }

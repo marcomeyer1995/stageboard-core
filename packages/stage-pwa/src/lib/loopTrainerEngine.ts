@@ -1,3 +1,4 @@
+import i18n from '../i18n'
 import { passRates, passStartSec, positionAt, type LoopPosition, type LoopSpeedConfig } from './loopSchedule'
 import type { LocalAudioResult } from './localAudioEngine'
 import { sourceOutput } from './audioMix'
@@ -62,7 +63,7 @@ export async function startLoopEngine(options: LoopStartOptions): Promise<LocalA
   stopLoopEngine()
   const mine = generation
   const lengthMs = options.endMs - options.startMs
-  if (lengthMs < MIN_LOOP_MS) return { status: 'error', message: 'Der Loop ist zu kurz' }
+  if (lengthMs < MIN_LOOP_MS) return { status: 'error', message: i18n.t('messages:loopTooShort') }
 
   try {
     const ctx = getAudioContext()
@@ -80,7 +81,7 @@ export async function startLoopEngine(options: LoopStartOptions): Promise<LocalA
     if (mine !== generation) return { status: 'cancelled' }
     const firstFrame = Math.floor((options.startMs / 1000) * decoded.sampleRate)
     const lastFrame = Math.min(decoded.length, Math.ceil((options.endMs / 1000) * decoded.sampleRate))
-    if (lastFrame - firstFrame < 1) return { status: 'error', message: 'Der Loop liegt außerhalb des Tracks' }
+    if (lastFrame - firstFrame < 1) return { status: 'error', message: i18n.t('messages:loopOutside') }
     const section = ctx.createBuffer(decoded.numberOfChannels, lastFrame - firstFrame, decoded.sampleRate)
     for (let channel = 0; channel < decoded.numberOfChannels; channel++) {
       section.copyToChannel(decoded.getChannelData(channel).subarray(firstFrame, lastFrame), channel)
@@ -115,7 +116,7 @@ export async function startLoopEngine(options: LoopStartOptions): Promise<LocalA
   } catch (error) {
     if (mine !== generation) return { status: 'cancelled' }
     stopLoopEngine()
-    return { status: 'error', message: error instanceof Error ? error.message : 'Loop konnte nicht gestartet werden' }
+    return { status: 'error', message: error instanceof Error ? error.message : i18n.t('messages:loopFailed') }
   }
 }
 

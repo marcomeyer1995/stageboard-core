@@ -1,3 +1,5 @@
+import i18n from '../i18n'
+import { useSettledVisualViewport, visibleArea } from '../lib/useVisualViewport'
 import { useEffect, useRef, useState } from 'react'
 import type { LookupResult } from 'shared-types'
 import { fetchLookupDetail, searchLookup } from '../lib/lookupClient'
@@ -8,9 +10,20 @@ import { Button } from './ui'
 import { CAPABILITIES } from 'shared-types'
 import { pluginProviding } from '../lib/capabilities'
 import { usePluginsStore } from '../store/usePluginsStore'
+import { useTranslation } from 'react-i18next'
 
-const ULTIMATE_GUITAR = { id: 'ultimate-guitar-scraper', label: 'Ultimate Guitar (Akkorde)' }
-const MUSICBRAINZ = { id: 'metadata-lookup', label: 'MusicBrainz (Metadaten)' }
+const ULTIMATE_GUITAR = {
+  id: 'ultimate-guitar-scraper',
+  get label() {
+    return i18n.t('editor:imp.ug')
+  },
+}
+const MUSICBRAINZ = {
+  id: 'metadata-lookup',
+  get label() {
+    return i18n.t('editor:imp.mb')
+  },
+}
 
 /** Ultimate Guitar only with its add-on (#546); MusicBrainz is always there. */
 function useProviders(): { id: string; label: string }[] {
@@ -49,7 +62,10 @@ interface TabImportOverlayProps {
 /** docs/08 Use Case 1.1 "Smarter In-App Tab Import": search, preview, then commit to the
  * editor - the user never has to leave the app to find a chord sheet. */
 export function TabImportOverlay({ onImport, onClose, initialQuery }: TabImportOverlayProps) {
+  const { t } = useTranslation('editor')
   useBackHandler(onClose)
+  // Pinned to the visible area, so the on-screen keyboard never hides the fields or the bottom row.
+  const visible = useSettledVisualViewport()
   const PROVIDERS = useProviders()
   const [provider, setProvider] = useState<string>(PROVIDERS[0].id)
   const [query, setQuery] = useState(initialQuery?.trim() ?? '')
@@ -129,17 +145,18 @@ export function TabImportOverlay({ onImport, onClose, initialQuery }: TabImportO
   return (
     <div
       className="fixed inset-0 z-dialog flex items-center justify-center bg-scrim/60 sb-pad-safe [--sb-pad:0.75rem]"
+      style={visibleArea(visible)}
       onClick={onClose}
     >
       {/* Own shell (the two panes need a fixed height), but the shared dialog's rules (docs/15
           D6): title row names it, the way out is the bottom row - Abbrechen + Importieren. */}
       <div
         role="dialog"
-        aria-label="Song importieren"
-        className="flex h-[85vh] w-full max-w-3xl flex-col gap-3 rounded-container border border-line bg-surface p-4 shadow-sb"
+        aria-label={t('imp.title')}
+        className="flex h-[85vh] max-h-full w-full max-w-3xl flex-col gap-3 rounded-container border border-line bg-surface p-4 shadow-sb"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="border-b border-line pb-3 text-lg font-bold text-ink">Song importieren</h2>
+        <h2 className="border-b border-line pb-3 text-lg font-bold text-ink">{t('imp.title')}</h2>
 
         <form onSubmit={handleSearch} className="flex gap-2">
           <select
@@ -156,11 +173,11 @@ export function TabImportOverlay({ onImport, onClose, initialQuery }: TabImportO
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Songtitel..."
+            placeholder={t('imp.placeholder')}
             className={`min-h-form flex-1 min-w-0 px-3 text-base ${INPUT_FREE}`}
           />
           <Button type="submit" disabled={busy === 'searching' || !query.trim()}>
-            {busy === 'searching' ? 'Suche...' : 'Suchen'}
+            {busy === 'searching' ? t('imp.searching') : t('imp.search')}
           </Button>
         </form>
 
@@ -184,14 +201,14 @@ export function TabImportOverlay({ onImport, onClose, initialQuery }: TabImportO
                   {r.rating !== undefined && <RatingLine rating={r.rating} votes={r.votes} />}
                 </button>
                 {r.sourceUrl && (
-                  <Button className="flex-shrink-0" onClick={() => openSourcePreview(r.sourceUrl!)} title="Original-Seite öffnen">
+                  <Button className="flex-shrink-0" onClick={() => openSourcePreview(r.sourceUrl!)} title={t('imp.openSource')}>
                     <Icon name="external" />
                   </Button>
                 )}
               </li>
             ))}
             {results.length === 0 && searched && busy === null && (
-              <p className="text-xs text-ink-faint">Keine Ergebnisse.</p>
+              <p className="text-xs text-ink-faint">{t('imp.noResults')}</p>
             )}
           </ul>
 
@@ -207,42 +224,42 @@ export function TabImportOverlay({ onImport, onClose, initialQuery }: TabImportO
                   {selected.sourceUrl}
                 </a>
                 <Button className="flex-shrink-0" onClick={() => openSourcePreview(selected.sourceUrl!)}>
-                  Original ansehen <Icon name="external" />
+                  {t('imp.viewOriginal')} <Icon name="external" />
                 </Button>
               </div>
             )}
-            {busy === 'loading-detail' && <p className="text-ink-faint">Lädt...</p>}
+            {busy === 'loading-detail' && <p className="text-ink-faint">{t('imp.loading')}</p>}
             {importableContent && (
               <>
                 {(metaArtist || metaKey || metaTuning || metaCapo !== undefined || metaBpm !== undefined) && (
                   <dl className="mb-2 flex flex-wrap gap-x-4 gap-y-1 border-b border-line pb-2 text-xs text-ink-muted">
                     {metaArtist && (
                       <div>
-                        <dt className="inline font-bold">Band: </dt>
+                        <dt className="inline font-bold">{t('imp.band')}</dt>
                         <dd className="inline text-ink">{metaArtist}</dd>
                       </div>
                     )}
                     {metaKey && (
                       <div>
-                        <dt className="inline font-bold">Key: </dt>
+                        <dt className="inline font-bold">{t('imp.key')}</dt>
                         <dd className="inline text-ink">{metaKey}</dd>
                       </div>
                     )}
                     {metaTuning && (
                       <div>
-                        <dt className="inline font-bold">Tuning: </dt>
+                        <dt className="inline font-bold">{t('imp.tuning')}</dt>
                         <dd className="inline text-ink">{metaTuning}</dd>
                       </div>
                     )}
                     {metaCapo !== undefined && (
                       <div>
-                        <dt className="inline font-bold">Capo: </dt>
-                        <dd className="inline text-ink">{metaCapo === 0 ? 'kein Capo' : metaCapo}</dd>
+                        <dt className="inline font-bold">{t('imp.capo')}</dt>
+                        <dd className="inline text-ink">{metaCapo === 0 ? t('imp.noCapo') : metaCapo}</dd>
                       </div>
                     )}
                     {metaBpm !== undefined && (
                       <div>
-                        <dt className="inline font-bold">BPM: </dt>
+                        <dt className="inline font-bold">{t('imp.bpm')}</dt>
                         <dd className="inline text-ink">{metaBpm}</dd>
                       </div>
                     )}
@@ -262,7 +279,7 @@ export function TabImportOverlay({ onImport, onClose, initialQuery }: TabImportO
                   </div>
                 ))}
                 <p className="pt-2 text-ink-faint">
-                  Keine Akkorde/Text verfügbar - nur zur Bestätigung der Songdaten.
+                  {t('imp.metaOnly')}
                 </p>
               </dl>
             )}
@@ -270,9 +287,9 @@ export function TabImportOverlay({ onImport, onClose, initialQuery }: TabImportO
         </div>
 
         <div className="flex justify-between gap-2 border-t border-line pt-3">
-          <Button onClick={onClose}>Abbrechen</Button>
+          <Button onClick={onClose}>{t('cancel')}</Button>
           <Button variant="primary" onClick={handleImport} disabled={!importableContent}>
-            Importieren
+            {t('imp.import')}
           </Button>
         </div>
       </div>
@@ -283,13 +300,14 @@ export function TabImportOverlay({ onImport, onClose, initialQuery }: TabImportO
 /** "★ 4,8 · 11.313 Bewertungen" - how much the community trusts this version (results come
  * best-rated first). */
 function RatingLine({ rating, votes }: { rating: number; votes?: number }) {
-  const stars = rating.toLocaleString('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
-  const count = votes !== undefined ? votes.toLocaleString('de-DE') : null
+  const { t } = useTranslation('editor')
+  const stars = rating.toLocaleString(i18n.language, { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+  const count = votes !== undefined ? votes.toLocaleString(i18n.language) : null
   return (
-    <span className="mt-0.5 flex items-center gap-1 text-xs" aria-label={`${stars} von 5 Sternen${count ? `, ${count} Bewertungen` : ''}`}>
+    <span className="mt-0.5 flex items-center gap-1 text-xs" aria-label={t('imp.stars', { stars }) + (count ? t('imp.votesAria', { count }) : '')}>
       <Icon name="rating" />
       <span className="font-semibold">{stars}</span>
-      {count && <span className="opacity-70">· {count} Bewertungen</span>}
+      {count && <span className="opacity-70">{t('imp.votes', { count })}</span>}
     </span>
   )
 }

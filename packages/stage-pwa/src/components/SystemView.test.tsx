@@ -67,7 +67,7 @@ describe('SystemView', () => {
     usePluginsStore.setState({ installed: [] })
     render(<SystemView />)
 
-    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['Dieses Gerät', 'Band', 'Bühnentechnik', 'Tablets & Handys', 'Stage-Server', 'Add-ons'])
+    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['Dieses Gerät', 'Band', 'Bühnentechnik', 'Tablets & Handys', 'Rig-Check', 'Stage-Server', 'Add-ons'])
     expect(screen.getByText('Dieses Gerät', { selector: 'h1' })).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('tab', { name: 'Add-ons' }))

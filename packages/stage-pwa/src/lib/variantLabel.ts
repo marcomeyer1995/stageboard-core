@@ -1,3 +1,4 @@
+import i18n from '../i18n'
 import type { VariantIssue } from './computeQueue'
 
 /**
@@ -13,6 +14,10 @@ export function stageVariantLabel(label: string): string {
 /** What stands where a song entry's variant is missing (computeQueue's VariantIssue) - in the
  * setlist, the queue and the status bar alike, never another variant's name. */
 export const VARIANT_ISSUE_LABEL: Record<VariantIssue, string> = {
-  deleted: 'Variante gelöscht',
-  'no-default': 'Keine Standard-Variante',
+  get deleted() {
+    return i18n.t('library:variant.deleted')
+  },
+  get 'no-default'() {
+    return i18n.t('library:variant.noDefault')
+  },
 }

@@ -1,3 +1,5 @@
+import i18n from '../i18n'
+import { useTranslation } from 'react-i18next'
 import { useShowPart } from '../lib/widgetParts'
 import { useMidiTrigger, type MidiStatus } from '../lib/useMidiTrigger'
 import { useContentFontSizeStore } from '../store/useContentFontSizeStore'
@@ -6,9 +8,15 @@ import { SizeRatioSlider } from './SizeRatioSlider'
 import { stageFontSize } from '../lib/stageSize'
 
 const STATUS_LABEL: Record<MidiStatus, string> = {
-  unsupported: 'Kein WebMIDI',
-  'no-device': 'Kein Fußtaster',
-  connected: 'Fußtaster verbunden',
+  get unsupported() {
+    return i18n.t('widgets:midi.unsupported')
+  },
+  get 'no-device'() {
+    return i18n.t('widgets:midi.noDevice')
+  },
+  get connected() {
+    return i18n.t('widgets:midi.connected')
+  },
 }
 
 const STATUS_DOT: Record<MidiStatus, string> = {
@@ -21,6 +29,7 @@ const STATUS_DOT: Record<MidiStatus, string> = {
  * tile (Marco, 2026-09-14). The button reuses the same computed size for visual consistency,
  * same as before. */
 export function MidiStatusWidget({ config }: { config: MidiStatusConfig }) {
+  const { t } = useTranslation('widgets')
   // Parts left out under "Anzeigen" in the ⋯ menu (Marco, 2026-10-17: declutter every widget).
   const showSimulate = useShowPart('simulate')
   const { status, jumpToNextSection } = useMidiTrigger()
@@ -45,7 +54,7 @@ export function MidiStatusWidget({ config }: { config: MidiStatusConfig }) {
         style={{ fontSize }}
         className="min-h-form flex-shrink-0 whitespace-nowrap rounded-control bg-control-strong px-3 font-semibold text-ink [@media(hover:hover)]:hover:bg-control-strong-hover"
       >
-        Fußtaster simulieren
+        {t('midi.simulate')}
       </button>
       )}
     </div>
@@ -59,9 +68,10 @@ export function MidiStatusConfigPanel({
   config: MidiStatusConfig
   onChange: (next: MidiStatusConfig) => void
 }) {
+  const { t } = useTranslation('widgets')
   return (
     <SizeRatioSlider
-      label="Größe"
+      label={t('w.size')}
       ratio={config.sizeRatio ?? DEFAULT_SIZE_RATIO}
       onChange={(sizeRatio) => onChange({ ...config, sizeRatio })}
     />

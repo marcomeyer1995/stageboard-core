@@ -1,3 +1,5 @@
+import i18n from '../i18n'
+import { useTranslation } from 'react-i18next'
 import { useShowPart } from '../lib/widgetParts'
 import { Segmented, Switch, ToggleChip } from '../components/ui'
 import { resolveTrackForEntry } from '../lib/computeQueue'
@@ -14,9 +16,13 @@ const percent = (level: number) => Math.round(level * 100)
 
 const STATUS_TEXT: Record<StemPlaybackStatus, string | null> = {
   off: null,
-  loading: 'Spuren werden geladen - bis dahin spielt der Track.',
+  get loading() {
+    return i18n.t('widgets:stems.loading')
+  },
   ready: null,
-  error: 'Spuren konnten nicht geladen werden - es spielt der Track.',
+  get error() {
+    return i18n.t('widgets:stems.error')
+  },
 }
 
 /**
@@ -26,6 +32,7 @@ const STATUS_TEXT: Record<StemPlaybackStatus, string | null> = {
  * track plays.
  */
 export function StemsWidget({ config }: { config: StemsConfig }) {
+  const { t } = useTranslation('widgets')
   // Parts left out under "Anzeigen" in the ⋯ menu (Marco, 2026-10-17: declutter every widget).
   const showValues = useShowPart('values')
   const { mode, queue, trackOverride } = useShowModeCore()
@@ -46,19 +53,19 @@ export function StemsWidget({ config }: { config: StemsConfig }) {
   if (!currentVariant || !set) {
     return (
       <div className="flex h-full w-full items-center justify-center text-center text-ink-faint" style={{ fontSize }}>
-        {currentVariant ? 'Dieser Song hat keine Spuren. Im Song-Editor unter Audio: „Spuren trennen“ oder Stems hochladen.' : 'Kein Song gewählt.'}
+        {currentVariant ? t('stems.none') : t('stems.noSong')}
       </div>
     )
   }
   const variantId = currentVariant.id
   const anySolo = set.stems.some((stem) => channelOf(settings, stem.id).solo)
-  const statusText = settings.on ? (mode === 'practice' ? STATUS_TEXT[status] : 'Spuren spielen nur in Solo üben - im Gig spielt der Track.') : null
+  const statusText = settings.on ? (mode === 'practice' ? STATUS_TEXT[status] : t('stems.onlyPractice')) : null
 
   return (
     <div className="flex h-full w-full min-h-0 flex-col gap-3" style={{ fontSize }}>
-      <Switch label="Spuren statt Track" checked={settings.on} onChange={(on) => setOn(variantId, on)} />
+      <Switch label={t('stems.on')} checked={settings.on} onChange={(on) => setOn(variantId, on)} />
       {statusText && <p className="text-base text-ink-faint">{statusText}</p>}
-      {sets.length > 1 && <Segmented label="Spuren-Satz" size="stage" value={set.key} onChange={(key) => setSet(variantId, key)} options={sets.map((s) => ({ value: s.key, label: s.label }))} />}
+      {sets.length > 1 && <Segmented label={t('stems.set')} size="stage" value={set.key} onChange={(key) => setSet(variantId, key)} options={sets.map((s) => ({ value: s.key, label: s.label }))} />}
       <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
         {set.stems.map((stem) => {
           const channel = channelOf(settings, stem.id)
@@ -86,8 +93,8 @@ export function StemsWidget({ config }: { config: StemsConfig }) {
                   className="h-stage w-full"
                 />
               </div>
-              <ToggleChip label="Stumm" selected={channel.muted} onToggle={(muted) => setChannel(variantId, stem.id, { muted })} size="stage" />
-              <ToggleChip label="Solo" selected={channel.solo} onToggle={(solo) => setChannel(variantId, stem.id, { solo })} size="stage" />
+              <ToggleChip label={t('w.mute')} selected={channel.muted} onToggle={(muted) => setChannel(variantId, stem.id, { muted })} size="stage" />
+              <ToggleChip label={t('w.solo')} selected={channel.solo} onToggle={(solo) => setChannel(variantId, stem.id, { solo })} size="stage" />
             </div>
           )
         })}
@@ -97,5 +104,6 @@ export function StemsWidget({ config }: { config: StemsConfig }) {
 }
 
 export function StemsConfigPanel({ config, onChange }: { config: StemsConfig; onChange: (next: StemsConfig) => void }) {
-  return <SizeRatioSlider label="Größe" ratio={config.sizeRatio ?? DEFAULT_SIZE_RATIO} onChange={(sizeRatio) => onChange({ ...config, sizeRatio })} />
+  const { t } = useTranslation('widgets')
+  return <SizeRatioSlider label={t('w.size')} ratio={config.sizeRatio ?? DEFAULT_SIZE_RATIO} onChange={(sizeRatio) => onChange({ ...config, sizeRatio })} />
 }

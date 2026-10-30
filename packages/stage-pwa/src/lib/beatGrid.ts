@@ -1,3 +1,4 @@
+import i18n from '../i18n'
 import type { BeatGrid, GridPoint } from 'shared-types'
 import { beatsPerBar } from './metronome'
 import { randomId } from './id'
@@ -342,6 +343,28 @@ export function setMeter(grid: BeatGrid, bar: number, timeSignature: string | nu
 const DETECTION_TOLERANCE_MS = 40
 const DETECTION_SMOOTHING = 2
 
+
+/**
+ * Double or halve the grid's tempo (#654): the detection often hears a fast song at half its
+ * tempo (~95 for ~190 BPM), or a slow one at double. ×2 makes every bar two of the same meter,
+ * each point keeping its time (bar b → 2b−1); ÷2 makes two bars one - a point on a bar that
+ * becomes the middle of one is dropped (its neighbours carry the tempo), and if that leaves none,
+ * the first stays where it is. Meter changes move with their bars. `bpm` (the tempo without a
+ * grid, and for a single point) goes along with `factor`.
+ */
+export function scaleGridTempo(grid: BeatGrid, bpm: number, factor: 2 | 0.5): { beatGrid: BeatGrid; bpm: number } {
+  const mapBar = (bar: number) => (factor === 2 ? 2 * (bar - 1) + 1 : Math.floor((bar - 1) / 2) + 1)
+  const keeps = (bar: number) => factor === 2 || (bar - 1) % 2 === 0
+  const kept = grid.points.filter((p) => keeps(p.bar))
+  const points = (kept.length > 0 ? kept : grid.points.slice(0, 1)).map((p) => ({ ...p, bar: mapBar(p.bar) }))
+  const meters: BeatGrid['meters'] = []
+  for (const m of grid.meters) {
+    const bar = mapBar(m.bar)
+    if (bar >= 2 && !meters.some((x) => x.bar === bar)) meters.push({ ...m, bar })
+  }
+  return { beatGrid: { points, meters }, bpm: Math.round(bpm * factor * 10) / 10 }
+}
+
 /**
  * A grid from automatically detected beats ("Track analysieren"): bar 1 on the first detected
  * downbeat, then as few points as keep the detected downbeats within 40 ms of the grid
@@ -448,11 +471,11 @@ export function applySectionTempo(grid: BeatGrid, bpm: number, timeSignature: st
   const perBar = timeline.barStartBeat(startBar + 1) - timeline.barStartBeat(startBar)
   let endBar = startBar + Math.max(1, Math.ceil((taps[taps.length - 1]! - startMs) / beatMs / perBar))
   if (next && endBar >= next.bar) endBar = next.bar - 1
-  if (endBar <= startBar) return { kind: 'refused', reason: `Zwischen Takt ${startBar} und dem nächsten Ausrichtungspunkt (Takt ${next?.bar}) ist kein Platz für ein eigenes Tempo.` }
+  if (endBar <= startBar) return { kind: 'refused', reason: i18n.t('messages:noRoomForTempo', { bar: startBar, next: next?.bar }) }
   const endMs = startMs + (timeline.barStartBeat(endBar) - timeline.barStartBeat(startBar)) * beatMs
 
   const pinned = setPoint(grid, startBar, startMs, timeSignature)
   const withTempo = pinned && setPoint(pinned, endBar, endMs, timeSignature)
-  if (!withTempo) return { kind: 'refused', reason: `${tempo.toFixed(1)} BPM ab Takt ${startBar} passt nicht zum nächsten Ausrichtungspunkt (Takt ${next?.bar}) - dort zuerst die Ausrichtung prüfen.` }
+  if (!withTempo) return { kind: 'refused', reason: i18n.t('messages:tempoMismatch', { bpm: tempo.toFixed(1), bar: startBar, next: next?.bar }) }
   return { kind: 'grid', grid: withTempo, startBar, endBar, nextBar: next?.bar ?? null }
 }

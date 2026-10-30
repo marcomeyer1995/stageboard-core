@@ -1,3 +1,4 @@
+import i18n from '../i18n'
 import type { LocalChangesHandle } from '../lib/localChanges'
 import { create } from 'zustand'
 import type { ActiveWorkspaceAdmins, AdminPinProof, ServerInfo, WorkspaceRoster, WorkspaceSummary } from 'shared-types'
@@ -48,7 +49,7 @@ export interface Workspace {
 function pinLockoutMessage(response: Response): string {
   const seconds = Number(response.headers.get('retry-after'))
   const minutes = Number.isFinite(seconds) && seconds > 0 ? Math.max(1, Math.ceil(seconds / 60)) : null
-  return `Zu viele falsche PINs - dieser Admin ist vorübergehend gesperrt.${minutes ? ` Bitte in ${minutes} Min. erneut versuchen.` : ' Bitte später erneut versuchen.'}`
+  return i18n.t('band:err.lockout') + (minutes ? i18n.t('band:err.retryIn', { minutes }) : i18n.t('band:err.retryLater'))
 }
 
 /**
@@ -241,8 +242,8 @@ let nameChangesHandle: LocalChangesHandle<{ code: string; name: string }> | null
  * pairs with a server; the browser always knows the address it was loaded from. */
 function noServerMessage(): string {
   return isNativeApp()
-    ? 'Noch mit keinem Stage-Server gekoppelt - unter System → Stage-Server suchen oder den QR-Code der Band scannen.'
-    : 'Stage-Server nicht konfiguriert - Beitritt nicht möglich.'
+    ? i18n.t('band:err.notPaired')
+    : i18n.t('band:err.noServer')
 }
 
 /**
@@ -269,13 +270,13 @@ async function provisionWithProof(
   if (response.ok) return (await response.json()) as { username: string; password: string }
   const error = (await response.json().catch(() => ({}))) as { code?: string }
   if (response.status === 409 && error.code === 'deleted') {
-    void dialogs.alert('Diese Band wurde auf dem Stage-Server gelöscht und kann so nicht neu angelegt werden.')
+    void dialogs.alert(i18n.t('band:err.bandDeleted'))
     return null
   }
   if (response.status === 403 && error.code === 'admin-required') {
     void dialogs.alert(
-      'Neue Bands kann auf diesem Stage-Server nur ein Band-Admin anlegen. Bitte den Admin einer Band hier, die neue Band zu gründen und dich dann einzuladen.',
-      { title: 'Band gründen nicht möglich' },
+      i18n.t('band:err.adminFounds'),
+      { title: i18n.t('band:err.foundTitle') },
     )
     return null
   }
@@ -317,7 +318,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           credentials = provisioned
         } catch (err) {
           console.error('Failed to provision workspace', err)
-          void useDialogStore.getState().alert('Stage-Server nicht erreichbar - Workspace konnte nicht angelegt werden.')
+          void useDialogStore.getState().alert(i18n.t('band:err.provisionOffline'))
           return null
         }
 
@@ -355,7 +356,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           return true
         } catch (err) {
           console.error('Failed to connect workspace to server', err)
-          void useDialogStore.getState().alert('Verbindung zum Stage-Server fehlgeschlagen.')
+          void useDialogStore.getState().alert(i18n.t('band:err.connectFailed'))
           return false
         }
       },
@@ -384,7 +385,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
             if (!response.ok) throw new Error(`HTTP ${response.status}`)
           } catch (err) {
             console.error('Failed to delete workspace', err)
-            void useDialogStore.getState().alert('Band konnte nicht gelöscht werden - Stage-Server nicht erreichbar oder Fehler beim Löschen.')
+            void useDialogStore.getState().alert(i18n.t('band:err.deleteFailed'))
             return false
           }
         }
@@ -409,7 +410,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           if (!response.ok) throw new Error(`HTTP ${response.status}`)
         } catch (err) {
           console.error('Failed to set master mode', err)
-          void useDialogStore.getState().alert('Einstellung nicht gespeichert - Stage-Server nicht erreichbar oder keine Admin-Rechte.')
+          void useDialogStore.getState().alert(i18n.t('band:err.settingFailed'))
           return false
         }
         set({ workspaces: get().workspaces.map((w) => (w.id === id ? { ...w, masterMode } : w)) })
@@ -437,7 +438,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           })
           if (!response.ok) {
             if (response.status === 403) {
-              void useDialogStore.getState().alert('Dieses Gerät ist kein Admin mehr - Aktion nicht möglich.')
+              void useDialogStore.getState().alert(i18n.t('band:err.noLongerAdmin'))
             } else {
               throw new Error(`HTTP ${response.status}`)
             }
@@ -445,7 +446,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           }
         } catch (err) {
           console.error('Failed to rename workspace', err)
-          void useDialogStore.getState().alert('Band konnte nicht umbenannt werden - Stage-Server nicht erreichbar.')
+          void useDialogStore.getState().alert(i18n.t('band:err.renameFailed'))
           return false
         }
 
@@ -521,7 +522,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           })
           if (!response.ok) {
             if (response.status === 403) {
-              void useDialogStore.getState().alert('Dieses Gerät ist kein Admin mehr - Aktion nicht möglich.')
+              void useDialogStore.getState().alert(i18n.t('band:err.noLongerAdmin'))
             } else {
               throw new Error(`HTTP ${response.status}`)
             }
@@ -530,7 +531,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           return (await response.json()) as { username: string; password: string }
         } catch (err) {
           console.error('Failed to create member', err)
-          void useDialogStore.getState().alert('Mitglied konnte nicht angelegt werden - Stage-Server nicht erreichbar.')
+          void useDialogStore.getState().alert(i18n.t('band:err.memberCreateFailed'))
           return null
         }
       },
@@ -552,9 +553,9 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           })
           if (!response.ok) {
             if (response.status === 400) {
-              void useDialogStore.getState().alert('Mindestens ein Admin muss bestehen bleiben.')
+              void useDialogStore.getState().alert(i18n.t('band:err.lastAdmin'))
             } else if (response.status === 403) {
-              void useDialogStore.getState().alert('Dieses Gerät ist kein Admin mehr - Aktion nicht möglich.')
+              void useDialogStore.getState().alert(i18n.t('band:err.noLongerAdmin'))
             } else {
               throw new Error(`HTTP ${response.status}`)
             }
@@ -563,7 +564,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           return true
         } catch (err) {
           console.error('Failed to change admin status', err)
-          void useDialogStore.getState().alert('Adminstatus konnte nicht geändert werden - Stage-Server nicht erreichbar.')
+          void useDialogStore.getState().alert(i18n.t('band:err.adminChangeFailed'))
           return false
         }
       },
@@ -584,9 +585,9 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           })
           if (!response.ok) {
             if (response.status === 400) {
-              void useDialogStore.getState().alert('Mindestens ein Admin muss bestehen bleiben.')
+              void useDialogStore.getState().alert(i18n.t('band:err.lastAdmin'))
             } else if (response.status === 403) {
-              void useDialogStore.getState().alert('Dieses Gerät ist kein Admin mehr - Aktion nicht möglich.')
+              void useDialogStore.getState().alert(i18n.t('band:err.noLongerAdmin'))
             } else {
               throw new Error(`HTTP ${response.status}`)
             }
@@ -595,7 +596,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           return true
         } catch (err) {
           console.error('Failed to remove member', err)
-          void useDialogStore.getState().alert('Mitglied konnte nicht entfernt werden - Stage-Server nicht erreichbar.')
+          void useDialogStore.getState().alert(i18n.t('band:err.memberRemoveFailed'))
           return false
         }
       },
@@ -617,9 +618,9 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           )
           if (!response.ok) {
             if (response.status === 403) {
-              void useDialogStore.getState().alert('Dieses Gerät ist kein Admin mehr - Aktion nicht möglich.')
+              void useDialogStore.getState().alert(i18n.t('band:err.noLongerAdmin'))
             } else if (response.status === 400) {
-              void useDialogStore.getState().alert('Nur Admin-Konten haben einen Code zum Zurücksetzen.')
+              void useDialogStore.getState().alert(i18n.t('band:err.onlyAdminCode'))
             } else {
               throw new Error(`HTTP ${response.status}`)
             }
@@ -628,7 +629,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           return (await response.json()) as { username: string; password: string }
         } catch (err) {
           console.error('Failed to reset member password', err)
-          void useDialogStore.getState().alert('Passwort konnte nicht zurückgesetzt werden - Stage-Server nicht erreichbar.')
+          void useDialogStore.getState().alert(i18n.t('band:err.resetFailed'))
           return null
         }
       },
@@ -655,18 +656,18 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           console.error('Failed to reach Stage-Server to set PIN', err)
           void useDialogStore
             .getState()
-            .alert('Stage-Server nicht erreichbar - Netzwerkverbindung und Stage-Server-Adresse prüfen, dann erneut versuchen.')
+            .alert(i18n.t('band:err.offline'))
           return null
         }
 
         if (!response.ok) {
           if (response.status === 403) {
-            void useDialogStore.getState().alert('Aktuelles Passwort falsch, oder dieses Gerät ist kein Admin mehr.')
+            void useDialogStore.getState().alert(i18n.t('band:err.wrongCurrent'))
           } else if (response.status === 400) {
-            void useDialogStore.getState().alert('PIN muss genau 4 Ziffern haben.')
+            void useDialogStore.getState().alert(i18n.t('band:err.pinDigits'))
           } else {
             console.error('Failed to set PIN', new Error(`HTTP ${response.status}`))
-            void useDialogStore.getState().alert('PIN konnte nicht gesetzt werden (Serverfehler) - bitte erneut versuchen.')
+            void useDialogStore.getState().alert(i18n.t('band:err.pinServer'))
           }
           return null
         }
@@ -678,7 +679,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           return { username: resolved.username, password: resolved.password }
         } catch (err) {
           console.error('Failed to parse set-pin response', err)
-          void useDialogStore.getState().alert('PIN konnte nicht gesetzt werden (unerwartete Server-Antwort) - bitte erneut versuchen.')
+          void useDialogStore.getState().alert(i18n.t('band:err.pinParse'))
           return null
         }
       },
@@ -719,7 +720,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           return (await response.json()) as { code: string }
         } catch (err) {
           console.error('Failed to rotate access code', err)
-          void useDialogStore.getState().alert('Code konnte nicht erneuert werden - Stage-Server nicht erreichbar.')
+          void useDialogStore.getState().alert(i18n.t('band:err.codeFailed'))
           return null
         }
       },
@@ -738,13 +739,13 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           console.error('Failed to reach Stage-Server for workspace list', err)
           void useDialogStore
             .getState()
-            .alert('Stage-Server nicht erreichbar - Netzwerkverbindung und Stage-Server-Adresse prüfen, dann erneut versuchen.')
+            .alert(i18n.t('band:err.offline'))
           return null
         }
 
         if (!response.ok) {
           console.error('Failed to list workspaces', new Error(`HTTP ${response.status}`))
-          void useDialogStore.getState().alert('Bands konnten nicht geladen werden (Serverfehler) - bitte erneut versuchen.')
+          void useDialogStore.getState().alert(i18n.t('band:err.listServer'))
           return null
         }
 
@@ -752,7 +753,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           return (await response.json()) as WorkspaceSummary[]
         } catch (err) {
           console.error('Failed to parse workspace list', err)
-          void useDialogStore.getState().alert('Bands konnten nicht geladen werden (unerwartete Server-Antwort).')
+          void useDialogStore.getState().alert(i18n.t('band:err.listParse'))
           return null
         }
       },
@@ -807,16 +808,16 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           })
           if (response.ok) return true
           if (response.status === 403) {
-            void useDialogStore.getState().alert('Falscher PIN.')
+            void useDialogStore.getState().alert(i18n.t('band:err.wrongPin'))
           } else if (response.status === 429) {
             void useDialogStore.getState().alert(pinLockoutMessage(response))
           } else {
-            void useDialogStore.getState().alert('PIN konnte nicht geprüft werden - Fehler beim Stage-Server.')
+            void useDialogStore.getState().alert(i18n.t('band:err.pinCheckServer'))
           }
           return false
         } catch (err) {
           console.error('Failed to verify admin PIN', err)
-          void useDialogStore.getState().alert('PIN konnte nicht geprüft werden - Stage-Server nicht erreichbar.')
+          void useDialogStore.getState().alert(i18n.t('band:err.pinCheckOffline'))
           return false
         }
       },
@@ -832,18 +833,18 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           })
           if (!response.ok) {
             if (response.status === 403) {
-              void useDialogStore.getState().alert('Admin-Nachweis abgelehnt - Wechsel nicht möglich.')
+              void useDialogStore.getState().alert(i18n.t('band:err.proofRejected'))
             } else if (response.status === 429) {
               void useDialogStore.getState().alert(pinLockoutMessage(response))
             } else {
-              void useDialogStore.getState().alert('Wechsel fehlgeschlagen - Stage-Server nicht erreichbar oder Fehler.')
+              void useDialogStore.getState().alert(i18n.t('band:err.switchFailedAny'))
             }
             return false
           }
           return true
         } catch (err) {
           console.error('Failed to activate workspace hardware', err)
-          void useDialogStore.getState().alert('Wechsel fehlgeschlagen - Stage-Server nicht erreichbar.')
+          void useDialogStore.getState().alert(i18n.t('band:err.switchOffline'))
           return false
         }
       },
@@ -870,16 +871,16 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           console.error('Failed to reach Stage-Server for roster', err)
           void useDialogStore
             .getState()
-            .alert('Stage-Server nicht erreichbar - Netzwerkverbindung und Stage-Server-Adresse prüfen, dann erneut versuchen.')
+            .alert(i18n.t('band:err.offline'))
           return null
         }
 
         if (!response.ok) {
           if (response.status === 403) {
-            void useDialogStore.getState().alert('Falscher Code.')
+            void useDialogStore.getState().alert(i18n.t('band:err.wrongCode'))
           } else {
             console.error('Failed to fetch roster', new Error(`HTTP ${response.status}`))
-            void useDialogStore.getState().alert('Beitritt fehlgeschlagen (Serverfehler) - bitte erneut versuchen.')
+            void useDialogStore.getState().alert(i18n.t('band:err.joinServer'))
           }
           return null
         }
@@ -888,7 +889,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           return (await response.json()) as WorkspaceRoster
         } catch (err) {
           console.error('Failed to parse roster response', err)
-          void useDialogStore.getState().alert('Beitritt fehlgeschlagen (unerwartete Server-Antwort) - bitte erneut versuchen.')
+          void useDialogStore.getState().alert(i18n.t('band:err.joinParse'))
           return null
         }
       },
@@ -910,18 +911,18 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           console.error('Failed to reach Stage-Server to join', err)
           void useDialogStore
             .getState()
-            .alert('Stage-Server nicht erreichbar - Netzwerkverbindung und Stage-Server-Adresse prüfen, dann erneut versuchen.')
+            .alert(i18n.t('band:err.offline'))
           return null
         }
 
         if (!response.ok) {
           if (response.status === 403) {
-            void useDialogStore.getState().alert('Falscher Code oder falsches Passwort.')
+            void useDialogStore.getState().alert(i18n.t('band:err.wrongCodeOrPassword'))
           } else if (response.status === 404) {
-            void useDialogStore.getState().alert('Unbekanntes Mitglied.')
+            void useDialogStore.getState().alert(i18n.t('band:err.unknownMember'))
           } else {
             console.error('Failed to join as member', new Error(`HTTP ${response.status}`))
-            void useDialogStore.getState().alert('Beitritt fehlgeschlagen (Serverfehler) - bitte erneut versuchen.')
+            void useDialogStore.getState().alert(i18n.t('band:err.joinServer'))
           }
           return null
         }
@@ -948,7 +949,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           return workspace
         } catch (err) {
           console.error('Failed to parse join response', err)
-          void useDialogStore.getState().alert('Beitritt fehlgeschlagen (unerwartete Server-Antwort) - bitte erneut versuchen.')
+          void useDialogStore.getState().alert(i18n.t('band:err.joinParse'))
           return null
         }
       },
@@ -975,18 +976,18 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           console.error('Failed to reach Stage-Server to activate profile', err)
           void useDialogStore
             .getState()
-            .alert('Stage-Server nicht erreichbar - Netzwerkverbindung und Stage-Server-Adresse prüfen, dann erneut versuchen.')
+            .alert(i18n.t('band:err.offline'))
           return null
         }
 
         if (!response.ok) {
           if (response.status === 403) {
-            void useDialogStore.getState().alert('Falsches Passwort.')
+            void useDialogStore.getState().alert(i18n.t('band:err.wrongPassword'))
           } else if (response.status === 404) {
-            void useDialogStore.getState().alert('Unbekanntes Mitglied.')
+            void useDialogStore.getState().alert(i18n.t('band:err.unknownMember'))
           } else {
             console.error('Failed to activate profile', new Error(`HTTP ${response.status}`))
-            void useDialogStore.getState().alert('Wechsel fehlgeschlagen (Serverfehler) - bitte erneut versuchen.')
+            void useDialogStore.getState().alert(i18n.t('band:err.switchServer'))
           }
           return null
         }
@@ -1003,7 +1004,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           return updated
         } catch (err) {
           console.error('Failed to parse activate-profile response', err)
-          void useDialogStore.getState().alert('Wechsel fehlgeschlagen (unerwartete Server-Antwort) - bitte erneut versuchen.')
+          void useDialogStore.getState().alert(i18n.t('band:err.switchParse'))
           return null
         }
       },

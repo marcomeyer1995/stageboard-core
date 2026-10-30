@@ -3,10 +3,19 @@ import type { ChordQualityId } from './chordReference'
 /** Fret per string, low E to high e. `null` = muted, 0 = open. */
 export type Frets = readonly (number | null)[]
 
+/** One finger laid across several strings on one fret, low string to high (indexes as in Frets). */
+export interface Barre {
+  fret: number
+  fromString: number
+  toString: number
+}
+
 export interface GuitarShape {
   frets: Frets
   /** First fret of the diagram window: 1 shows the nut, higher numbers a labelled position. */
   baseFret: number
+  /** The barre of a movable form above the nut - drawn as a bar, not as single dots. */
+  barre?: Barre
 }
 
 /** Standard tuning E A D G B E, as MIDI note numbers (E2 = 40). */
@@ -67,29 +76,42 @@ const E_ROOT_PITCH_CLASS = 4
 const A_ROOT_PITCH_CLASS = 9
 const HIGHEST_FRET = 15
 
-function place(form: Frets, rootFret: number): Frets {
-  return form.map((fret) => (fret === null ? null : fret + rootFret))
+function place(form: Frets, rootFret: number): GuitarShape {
+  const frets = form.map((fret) => (fret === null ? null : fret + rootFret))
+  // The index finger lies across every string the form leaves at the root fret.
+  const onRoot = form.flatMap((fret, string) => (fret === 0 ? [string] : []))
+  const barre = rootFret > 0 && onRoot.length >= 2 ? { fret: rootFret, fromString: onRoot[0]!, toString: onRoot[onRoot.length - 1]! } : undefined
+  return { ...withWindow(frets), ...(barre ? { barre } : {}) }
 }
 
 /**
- * A guitar shape for `qualityId` on `pitchClass` (0 = C), in standard tuning - a curated open shape
- * where there is a familiar one, otherwise the E-form or A-form barre chord, whichever sits lower
- * on the neck. Null only if no shape fits the neck (none of the supported combinations).
+ * Every shape this table knows for `qualityId` on `pitchClass` (0 = C), in standard tuning, from
+ * low on the neck to high (#609: a chord is played in several places - swipe through them): the
+ * familiar open shape where there is one, then the E-form and A-form barre chords below fret 12
+ * (higher up they only repeat these an octave up). Empty only if nothing fits.
  */
-export function guitarShapeFor(pitchClass: number, qualityId: ChordQualityId): GuitarShape | null {
+export function guitarShapesFor(pitchClass: number, qualityId: ChordQualityId): GuitarShape[] {
   const root = ((pitchClass % 12) + 12) % 12
   const open = OPEN_SHAPES[`${root}:${qualityId}`]
-  if (open) return withWindow(open)
-
-  const candidates: Frets[] = []
+  const movable: GuitarShape[] = []
   const eForm = E_FORM[qualityId]
   const aForm = A_FORM[qualityId]
-  if (eForm) candidates.push(place(eForm, (root - E_ROOT_PITCH_CLASS + 12) % 12))
-  if (aForm) candidates.push(place(aForm, (root - A_ROOT_PITCH_CLASS + 12) % 12))
-  const playable = candidates
-    .filter((frets) => frets.every((fret) => fret === null || (fret >= 0 && fret <= HIGHEST_FRET)))
-    .sort((a, b) => rootFretOf(a) - rootFretOf(b))
-  return playable.length > 0 ? withWindow(playable[0]) : null
+  // One octave of positions: from fret 12 on, every shape repeats one from below (Marco, 2026-10-28).
+  if (eForm) movable.push(place(eForm, (root - E_ROOT_PITCH_CLASS + 12) % 12))
+  if (aForm) movable.push(place(aForm, (root - A_ROOT_PITCH_CLASS + 12) % 12))
+  const seen = new Set<string>()
+  const shapes = [...(open ? [withWindow(open)] : []), ...movable.filter((shape) => shape.frets.every((fret) => fret === null || (fret >= 0 && fret <= HIGHEST_FRET))).sort((a, b) => rootFretOf(a.frets) - rootFretOf(b.frets))]
+  return shapes.filter((shape) => {
+    const key = shape.frets.join(',')
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
+/** The first of guitarShapesFor: the open shape, otherwise the lowest barre form. Null if none. */
+export function guitarShapeFor(pitchClass: number, qualityId: ChordQualityId): GuitarShape | null {
+  return guitarShapesFor(pitchClass, qualityId)[0] ?? null
 }
 
 function rootFretOf(frets: Frets): number {

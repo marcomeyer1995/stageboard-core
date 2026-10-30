@@ -122,11 +122,11 @@ describe('SetlistDetail - variant picker (portal, not a plain <select>)', () => 
     })
   })
 
-  it('shows the selected variant\'s label on its trigger button, not a native <select>', () => {
+  it('shows "Standard (Original)" on its trigger button for an entry following the default, not a native <select>', () => {
     renderEditing()
 
     const row = screen.getByText('1. Alpha').closest('li')!
-    expect(within(row).getByRole('button', { name: 'Original' })).toBeInTheDocument()
+    expect(within(row).getByRole('button', { name: 'Standard (Original)' })).toBeInTheDocument()
     expect(row.querySelector('select')).not.toBeInTheDocument()
   })
 
@@ -136,9 +136,12 @@ describe('SetlistDetail - variant picker (portal, not a plain <select>)', () => 
     renderEditing()
 
     const row = screen.getByText('1. Alpha').closest('li')!
-    fireEvent.click(within(row).getByRole('button', { name: 'Original' }))
+    fireEvent.click(within(row).getByRole('button', { name: 'Standard (Original)' }))
 
+    // Three choices: follow the default, or fix one of the two variants (Marco, 2026-10-29).
     expect(await screen.findByRole('button', { name: 'Akustik' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Original' })).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: 'Standard (Original)' })).toHaveLength(2)
     fireEvent.click(screen.getByRole('button', { name: 'Akustik' }))
     fireEvent.click(screen.getByRole('button', { name: 'Speichern' }))
 
@@ -147,6 +150,34 @@ describe('SetlistDetail - variant picker (portal, not a plain <select>)', () => 
         entries: [expect.objectContaining({ id: 'e1', variantId: 'v2' }), entry('e2', 'b')],
       }),
     ))
+  })
+})
+
+describe('SetlistDetail - following the default vs. a fixed variant (2026-10-29)', () => {
+  beforeEach(() => {
+    useSongVariantsStore.setState({ variants: [variant('v1', 'a', 'Original', true), variant('v2', 'a', 'Akustik', false)] })
+  })
+
+  it('the preview always names the variant that plays - "(Standard)" when the entry follows the default', () => {
+    useSetlistsStore.setState({ setlists: [{ ...setlist, entries: [entry('e1', 'a'), { id: 'e2', songId: 'a', variantId: 'v2', trackId: null }] }] })
+    render(<SetlistDetail setlistId="sl-1" onSelectSong={vi.fn()} onDeleted={vi.fn()} />)
+
+    expect(screen.getAllByText('Original (Std.)').length).toBeGreaterThan(0)
+    expect(screen.getAllByTitle('Original (Standard)').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Akustik').length).toBeGreaterThan(0)
+  })
+
+  it('"Standard" turns a fixed variant back into following the default', async () => {
+    const saveSetlist = vi.fn(async () => {})
+    useSetlistsStore.setState({ saveSetlist, setlists: [{ ...setlist, entries: [{ id: 'e1', songId: 'a', variantId: 'v1', trackId: null }, entry('e2', 'b')] }] })
+    renderEditing()
+
+    const row = screen.getByText('1. Alpha').closest('li')!
+    fireEvent.click(within(row).getByRole('button', { name: 'Original' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Standard (Original)' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Speichern' }))
+
+    await waitFor(() => expect(saveSetlist).toHaveBeenCalledWith(expect.objectContaining({ entries: [expect.objectContaining({ id: 'e1', variantId: null }), entry('e2', 'b')] })))
   })
 })
 
@@ -177,10 +208,12 @@ describe('SetlistDetail - preview and editing (Marco, 2026-10-07: like a song)',
     render(<SetlistDetail setlistId="sl-1" onSelectSong={vi.fn()} onDeleted={vi.fn()} />)
 
     expect(screen.getByRole('heading', { name: /Herbst-Tour 2026/ })).toBeInTheDocument()
-    expect(screen.getByText(/Auftritt .*24\.12\.2026/)).toBeInTheDocument()
-    expect(screen.getByText('Ende 23:00')).toBeInTheDocument()
-    expect(screen.getByText('2 Songs')).toBeInTheDocument()
+    // One grey line under the title (2026-10-29: no chip row of its own).
+    expect(screen.getByText(/^Auftritt .*24\.12\.2026 · 2 Songs · Ende 23:00$/)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Alpha/ })).toBeInTheDocument()
+    // (De)activating sits in ⋮ (2026-10-30) - one main action beside it.
+    expect(screen.queryByRole('button', { name: 'Aktivieren' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Menü: Herbst-Tour 2026' }))
     expect(screen.getByRole('button', { name: 'Aktivieren' })).toBeInTheDocument()
     expect(screen.queryByPlaceholderText('Songs durchsuchen…')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Speichern' })).not.toBeInTheDocument()
@@ -199,7 +232,7 @@ describe('SetlistDetail - preview and editing (Marco, 2026-10-07: like a song)',
     expect(await screen.findByRole('button', { name: 'Bearbeiten' })).toBeInTheDocument()
   })
 
-  it('"Abbrechen" with changes asks - "Verwerfen" throws them away', async () => {
+  it('← with changes asks - "Verwerfen" throws them away', async () => {
     const saveSetlist = vi.fn(async () => {})
     const askUnsaved = vi.fn(async () => 'discard' as const)
     useDialogStore.setState({ askUnsaved })
@@ -207,7 +240,7 @@ describe('SetlistDetail - preview and editing (Marco, 2026-10-07: like a song)',
     renderEditing()
 
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Verworfen' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Abbrechen' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Zurück zur Ansicht' }))
 
     await waitFor(() => expect(askUnsaved).toHaveBeenCalled())
     expect(await screen.findByRole('heading', { name: /Herbst-Tour 2026/ })).toBeInTheDocument()
@@ -222,12 +255,12 @@ describe('SetlistDetail - preview and editing (Marco, 2026-10-07: like a song)',
     renderEditing()
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Winter-Tour' } })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Abbrechen' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Zurück zur Ansicht' }))
     await waitFor(() => expect(askUnsaved).toHaveBeenCalledTimes(1))
     expect(screen.getByLabelText('Name')).toHaveValue('Winter-Tour')
 
     askUnsaved.mockResolvedValue('save')
-    fireEvent.click(screen.getByRole('button', { name: 'Abbrechen' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Zurück zur Ansicht' }))
     await waitFor(() => expect(saveSetlist).toHaveBeenCalledWith(expect.objectContaining({ name: 'Winter-Tour' })))
   })
 
@@ -265,11 +298,11 @@ describe('SetlistDetail - preview and editing (Marco, 2026-10-07: like a song)',
     )
   })
 
-  it('"Abbrechen" without changes goes straight back, no question', async () => {
+  it('← without changes goes straight back to the preview, no question (2026-10-30: no "Abbrechen" of its own)', async () => {
     const askUnsaved = vi.fn(async () => 'discard' as const)
     useDialogStore.setState({ askUnsaved })
     renderEditing()
-    fireEvent.click(screen.getByRole('button', { name: 'Abbrechen' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Zurück zur Ansicht' }))
     expect(await screen.findByRole('button', { name: 'Bearbeiten' })).toBeInTheDocument()
     expect(askUnsaved).not.toHaveBeenCalled()
   })
@@ -278,7 +311,7 @@ describe('SetlistDetail - preview and editing (Marco, 2026-10-07: like a song)',
 describe('SetlistDetail - preview ⋮ menu (#181, docs/15 D9)', () => {
   /** The page menu: ⋮ top right beside the setlist's name. */
   function headerMenuButton() {
-    const button = within(screen.getByRole('heading', { level: 2 }).parentElement!.parentElement!).getByTitle('Menü öffnen')
+    const button = screen.getByRole('button', { name: 'Menü: Herbst-Tour 2026' })
     expect(button.querySelector('svg.lucide-ellipsis-vertical')).not.toBeNull()
     return button
   }

@@ -1,0 +1,532 @@
+{
+  "prompter": {
+    "title": "Prompter",
+    "description": "Lyrics and chords, as smooth scroll or paginated view.",
+    "parts": {
+      "title": "Title",
+      "artist": "Artist",
+      "key": "Key"
+    }
+  },
+  "live-queue": {
+    "title": "Live queue",
+    "description": "The next songs of the setlist, with \"Play next\".",
+    "parts": {
+      "caption": "Caption",
+      "numbers": "Numbers",
+      "variant": "Variant",
+      "duration": "Duration"
+    }
+  },
+  "next-song": {
+    "title": "Next song",
+    "description": "Current and next song, back/next.",
+    "parts": {
+      "current": "Current",
+      "next": "Next"
+    }
+  },
+  "section-jump": {
+    "title": "Sections",
+    "description": "The song's sections from the timeline: the master jumps at the next bar or section end, or repeats a section - every device follows.",
+    "parts": {
+      "when": "Jump moment",
+      "loop": "Repeat"
+    }
+  },
+  "ready-check": {
+    "title": "Ready check",
+    "description": "The master asks whether everyone is ready and sees who is still missing; everyone else confirms in the notice.",
+    "parts": {
+      "missing": "Who is missing"
+    }
+  },
+  "active-setlist": {
+    "title": "Active setlist",
+    "description": "Shows which setlist is active - also without live queue/next song.",
+    "parts": {
+      "caption": "Caption",
+      "count": "Number of songs"
+    }
+  },
+  "show-transport": {
+    "title": "Show transport",
+    "description": "Play/pause/stop/reset for the current song - Gig or Solo practice, with or without a backing-track plugin.",
+    "parts": {
+      "title": "Song title",
+      "time": "Time",
+      "reset": "Reset"
+    }
+  },
+  "visual-metronome": {
+    "title": "Visual metronome",
+    "description": "Flashes in time with the active song (BPM/meter), downbeat in its own colour.",
+    "parts": {
+      "info": "Tempo & meter"
+    }
+  },
+  "loop-trainer": {
+    "title": "Loop trainer",
+    "description": "Solo practice: loops a part of the backing track seamlessly, optionally faster with every pass (pitch stays).",
+    "parts": {
+      "caption": "Caption"
+    }
+  },
+  "tempo-nudge": {
+    "title": "Tempo correction",
+    "description": "Live +/- adjustment of the click/metronome tempo without changing the song's BPM.",
+    "parts": {
+      "caption": "Caption"
+    }
+  },
+  "click-track": {
+    "title": "Click",
+    "description": "Synthesized click/metronome sound, on/off - plays on the device set up as click output.",
+    "parts": {
+      "caption": "Caption",
+      "state": "On/off"
+    }
+  },
+  "audio-mix": {
+    "title": "My mix",
+    "description": "Volume of track, click and announcements on this device - a fader and mute each.",
+    "parts": {
+      "hint": "Hint"
+    }
+  },
+  "stems": {
+    "title": "Stems",
+    "description": "Solo practice: a song's parts (drums, bass, guitar …) instead of the track - a fader, mute and solo each.",
+    "parts": {
+      "values": "Values"
+    },
+    "loading": "Tracks are loading - until then the track plays.",
+    "error": "Tracks could not be loaded - the track plays.",
+    "none": "This song has no tracks. In the song editor under Audio: “Separate stems” or upload stems.",
+    "noSong": "No song chosen.",
+    "onlyPractice": "Tracks only play in Solo practice - in Gig mode the track plays.",
+    "on": "Tracks instead of the track",
+    "set": "Track set"
+  },
+  "track-override": {
+    "title": "Variant & track",
+    "description": "Switches a song's backing track for now (e.g. \"1 guitar\" instead of \"no guitar\"); in Solo practice also the variant."
+  },
+  "midi-status": {
+    "title": "Foot switch",
+    "description": "State of the MIDI foot switch, jump to the next song part.",
+    "parts": {
+      "simulate": "Simulate"
+    }
+  },
+  "dashboard-switcher": {
+    "title": "Dashboard switcher",
+    "description": "Large buttons to switch between dashboards."
+  },
+  "iem-more-me": {
+    "title": "More me (IEM)",
+    "description": "Your own faders for the in-ear mix.",
+    "parts": {
+      "names": "Channel names",
+      "values": "Values"
+    }
+  },
+  "quick-actions": {
+    "title": "Quick actions",
+    "description": "Large buttons for ad-hoc show cues."
+  },
+  "lighting-cues": {
+    "title": "Lighting cues",
+    "description": "Large buttons for light cues on the DMX desk.",
+    "parts": {
+      "last": "Last"
+    }
+  },
+  "system-health": {
+    "title": "System status",
+    "description": "Traffic-light overview of all plugin capabilities, for setup/soundcheck.",
+    "parts": {
+      "plugins": "Plugins",
+      "sync": "Clock sync"
+    }
+  },
+  "sync-check": {
+    "title": "Sync check",
+    "description": "Flashes with the server clock - hold two devices side by side and check that they blink together.",
+    "parts": {
+      "caption": "Caption",
+      "offset": "Offset & drift"
+    }
+  },
+  "tuner": {
+    "title": "Tuner",
+    "description": "Chromatic tuner using the tablet's microphone.",
+    "parts": {
+      "octave": "Octave",
+      "cents": "Cents & Hz"
+    }
+  },
+  "stage-messenger": {
+    "title": "Stage messenger",
+    "description": "Flash a short message to everyone or single musicians: \"5 minutes left\", \"Tune guitar\", your own quick messages."
+  },
+  "show-notes": {
+    "title": "Show notes",
+    "description": "Live notes from band and crew, visible in the show report.",
+    "parts": {
+      "author": "Author",
+      "input": "Input"
+    }
+  },
+  "backup-status": {
+    "title": "Backup status",
+    "description": "At-a-glance indicator whether the backup plugin is reachable."
+  },
+  "festival-clock": {
+    "title": "Festival clock",
+    "description": "Expected end of the rest of the setlist - turns red when it ends after the target time (curfew).",
+    "parts": {
+      "caption": "Caption",
+      "target": "Target",
+      "estimate": "Estimate"
+    }
+  },
+  "clock": {
+    "title": "Clock",
+    "description": "Large, easy-to-read digital clock for the stage.",
+    "parts": {
+      "seconds": "Seconds"
+    }
+  },
+  "separator": {
+    "title": "Separator",
+    "description": "A simple line to set dashboard areas apart."
+  },
+  "device-status": {
+    "title": "Device status",
+    "description": "Live connection state of one chosen device.",
+    "parts": {
+      "name": "Device name"
+    }
+  },
+  "custom-trigger": {
+    "title": "Trigger button",
+    "description": "A button for any action: show, sections, playback or a device command - momentary, latching or timed."
+  },
+  "chord-reference": {
+    "title": "Chord lookup",
+    "description": "Pick a root and chord type: notes, intervals, guitar shape and keyboard.",
+    "parts": {
+      "notes": "Notes",
+      "intervals": "Intervals",
+      "guitar": "Guitar shape",
+      "piano": "Keyboard"
+    }
+  },
+  "circle-of-fifths": {
+    "title": "Circle of fifths",
+    "description": "Tap a key: relative key, dominant, subdominant and key signature at a glance.",
+    "parts": {
+      "relations": "Related keys",
+      "signature": "Key signature"
+    }
+  },
+  "co": {
+    "decrease": "Decrease {{label}}",
+    "increase": "Increase {{label}}",
+    "keyIs": "Key: {{key}}",
+    "keyStep": "Key {{step}}",
+    "key": "Key",
+    "reset": "Reset",
+    "done": "Done",
+    "transpose": "Transpose",
+    "capo": "Capo",
+    "authored": "Chords are written for capo {{capo}}.",
+    "local": "Applies only on this device and only to this song."
+  },
+  "w": {
+    "size": "Size",
+    "error": "Error",
+    "textSize": "Text size",
+    "choose": "choose…",
+    "noSongs": "No songs yet",
+    "noTrack": "No track attached",
+    "done": "Done",
+    "noteName": "Note name",
+    "sharp": "Sharp (F#)",
+    "flat": "Flat (Gb)",
+    "announcement": "Announcement",
+    "section": "Section",
+    "unknown": "Unknown",
+    "mute": "Mute",
+    "solo": "Solo"
+  },
+  "loop": {
+    "onlyPractice": "Only available in Solo practice",
+    "caption": "Loop trainer",
+    "setA": "Set A",
+    "setB": "Set B",
+    "from": "From section",
+    "to": "To the end of",
+    "pass": "Pass {{n}} · {{pct}} %",
+    "tempoRange": "Tempo {{from}} → {{to}} %",
+    "tempo": "Tempo {{pct}} %",
+    "stop": "Stop loop",
+    "starting": "Loop starting…",
+    "start": "Start loop",
+    "tempoTitle": "Loop tempo",
+    "tempoLabel": "Tempo",
+    "trainer": "Speed trainer",
+    "target": "Target",
+    "step": "Per pass +",
+    "passDisplay": "Pass display",
+    "decrease": "Decrease {{label}}",
+    "increase": "Increase {{label}}"
+  },
+  "active": {
+    "caption": "Active setlist",
+    "none": "None"
+  },
+  "mix": {
+    "silentHere": "In Gig mode this device plays no sound - the mix here applies to practice and the timeline."
+  },
+  "backup": {
+    "available": "Backup online",
+    "degraded": "Backup not reachable",
+    "missing": "No backup plug-in"
+  },
+  "chord": {
+    "root": "Root",
+    "quality": "Chord type",
+    "noShape": "No chord shape",
+    "name": "Chord name"
+  },
+  "cof": {
+    "aria": "Circle of fifths",
+    "description": "Description"
+  },
+  "click": {
+    "standard": "Default",
+    "standardShort": "Def.",
+    "on": "On",
+    "off": "Off",
+    "noOutput": "No click output device set up",
+    "caption": "Click",
+    "thisDevice": " · this device"
+  },
+  "trig": {
+    "noAction": "No action chosen",
+    "noSwitch": "Switch missing",
+    "noDevice": "Target device missing",
+    "masterOnly": "Only the master controls the show",
+    "label": "Label",
+    "labelHint": "Empty or “Trigger”: the name of the switch.",
+    "color": "Colour",
+    "legacy": "The previous command had invalid JSON and is sent without these values - please choose again."
+  },
+  "switcher": {
+    "hint": "Shows the same dashboards as the menu: hide and sort under ☰ → Dashboards → “Arrange”, Gig/Solo in the dashboard’s settings.",
+    "orientation": "Orientation",
+    "horizontal": "Horizontal (bar)",
+    "vertical": "Vertical (column)"
+  },
+  "dev": {
+    "available": "Online",
+    "degraded": "Not reachable",
+    "missing": "Not connected",
+    "caption": "Device status",
+    "none": "No device chosen",
+    "device": "Device",
+    "choose": "— choose a device —"
+  },
+  "fest": {
+    "caption": "Expected end",
+    "target": "Target {{time}} · ",
+    "over": "{{min}} over",
+    "buffer": "{{min}} buffer",
+    "setTarget": "Set a target end in the setlist",
+    "estimated_one": "{{count}} song estimated (length unknown)",
+    "estimated_other": "{{count}} songs estimated (length unknown)",
+    "preview": "Target 23:00 · 5 min over"
+  },
+  "light": {
+    "full": "Full",
+    "dim": "Dim",
+    "chase": "Chase",
+    "color": "Colour change"
+  },
+  "q": {
+    "drag": "Drag to reorder",
+    "playNext": "Play next",
+    "remove": "Remove from the queue",
+    "sort": "Sort",
+    "caption": "Queue",
+    "noSongs": "No songs in the setlist.",
+    "noSetlist": "No setlist active.",
+    "previewAnnouncement": "Merch stand announcement"
+  },
+  "midi": {
+    "unsupported": "No WebMIDI",
+    "noDevice": "No foot switch",
+    "connected": "Foot switch connected",
+    "simulate": "Simulate foot switch"
+  },
+  "next": {
+    "prevTitle": "Previous song",
+    "nextTitle": "Next song",
+    "back": "Back",
+    "next": "Next"
+  },
+  "pr": {
+    "capo": "Capo {{capo}}",
+    "tuning": "Tuning {{tuning}}",
+    "about": "approx. {{time}}",
+    "left": "{{s}} s left",
+    "page": "Page {{n}}",
+    "view": "View",
+    "chords": "Chords",
+    "title": "Title",
+    "artist": "Artist",
+    "pageSection": "Section (paginated view)",
+    "keyLine": "Key/tuning/capo",
+    "comments": "Comments"
+  },
+  "qa": {
+    "strobe": "Strobe",
+    "blackout": "Blackout",
+    "sparks": "Cold sparks",
+    "talkback": "Talkback"
+  },
+  "rc": {
+    "onlyGig": "Gig only",
+    "askTitle": "Ask every tablet whether the band is ready",
+    "caption": "Ready check",
+    "masterStarts": "The master starts the ready check",
+    "endTitle": "End the ready check",
+    "end": "End"
+  },
+  "sj": {
+    "none": "No sections with a time in the timeline",
+    "noEnd": "This section has no known end - choose “End of bar”.",
+    "next": "Next section: {{name}}",
+    "jump": "Jump",
+    "repeating": "Repeating: {{name}}",
+    "masterOnly": "The master can jump",
+    "whilePlaying": "Jump while the song is playing",
+    "aria": "Sections",
+    "when": "Jump at",
+    "bar": "End of bar",
+    "section": "End of section",
+    "stopRepeat": "Stop repeating",
+    "repeat": "Repeat"
+  },
+  "sep": {
+    "orientation": "Orientation",
+    "horizontal": "Horizontal",
+    "vertical": "Vertical",
+    "color": "Colour"
+  },
+  "note": {
+    "noShow": "No show active yet.",
+    "none": "No notes yet.",
+    "placeholder": "Add a note…",
+    "add": "Add"
+  },
+  "tr": {
+    "noSong": "No song active",
+    "noControl": "This device currently has no control over the show",
+    "play": "Play",
+    "pause": "Pause",
+    "stop": "Stop",
+    "reset": "Reset",
+    "remoteAudio": "Audio plays on another device",
+    "extended": "Extended - runs past the regular length",
+    "titleClock": "Title & clock",
+    "buttons": "Buttons"
+  },
+  "flash": {
+    "min5": "5 minutes left",
+    "lastSong": "Last song",
+    "vamp": "VAMP",
+    "tune": "Tune guitar",
+    "slower": "Slower",
+    "faster": "Faster",
+    "end": "Finish!"
+  },
+  "msg": {
+    "sentTo": "Sent to {{to}}: “{{text}}”",
+    "notSignedIn": "Not sent - this device is not signed in to the band.",
+    "offline": "Not sent - Stage server not reachable.",
+    "everyone": "everyone",
+    "recipients": "Recipients",
+    "to": "To",
+    "all": "All",
+    "own": "Own message…",
+    "toAria": "Message to {{to}}",
+    "send": "Send",
+    "quick": "Quick messages",
+    "n": "Message {{n}}",
+    "new": "New message",
+    "restore": "Restore defaults"
+  },
+  "sync": {
+    "caption": "Sync flash - compare devices",
+    "offset": "Offset {{offset}} ms · drift {{drift}} ms"
+  },
+  "health": {
+    "available": "Online",
+    "degraded": "Disturbed",
+    "missing": "Missing",
+    "caption": "System status",
+    "none": "No plug-ins installed.",
+    "clock": "Clock sync",
+    "server": "Stage server",
+    "notYet": "Not synchronised yet",
+    "detail": "Offset {{offset}} ms · drift {{drift}} ms · {{s}}s ago"
+  },
+  "nudge": {
+    "onlyGig": "Only available in Gig mode",
+    "caption": "Tempo correction",
+    "down": "Decrease tempo",
+    "resetTitle": "Reset to 0 %",
+    "up": "Increase tempo",
+    "reset": "Reset"
+  },
+  "to": {
+    "noTrack": "No track attached",
+    "oneTrack": "Only one track - no switch needed",
+    "noneShort": "none attached",
+    "oneShort": "only one",
+    "variantPrefix": "Variant: ",
+    "trackPrefix": "Track: ",
+    "variant": "Variant",
+    "track": "Track"
+  },
+  "tun": {
+    "off": "Off",
+    "enable": "Enable microphone",
+    "waiting": "Waiting for microphone access…",
+    "insecure": "The microphone needs a secure connection (HTTPS or localhost) - not available over http in the LAN, whatever the device.",
+    "unsupported": "The microphone is not supported by this browser.",
+    "denied": "No access to the microphone.",
+    "play": "Play a note…",
+    "sensitivity": "Sensitivity",
+    "insensitive": "Insensitive",
+    "sensitive": "Sensitive",
+    "speed": "Response speed",
+    "fast": "Fast",
+    "stable": "Stable",
+    "reference": "Reference pitch",
+    "standard": "440 Hz (standard)",
+    "noteNames": "Note names",
+    "meter": "Display (bar & needle)"
+  },
+  "met": {
+    "noSong": "No song active",
+    "countIn": "Counting in…",
+    "waiting": "Waiting for play",
+    "display": "Display",
+    "number": "Number (beat in bar)",
+    "dots": "Dots (position in bar)"
+  }
+}

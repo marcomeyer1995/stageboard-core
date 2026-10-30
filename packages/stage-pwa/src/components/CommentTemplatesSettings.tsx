@@ -3,6 +3,7 @@ import { useBandSettingsStore } from '../store/useBandSettingsStore'
 import { useDialogStore } from '../store/useDialogStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { AddRow, IconButton, InfoHint } from './ui'
+import { useTranslation } from 'react-i18next'
 
 /** The band's comment templates (#608), or the defaults while the band has none of its own. */
 export function useCommentTemplates(): readonly string[] {
@@ -15,6 +16,7 @@ export function useCommentTemplates(): readonly string[] {
  * rule), like "Geprobt".
  */
 export function CommentTemplatesSettings() {
+  const { t } = useTranslation('band')
   const settings = useBandSettingsStore((state) => state.settings)
   const save = useBandSettingsStore((state) => state.save)
   const isAdmin = useWorkspaceStore((state) => state.workspaces.find((w) => w.id === state.activeWorkspaceId)?.isAdmin ?? false)
@@ -23,28 +25,28 @@ export function CommentTemplatesSettings() {
   const store = (next: string[]) => void save({ ...settings, commentTemplates: next })
 
   return (
-    <section aria-label="Kommentar-Vorlagen" className="space-y-2">
+    <section aria-label={t('templates.title')} className="space-y-2">
       <div className="flex items-center gap-1">
-        <h2 className="text-xs font-bold uppercase tracking-widest text-ink-faint">Kommentar-Vorlagen</h2>
-        <InfoHint label="Erklärung: Kommentar-Vorlagen" text="Im Song-Editor bei „+ Kommentar“ zum Antippen - für alle Geräte der Band." />
+        <h2 className="text-xs font-bold uppercase tracking-widest text-ink-faint">{t('templates.title')}</h2>
+        <InfoHint label={t('templates.explainLabel')} text={t('templates.explain')} />
       </div>
       {/* Who may change it is a consequence, not an explanation - stays visible. */}
-      {!isAdmin && <p className="text-sm text-ink-faint">Nur der Band-Admin kann die Vorlagen ändern.</p>}
+      {!isAdmin && <p className="text-sm text-ink-faint">{t('templates.adminOnly')}</p>}
       <ul className="flex flex-col gap-1">
         {templates.map((template) => (
           <li key={template} className="flex min-h-form items-center gap-2 rounded-control bg-control pl-4 pr-1 text-base text-ink">
             <span className="min-w-0 flex-1 truncate">{template}</span>
             {isAdmin && (
-              <IconButton icon="delete" label={`Vorlage „${template}“ löschen`} variant="quiet" onClick={() => store(templates.filter((t) => t !== template))} />
+              <IconButton icon="delete" label={t('templates.delete', { template })} variant="quiet" onClick={() => store(templates.filter((other) => other !== template))} />
             )}
           </li>
         ))}
       </ul>
       {isAdmin && (
         <AddRow
-          label="Neue Vorlage"
+          label={t('templates.new')}
           onClick={async () => {
-            const text = (await promptText('Neue Vorlage', { label: 'Text des Kommentars' }))?.trim()
+            const text = (await promptText(t('templates.new'), { label: t('templates.text') }))?.trim()
             if (text && !templates.includes(text)) store([...templates, text])
           }}
         />

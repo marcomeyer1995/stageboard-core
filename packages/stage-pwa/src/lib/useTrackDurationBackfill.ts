@@ -1,3 +1,4 @@
+import i18n from '../i18n'
 import { useEffect, useRef, useState } from 'react'
 import { resolveTrackForEntry } from './computeQueue'
 import { measureAudioDurationMs } from './measureAudioDuration'
@@ -51,7 +52,7 @@ export function useTrackDurationBackfill(): void {
         const durationMs = blob ? await measureAudioDurationMs(blob) : null
         const current = useSongVariantsStore.getState().variants.find((variant) => variant.id === variantId)
         if (durationMs === null || !current) {
-          fail(trackId, blob ? 'Länge nicht lesbar' : 'Track nicht verfügbar')
+          fail(trackId, blob ? i18n.t('messages:lengthUnreadable') : i18n.t('messages:trackUnavailable'))
           return
         }
         await useSongVariantsStore.getState().saveVariant({
@@ -59,7 +60,7 @@ export function useTrackDurationBackfill(): void {
           tracks: current.tracks.map((t) => (t.id === trackId ? { ...t, durationMs } : t)),
         })
       } catch (error) {
-        fail(trackId, error instanceof Error ? error.message : 'unbekannter Fehler')
+        fail(trackId, error instanceof Error ? error.message : i18n.t('messages:unknownError'))
       } finally {
         busyRef.current = false
         setTick((n) => n + 1)

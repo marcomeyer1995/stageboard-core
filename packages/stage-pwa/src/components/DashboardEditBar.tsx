@@ -15,6 +15,7 @@ import { Icon } from './Icon'
 import { Button, IconButton, menuIcon } from './ui'
 import { CONTROL, FOCUS, HOVER } from './ui/styles'
 import { DashboardSettingsDialog } from './DashboardSettingsDialog'
+import { useTranslation } from 'react-i18next'
 
 interface DashboardEditBarProps {
   dashboard: Dashboard
@@ -23,6 +24,7 @@ interface DashboardEditBarProps {
 }
 
 export function DashboardEditBar({ dashboard, breakpoint, capabilities }: DashboardEditBarProps) {
+  const { t } = useTranslation('dashboard')
   const save = useDashboardsStore((state) => state.save)
   const rename = useDashboardsStore((state) => state.rename)
   const create = useDashboardsStore((state) => state.create)
@@ -35,7 +37,7 @@ export function DashboardEditBar({ dashboard, breakpoint, capabilities }: Dashbo
   const activeProfile = useActiveProfile()
 
   async function askName() {
-    const name = (await promptText('Dashboard umbenennen', { label: 'Name', defaultValue: dashboard.name, submitLabel: 'Übernehmen' }))?.trim()
+    const name = (await promptText(t('rename'), { label: t('name'), defaultValue: dashboard.name, submitLabel: t('apply') }))?.trim()
     if (name && name !== dashboard.name) void rename(dashboard.id, name)
   }
 
@@ -65,7 +67,7 @@ export function DashboardEditBar({ dashboard, breakpoint, capabilities }: Dashbo
       <button
         type="button"
         onClick={() => void askName()}
-        title="Umbenennen"
+        title={t('renameTitle')}
         className={`flex h-form min-w-0 flex-1 items-center gap-2 px-2 text-left text-lg font-semibold text-ink ${CONTROL} ${FOCUS} ${HOVER}`}
       >
         <span className="truncate">{dashboard.name}</span>
@@ -73,15 +75,15 @@ export function DashboardEditBar({ dashboard, breakpoint, capabilities }: Dashbo
       </button>
 
       <Button variant="primary" icon="add" onClick={() => setShowLibrary(true)} className="flex-shrink-0 !px-3">
-        Widget
+        {t('widget')}
       </Button>
 
       {/* Wide like "+ Widget" (Marco: the small ⋯ was hard to hit). ⋮: the whole dashboard's
           menu (docs/15 D9). */}
-      <IconButton icon={menuIcon('page')} label="Dashboard-Einstellungen" onClick={() => setShowSettings(true)} className="!w-16 flex-shrink-0" />
+      <IconButton icon={menuIcon('page')} label={t('settings')} onClick={() => setShowSettings(true)} className="!w-16 flex-shrink-0" />
 
-      <Button icon="locked" aria-label="Bearbeiten beenden" onClick={() => setEditing(false)} className="flex-shrink-0 !px-3">
-        <span className="hidden sm:inline">Fertig</span>
+      <Button icon="locked" aria-label={t('stopEditing')} onClick={() => setEditing(false)} className="flex-shrink-0 !px-3">
+        <span className="hidden sm:inline">{t('done')}</span>
       </Button>
 
       {showSettings && <DashboardSettingsDialog dashboard={dashboard} onClose={() => setShowSettings(false)} />}

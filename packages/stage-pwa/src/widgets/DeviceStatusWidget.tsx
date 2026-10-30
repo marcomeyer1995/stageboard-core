@@ -1,3 +1,5 @@
+import i18n from '../i18n'
+import { useTranslation } from 'react-i18next'
 import { useShowPart } from '../lib/widgetParts'
 import { Select } from '../components/ui'
 import { CAPABILITIES, type CapabilityId } from 'shared-types'
@@ -12,9 +14,15 @@ import { SizeRatioSlider } from './SizeRatioSlider'
 import { stageFontSize } from '../lib/stageSize'
 
 const STATUS_LABEL: Record<CapabilityStatus, string> = {
-  available: 'Online',
-  degraded: 'Nicht erreichbar',
-  missing: 'Nicht verbunden',
+  get available() {
+    return i18n.t('widgets:dev.available')
+  },
+  get degraded() {
+    return i18n.t('widgets:dev.degraded')
+  },
+  get missing() {
+    return i18n.t('widgets:dev.missing')
+  },
 }
 
 const STATUS_DOT: Record<CapabilityStatus, string> = {
@@ -30,6 +38,7 @@ const STATUS_DOT: Record<CapabilityStatus, string> = {
  * (#149) each show their own real state instead of one blended answer.
  */
 export function DeviceStatusWidget({ config }: { config: DeviceStatusConfig }) {
+  const { t } = useTranslation('widgets')
   // Parts left out under "Anzeigen" in the ⋯ menu (Marco, 2026-10-17: declutter every widget).
   const showName = useShowPart('name')
   const devices = useLogicalDevicesStore((s) => s.devices)
@@ -49,9 +58,9 @@ export function DeviceStatusWidget({ config }: { config: DeviceStatusConfig }) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-1 text-center">
         <span className="text-xs font-bold uppercase tracking-widest text-ink-faint">
-          Geräte-Status
+          {t('dev.caption')}
         </span>
-        <span className="text-ink-faint">Kein Gerät ausgewählt</span>
+        <span className="text-ink-faint">{t('dev.none')}</span>
       </div>
     )
   }
@@ -92,18 +101,19 @@ export function DeviceStatusConfigPanel({
   config: DeviceStatusConfig
   onChange: (next: DeviceStatusConfig) => void
 }) {
+  const { t } = useTranslation('widgets')
   const devices = useLogicalDevicesStore((s) => s.devices)
 
   return (
     <div className="flex flex-col gap-3">
       <Select
-        label="Gerät"
+        label={t('dev.device')}
         value={config.logicalDeviceId ?? ''}
         onChange={(e) => onChange({ ...config, logicalDeviceId: e.target.value || undefined })}
-        options={[{ value: '', label: '— Gerät wählen —' }, ...devices.map((device) => ({ value: device.id, label: device.name }))]}
+        options={[{ value: '', label: t('dev.choose') }, ...devices.map((device) => ({ value: device.id, label: device.name }))]}
       />
       <SizeRatioSlider
-        label="Größe"
+        label={t('w.size')}
         ratio={config.sizeRatio ?? DEFAULT_SIZE_RATIO}
         onChange={(sizeRatio) => onChange({ ...config, sizeRatio })}
       />

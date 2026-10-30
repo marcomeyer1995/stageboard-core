@@ -1,33 +1,35 @@
+import i18n from '../i18n'
 import { useState } from 'react'
 import { runAudioCalibration, type AudioCalibrationOutcome } from '../lib/audioCalibration'
-import { AUDIO_OUTPUT, SERVER_EXECUTION_TARGET, latencyProfileId, type AudioRoute, type LatencyProfileDoc } from 'shared-types'
+import { AUDIO_OUTPUT, AudioRouteSchema, SERVER_EXECUTION_TARGET, latencyProfileId, type AudioRoute, type LatencyProfileDoc } from 'shared-types'
 import { getDeviceId } from '../lib/deviceId'
 import { useAudioRouteStore } from '../store/useAudioRouteStore'
 import { useLatencyProfilesStore } from '../store/useLatencyProfilesStore'
 import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
-import { audioOutputLatencyMs, ROUTE_LABEL } from '../lib/latencyProfiles'
+import { audioOutputLatencyMs, routeLabel } from '../lib/latencyProfiles'
 import { LatencyCompensationSettings } from './LatencyCompensationSettings'
 import { Button, Dialog, Field, Select } from './ui'
+import { useTranslation } from 'react-i18next'
 
 
-const SOURCE_LABEL: Record<LatencyProfileDoc['source'], string> = { measured: 'gemessen', manual: 'von Hand', 'plugin-default': 'Plugin' }
 
 function useOutputName(): (output: string) => string {
   const logicalDevices = useLogicalDevicesStore((state) => state.devices)
-  return (output) => (output === AUDIO_OUTPUT ? 'Ton' : (logicalDevices.find((d) => d.id === output)?.name ?? 'Gelöschtes Gerät'))
+  return (output) => (output === AUDIO_OUTPUT ? i18n.t('devices:lat.sound') : (logicalDevices.find((d) => d.id === output)?.name ?? i18n.t('devices:lat.deletedDevice')))
 }
 
 function profileLabel(profile: LatencyProfileDoc, outputName: (output: string) => string): string {
-  const where = profile.route ? `${outputName(profile.output)} · ${ROUTE_LABEL[profile.route]}` : outputName(profile.output)
-  return `${where} ${Math.round(profile.latencyMs)} ms (${SOURCE_LABEL[profile.source]})`
+  const where = profile.route ? `${outputName(profile.output)} · ${routeLabel(profile.route)}` : outputName(profile.output)
+  return i18n.t('devices:lat.profile', { where, ms: Math.round(profile.latencyMs), source: i18n.t(`devices:src.${profile.source}`) })
 }
 
 /** One line per device in the Geräte tab: its stored latencies (docs/21 §3, #491). Nothing when none. */
 export function LatencySummary({ deviceId }: { deviceId: string }) {
+  const { t } = useTranslation('devices')
   const profiles = useLatencyProfilesStore((state) => state.profiles).filter((p) => p.deviceId === deviceId)
   const outputName = useOutputName()
   if (profiles.length === 0) return null
-  return <p className="mt-2 text-sm text-ink-soft">Latenz: {profiles.map((p) => profileLabel(p, outputName)).join(' · ')}</p>
+  return <p className="mt-2 text-sm text-ink-soft">{t('lat.summary', { list: profiles.map((p) => profileLabel(p, outputName)).join(' · ') })}</p>
 }
 
 /** A check passes when the click lands this close to the server second - above the laptop
@@ -40,6 +42,7 @@ const CHECK_TOLERANCE_MS = 15
  * the current route; "Prüfen" plays with the stored value and should land near 0 (soundcheck).
  */
 function AudioCalibrationSection({ deviceId }: { deviceId: string }) {
+  const { t } = useTranslation('devices')
   const profiles = useLatencyProfilesStore((state) => state.profiles)
   const save = useLatencyProfilesStore((state) => state.save)
   const route = useAudioRouteStore((state) => state.route)
@@ -61,36 +64,38 @@ function AudioCalibrationSection({ deviceId }: { deviceId: string }) {
   if (outcome && !outcome.outcome.ok) message = outcome.outcome.message
   else if (outcome?.outcome.ok && outcome.outcome.status.state === 'failed') message = outcome.outcome.status.error
   else if (outcome && (!match || !match.reliable))
-    message = `Nicht eindeutig (${match?.matched ?? 0} von ${match?.total ?? 12} Klicks erkannt) - lauter stellen oder näher an den Stage-Server und wiederholen.`
+    message = t('lat.unclear', { matched: match?.matched ?? 0, total: match?.total ?? 12 })
   else if (outcome?.kind === 'check' && match)
     message =
       Math.abs(match.latencyMs) <= CHECK_TOLERANCE_MS
-        ? `Passt: der Klick landet ${match.latencyMs >= 0 ? '+' : ''}${Math.round(match.latencyMs)} ms neben dem Schlag.`
-        : `Weicht um ${match.latencyMs >= 0 ? '+' : ''}${Math.round(match.latencyMs)} ms ab - neu messen.`
+        ? t('lat.fits', { ms: `${match.latencyMs >= 0 ? '+' : ''}${Math.round(match.latencyMs)}` })
+        : t('lat.off', { ms: `${match.latencyMs >= 0 ? '+' : ''}${Math.round(match.latencyMs)}` })
 
   return (
-    <section className="flex flex-col gap-2 rounded-container border border-line p-3" aria-label="Mit Mikrofon messen">
-      <h3 className="text-base font-bold text-ink">Mit dem Mikrofon des Stage-Servers ({ROUTE_LABEL[route]})</h3>
+    <section className="flex flex-col gap-2 rounded-container border border-line p-3" aria-label={t('lat.micLabel')}>
+      <h3 className="text-base font-bold text-ink">{t('lat.micTitle', { route: routeLabel(route) })}</h3>
       <p className="text-sm text-ink-muted">
-        Spielt 12 Klicks in unregelmäßigem Abstand; der Stage-Server hört mit und findet die Verzögerung. Gerät nah an den Stage-Server, Ton deutlich hörbar.
+        {t('lat.micInfo')}
       </p>
       <div className="flex flex-wrap gap-2">
         <Button variant="primary" disabled={running !== null} onClick={() => void run('measure')}>
-          Messen
+          {t('lat.measure')}
         </Button>
         <Button disabled={running !== null || stored === 0} onClick={() => void run('check')}>
-          Prüfen
+          {t('lat.check')}
         </Button>
       </div>
       {running && (
         <p role="status" className="text-base text-ink">
-          {running === 'measure' ? 'Misst' : 'Prüft'} … noch {Math.ceil(msLeft / 1000)} s
+          {t(running === 'measure' ? 'lat.measuring' : 'lat.checking', { s: Math.ceil(msLeft / 1000) })}
         </p>
       )}
       {outcome?.kind === 'measure' && match?.reliable && (
         <div className="flex flex-wrap items-center gap-3">
           <p className="text-base text-ink">
-            Gemessen: <strong>{Math.round(match.latencyMs)} ms</strong> ({match.matched} von {match.total} Klicks, Streuung {Math.round(match.jitterMs)} ms)
+            {t('lat.measured')}
+            <strong>{Math.round(match.latencyMs)} ms</strong>
+            {t('lat.measuredDetail', { matched: match.matched, total: match.total, jitter: Math.round(match.jitterMs) })}
           </p>
           <Button
             variant="primary"
@@ -109,7 +114,7 @@ function AudioCalibrationSection({ deviceId }: { deviceId: string }) {
               }).then(() => setOutcome(null))
             }
           >
-            Übernehmen
+            {t('lat.apply')}
           </Button>
         </div>
       )}
@@ -128,6 +133,7 @@ function AudioCalibrationSection({ deviceId }: { deviceId: string }) {
  * output is a Logical Device this device drives.
  */
 export function LatencyProfileDialog({ deviceId, deviceName, onClose }: { deviceId: string; deviceName: string; onClose: () => void }) {
+  const { t } = useTranslation('devices')
   const profiles = useLatencyProfilesStore((state) => state.profiles).filter((p) => p.deviceId === deviceId)
   const save = useLatencyProfilesStore((state) => state.save)
   const remove = useLatencyProfilesStore((state) => state.remove)
@@ -137,7 +143,7 @@ export function LatencyProfileDialog({ deviceId, deviceName, onClose }: { device
 
   const isServer = deviceId === SERVER_EXECUTION_TARGET
   const driven = logicalDevices.filter((d) => (isServer ? d.executionTarget === SERVER_EXECUTION_TARGET : d.executionTarget === deviceId))
-  const outputs = [...(isServer ? [] : [{ value: AUDIO_OUTPUT, label: 'Ton (Klick und Backing-Track)' }]), ...driven.map((d) => ({ value: d.id, label: d.name }))]
+  const outputs = [...(isServer ? [] : [{ value: AUDIO_OUTPUT, label: t('lat.soundOutput') }]), ...driven.map((d) => ({ value: d.id, label: d.name }))]
 
   const [output, setOutput] = useState(outputs[0]?.value ?? '')
   const [route, setRoute] = useState<AudioRoute>(deviceId === getDeviceId() ? currentRoute : 'speaker')
@@ -161,11 +167,10 @@ export function LatencyProfileDialog({ deviceId, deviceName, onClose }: { device
   }
 
   return (
-    <Dialog title={`Latenz - ${deviceName}`} onClose={onClose}>
+    <Dialog title={t('lat.title', { device: deviceName })} onClose={onClose}>
       <div className="flex flex-col gap-4">
         <p className="text-sm text-ink-muted">
-          Wie viel später als geplant ein Ausgang wirklich klingt oder schaltet. Das Gerät sendet um diesen Wert früher, damit alles auf dem Schlag ankommt. Ton gilt je
-          Ausgabeweg (Lautsprecher, Kopfhörer, Bluetooth, USB).
+          {t('lat.info')}
         </p>
         {/* The on/off switch beside the values it uses (Marco, 2026-10-16 - it was alone in "Ton & Timing"). */}
         {deviceId === getDeviceId() && <LatencyCompensationSettings />}
@@ -175,7 +180,7 @@ export function LatencyProfileDialog({ deviceId, deviceName, onClose }: { device
               <li key={p.id} className="flex items-center justify-between gap-3 rounded-container border border-line px-3 py-2">
                 <span className="text-base text-ink">{profileLabel(p, outputName)}</span>
                 <Button variant="quiet" onClick={() => void remove(p.id)}>
-                  Entfernen
+                  {t('lat.remove')}
                 </Button>
               </li>
             ))}
@@ -183,21 +188,21 @@ export function LatencyProfileDialog({ deviceId, deviceName, onClose }: { device
         )}
         {deviceId === getDeviceId() && <AudioCalibrationSection deviceId={deviceId} />}
         {outputs.length === 0 ? (
-          <p className="text-base text-ink-faint">Dieses Gerät steuert keinen Ausgang.</p>
+          <p className="text-base text-ink-faint">{t('lat.noOutput')}</p>
         ) : (
           <div className="flex flex-col gap-3">
-            <Select label="Ausgang" value={output} onChange={(e) => setOutput(e.target.value)} options={outputs} />
+            <Select label={t('lat.output')} value={output} onChange={(e) => setOutput(e.target.value)} options={outputs} />
             {output === AUDIO_OUTPUT && (
               <Select
-                label="Ausgabeweg"
+                label={t('lat.route')}
                 value={route}
                 onChange={(e) => setRoute(e.target.value as AudioRoute)}
-                options={(Object.keys(ROUTE_LABEL) as AudioRoute[]).map((r) => ({ value: r, label: ROUTE_LABEL[r] }))}
+                options={AudioRouteSchema.options.map((r) => ({ value: r, label: routeLabel(r) }))}
               />
             )}
-            <Field label="Latenz in ms" inputMode="decimal" value={value} onChange={(e) => setValue(e.target.value)} placeholder="z. B. 70" />
+            <Field label={t('lat.ms')} inputMode="decimal" value={value} onChange={(e) => setValue(e.target.value)} placeholder={t('lat.msPlaceholder')} />
             <Button variant="primary" disabled={!valid} onClick={() => void add()} className="self-start">
-              Speichern
+              {t('lat.save')}
             </Button>
           </div>
         )}

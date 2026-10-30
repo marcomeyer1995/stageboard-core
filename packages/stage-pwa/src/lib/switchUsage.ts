@@ -1,3 +1,4 @@
+import i18n from '../i18n'
 import type { Dashboard, LogicalDevice } from 'shared-types'
 import type { Behavior } from './actions'
 import type { KeyBinding } from './keybindings'
@@ -15,14 +16,14 @@ export function switchUsage(
   switchId: string,
   sources: { bindings: readonly KeyBinding[]; midiDocs: readonly MidiControllerRulesDoc[]; devices: readonly LogicalDevice[]; dashboards: readonly Dashboard[] },
 ): string[] {
-  const keys = sources.bindings.filter((b) => pointsTo(b.behavior, switchId)).map((b) => `Taste ${keyLabel(b.key)} (dieses Gerät)`)
+  const keys = sources.bindings.filter((b) => pointsTo(b.behavior, switchId)).map((b) => i18n.t('actions:usage.key', { key: keyLabel(b.key) }))
   const midi = sources.midiDocs.flatMap((doc) =>
     doc.rules
       .filter((rule) => pointsTo(rule.behavior, switchId))
-      .map((rule) => `${sources.devices.find((d) => d.id === doc.id)?.name ?? 'MIDI-Controller'} ${describeMidiTrigger(rule.trigger)}`),
+      .map((rule) => `${sources.devices.find((d) => d.id === doc.id)?.name ?? i18n.t('actions:usage.midi')} ${describeMidiTrigger(rule.trigger)}`),
   )
   const buttons = sources.dashboards.flatMap((dashboard) =>
-    dashboard.widgets.filter((w) => w.type === 'custom-trigger' && pointsTo((w.config as { action?: Behavior } | undefined)?.action, switchId)).map(() => `Knopf auf „${dashboard.name}“`),
+    dashboard.widgets.filter((w) => w.type === 'custom-trigger' && pointsTo((w.config as { action?: Behavior } | undefined)?.action, switchId)).map(() => i18n.t('actions:usage.button', { dashboard: dashboard.name })),
   )
   return [...keys, ...midi, ...buttons]
 }

@@ -1,3 +1,5 @@
+import i18n from '../i18n'
+import { useTranslation } from 'react-i18next'
 import { useState } from 'react'
 import { CAPABILITIES } from 'shared-types'
 import { pluginProviding } from '../lib/capabilities'
@@ -16,10 +18,30 @@ import { DEFAULT_SIZE_RATIO, type CueGridConfig } from './cueGridConfig'
 import { stageFontSize } from '../lib/stageSize'
 
 const ACTIONS: CueAction[] = [
-  { label: 'Strobo', type: 'strobe' },
-  { label: 'Blackout', type: 'blackout' },
-  { label: 'Kaltfunken', type: 'cold-spark' },
-  { label: 'Talkback', type: 'talkback' },
+  {
+    get label() {
+      return i18n.t('widgets:qa.strobe')
+    },
+    type: 'strobe',
+  },
+  {
+    get label() {
+      return i18n.t('widgets:qa.blackout')
+    },
+    type: 'blackout',
+  },
+  {
+    get label() {
+      return i18n.t('widgets:qa.sparks')
+    },
+    type: 'cold-spark',
+  },
+  {
+    get label() {
+      return i18n.t('widgets:qa.talkback')
+    },
+    type: 'talkback',
+  },
 ]
 
 /**
@@ -36,6 +58,7 @@ const ACTIONS: CueAction[] = [
  * via the relay (deviceControlClient.ts) rather than a second, redundant binding lookup.
  */
 export function QuickActionsWidget({ config }: { config: CueGridConfig }) {
+  const { t } = useTranslation('widgets')
   const installed = usePluginsStore((state) => state.installed)
   useDynamicTranslatorPreload(CAPABILITIES.lighting, installed)
   const workspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
@@ -54,12 +77,12 @@ export function QuickActionsWidget({ config }: { config: CueGridConfig }) {
     }
     if (engine === 'local-other') {
       const result = await triggerDeviceControl(workspaceId, binding!.executionTarget!, CAPABILITIES.lighting, { type })
-      setError(result.status === 'error' ? (result.message ?? 'Fehler') : null)
+      setError(result.status === 'error' ? (result.message ?? t('w.error')) : null)
       return
     }
     if (!pluginId) return
     const result = await triggerShowControl(pluginId, { type })
-    setError(result.status === 'error' ? (result.message ?? 'Fehler') : null)
+    setError(result.status === 'error' ? (result.message ?? t('w.error')) : null)
   }
 
   return (

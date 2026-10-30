@@ -6,8 +6,9 @@ import { useDeviceName } from '../store/useDevicesStore'
 import { useDialogStore } from '../store/useDialogStore'
 import { useMasterTakeover } from '../lib/useMasterTakeover'
 import { useShowStateStore } from '../store/useShowStateStore'
-import { profileIdOfMasterHolder, type MasterSelfCheck } from '../lib/masterTakeover'
+import { profileIdOfMasterHolder } from '../lib/masterTakeover'
 import { useProfilesStore } from '../store/useProfilesStore'
+import { useTranslation } from 'react-i18next'
 
 /**
  * The Master-Token claim, previously reachable only from inside NextSongWidget/
@@ -24,25 +25,17 @@ const HINT_MS = 2500
 /** How long a completed hold's new state is shown before falling back if the token didn't change. */
 const PENDING_MS = 4000
 
-const SELF_CHECK_HINT: Record<MasterSelfCheck, string> = {
-  ok: '',
-  'sync-error':
-    'Sync-Fehler: Dieses Gerät steuert die Show gerade nicht - die anderen sähen es nicht, und vielleicht hat schon ein anderes Gerät übernommen. Unter System → Stage-Server → Synchronisation „Reparieren“.',
-  offline: 'Keine Verbindung zum Stage-Server: Dieses Gerät steuert die Show erst wieder, wenn die Verbindung zurück ist.',
-  unconfirmed:
-    'Der Stage-Server bestätigt dieses Gerät nicht als Master - vermutlich hat ein anderes Gerät übernommen. Dieses Gerät steuert die Show gerade nicht.',
-}
-
 export function MasterControl() {
   const { isMaster } = useQueue()
   const { status, canClaim, isForce, claim } = useMasterTakeover()
   const releaseMaster = useShowStateStore((state) => state.releaseMaster)
   const isPlaying = useShowStateStore((state) => state.state.playbackStatus === 'playing')
   const confirm = useDialogStore((state) => state.confirm)
+  const { t } = useTranslation('menu')
 
   const release = async () => {
     // Handing over mid-song leaves the show without a driver until someone claims it.
-    if (isPlaying && !(await confirm('Der Song läuft gerade. Master trotzdem abgeben?', { title: 'Master abgeben', confirmLabel: 'Abgeben', danger: true }))) return
+    if (isPlaying && !(await confirm(t('master.releaseConfirm'), { title: t('master.release'), confirmLabel: t('master.releaseButton'), danger: true }))) return
     await releaseMaster()
   }
   const masterHolderId = useShowStateStore((state) => state.state.masterHolderId)
@@ -59,7 +52,7 @@ export function MasterControl() {
   // 'account' master mode (#85): the holder is a person with all their devices.
   const holderProfileId = profileIdOfMasterHolder(masterHolderId)
   const holderProfileName = useProfilesStore((state) => state.profiles.find((p) => p.id === holderProfileId)?.name)
-  const masterName = holderProfileId ? `${holderProfileName ?? 'Jemand'} (alle Geräte)` : deviceName
+  const masterName = holderProfileId ? t('master.allDevicesOf', { name: holderProfileName ?? t('master.someone') }) : deviceName
 
   // One "Master" row that is held to change it, both ways (Marco's #409 review): yellow = this
   // device / person controls the show. Holding fills it (take over) or drains it (hand over), like
@@ -111,25 +104,29 @@ export function MasterControl() {
   }
 
   const statusLine = unconfirmed
-    ? SELF_CHECK_HINT[selfCheck]
+    ? selfCheck === 'ok'
+      ? ''
+      : t(`master.selfCheck.${selfCheck}`)
     : isMaster
       ? holderProfileId
-        ? 'Du bist Master – alle deine Geräte.'
-        : 'Du bist Master – nur dieses Gerät.'
+        ? t('master.youAll')
+        : t('master.youThis')
       : masterHolderId
-        ? `${masterName ?? 'Ein anderes Gerät'} ist Master${status === 'stale' ? ' – antwortet aber nicht' : ''}.${
-            blocked ? ' Übernehmen dürfen nur Admin/Showmaster.' : isForce ? ' Halten erzwingt die Übernahme.' : ''
+        ? `${t(status === 'stale' ? 'master.otherStale' : 'master.other', { name: masterName ?? t('master.anotherDevice') })}${
+            blocked ? ` ${t('master.onlyAdmins')}` : isForce ? ` ${t('master.holdForces')}` : ''
           }`
-        : 'Niemand ist Master.'
+        : t('master.nobody')
   // Who holds it, short, inside the button after a dash (Marco, 2026-10-16: the line below cost
   // the room that kept ☰ on one landscape screen). The line stays only for what needs attention.
   const holderShort = isMaster
     ? holderProfileId
-      ? 'alle deine Geräte'
-      : 'nur dieses Gerät'
+      ? t('master.shortAll')
+      : t('master.shortThis')
     : masterHolderId
-      ? `${masterName ?? 'anderes Gerät'}${status === 'stale' ? ' antwortet nicht' : ''}`
-      : 'niemand'
+      ? status === 'stale'
+        ? t('master.shortStale', { name: masterName ?? t('master.shortOther') })
+        : (masterName ?? t('master.shortOther'))
+      : t('master.shortNobody')
   const showStatusLine = unconfirmed || status === 'stale' || (!isMaster && !!masterHolderId && isForce)
   // Full while it's yours, empty otherwise; holding animates towards the other state.
   const shown = pending ?? mine
@@ -141,9 +138,9 @@ export function MasterControl() {
       <button
         type="button"
         aria-pressed={shown}
-        aria-label="Master"
+        aria-label={t('master.label')}
         disabled={blocked}
-        title={`${statusLine} ${mine ? 'Zum Abgeben gedrückt halten.' : 'Zum Übernehmen gedrückt halten.'}`}
+        title={`${statusLine} ${mine ? t('master.holdToRelease') : t('master.holdToTake')}.`}
         onPointerDown={startHold}
         onPointerUp={() => endHold(true)}
         onPointerLeave={() => endHold(false)}
@@ -160,13 +157,13 @@ export function MasterControl() {
         />
         <Icon name="master" size="1.4rem" className={`relative ${darkText ? 'text-accent-ink' : 'text-ink'}`} />
         <span className={`relative min-w-0 truncate ${darkText ? 'text-accent-ink' : 'text-ink'}`}>
-          <span className={darkText ? 'font-semibold' : ''}>Master</span>
+          <span className={darkText ? 'font-semibold' : ''}>{t('master.label')}</span>
           <span className={darkText ? 'text-accent-ink/70' : 'text-ink-faint'}> – {holderShort}</span>
         </span>
       </button>
       {hint ? (
         <p role="status" className="text-sm text-accent">
-          {mine ? 'Zum Abgeben gedrückt halten' : 'Zum Übernehmen gedrückt halten'}
+          {mine ? t('master.holdToRelease') : t('master.holdToTake')}
         </p>
       ) : (
         showStatusLine && (

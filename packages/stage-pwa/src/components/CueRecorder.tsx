@@ -16,6 +16,7 @@ import { useBackHandler } from '../lib/backNavigation'
 import { Icon } from './Icon'
 import { Switch, Button } from './ui'
 import { INPUT, INPUT_FREE } from './ui/styles'
+import { useTranslation } from 'react-i18next'
 
 interface CueRecorderProps {
   /** Object URL of the variant's track (band-mix, else reference). Cues are stamped with the
@@ -52,6 +53,7 @@ function describe(type: string, payload: Record<string, unknown> | undefined): s
 const SNAP_WINDOWS_MS = [30, 60, 100, 150] as const
 
 export function CueRecorder({ trackSrc, chordProContent, onComplete, onCancel }: CueRecorderProps) {
+  const { t } = useTranslation('editor')
   useBackHandler(onCancel)
   const logicalDevices = useLogicalDevicesStore((state) => state.devices)
   const configs = useDeviceTransportConfigStore((state) => state.configs)
@@ -139,7 +141,7 @@ export function CueRecorder({ trackSrc, chordProContent, onComplete, onCancel }:
       setOnsets(result)
       setSnapEnabled(true)
     } catch {
-      setAnalysisError('Onset-Analyse fehlgeschlagen (Track nicht dekodierbar?).')
+      setAnalysisError(t('rec.failed'))
     } finally {
       setAnalyzing(false)
     }
@@ -162,37 +164,37 @@ export function CueRecorder({ trackSrc, chordProContent, onComplete, onCancel }:
     onComplete(snapOnsets ? snapCues(cues, snapOnsets, snapWindowMs).map((snapped) => snapped.cue) : cues)
   }
 
-  const inputProblem = inputs === null ? 'WebMIDI ist nicht verfügbar (Browser oder Berechtigung).' : inputs?.length === 0 ? 'Kein MIDI-Eingang gefunden.' : null
+  const inputProblem = inputs === null ? t('rec.noWebMidi') : inputs?.length === 0 ? t('rec.noInput') : null
 
   return (
     <div className="flex flex-1 flex-col gap-3">
       <div className="flex items-center justify-between rounded-control bg-control px-3 py-2 text-sm text-ink-soft">
-        <span>Track abspielen und am Gerät spielen - jede Aktion wird als Cue an der Track-Position aufgenommen.</span>
+        <span>{t('rec.intro')}</span>
         <span className="font-sb-mono text-ink">{(elapsedMs / 1000).toFixed(2)}s</span>
       </div>
 
       {!trackSrc ? (
         <p className="rounded-control bg-control px-3 py-2 text-sm text-ink-faint">
-          Für diese Variante ist kein Track angehängt - Cues brauchen einen Track als Zeitachse.
+          {t('rec.noTrack')}
         </p>
       ) : (
         <div className="flex items-center gap-2 rounded-control bg-control px-3 py-2 text-xs text-ink-soft">
           <audio {...audioProps} />
           <Button onClick={togglePlay}>
-            {isPlaying ? 'Pause' : 'Play'}
+            {isPlaying ? t('rec.pause') : t('rec.play')}
           </Button>
           <span className="font-sb-mono">
             {formatTrackClockTime(position)} / {formatTrackClockTime(duration)}
           </span>
-          {isPlaying && device && inputId && <span className="ml-auto flex items-center gap-1 font-bold text-danger"><span aria-hidden="true" className="inline-block h-2 w-2 rounded-full bg-current" /> Aufnahme läuft</span>}
+          {isPlaying && device && inputId && <span className="ml-auto flex items-center gap-1 font-bold text-danger"><span aria-hidden="true" className="inline-block h-2 w-2 rounded-full bg-current" /> {t('rec.recording')}</span>}
         </div>
       )}
 
       <div className="flex flex-wrap gap-2">
         <label className="flex min-w-0 flex-1 flex-col gap-1 text-xs text-ink-muted">
-          Gerät
+          {t('rec.device')}
           <select value={deviceId} onChange={(e) => setDeviceId(e.target.value)} disabled={recordable.length === 0} className={`min-h-form px-3 text-base ${INPUT}`}>
-            <option value="">{recordable.length === 0 ? 'Kein aufnahmefähiges Gerät eingerichtet' : 'Wählen…'}</option>
+            <option value="">{recordable.length === 0 ? t('rec.noDevice') : t('rec.choose')}</option>
             {recordable.map((candidate) => (
               <option key={candidate.id} value={candidate.id}>
                 {candidate.name}
@@ -201,7 +203,7 @@ export function CueRecorder({ trackSrc, chordProContent, onComplete, onCancel }:
           </select>
         </label>
         <label className="flex min-w-0 flex-1 flex-col gap-1 text-xs text-ink-muted">
-          MIDI-Eingang
+          {t('rec.input')}
           <span className="flex gap-1">
             <select value={inputId} onChange={(e) => setInputId(e.target.value)} disabled={!inputs?.length} className={`min-h-form px-3 text-base min-w-0 flex-1 min-w-0 ${INPUT_FREE}`}>
               {(inputs ?? []).map((input) => (
@@ -210,7 +212,7 @@ export function CueRecorder({ trackSrc, chordProContent, onComplete, onCancel }:
                 </option>
               ))}
             </select>
-            <Button onClick={refreshInputs} title="MIDI-Eingänge neu einlesen">
+            <Button onClick={refreshInputs} title={t('rec.refresh')}>
               <Icon name="retry" />
             </Button>
           </span>
@@ -220,33 +222,33 @@ export function CueRecorder({ trackSrc, chordProContent, onComplete, onCancel }:
 
       <div className="max-h-48 flex-1 space-y-1 overflow-y-auto rounded-container bg-control p-3 font-sb-mono text-sm">
         {rows.length === 0 ? (
-          <p className="text-ink-faint">Noch nichts aufgenommen.</p>
+          <p className="text-ink-faint">{t('rec.nothing')}</p>
         ) : (
           rows.map((row) => (
             <p key={row.key} className="text-ink">
               <span className="text-ink-faint">{(snappedTime(row.timeMs).timeMs / 1000).toFixed(2)}s</span> {row.label}
               {snappedTime(row.timeMs).shiftMs !== 0 && (
-                <span className="ml-2 text-xs text-accent">eingerastet {snappedTime(row.timeMs).shiftMs > 0 ? '+' : ''}{snappedTime(row.timeMs).shiftMs} ms</span>
+                <span className="ml-2 text-xs text-accent">{t('rec.snapped', { shift: `${snappedTime(row.timeMs).shiftMs > 0 ? '+' : ''}${snappedTime(row.timeMs).shiftMs}` })}</span>
               )}
             </p>
           ))
         )}
       </div>
-      {ignored > 0 && <p className="text-xs text-ink-faint">{ignored} Nachricht(en) ohne passendes Ereignis übersprungen.</p>}
+      {ignored > 0 && <p className="text-xs text-ink-faint">{t('rec.skipped', { count: ignored })}</p>}
 
       <div className="flex flex-col gap-2 rounded-control bg-control px-3 py-2 text-sm text-ink-soft">
         <div className="flex flex-wrap items-center gap-2">
           <Button onClick={() => void analyzeOnsets()} disabled={!trackSrc || analyzing}>
-            {analyzing ? 'Analysiere…' : 'Onsets analysieren'}
+            {analyzing ? t('rec.analysing') : t('rec.analyse')}
           </Button>
-          {onsets && <span className="text-xs text-ink-faint">{onsets.onsets.length} Onsets gefunden</span>}
+          {onsets && <span className="text-xs text-ink-faint">{t('rec.found', { count: onsets.onsets.length })}</span>}
           {onsets && (
             <>
               <span className="ml-auto">
-                <Switch layout="inline" label="Cues einrasten" checked={snapEnabled} onChange={setSnapEnabled} />
+                <Switch layout="inline" label={t('rec.snap')} checked={snapEnabled} onChange={setSnapEnabled} />
               </span>
               <select
-                aria-label="Einrast-Fenster"
+                aria-label={t('rec.window')}
                 value={snapWindowMs}
                 onChange={(e) => setSnapWindowMs(Number(e.target.value))}
                 disabled={!snapEnabled}
@@ -264,28 +266,28 @@ export function CueRecorder({ trackSrc, chordProContent, onComplete, onCancel }:
         {analysisError && <p className="text-xs text-danger">{analysisError}</p>}
         {partStarts.length > 0 && (
           <div className="flex flex-col gap-0.5 text-xs text-ink-muted">
-            <span>Abschnittsstarts zum nächsten Onset:</span>
+            <span>{t('rec.partStarts')}</span>
             {partStarts.map((section) => {
               const nearest = snapToOnset(section.startMs, onsets?.onsets ?? [], MAX_SNAP_WINDOW_MS)
               const offsetMs = nearest ? Math.round(nearest.timeMs - section.startMs) : null
               return (
                 <span key={section.startMs} className="font-sb-mono">
                   {section.label} · {(section.startMs / 1000).toFixed(1)}s ·{' '}
-                  {offsetMs === null ? `kein Onset innerhalb ±${MAX_SNAP_WINDOW_MS} ms` : `${offsetMs >= 0 ? '+' : ''}${offsetMs} ms`}
+                  {offsetMs === null ? t('rec.noOnset', { ms: MAX_SNAP_WINDOW_MS }) : `${offsetMs >= 0 ? '+' : ''}${offsetMs} ms`}
                 </span>
               )
             })}
           </div>
         )}
-        <p className="text-xs text-ink-faint">Einrasten verschiebt Cues auf den nächsten erkannten Anschlag - ohne Zusage, dass jeder Abschnittswechsel einen hat.</p>
+        <p className="text-xs text-ink-faint">{t('rec.snapHint')}</p>
       </div>
 
       <div className="flex gap-2">
         <Button variant="primary" className="flex-1" onClick={accept} disabled={rows.length === 0}>
-          Übernehmen{rows.length > 0 ? ` (${rows.length} Cues)` : ''}
+          {rows.length > 0 ? t('rec.applyN', { count: rows.length }) : t('rec.apply')}
         </Button>
         <Button onClick={onCancel}>
-          Abbrechen
+          {t('cancel')}
         </Button>
       </div>
     </div>

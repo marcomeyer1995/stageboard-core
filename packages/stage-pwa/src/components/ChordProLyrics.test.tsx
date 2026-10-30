@@ -1,7 +1,7 @@
-import { describe, expect, it } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { describe, expect, it, vi } from 'vitest'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import { parseChordPro, type ChordProLine } from '../lib/chordpro'
-import { ChordProLyrics } from './ChordProLyrics'
+import { CHORD_REACH_PX, ChordProLyrics, nearestChord } from './ChordProLyrics'
 
 const lines: ChordProLine[] = [
   { timeMs: null, segments: [{ chord: 'G', text: 'Hello ' }, { chord: 'C', text: 'world' }], partIndex: 0, partLabel: 'Verse 1', comment: null, commentTargets: null, tab: null },
@@ -208,3 +208,72 @@ describe('chord sizes (Marco 2026-10-17)', () => {
   })
 })
 
+
+describe('ChordProLyrics - chord shapes on a chord (#609)', () => {
+  const chord = (name: string) => screen.getAllByText(name).find((el) => el.hasAttribute('data-chord')) as HTMLElement
+
+  it('a mouse click on a chord opens its shape and keys; Esc closes it', () => {
+    render(<ChordProLyrics lines={lines} chordInfo />)
+    fireEvent.pointerDown(chord('Am'), { pointerType: 'mouse' })
+    fireEvent.click(chord('Am'))
+    const popover = screen.getByRole('dialog', { name: 'Akkord Am' })
+    expect(popover).toHaveTextContent('A C E')
+    expect(screen.getByRole('img', { name: 'Griffbild' })).toBeInTheDocument()
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('on touch only a long press opens it - and its click does not also move the editor cursor', () => {
+    vi.useFakeTimers()
+    const onSourceTap = vi.fn()
+    // Parsed lines carry their source position - only those report a tap.
+    render(<ChordProLyrics lines={parseChordPro('[G]Hello [C]world')} chordInfo onSourceTap={onSourceTap} />)
+    fireEvent.pointerDown(chord('G'), { pointerType: 'touch', clientX: 10, clientY: 10 })
+    fireEvent.pointerUp(chord('G'))
+    fireEvent.click(chord('G'))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(onSourceTap).toHaveBeenCalledTimes(1)
+
+    fireEvent.pointerDown(chord('G'), { pointerType: 'touch', clientX: 10, clientY: 10 })
+    act(() => vi.advanceTimersByTime(500))
+    fireEvent.click(chord('G'))
+    expect(screen.getByRole('dialog', { name: 'Akkord G' })).toBeInTheDocument()
+    expect(onSourceTap).toHaveBeenCalledTimes(1)
+    vi.useRealTimers()
+  })
+
+  it('a finger that moves is scrolling, not pressing', () => {
+    vi.useFakeTimers()
+    render(<ChordProLyrics lines={lines} chordInfo />)
+    fireEvent.pointerDown(chord('C'), { pointerType: 'touch', clientX: 10, clientY: 10 })
+    fireEvent.pointerMove(chord('C'), { pointerType: 'touch', clientX: 10, clientY: 40 })
+    act(() => vi.advanceTimersByTime(600))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    vi.useRealTimers()
+  })
+
+  it('a long press just beside a chord - on the lyric below - opens the nearest one within reach (Redmi, 2026-10-28)', () => {
+    vi.useFakeTimers()
+    const { container } = render(<ChordProLyrics lines={parseChordPro('[G]Hello [C]world')} chordInfo />)
+    const rect = (left: number, top: number) => ({ left, right: left + 12, top, bottom: top + 20, width: 12, height: 20, x: left, y: top, toJSON: () => ({}) }) as DOMRect
+    vi.spyOn(chord('G'), 'getBoundingClientRect').mockReturnValue(rect(0, 0))
+    vi.spyOn(chord('C'), 'getBoundingClientRect').mockReturnValue(rect(60, 0))
+    const lyric = screen.getByText(/world/)
+    // 10 px below the C, on its lyric.
+    fireEvent.pointerDown(lyric, { pointerType: 'touch', clientX: 64, clientY: 30 })
+    act(() => vi.advanceTimersByTime(500))
+    expect(screen.getByRole('dialog', { name: 'Akkord C' })).toBeInTheDocument()
+    // Out of every chord's reach: nothing.
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(nearestChord(container.firstElementChild as HTMLElement, 64, 30 + CHORD_REACH_PX)).toBeNull()
+    expect(container.firstElementChild).toHaveClass('select-none')
+    vi.useRealTimers()
+  })
+
+  it('without chordInfo a chord is plain text', () => {
+    render(<ChordProLyrics lines={lines} />)
+    fireEvent.pointerDown(chord('Am'), { pointerType: 'mouse' })
+    fireEvent.click(chord('Am'))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+})

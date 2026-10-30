@@ -73,6 +73,27 @@ function gapAfterMs(item: QueueItem, next: QueueItem, defaultPauseMs: number): n
   return isTransitionEntry(item.entry) ? 0 : defaultPauseMs
 }
 
+/**
+ * The pause the setlist plans after position `index` until the next song starts (#64): the gap
+ * after it, plus any transition items (and their gaps) before that song. Null without a next song.
+ */
+export function plannedPauseAfterMs(
+  items: QueueItem[],
+  index: number,
+  setlist: Pick<Setlist, 'defaultTransitionMs' | 'defaultSongDurationMs'> | null,
+): number | null {
+  const defaultPauseMs = setlist?.defaultTransitionMs ?? DEFAULT_PAUSE_BETWEEN_SONGS_MS
+  const defaultSongMs = setlist?.defaultSongDurationMs ?? DEFAULT_SONG_DURATION_MS
+  let pauseMs = 0
+  for (let i = index; i + 1 < items.length; i += 1) {
+    pauseMs += gapAfterMs(items[i]!, items[i + 1]!, defaultPauseMs)
+    const next = items[i + 1]!
+    if (!isTransitionEntry(next.entry)) return pauseMs
+    pauseMs += entryDurationMs(next, false, null, defaultSongMs, defaultPauseMs).ms
+  }
+  return null
+}
+
 /** Festival Clock (#28): when will the rest of the setlist end, and does that beat the curfew? */
 export function computeFestivalClock(input: FestivalClockInput): FestivalClockResult {
   const { items, playbackStatus, elapsedMs, now, setlist } = input

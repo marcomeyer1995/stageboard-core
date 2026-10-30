@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { useTouchSizes } from '../components/ui/PrepTier'
 import { Segmented } from '../components/ui'
 import { DEFAULT_SIZE_RATIO, type DashboardSwitcherConfig } from './dashboardSwitcherConfig'
@@ -74,21 +75,21 @@ export function DashboardSwitcherConfigPanel({
   config: DashboardSwitcherConfig
   onChange: (next: DashboardSwitcherConfig) => void
 }) {
+  const { t } = useTranslation('widgets')
   return (
     <div className="flex flex-col gap-3">
       <p className="text-xs text-ink-faint">
-        Zeigt dieselben Dashboards wie das Menü: ausblenden und sortieren unter ☰ → Dashboards → „Ordnen“, Gig/Solo in den
-        Einstellungen des Dashboards.
+        {t('switcher.hint')}
       </p>
       <Segmented
-        label="Ausrichtung"
+        label={t('switcher.orientation')}
         showLabel
         value={config.orientation}
         onChange={(value) => onChange({ ...config, orientation: value as DashboardSwitcherConfig['orientation'] })}
-        options={[{ value: 'horizontal', label: 'Horizontal (Leiste)' }, { value: 'vertical', label: 'Vertikal (Spalte)' }]}
+        options={[{ value: 'horizontal', label: t('switcher.horizontal') }, { value: 'vertical', label: t('switcher.vertical') }]}
       />
       <SizeRatioSlider
-        label="Größe"
+        label={t('w.size')}
         ratio={config.sizeRatio ?? DEFAULT_SIZE_RATIO}
         onChange={(sizeRatio) => onChange({ ...config, sizeRatio })}
       />

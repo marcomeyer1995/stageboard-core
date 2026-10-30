@@ -14,13 +14,11 @@ import { useSongsStore } from '../store/useSongsStore'
 import { BuiltInOutputs, builtInRoles } from './BuiltInOutputs'
 import { DeviceSetupWizard } from './DeviceSetupWizard'
 import { MidiControllerButtonsDialog } from './MidiControllerButtons'
-import { pluginKind } from '../lib/pluginCatalog'
+import { OscInputButtonsDialog } from './OscInputButtons'
+import { OSC_INPUT_CAPABILITY } from '../lib/oscInput'
+import { pluginKind, pluginName } from '../lib/pluginCatalog'
 import { ActionMenu, AddRow, InfoHint } from './ui'
-
-const STATUS_LABEL: Record<'complete' | 'incomplete', string> = {
-  complete: 'vollständig',
-  incomplete: 'unvollständig',
-}
+import { useTranslation } from 'react-i18next'
 
 /**
  * Every configured Logical Device, guided setup for adding/editing one via `DeviceSetupWizard`.
@@ -30,6 +28,7 @@ const STATUS_LABEL: Record<'complete' | 'incomplete', string> = {
  * dropped), so there's exactly one list here, not three separate CRUD screens.
  */
 function DeviceList({ onEdit, onAdd }: { onEdit: (device: LogicalDevice) => void; onAdd: () => void }) {
+  const { t } = useTranslation('hardware')
   const allDevices = useLogicalDevicesStore((state) => state.devices)
   // Klick, Backing-Track and Ansagen are the fixed first rows (BuiltInOutputs).
   const builtIn = builtInRoles(allDevices)
@@ -46,15 +45,16 @@ function DeviceList({ onEdit, onAdd }: { onEdit: (device: LogicalDevice) => void
   const [buttonsFor, setButtonsFor] = useState<LogicalDevice | null>(null)
 
   function pluginNameOf(pluginId: string | null): string | null {
-    return (pluginId && installed.find((p) => p.id === pluginId)?.name) || null
+    const plugin = pluginId ? installed.find((p) => p.id === pluginId) : undefined
+    return plugin ? pluginName(plugin) : null
   }
 
   function targetLabel(executionTarget: string | null): string | null {
     if (!executionTarget) return null
-    if (executionTarget === SERVER_EXECUTION_TARGET) return 'Stage-Server'
-    if (executionTarget === getDeviceId()) return 'Dieses Gerät'
+    if (executionTarget === SERVER_EXECUTION_TARGET) return t('server')
+    if (executionTarget === getDeviceId()) return t('thisDevice')
     // The tablet's name from the Geräte list, never its internal id (System cleanup, 2026-10-16).
-    return knownDevices.find((d) => d.id === executionTarget)?.name ?? 'unbekanntes Gerät'
+    return knownDevices.find((d) => d.id === executionTarget)?.name ?? t('unknownDevice')
   }
 
   return (
@@ -68,13 +68,13 @@ function DeviceList({ onEdit, onAdd }: { onEdit: (device: LogicalDevice) => void
           <div key={device.id} className="flex items-center gap-3 rounded-control border border-line bg-surface px-3 py-1">
             <div className="min-w-0 flex-1">
               <p className="font-semibold">
-                {device.name} <span className="text-xs font-normal text-ink-faint">({STATUS_LABEL[complete ? 'complete' : 'incomplete']})</span>
+                {device.name} <span className="text-xs font-normal text-ink-faint">({complete ? t('complete') : t('incomplete')})</span>
               </p>
               <p className="break-words text-sm text-ink-muted">
                 {/* Only what is known - no "—" placeholders (System cleanup, 2026-10-16). */}
-                {[pluginNameOf(device.pluginId) ?? 'Typ fehlt', targetLabel(device.executionTarget) ?? 'kein Gerät gewählt'].join(' · ')}
-                {usage.length > 0 && <span className="text-ink-faint"> · verwendet in: {usage.map((u) => u.songTitle).join(', ')}</span>}
-                {hasOwnTransportConfig && device.executionTarget === getDeviceId() && <span className="text-ink-faint"> · Anschluss auf diesem Gerät gesetzt</span>}
+                {[pluginNameOf(device.pluginId) ?? t('typeMissing'), targetLabel(device.executionTarget) ?? t('noDevice')].join(' · ')}
+                {usage.length > 0 && <span className="text-ink-faint">{t('usedIn', { songs: usage.map((u) => u.songTitle).join(', ') })}</span>}
+                {hasOwnTransportConfig && device.executionTarget === getDeviceId() && <span className="text-ink-faint">{t('ownPort')}</span>}
               </p>
             </div>
             {/* Actions behind ⋯ like every list row - two buttons beside the text pushed past the
@@ -82,20 +82,21 @@ function DeviceList({ onEdit, onAdd }: { onEdit: (device: LogicalDevice) => void
             <ActionMenu
               title={device.name}
               actions={[
-                { label: 'Einrichten', onClick: () => onEdit(device) },
-                ...(device.capability === CAPABILITIES.midiController ? [{ label: 'Knöpfe belegen', onClick: () => setButtonsFor(device) }] : []),
+                { icon: 'setup', label: t('setUp'), onClick: () => onEdit(device) },
+                ...(device.capability === CAPABILITIES.midiController || device.capability === OSC_INPUT_CAPABILITY ? [{ icon: 'keys' as const, label: t('buttons'), onClick: () => setButtonsFor(device) }] : []),
                 {
-                  label: 'Entfernen',
+                  icon: 'remove' as const,
+                  label: t('remove'),
                   danger: true,
                   onClick: async () => {
-                    if (!(await confirm(`"${device.name}" löschen?`, { confirmLabel: 'Löschen', danger: true }))) return
+                    if (!(await confirm(t('deleteConfirm', { name: device.name }), { confirmLabel: t('delete'), danger: true }))) return
                     await remove(device.id)
                     if (device.capability === CAPABILITIES.midiController) void removeButtons(device.id)
                     // Drivers stay out of sight (Marco, 2026-10-16): one no device needs any more is
                     // offered for removal with its last device.
                     const driver = installed.find((p) => p.id === device.pluginId)
                     if (!driver || pluginKind(driver) !== 'drivers' || allDevices.some((d) => d.id !== device.id && d.pluginId === driver.id)) return
-                    if (await confirm(`Kein Gerät braucht den Treiber „${driver.name}“ mehr. Auch ihn entfernen?`, { confirmLabel: 'Treiber entfernen' })) void uninstall(driver.id)
+                    if (await confirm(t('driverUnused', { driver: driver.name }), { confirmLabel: t('removeDriver') })) void uninstall(driver.id)
                   },
                 },
               ]}
@@ -104,8 +105,13 @@ function DeviceList({ onEdit, onAdd }: { onEdit: (device: LogicalDevice) => void
         )
       })}
 
-      <AddRow label="Neues Gerät" onClick={onAdd} />
-      {buttonsFor && <MidiControllerButtonsDialog device={buttonsFor} onClose={() => setButtonsFor(null)} />}
+      <AddRow label={t('newDevice')} onClick={onAdd} />
+      {buttonsFor &&
+        (buttonsFor.capability === OSC_INPUT_CAPABILITY ? (
+          <OscInputButtonsDialog device={buttonsFor} onClose={() => setButtonsFor(null)} />
+        ) : (
+          <MidiControllerButtonsDialog device={buttonsFor} onClose={() => setButtonsFor(null)} />
+        ))}
     </div>
   )
 }
@@ -125,6 +131,7 @@ function DeviceList({ onEdit, onAdd }: { onEdit: (device: LogicalDevice) => void
  * case - tweak this device's port/host - is still a click away, not four.
  */
 export function HardwareSetupManager() {
+  const { t } = useTranslation('hardware')
   const [editing, setEditing] = useState<LogicalDevice | null | undefined>(undefined) // undefined = wizard closed
   const [newDevicePrefill, setNewDevicePrefill] = useState<NewDevicePrefill | null>(null)
   const pendingPrefill = useHardwareSetupWizardStore((state) => state.prefill)
@@ -155,10 +162,10 @@ export function HardwareSetupManager() {
       {/* One list (Marco, 2026-10-16): what the band has and where it hangs. Drivers are a technical
           detail - installed with a device, offered for removal with its last one; Diagnose lists them. */}
       <div className="mb-4 flex items-center gap-1">
-        <h1 className="text-2xl font-bold">Bühnentechnik</h1>
+        <h1 className="text-2xl font-bold">{t('title')}</h1>
         <InfoHint
-          label="Erklärung: Bühnentechnik"
-          text="Alle Geräte der Band und wo sie hängen. Oben Klick, Backing-Track und Ansagen - eingebaut, nur das spielende Gerät ist wählbar. Darunter Amp, Mischpult, Looper und Co., je mit Typ und dem Tablet, an dem sie hängen."
+          label={t('explainLabel')}
+          text={t('explain')}
         />
       </div>
 

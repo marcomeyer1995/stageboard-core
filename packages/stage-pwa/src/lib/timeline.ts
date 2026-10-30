@@ -105,6 +105,16 @@ export function formatTimelineTime(ms: number): string {
   return `${negative ? '-' : ''}${minutes}:${seconds.toFixed(1).padStart(4, '0')}`
 }
 
+/** The other way round: "1:23.4", "83.4" or "83" → ms; null for anything else. */
+export function parseTimelineTime(text: string): number | null {
+  const match = /^\s*(?:(\d+):)?(\d+(?:[.,]\d+)?)\s*$/.exec(text)
+  if (!match) return null
+  const minutes = match[1] === undefined ? 0 : Number(match[1])
+  const seconds = Number(match[2].replace(',', '.'))
+  if (match[1] !== undefined && seconds >= 60) return null
+  return Math.round((minutes * 60 + seconds) * 1000)
+}
+
 /**
  * A colour token as a canvas colour. The app's tokens hold bare channels ("255 255 255") for
  * Tailwind's `rgb(var(--sb-ink) / <alpha>)` - a canvas ignores such a string without an error

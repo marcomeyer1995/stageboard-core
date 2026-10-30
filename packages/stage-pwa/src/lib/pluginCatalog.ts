@@ -1,3 +1,4 @@
+import i18n from '../i18n'
 import { CAPABILITIES, type PluginInstallation } from 'shared-types'
 
 /** What each capability does, in the band's words - the ids themselves ("click-track") are for
@@ -12,6 +13,9 @@ const CAPABILITY_LABEL: Record<string, string> = {
   [CAPABILITIES.backup]: 'Backup',
   [CAPABILITIES.audioAnalysis]: 'Track-Analyse',
   [CAPABILITIES.midiClock]: 'MIDI-Clock',
+  // OSC (#484): sending to lighting/video software, and a controller's buttons as triggers.
+  osc: 'OSC senden',
+  'osc-input': 'OSC-Trigger',
   [CAPABILITIES.midiController]: 'MIDI-Controller',
   [CAPABILITIES.speechSynthesis]: 'Sprachausgabe',
   [CAPABILITIES.stemSeparation]: 'Spuren trennen',
@@ -23,8 +27,20 @@ const CAPABILITY_LABEL: Record<string, string> = {
 /** A plugin's capabilities as one readable line. A device's own capability ("kemper-control",
  * one per device - see the catalog below) reads "Gerätesteuerung"; any other unknown id (a newer
  * plugin) shows as it is. */
+/** Ids whose catalog name is translated (#456) - device names like "Kemper Profiler" stay as they are. */
+const TRANSLATED_NAMES = new Set(['music-tempo-beat-detection', 'midi-clock', 'midi-controller', 'piper-speech', 'osc', 'osc-input', 'stem-separation', 'youtube-download', 'section-announcements'])
+
+/** A plug-in's name in this device's language - the stored name for the rest. */
+export function pluginName(plugin: { id: string; name: string }): string {
+  return TRANSLATED_NAMES.has(plugin.id) ? i18n.t(`addons:names.${plugin.id}` as 'addons:names.osc', { defaultValue: plugin.name }) : plugin.name
+}
+
 export function capabilitiesLabel(capabilities: readonly string[]): string {
-  return capabilities.map((capability) => CAPABILITY_LABEL[capability] ?? (capability.endsWith('-control') ? 'Gerätesteuerung' : capability)).join(', ')
+  return capabilities
+    .map((capability) =>
+      CAPABILITY_LABEL[capability] ? i18n.t(`hardware:cap.${capability}`, { defaultValue: CAPABILITY_LABEL[capability] }) : capability.endsWith('-control') ? i18n.t('hardware:cap.device-control') : capability,
+    )
+    .join(', ')
 }
 
 /**
@@ -388,6 +404,43 @@ export const PLUGIN_CATALOG: Array<Omit<PluginInstallation, 'installedAt' | 'ena
     runtime: 'server',
     capabilities: [CAPABILITIES.speechSynthesis],
     transports: [],
+    hardwareIds: [],
+  },
+  {
+    id: 'osc',
+    name: 'OSC (Licht & Video)',
+    version: '0.1.0',
+    // Generic OSC (#484): lighting and video software - QLC+, Resolume, ProPresenter, grandMA onPC.
+    // Sent as UDP by the Stage-Server (core-backend oscPlugin.ts) - a browser can't send UDP - so the
+    // device runs on the Stage-Server; host and port are set in Bühnentechnik. Its own capability
+    // (like the MIDI-Clock, #478): one device per program that listens.
+    runtime: 'server',
+    capabilities: ['osc'],
+    // The server holds a cue until its moment (scheduledAt) and sends it then.
+    timing: [{ capability: 'osc', timingClass: 'realtime', honoursScheduledAt: true }],
+    transports: [
+      {
+        id: 'network-osc',
+        label: 'Netzwerk (OSC)',
+        fields: [
+          { key: 'host', label: 'Host (IP oder Name)', type: 'text' },
+          { key: 'port', label: 'Port', type: 'number' },
+        ],
+      },
+    ],
+    hardwareIds: [],
+  },
+  {
+    id: 'osc-input',
+    name: 'OSC-Eingang (Trigger)',
+    version: '0.1.0',
+    // OSC as a trigger (#484, docs/23 §4): a controller (TouchOSC, a lighting desk, a Stream Deck)
+    // sends to the Stage-Server's OSC port (8000); its buttons fire actions like a pedal or a MIDI
+    // controller - "Knöpfe belegen" in Bühnentechnik. A transport without fields: the server's port
+    // is fixed (STAGEBOARD_OSC_IN_PORT) - it makes this a driver, offered as a device type.
+    runtime: 'server',
+    capabilities: ['osc-input'],
+    transports: [{ id: 'network-osc-in', label: 'Netzwerk (OSC an den Stage-Server)', fields: [] }],
     hardwareIds: [],
   },
   {

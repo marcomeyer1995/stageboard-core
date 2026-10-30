@@ -1,3 +1,5 @@
+import i18n from '../i18n'
+import { useTranslation } from 'react-i18next'
 import { useShowPart } from '../lib/widgetParts'
 import { useTouchSizes } from '../components/ui/PrepTier'
 import { isHeadingEntry, isSongEntry, type SetlistEntry } from 'shared-types'
@@ -15,11 +17,12 @@ import { stageVariantLabel, VARIANT_ISSUE_LABEL } from '../lib/variantLabel'
 
 /** What to call a non-song queue entry on screen. */
 function itemLabel(entry: SetlistEntry): string {
-  return isHeadingEntry(entry) ? 'Abschnitt' : 'Ansage'
+  return isHeadingEntry(entry) ? i18n.t('widgets:w.section') : i18n.t('widgets:w.announcement')
 }
 
 /** Sized as a ratio of the device-wide default, not auto-fit to the tile (Marco, 2026-09-14). */
 export function NextSongWidget({ config }: { config: NextSongConfig }) {
+  const { t } = useTranslation('widgets')
   const { queue, canControl, next, previous } = useShowModeCore()
   // The takeover lives in the transport when the dashboard has one (2026-10-16): here it squeezed
   // the info to "Aktuel… / Next…" on the phone - without control this stays the flat bar (docs/07).
@@ -57,7 +60,7 @@ export function NextSongWidget({ config }: { config: NextSongConfig }) {
       )}
     </>
   ) : (
-    'Keine Songs vorhanden'
+    t('w.noSongs')
   )
   const upcoming = !showNext ? null : nextItem ? (
     <>
@@ -103,21 +106,21 @@ export function NextSongWidget({ config }: { config: NextSongConfig }) {
       )}
       {canControl ? (
         <div className={`flex gap-2 ${layout.stacked || !hasInfo ? 'min-h-0 flex-1' : ''}`}>
-          <button type="button" onClick={previous} disabled={!previousEntry} title="Vorheriger Song" className={`${buttonClass} ${layout.stacked || !hasInfo ? 'flex-1' : ''}`}>
+          <button type="button" onClick={previous} disabled={!previousEntry} title={t('next.prevTitle')} className={`${buttonClass} ${layout.stacked || !hasInfo ? 'flex-1' : ''}`}>
             {layout.shortLabels ? (
               <Icon name="previous" size="2.25rem" />
             ) : (
               <span className="flex items-center justify-center gap-1">
-                <Icon name="previous" /> Zurück
+                <Icon name="previous" /> {t('next.back')}
               </span>
             )}
           </button>
-          <button type="button" onClick={next} disabled={!nextEntry} title="Nächster Song" className={`${buttonClass} ${layout.stacked || !hasInfo ? 'flex-1' : ''}`}>
+          <button type="button" onClick={next} disabled={!nextEntry} title={t('next.nextTitle')} className={`${buttonClass} ${layout.stacked || !hasInfo ? 'flex-1' : ''}`}>
             {layout.shortLabels ? (
               <Icon name="next" size="2.25rem" />
             ) : (
               <span className="flex items-center justify-center gap-1">
-                Weiter <Icon name="next" />
+                {t('next.next')} <Icon name="next" />
               </span>
             )}
           </button>
@@ -136,9 +139,10 @@ export function NextSongConfigPanel({
   config: NextSongConfig
   onChange: (next: NextSongConfig) => void
 }) {
+  const { t } = useTranslation('widgets')
   return (
     <SizeRatioSlider
-      label="Größe"
+      label={t('w.size')}
       ratio={config.sizeRatio ?? DEFAULT_SIZE_RATIO}
       onChange={(sizeRatio) => onChange({ ...config, sizeRatio })}
     />

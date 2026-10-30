@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { StemModel } from 'shared-types'
 import { Button, Dialog, Segmented, Switch } from './ui'
+import { useTranslation } from 'react-i18next'
 
 /**
  * "Spuren trennen" (#9): which stems the Stage-Server splits a track into. Standard = drums, bass,
@@ -19,46 +20,47 @@ export function StemSeparationDialog({
   onStart: (options: { model: StemModel; splitGuitar: boolean }) => void
   onClose: () => void
 }) {
+  const { t } = useTranslation('editor')
   const [model, setModel] = useState<StemModel>('standard')
   const [splitGuitar, setSplitGuitar] = useState(false)
   return (
     <Dialog
-      title={`Spuren trennen: ${trackLabel}`}
+      title={t('sep.title', { name: trackLabel })}
       onClose={onClose}
       actions={
         <>
-          <Button onClick={onClose}>Abbrechen</Button>
+          <Button onClick={onClose}>{t('cancel')}</Button>
           <Button variant="primary" onClick={() => onStart({ model, splitGuitar: model === 'extended' && splitGuitar })}>
-            Trennen
+            {t('sep.go')}
           </Button>
         </>
       }
     >
       <div className="flex flex-col gap-4">
         <Segmented
-          label="Spuren"
+          label={t('sep.tracks')}
           showLabel
           value={model}
           onChange={setModel}
           options={[
-            { value: 'standard', label: 'Standard' },
-            { value: 'extended', label: 'Erweitert' },
+            { value: 'standard', label: t('sep.standard') },
+            { value: 'extended', label: t('sep.extended') },
           ]}
         />
         <p className="text-base text-ink">
-          {model === 'standard' ? 'Schlagzeug, Bass, Gesang und Rest.' : 'Schlagzeug, Bass, Gesang, Gitarre, Keys/Piano und Rest. Keys sind weniger sauber getrennt.'}
+          {model === 'standard' ? t('sep.standardHint') : t('sep.extendedHint')}
         </p>
         {model === 'extended' && (
           <Switch
-            label="Gitarre links/rechts aufteilen"
-            info="Für zwei Gitarren, die links und rechts im Stereobild liegen - liegen beide in der Mitte, hilft es nicht."
+            label={t('sep.splitGuitar')}
+            info={t('sep.splitGuitarInfo')}
             checked={splitGuitar}
             onChange={setSplitGuitar}
           />
         )}
         <p className="text-sm text-ink-muted">
-          Läuft auf dem Stage-Server, etwa eine Minute je Song. Die Spuren erscheinen unter dem Track und lassen sich umbenennen.
-          {hasStems ? ' Die bisherigen Spuren dieses Tracks werden ersetzt.' : ''}
+          {t('sep.runs')}
+          {hasStems ? t('sep.replaces') : ''}
         </p>
       </div>
     </Dialog>

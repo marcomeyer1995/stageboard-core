@@ -104,6 +104,16 @@ describe('TimelineEditor (docs/14 §5a)', () => {
     expect(onChange).toHaveBeenLastCalledWith({ beatGrid, bpm: 120, chordProContent: '', cues: [] })
   })
 
+  it('Tempo ×2 / ÷2 (#654): every bar becomes two, and back - undoable', () => {
+    const { onChange } = setup({ beatGrid })
+    fireEvent.click(tool('Tempo ×2'))
+    const doubled = onChange.mock.lastCall![0] as { bpm: number; beatGrid: { points: { bar: number }[] } }
+    expect(doubled.bpm).toBe(240)
+    expect(doubled.beatGrid.points.map((p) => p.bar)).toEqual(beatGrid.points.map((p) => 2 * (p.bar - 1) + 1))
+    fireEvent.click(screen.getByLabelText('Rückgängig'))
+    expect(onChange).toHaveBeenLastCalledWith({ beatGrid, bpm: 120, chordProContent: '', cues: [] })
+  })
+
   it('has nothing to clear without a grid', () => {
     setup()
     expect(tool('Raster löschen')).toBeDisabled()
@@ -290,7 +300,8 @@ describe('cues on the timeline (docs/14 §7)', () => {
   it('dragging a cue moves it, landing on a beat nearby', () => {
     const { onChange } = setup({ cues: [cue] })
     pointer(12000, 15040)
-    expect((onChange.mock.calls[0]![0] as { cues: ShowCue[] }).cues).toEqual([{ ...cue, timeMs: 15000 }])
+    // On a beat now - anchored to its bar and beat, it moves with the grid (#483).
+    expect((onChange.mock.calls[0]![0] as { cues: ShowCue[] }).cues).toEqual([{ ...cue, timeMs: 15000, anchor: { bar: 8, beat: 3 } }])
   })
 
   it('tapping a cue selects it; "Entfernen" removes it', () => {
@@ -448,7 +459,7 @@ describe('playhead quick actions (#326)', () => {
     const { onChange } = setup({ cues: [cue] })
     tapAt(12000, 342 + 22)
     fireEvent.click(screen.getByText('Zum Abspielkopf'))
-    expect((onChange.mock.calls[0]![0] as { cues: ShowCue[] }).cues).toEqual([{ ...cue, timeMs: 16500 }])
+    expect((onChange.mock.calls[0]![0] as { cues: ShowCue[] }).cues).toEqual([{ ...cue, timeMs: 16500, anchor: { bar: 9, beat: 2 } }])
   })
 
   it('moves a selected lyric line there - only between its neighbours, else it says why', () => {

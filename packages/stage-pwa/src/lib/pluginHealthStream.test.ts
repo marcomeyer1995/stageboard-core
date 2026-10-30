@@ -34,7 +34,7 @@ afterEach(() => {
 })
 
 describe('subscribeToPluginHealth', () => {
-  it('opens a stream scoped to the workspace and forwards parsed snapshots', () => {
+  it('opens a stream scoped to the workspace and forwards parsed snapshots (in free time, docs/26)', async () => {
     vi.stubEnv('VITE_STAGE_SERVER_URL', 'https://stage.example')
     const onHealth = vi.fn()
 
@@ -45,7 +45,8 @@ describe('subscribeToPluginHealth', () => {
 
     const snapshot = { plugins: { 'mock-mixer': { status: 'online', lastSeenAt: 123 } } }
     FakeEventSource.instances[0].emit(snapshot)
-
+    expect(onHealth).not.toHaveBeenCalledWith(snapshot)
+    await new Promise((resolve) => setTimeout(resolve, 0))
     expect(onHealth).toHaveBeenCalledWith(snapshot)
   })
 

@@ -1,3 +1,4 @@
+import i18n from '../../i18n'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useBackHandler } from '../../lib/backNavigation'
 import { Button } from './Button'
@@ -78,7 +79,7 @@ export function Drawer({ title, side, onClose, clearCornerButtons = false, child
           <div className={`flex min-h-0 flex-1 flex-col overflow-y-auto [&>*]:flex-shrink-0 ${low ? 'gap-3 p-3' : 'gap-4 p-4'}`}>{children}</div>
           <div className={`flex flex-shrink-0 items-center justify-end border-t border-line ${low ? 'px-3 py-1.5' : 'px-4 py-3'}`}>
             <Button variant="primary" onClick={onClose}>
-              Fertig
+              {i18n.t('common:actions.done')}
             </Button>
           </div>
         </div>

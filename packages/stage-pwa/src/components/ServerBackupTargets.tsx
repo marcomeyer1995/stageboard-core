@@ -1,17 +1,19 @@
+import i18n from '../i18n'
 import { useCallback, useEffect, useState } from 'react'
 import { BackupTargetSchema, type BackupOverview, type BackupTarget } from 'shared-types'
 import { getStageServerUrl } from '../lib/stageServer'
 import { useDialogStore } from '../store/useDialogStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { AddRow, Button, Card, Dialog, Field, Section, Segmented, StatusDot, Switch } from './ui'
+import { useTranslation } from 'react-i18next'
 
 /** How long ago, in words. */
 function ago(iso: string, now = Date.now()): string {
   const minutes = Math.round((now - new Date(iso).getTime()) / 60_000)
-  if (minutes < 60) return `vor ${Math.max(1, minutes)} Min.`
+  if (minutes < 60) return i18n.t('devices:backup.minutes', { n: Math.max(1, minutes) })
   const hours = Math.round(minutes / 60)
-  if (hours < 48) return `vor ${hours} Std.`
-  return `vor ${Math.round(hours / 24)} Tagen`
+  if (hours < 48) return i18n.t('devices:backup.hours', { n: hours })
+  return i18n.t('devices:backup.days', { n: Math.round(hours / 24) })
 }
 
 function size(bytes: number): string {
@@ -21,7 +23,7 @@ function size(bytes: number): string {
 
 const NEW_TARGET = (kind: BackupTarget['kind']): BackupTarget => ({
   id: crypto.randomUUID(),
-  name: kind === 'folder' ? 'USB-Stick' : 'NAS',
+  name: kind === 'folder' ? i18n.t('system:bk.usb') : i18n.t('system:bk.nas'),
   kind,
   path: kind === 'folder' ? '' : undefined,
   host: kind === 'ssh' ? '' : undefined,
@@ -41,6 +43,7 @@ const NEW_TARGET = (kind: BackupTarget['kind']): BackupTarget => ({
  * this server serves (the server checks the admin login again).
  */
 export function ServerBackupTargets() {
+  const { t } = useTranslation('system')
   const workspace = useWorkspaceStore((s) => s.workspaces.find((w) => w.id === s.activeWorkspaceId))
   const alert = useDialogStore((s) => s.alert)
   const confirm = useDialogStore((s) => s.confirm)
@@ -52,17 +55,17 @@ export function ServerBackupTargets() {
   const call = useCallback(
     async (path: string, extra: object = {}): Promise<unknown> => {
       const base = getStageServerUrl()
-      if (!base || !workspace?.username || !workspace.couchPassword) throw new Error('Kein Stage-Server oder keine Admin-Anmeldung auf diesem Gerät.')
+      if (!base || !workspace?.username || !workspace.couchPassword) throw new Error(t('bk.noAdmin'))
       const res = await fetch(`${base}/server/backup/${path}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ adminUsername: workspace.username, adminPassword: workspace.couchPassword, ...extra }),
       })
       const body = (await res.json().catch(() => null)) as { message?: string } | null
-      if (!res.ok) throw new Error(body?.message ?? `Stage-Server antwortet mit ${res.status}`)
+      if (!res.ok) throw new Error(body?.message ?? t('bk.httpError', { status: res.status }))
       return body
     },
-    [workspace?.username, workspace?.couchPassword],
+    [workspace?.username, workspace?.couchPassword, t],
   )
 
   const reload = useCallback(() => {
@@ -88,17 +91,17 @@ export function ServerBackupTargets() {
       setOverview((await call('save', { target })) as BackupOverview)
       setEditing(null)
     } catch (err) {
-      void alert(`Nicht gespeichert: ${err instanceof Error ? err.message : String(err)}`)
+      void alert(t('bk.notSaved', { error: err instanceof Error ? err.message : String(err) }))
     }
   }
 
   async function remove(target: BackupTarget) {
-    if (!(await confirm(`Ziel „${target.name}“ entfernen? Die Sicherungen dort bleiben liegen.`, { confirmLabel: 'Entfernen' }))) return
+    if (!(await confirm(t('bk.removeConfirm', { name: target.name }), { confirmLabel: t('bk.remove') }))) return
     try {
       setOverview((await call('delete', { targetId: target.id })) as BackupOverview)
       setEditing(null)
     } catch (err) {
-      void alert(`Nicht entfernt: ${err instanceof Error ? err.message : String(err)}`)
+      void alert(t('bk.notRemoved', { error: err instanceof Error ? err.message : String(err) }))
     }
   }
 
@@ -106,7 +109,7 @@ export function ServerBackupTargets() {
     setBusy(target.id)
     try {
       const r = (await call('test', { targetId: target.id })) as { ok: boolean; message: string }
-      void alert(r.ok ? `✓ ${r.message}` : `Geht nicht: ${r.message}`)
+      void alert(r.ok ? `✓ ${r.message}` : t('bk.notWorking', { message: r.message }))
     } catch (err) {
       void alert(err instanceof Error ? err.message : String(err))
     } finally {
@@ -126,15 +129,15 @@ export function ServerBackupTargets() {
   return (
     <div className="flex flex-col gap-3">
       <Section
-        title="Sicherung des Stage-Servers"
-        info="Am sichersten zwei Ziele, z. B. USB-Stick und NAS. Ein ZFS-Spiegel allein ist keine Sicherung: Gelöschtes ist auch auf dem Spiegel weg."
+        title={t('bk.serverTitle')}
+        info={t('bk.serverInfo')}
       >
         {error && <p className="text-sm text-danger">{error}</p>}
-        {overview?.targets.length === 0 && <p className="text-sm text-ink-faint">Noch kein Ziel eingerichtet - der Server sichert sich nicht.</p>}
+        {overview?.targets.length === 0 && <p className="text-sm text-ink-faint">{t('bk.noTarget')}</p>}
         {overview?.targets.map(({ target, status }) => {
           const missing = status.present === false
           const dot = !target.enabled ? 'off' : status.lastError ? 'error' : missing || !status.lastSuccessAt ? 'warning' : 'ok'
-          const when = [target.dailyAt ? `täglich ${target.dailyAt}` : null, target.onPlugIn ? 'beim Einstecken' : null].filter(Boolean).join(' · ')
+          const when = [target.dailyAt ? t('bk.daily', { time: target.dailyAt }) : null, target.onPlugIn ? t('bk.onPlug') : null].filter(Boolean).join(' · ')
           return (
             <Card key={target.id}>
               <div className="flex flex-wrap items-center gap-3">
@@ -147,36 +150,36 @@ export function ServerBackupTargets() {
                   </p>
                   <p className={`text-sm ${status.lastError ? 'text-danger' : 'text-ink-muted'}`}>
                     {status.running
-                      ? 'Sichert gerade…'
+                      ? t('bk.running')
                       : status.lastError
-                        ? `Fehlgeschlagen${status.lastRunAt ? ` (${ago(status.lastRunAt)})` : ''}: ${status.lastError}`
+                        ? t('bk.runFailed', { when: status.lastRunAt ? ` (${ago(status.lastRunAt)})` : '', error: status.lastError })
                         : status.lastSuccessAt
-                          ? `Letzte Sicherung ${ago(status.lastSuccessAt)}${status.lastBytes ? `, ${size(status.lastBytes)}` : ''}`
-                          : 'Noch keine Sicherung'}
-                    {missing && !status.running ? ' · Medium nicht eingesteckt' : ''}
+                          ? t('bk.lastBackup', { when: ago(status.lastSuccessAt), size: status.lastBytes ? `, ${size(status.lastBytes)}` : '' })
+                          : t('bk.none')}
+                    {missing && !status.running ? t('bk.missing') : ''}
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Button onClick={() => void test(target)} disabled={busy === target.id}>
-                    {busy === target.id ? 'Prüfe…' : 'Testen'}
+                    {busy === target.id ? t('bk.checking') : t('bk.test')}
                   </Button>
                   <Button variant="primary" onClick={() => void runNow(target)} disabled={status.running || missing}>
-                    Jetzt sichern
+                    {t('bk.now')}
                   </Button>
-                  <Button onClick={() => setEditing(target)}>Bearbeiten</Button>
+                  <Button onClick={() => setEditing(target)}>{t('bk.edit')}</Button>
                 </div>
               </div>
             </Card>
           )
         })}
-        <AddRow label="Ziel hinzufügen" onClick={() => setEditing(NEW_TARGET('folder'))} />
+        <AddRow label={t('bk.addTarget')} onClick={() => setEditing(NEW_TARGET('folder'))} />
       </Section>
 
       {overview?.publicKey && overview.targets.some((t) => t.target.kind === 'ssh') && (
-        <Section title="Schlüssel des Servers für die NAS" info="Einmal auf der NAS beim Backup-Benutzer in ~/.ssh/authorized_keys eintragen - dann braucht der Server kein Passwort.">
+        <Section title={t('bk.keyTitle')} info={t('bk.keyInfo')}>
           <code className="block select-all break-all rounded-control border border-line bg-control p-3 text-sm">{overview.publicKey}</code>
           <div>
-            <Button onClick={() => void navigator.clipboard?.writeText(overview.publicKey!).then(() => alert('Schlüssel kopiert.'))}>Kopieren</Button>
+            <Button onClick={() => void navigator.clipboard?.writeText(overview.publicKey!).then(() => alert(t('bk.keyCopied')))}>{t('bk.copy')}</Button>
           </div>
         </Section>
       )}
@@ -195,6 +198,7 @@ export function ServerBackupTargets() {
 }
 
 function TargetDialog({ target, isNew, onSave, onRemove, onClose }: { target: BackupTarget; isNew: boolean; onSave: (t: BackupTarget) => void; onRemove: () => void; onClose: () => void }) {
+  const { t } = useTranslation('system')
   const [draft, setDraft] = useState<BackupTarget>(target)
   const set = (patch: Partial<BackupTarget>) => setDraft((d) => ({ ...d, ...patch }))
   const parsed = BackupTargetSchema.safeParse(draft)
@@ -207,66 +211,66 @@ function TargetDialog({ target, isNew, onSave, onRemove, onClose }: { target: Ba
 
   return (
     <Dialog
-      title={isNew ? 'Ziel hinzufügen' : 'Ziel bearbeiten'}
+      title={isNew ? t('bk.addTarget') : t('bk.editTarget')}
       onClose={onClose}
       actions={
         <>
           {!isNew && (
             <Button variant="danger" onClick={onRemove}>
-              Entfernen
+              {t('bk.remove')}
             </Button>
           )}
-          <Button onClick={onClose}>Abbrechen</Button>
+          <Button onClick={onClose}>{t('cancel')}</Button>
           <Button variant="primary" disabled={!parsed.success} onClick={() => parsed.success && onSave(parsed.data)}>
-            Speichern
+            {t('save')}
           </Button>
         </>
       }
     >
       <div className="flex flex-col gap-4">
         <Segmented
-          label="Art des Ziels"
+          label={t('bk.kind')}
           value={draft.kind}
           onChange={switchKind}
           options={[
-            { value: 'folder', label: 'Ordner' },
-            { value: 'ssh', label: 'NAS über Netzwerk' },
+            { value: 'folder', label: t('bk.folder') },
+            { value: 'ssh', label: t('bk.sshNas') },
           ]}
         />
         <p className="text-sm text-ink-faint">
           {draft.kind === 'folder'
-            ? 'USB-Stick, zweite Festplatte, ZFS-Dataset oder eine vom System eingehängte NAS-Freigabe.'
-            : 'Die NAS wird per SSH erreicht (rsync) - nichts einzuhängen. Unveränderte Backing-Tracks belegen keinen Platz doppelt.'}
+            ? t('bk.folderInfo')
+            : t('bk.sshInfo')}
         </p>
-        <Field label="Name" value={draft.name} onChange={(e) => set({ name: e.target.value })} error={errorOf('name')} />
+        <Field label={t('bk.name')} value={draft.name} onChange={(e) => set({ name: e.target.value })} error={errorOf('name')} />
         {draft.kind === 'folder' ? (
-          <Field label="Ordner" placeholder="/media/marco/BACKUP" value={draft.path ?? ''} onChange={(e) => set({ path: e.target.value })} error={errorOf('path')} />
+          <Field label={t('bk.folderLabel')} placeholder="/media/marco/BACKUP" value={draft.path ?? ''} onChange={(e) => set({ path: e.target.value })} error={errorOf('path')} />
         ) : (
           <>
             <div className="grid grid-cols-[1fr_6rem] gap-3">
-              <Field label="Adresse der NAS" placeholder="nas.local" value={draft.host ?? ''} onChange={(e) => set({ host: e.target.value })} error={errorOf('host')} />
-              <Field label="Port" type="number" inputMode="numeric" value={draft.port ?? 22} onChange={(e) => set({ port: Number(e.target.value) || 22 })} />
+              <Field label={t('bk.nasAddress')} placeholder="nas.local" value={draft.host ?? ''} onChange={(e) => set({ host: e.target.value })} error={errorOf('host')} />
+              <Field label={t('bk.port')} type="number" inputMode="numeric" value={draft.port ?? 22} onChange={(e) => set({ port: Number(e.target.value) || 22 })} />
             </div>
-            <Field label="Benutzer" placeholder="backup" value={draft.user ?? ''} onChange={(e) => set({ user: e.target.value })} error={errorOf('user')} />
-            <Field label="Ordner auf der NAS" placeholder="/volume1/stageboard" value={draft.remotePath ?? ''} onChange={(e) => set({ remotePath: e.target.value })} error={errorOf('remotePath')} />
+            <Field label={t('bk.user')} placeholder="backup" value={draft.user ?? ''} onChange={(e) => set({ user: e.target.value })} error={errorOf('user')} />
+            <Field label={t('bk.nasFolder')} placeholder="/volume1/stageboard" value={draft.remotePath ?? ''} onChange={(e) => set({ remotePath: e.target.value })} error={errorOf('remotePath')} />
           </>
         )}
-        <Switch label="Täglich sichern" checked={draft.dailyAt !== null} onChange={(on) => set({ dailyAt: on ? '04:00' : null })} description="Nie während ein Song läuft - dann kurz danach." />
-        {draft.dailyAt !== null && <Field label="Uhrzeit" type="time" value={draft.dailyAt} onChange={(e) => set({ dailyAt: e.target.value || '04:00' })} error={errorOf('dailyAt')} />}
+        <Switch label={t('bk.dailyLabel')} checked={draft.dailyAt !== null} onChange={(on) => set({ dailyAt: on ? '04:00' : null })} description={t('bk.dailyHint')} />
+        {draft.dailyAt !== null && <Field label={t('bk.time')} type="time" value={draft.dailyAt} onChange={(e) => set({ dailyAt: e.target.value || '04:00' })} error={errorOf('dailyAt')} />}
         {draft.kind === 'folder' && (
-          <Switch label="Beim Einstecken sichern" checked={draft.onPlugIn} onChange={(on) => set({ onPlugIn: on })} description="Sobald der Stick da ist, wenn die letzte Sicherung älter als einen Tag ist." />
+          <Switch label={t('bk.plugLabel')} checked={draft.onPlugIn} onChange={(on) => set({ onPlugIn: on })} description={t('bk.plugHint')} />
         )}
         <Field
-          label="Sicherungen behalten"
+          label={t('bk.keep')}
           type="number"
           inputMode="numeric"
           min={1}
           max={60}
           value={draft.keep}
           onChange={(e) => set({ keep: Math.min(60, Math.max(1, Number(e.target.value) || 1)) })}
-          hint="Ältere werden gelöscht."
+          hint={t('bk.keepHint')}
         />
-        <Switch label="Aktiv" checked={draft.enabled} onChange={(on) => set({ enabled: on })} />
+        <Switch label={t('bk.enabled')} checked={draft.enabled} onChange={(on) => set({ enabled: on })} />
       </div>
     </Dialog>
   )

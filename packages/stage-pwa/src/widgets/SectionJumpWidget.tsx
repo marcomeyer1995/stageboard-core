@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { useMemo, useState } from 'react'
 import { isSongEntry } from 'shared-types'
 import { Icon } from '../components/Icon'
@@ -31,6 +32,7 @@ const BUTTON = 'min-h-touch rounded-control px-4 font-bold transition-colors dis
  * device alone - no master needed (#479, Marco 2026-10-22).
  */
 export function SectionJumpWidget() {
+  const { t } = useTranslation('widgets')
   const { mode, queue, elapsedMs, playbackStatus, canControl: isMaster, transport, sectionLoop: loop, trackOverride, liveTempoAdjustPercent } = useShowMode()
   const jump = transport.jump ?? null
   const [when, setWhen] = useState<JumpWhen>(storedWhen)
@@ -57,7 +59,7 @@ export function SectionJumpWidget() {
   const sections = useMemo(() => (timeline ? showSections(content, timeline, durationMs) : []), [content, timeline, durationMs])
 
   if (!currentSong || sections.length === 0) {
-    return <p className="flex h-full items-center justify-center text-center text-ink-faint">Keine Abschnitte mit Zeit in der Timeline</p>
+    return <p className="flex h-full items-center justify-center text-center text-ink-faint">{t('sj.none')}</p>
   }
 
   const playing = playbackStatus === 'playing' && elapsedMs !== null
@@ -73,7 +75,7 @@ export function SectionJumpWidget() {
       return
     }
     const result = await queueSectionJump(section, when, sections, timeline)
-    if (result === 'no-boundary') setMessage('Dieser Abschnitt hat kein bekanntes Ende - „Ende Takt“ wählen.')
+    if (result === 'no-boundary') setMessage(t('sj.noEnd'))
   }
 
   function chooseWhen(next: JumpWhen) {
@@ -86,18 +88,18 @@ export function SectionJumpWidget() {
   }
 
   const status = jump
-    ? `Nächster Abschnitt: ${jump.label ?? 'Sprung'}`
+    ? t('sj.next', { name: jump.label ?? t('sj.jump') })
     : loop
-      ? `Wiederholt: ${loop.label ?? 'Abschnitt'}`
+      ? t('sj.repeating', { name: loop.label ?? t('w.section') })
       : !isMaster && mode === 'gig'
-        ? 'Springen kann der Master'
+        ? t('sj.masterOnly')
         : !playing
-          ? 'Springen, während der Song läuft'
+          ? t('sj.whilePlaying')
           : null
 
   return (
     <div className="flex h-full flex-col gap-2 overflow-y-auto">
-      <div className="flex flex-wrap gap-2" role="group" aria-label="Abschnitte">
+      <div className="flex flex-wrap gap-2" role="group" aria-label={t('sj.aria')}>
         {sections.map((section, index) => {
           const queued = jump?.toMs === section.startMs
           const isCurrent = index === currentIndex
@@ -124,13 +126,13 @@ export function SectionJumpWidget() {
           {showWhen && (
             <div className="min-w-[14rem] flex-1">
               <Segmented
-                label="Springen am"
+                label={t('sj.when')}
                 value={when}
                 size="stage"
                 onChange={(value) => chooseWhen(value as JumpWhen)}
                 options={[
-                  { value: 'bar', label: 'Ende Takt' },
-                  { value: 'section', label: 'Ende Abschnitt' },
+                  { value: 'bar', label: t('sj.bar') },
+                  { value: 'section', label: t('sj.section') },
                 ]}
               />
             </div>
@@ -144,7 +146,7 @@ export function SectionJumpWidget() {
               className={`${BUTTON} ${loop ? 'bg-accent text-accent-ink' : 'bg-control-strong text-ink'}`}
             >
               <Icon name="repeat" className="mr-1 inline" />
-              {loop ? 'Wiederholung beenden' : 'Wiederholen'}
+              {loop ? t('sj.stopRepeat') : t('sj.repeat')}
             </button>
           )}
         </div>

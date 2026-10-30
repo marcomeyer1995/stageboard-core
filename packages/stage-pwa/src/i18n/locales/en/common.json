@@ -11,5 +11,122 @@
   "session": {
     "gig": "Gig",
     "practice": "Solo"
+  },
+  "actions": {
+    "done": "Done",
+    "cancel": "Cancel",
+    "back": "Back",
+    "smaller": "Smaller",
+    "larger": "Larger"
+  },
+  "ui": {
+    "active": "Active",
+    "explanation": "Explanation",
+    "several": "Pick several",
+    "status": {
+      "ok": "OK",
+      "warning": "Warning",
+      "error": "Error",
+      "off": "Off"
+    },
+    "explain": "Explanation: {{label}}",
+    "menu": "Menu: {{title}}",
+    "tapToClose": "Tap to close",
+    "noShape": "No chord shape",
+    "cancel": "Cancel",
+    "openMenu": "Open menu",
+    "noText": "No text."
+  },
+  "tiers": {
+    "gig": "During song",
+    "glance": "Between songs",
+    "rehearsal": "Rehearsal",
+    "explain": "What a widget is meant for - it sets its sizes. During song: used mid-song, the largest buttons. Between songs: on stage, but only read or used between songs. Rehearsal: for rehearsal and preparation only, may be denser."
+  },
+  "widgetLibrary": {
+    "title": "Add widget",
+    "search": "Search widgets…",
+    "noneFound": "No widget found.",
+    "noPreview": "No preview",
+    "rehearsalInGig": "Meant for rehearsal - this dashboard is also offered in Gig mode.",
+    "noRoomTitle": "No room for “{{title}}”",
+    "noRoomText": "At full size ({{w}} × {{h}}) there is no room on this dashboard - it would be shrunk and might not show everything. Pick another dashboard or make room first.",
+    "addHereAnyway": "Add here anyway",
+    "newDashboard": "New dashboard with this widget",
+    "categories": {
+      "performance": "Performance",
+      "monitoring": "Monitoring",
+      "show-control": "Show control",
+      "system-crew": "System & crew",
+      "utility": "Utility",
+      "reference": "Reference",
+      "post-show": "After the show"
+    }
+  },
+  "route": {
+    "speaker": "Speaker",
+    "wired": "Headphones (cable)",
+    "bluetooth": "Bluetooth",
+    "usb": "USB audio",
+    "unknown": "unknown (browser)"
+  },
+  "dialog": {
+    "cancel": "Cancel",
+    "ok": "OK",
+    "unsavedTitle": "Unsaved changes",
+    "unsaved": "You have changes that are not saved yet.",
+    "save": "Save",
+    "discard": "Discard",
+    "keepEditing": "Keep editing",
+    "typeToConfirm": "Type “{{text}}” to confirm"
+  },
+  "mt": {
+    "force": "Another device is the active master - force takeover",
+    "forceDenied": "Another device is the active master - only admin/showmaster may take over",
+    "stale": "The master device no longer responds",
+    "noControl": "This device currently has no control over the queue",
+    "forceButton": "Force takeover",
+    "claim": "Take over as master",
+    "forceAsk": "Really push the active master device aside?",
+    "forceTitle": "Force takeover",
+    "forceConfirm": "Take over",
+    "thisDevice": "This device"
+  },
+  "rc": {
+    "title": "Ready check",
+    "question": "On stage, in-ears in, instrument on?",
+    "noProfile": "No profile chosen - this device cannot answer.",
+    "ready": "I am ready",
+    "close": "Close",
+    "failed": "No connection to the Stage server - please tap again.",
+    "askTitle": "Ask every tablet whether the band is ready",
+    "short": "Ready",
+    "unknown": "Unknown",
+    "waiting": "Waiting for: {{names}}",
+    "allReady": "All ready",
+    "endTitle": "End the ready check",
+    "end": "End"
+  },
+  "up": {
+    "available": "New app version {{version}} on the Stage server",
+    "failed": "The update could not be loaded – try again later. ({{reason}})",
+    "loading": "Loading…",
+    "update": "Update",
+    "later": "Later"
+  },
+  "rv": {
+    "title": "This device was removed",
+    "text": "An admin removed this device from the band. Contact an admin if that was a mistake - as soon as the device is allowed again, it continues here automatically."
+  },
+  "ar": {
+    "title": "Playback interrupted",
+    "text": "The browser blocked the automatic resume of the backing track. Tap to keep playing.",
+    "tap": "Tap to resume"
+  },
+  "sync": {
+    "idle": "Synchronised",
+    "syncing": "Synchronising…",
+    "offline": "Offline",
+    "error": "Error"
   }
 }

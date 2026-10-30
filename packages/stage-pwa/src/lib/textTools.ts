@@ -36,28 +36,6 @@ export function transposeText(content: string, semitones: number, key: string | 
   return mapChords(content, (chord) => transposeChord(chord, semitones, useFlats))
 }
 
-/** A chord written with a lowercase root - `am`, `c#m7`, `bb/f` - and only chord vocabulary after it. */
-const LOWER_ROOT_RE = /^([a-g])([#b]?)((?:maj|min|dim|aug|sus|add|m|M|\+|°|ø|\d+)*)(?:\/([a-g])([#b]?))?$/
-
-/**
- * "Aufräumen" (#605): no runs of empty lines (one stays), no trailing spaces, chord roots in
- * capitals (`[am]` → `[Am]`, `[c#m]` → `[C#m]`). The lyrics themselves are not touched.
- */
-export function cleanupText(content: string): string {
-  const capitalised = mapChords(content, (chord) => {
-    const match = LOWER_ROOT_RE.exec(chord)
-    if (!match) return chord
-    const [, root, accidental, suffix, bass, bassAccidental] = match
-    return `${root.toUpperCase()}${accidental}${suffix}${bass ? `/${bass.toUpperCase()}${bassAccidental}` : ''}`
-  })
-  return capitalised
-    .split('\n')
-    .map((line) => line.replace(/[ \t]+$/, ''))
-    .join('\n')
-    .replace(/\n{3,}/g, '\n\n')
-    .replace(/^\n+/, '')
-}
-
 export interface BracketProblem {
   /** 1-based, as a person counts lines. */
   line: number
@@ -78,11 +56,4 @@ export function bracketProblems(content: string): BracketProblem[] {
     }
   })
   return problems
-}
-
-/** "Suchen & Ersetzen" (#605): every occurrence, literally (no patterns) - with how many it were. */
-export function replaceAllText(content: string, find: string, replacement: string): { content: string; count: number } {
-  if (!find) return { content, count: 0 }
-  const parts = content.split(find)
-  return { content: parts.join(replacement), count: parts.length - 1 }
 }

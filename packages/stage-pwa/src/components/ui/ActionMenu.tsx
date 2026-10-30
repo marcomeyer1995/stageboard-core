@@ -1,14 +1,20 @@
+import i18n from '../../i18n'
 import { useState } from 'react'
 import { useControlSize } from './PrepTier'
 import { Dialog } from './Dialog'
 import { IconButton } from './IconButton'
+import { Icon, type IconName } from '../Icon'
 import { CONTROL, DISABLED, FOCUS, SELECTED, type ControlSize } from './styles'
+import { useTranslation } from 'react-i18next'
 
 export interface MenuAction {
   label: string
   onClick: () => void
   danger?: boolean
   disabled?: boolean
+  /** Required (docs/15 D12, 2026-10-30): every menu entry has its icon, the same action the same one
+   * in every menu - the type check keeps new entries from coming without. */
+  icon: IconName
 }
 
 const ROW = `flex min-h-form w-full items-center px-4 text-left text-base ${CONTROL} ${FOCUS} ${DISABLED}`
@@ -25,6 +31,7 @@ export function choiceRow(chosen: boolean, idle = 'text-ink'): string {
 /** The open menu: the actions as full-width rows, dangerous ones in red and set apart at the
  * end; "Abbrechen" at the bottom (choosing an entry already closes it). */
 export function ActionMenuDialog({ title, actions, onClose }: { title: string; actions: MenuAction[]; onClose: () => void }) {
+  const { t } = useTranslation('common')
   const normal = actions.filter((a) => !a.danger)
   const danger = actions.filter((a) => a.danger)
   const row = (action: MenuAction) => (
@@ -36,13 +43,14 @@ export function ActionMenuDialog({ title, actions, onClose }: { title: string; a
         onClose()
         action.onClick()
       }}
-      className={`${MENU_ROW} ${action.danger ? 'text-danger' : 'text-ink'}`}
+      className={`${MENU_ROW} gap-3 ${action.danger ? 'text-danger' : 'text-ink'}`}
     >
+      {action.icon && <Icon name={action.icon} size="1.2em" />}
       {action.label}
     </button>
   )
   return (
-    <Dialog title={title} size="s" closeLabel="Abbrechen" onClose={onClose}>
+    <Dialog title={title} size="s" closeLabel={t('actions.cancel')} onClose={onClose}>
       {normal.length > 0 && <div className="flex flex-col gap-2">{normal.map(row)}</div>}
       {danger.length > 0 && <div className="flex flex-col gap-2 border-t border-line pt-3">{danger.map(row)}</div>}
     </Dialog>
@@ -65,7 +73,7 @@ export function ActionMenu({ title, actions, size: sizeProp, scope = 'entry' }: 
   const [open, setOpen] = useState(false)
   return (
     <>
-      <IconButton icon={menuIcon(scope)} label={`Menü: ${title}`} size={size} onClick={() => setOpen(true)} className="!w-16" />
+      <IconButton icon={menuIcon(scope)} label={i18n.t('common:ui.menu', { title })} size={size} onClick={() => setOpen(true)} className="!w-16" />
       {open && <ActionMenuDialog title={title} actions={actions} onClose={() => setOpen(false)} />}
     </>
   )

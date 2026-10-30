@@ -1,3 +1,4 @@
+import i18n from '../i18n'
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { buildJoinUrl, renderQrCode } from '../lib/qrCode'
@@ -7,6 +8,7 @@ import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { useBackHandler } from '../lib/backNavigation'
 import { printPage } from '../lib/native'
 import { Button } from './ui'
+import { useTranslation } from 'react-i18next'
 
 /**
  * "Band beitreten" QR/code screen (see #21, redesigned 2026-09-01 at Marco's explicit request
@@ -45,6 +47,7 @@ export function InviteBandView({
   onClose: () => void
   isFoundingSummary?: boolean
 }) {
+  const { t } = useTranslation('band')
   useBackHandler(onClose)
   const getAccessCode = useWorkspaceStore((state) => state.getAccessCode)
   const rotateAccessCode = useWorkspaceStore((state) => state.rotateAccessCode)
@@ -81,7 +84,7 @@ export function InviteBandView({
     void getAccessCode(workspaceId).then(async (result) => {
       if (cancelled) return
       if (!result) {
-        setError('Code konnte nicht geladen werden.')
+        setError(t('inv.codeFailed'))
         return
       }
       setCode(result.code)
@@ -101,44 +104,42 @@ export function InviteBandView({
           own sheet below - this overlay inside the scrolling app never made it onto the page
           (the printout showed the app behind it, 2026-10-07). */}
       <div className="max-h-[90vh] w-full max-w-sm space-y-4 overflow-y-auto rounded-container border border-line bg-surface p-6 text-ink">
-        <h2 className="text-xl font-bold">{isFoundingSummary ? 'Code speichern!' : 'Band einladen'}</h2>
+        <h2 className="text-xl font-bold">{isFoundingSummary ? t('inv.saveCode') : t('inv.title')}</h2>
 
         {error && <p className="text-sm text-danger">{error}</p>}
 
-        {!error && !code && <p className="text-sm text-ink-muted">Lade Code…</p>}
+        {!error && !code && <p className="text-sm text-ink-muted">{t('inv.loading')}</p>}
 
         {code && (
           <>
             <p className="text-sm text-ink-muted">
               {isFoundingSummary
-                ? 'Das ist der einzige Weg zurück in diese Band, falls du dich einmal aussperrst - jetzt notieren, ausdrucken oder als PDF speichern. QR-Code scannen oder Code eingeben lassen - "Band beitreten" auf einem neuen Gerät.'
-                : 'QR-Code scannen oder Code eingeben lassen - "Band beitreten" auf dem neuen Gerät. Dieser Code bleibt gültig, bis er neu erzeugt wird.'}
+                ? t('inv.founding')
+                : t('inv.howTo')}
             </p>
-            {qrDataUrl && <img src={qrDataUrl} alt={`QR-Code für Bandcode ${code}`} className="mx-auto w-48" />}
+            {qrDataUrl && <img src={qrDataUrl} alt={t('inv.qrAlt', { code })} className="mx-auto w-48" />}
             <p className="text-center text-2xl font-bold tracking-widest">{code}</p>
             {lanIp ? (
               <p className="text-center text-xs text-ink-faint">
-                Im QR-Code enthaltene Server-Adresse: {lanIp}
+                {t('inv.address', { ip: lanIp })}
                 <br />
-                Ändert sich diese Adresse später, muss der QR-Code hier neu erstellt werden - der Code selbst ({code}
-                ) bleibt dabei gültig.
+                {t('inv.addressChange', { code })}
               </p>
             ) : (
               <p className="text-center text-xs text-ink-faint">
-                Server-Adresse konnte nicht ermittelt werden - der QR-Code funktioniert nur mit der Kamera in der App,
-                nicht mit einer normalen Kamera-App.
+                {t('inv.noAddress')}
               </p>
             )}
-            <Button fullWidth onClick={() => void printPage(`StageBoard - ${bandName || 'Band'} einladen`)}>
-              Drucken / als PDF speichern
+            <Button fullWidth onClick={() => void printPage(t('inv.printName', { band: bandName || t('inv.band') }))}>
+              {t('inv.print')}
             </Button>
             <button
               type="button"
               disabled={rotating}
               onClick={async () => {
                 const confirmed = await confirm(
-                  'Neuen Code erzeugen? Der alte Code funktioniert danach nicht mehr - auf jedem Gerät, das ihn nur kennt, aber noch nicht beigetreten ist.',
-                  { confirmLabel: 'Neu erzeugen', danger: true },
+                  t('inv.rotateConfirm'),
+                  { confirmLabel: t('inv.rotate'), danger: true },
                 )
                 if (!confirmed) return
                 setRotating(true)
@@ -150,7 +151,7 @@ export function InviteBandView({
               }}
               className="min-h-form w-full text-center text-base text-ink-faint underline disabled:opacity-40"
             >
-              {rotating ? 'Erzeuge neuen Code…' : 'Code ändern'}
+              {rotating ? t('inv.rotating') : t('inv.change')}
             </button>
           </>
         )}
@@ -158,7 +159,7 @@ export function InviteBandView({
         {/* Nothing to confirm here - one "Fertig" at the bottom (docs/15 D6). */}
         <div className="flex justify-end border-t border-line pt-3">
           <Button variant="primary" onClick={onClose}>
-            Fertig
+            {t('inv.done')}
           </Button>
         </div>
       </div>
@@ -173,23 +174,24 @@ export function InviteBandView({
 
 /** What goes on paper (index.css `.sb-print-sheet`): black on white, whatever the theme. */
 function PrintSheet({ bandName, code, qrDataUrl, lanIp }: { bandName: string; code: string; qrDataUrl: string | null; lanIp: string | null }) {
+  const { t } = useTranslation('band')
   useEffect(() => {
     document.body.classList.add('sb-has-print-sheet')
     return () => document.body.classList.remove('sb-has-print-sheet')
   }, [])
   return (
     <div className="sb-print-sheet" data-testid="print-sheet" style={{ color: '#000', background: '#fff', padding: '24mm 18mm', fontFamily: 'sans-serif' }}>
-      <h1 style={{ fontSize: '26pt', fontWeight: 700, margin: 0 }}>{bandName || 'Band'}</h1>
+      <h1 style={{ fontSize: '26pt', fontWeight: 700, margin: 0 }}>{bandName || t('inv.band')}</h1>
       <p style={{ fontSize: '13pt', margin: '6mm 0 10mm' }}>
-        StageBoard - Einladung. Auf dem neuen Gerät „Band beitreten“ wählen und den QR-Code scannen oder den Code eingeben.
+        {t('inv.sheetText')}
       </p>
       {qrDataUrl && <img src={qrDataUrl} alt="" style={{ width: '70mm', height: '70mm', display: 'block' }} />}
       <p style={{ fontSize: '28pt', fontWeight: 700, letterSpacing: '0.2em', margin: '8mm 0 2mm' }}>{code}</p>
       <p style={{ fontSize: '11pt', margin: 0 }}>
-        {lanIp ? `Stage-Server: ${lanIp} - ändert sich diese Adresse, den QR-Code neu ausdrucken (der Code bleibt gültig).` : 'Server-Adresse unbekannt - der QR-Code funktioniert nur mit der Kamera in der App.'}
+        {lanIp ? t('inv.sheetServer', { ip: lanIp }) : t('inv.sheetNoServer')}
       </p>
       <p style={{ fontSize: '10pt', marginTop: '10mm', color: '#444' }}>
-        Gültig, bis der Code in der App neu erzeugt wird. Gedruckt am {new Date().toLocaleDateString('de-DE')}.
+        {t('inv.sheetValid', { date: new Date().toLocaleDateString(i18n.language) })}
       </p>
     </div>
   )

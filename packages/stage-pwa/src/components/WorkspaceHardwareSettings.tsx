@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useStageServerStatus } from '../lib/useStageServerStatus'
 import { SwitchServerBandWizard } from './SwitchServerBandWizard'
 import { Button } from './ui'
+import { useTranslation } from 'react-i18next'
 
 /**
  * Which band this physical Stage-Server's hardware (plugin sync, Discovery Mode's MIDI watcher)
@@ -11,25 +12,26 @@ import { Button } from './ui'
  * (abortable) switch - band list, admin proofs and all.
  */
 export function WorkspaceHardwareSettings() {
+  const { t } = useTranslation('system')
   const { status, refreshing, slow, workspaces, activeWorkspaceName, activeWorkspaceId, reload } = useStageServerStatus()
   const [wizardOpen, setWizardOpen] = useState(false)
 
   return (
     <div className="flex flex-col gap-2">
       <p className="text-sm text-ink-muted">
-        {status === 'loading' && (slow ? 'Stage-Server antwortet langsam…' : 'Lade…')}
-        {status === 'unreachable' && 'Stage-Server nicht erreichbar.'}
-        {status === 'unpaired' && 'Noch mit keinem Stage-Server gekoppelt - unter System → Stage-Server suchen.'}
+        {status === 'loading' && (slow ? t('hw.slow') : t('hw.loading'))}
+        {status === 'unreachable' && t('hw.unreachable')}
+        {status === 'unpaired' && t('hw.unpaired')}
         {status === 'reachable' && (
           <>
-            Aktiv:{' '}
-            <span className="font-semibold text-ink">{activeWorkspaceId === null ? 'keine' : (activeWorkspaceName ?? activeWorkspaceId)}</span>
-            {refreshing && <span className="text-ink-faint"> · {slow ? 'antwortet langsam…' : 'aktualisiere…'}</span>}
+            {t('hw.active')}
+            <span className="font-semibold text-ink">{activeWorkspaceId === null ? t('hw.none') : (activeWorkspaceName ?? activeWorkspaceId)}</span>
+            {refreshing && <span className="text-ink-faint"> · {slow ? t('hw.slowShort') : t('hw.refreshing')}</span>}
           </>
         )}
       </p>
       <Button disabled={status !== 'reachable' || !workspaces?.length} onClick={() => setWizardOpen(true)}>
-        Band wechseln…
+        {t('hw.switch')}
       </Button>
 
       {wizardOpen && workspaces && (

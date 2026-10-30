@@ -1,3 +1,4 @@
+import i18n from '../../i18n'
 import { useEffect, useRef } from 'react'
 import { minimapGrab, minimapTime, minimapX, PART_FILL, tokenColor, type MinimapRange, type TimelineView } from '../../lib/timeline'
 import type { PartBlock } from '../../lib/timelineText'
@@ -92,7 +93,7 @@ export function TimelineMinimap({ width, peaks, range, view, viewSpanMs, blocks,
       ref={canvas}
       className="w-full rounded-control border border-line bg-stage"
       style={{ height: MINIMAP_H, touchAction: 'none' }}
-      aria-label="Übersicht"
+      aria-label={i18n.t('editor:tl.overview')}
       data-testid="timeline-minimap"
       onPointerDown={(e) => {
         const hit = minimapGrab(x(e), range, width, view, viewSpanMs)

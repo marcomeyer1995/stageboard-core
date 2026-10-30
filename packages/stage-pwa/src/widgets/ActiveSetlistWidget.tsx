@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { useShowPart } from '../lib/widgetParts'
 import { isSongEntry } from 'shared-types'
 import { useShowModeCore } from '../lib/showMode'
@@ -13,6 +14,7 @@ import { stageFontSize } from '../lib/stageSize'
  *
  * Sized as a ratio of the device-wide default, not auto-fit to the tile (Marco, 2026-09-14). */
 export function ActiveSetlistWidget({ config }: { config: ActiveSetlistConfig }) {
+  const { t } = useTranslation('widgets')
   // Parts left out under "Anzeigen" in the ⋯ menu (Marco, 2026-10-17: declutter every widget).
   const showCaption = useShowPart('caption')
   const showCount = useShowPart('count')
@@ -27,7 +29,7 @@ export function ActiveSetlistWidget({ config }: { config: ActiveSetlistConfig })
     <div className="flex h-full flex-col items-center gap-1 text-center">
       {showCaption && (
         <span className="text-xs font-bold uppercase tracking-widest text-ink-faint">
-          Aktive Setlist
+          {t('active.caption')}
         </span>
       )}
       <div className="flex w-full flex-1 items-center justify-center overflow-hidden">
@@ -35,7 +37,7 @@ export function ActiveSetlistWidget({ config }: { config: ActiveSetlistConfig })
           style={{ fontSize }}
           className={`whitespace-nowrap font-semibold ${activeSetlist ? 'text-ink' : 'text-ink-faint'}`}
         >
-          {activeSetlist ? activeSetlist.name : 'Keine'}
+          {activeSetlist ? activeSetlist.name : t('active.none')}
         </span>
       </div>
       {showCount && activeSetlist && <span className="text-sm text-ink-muted">{activeSetlist.entries.filter(isSongEntry).length} Songs</span>}
@@ -50,9 +52,10 @@ export function ActiveSetlistConfigPanel({
   config: ActiveSetlistConfig
   onChange: (next: ActiveSetlistConfig) => void
 }) {
+  const { t } = useTranslation('widgets')
   return (
     <SizeRatioSlider
-      label="Größe"
+      label={t('w.size')}
       ratio={config.sizeRatio ?? DEFAULT_SIZE_RATIO}
       onChange={(sizeRatio) => onChange({ ...config, sizeRatio })}
     />

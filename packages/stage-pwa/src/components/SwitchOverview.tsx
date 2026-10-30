@@ -10,14 +10,15 @@ import { WIDGET_COLOR_SOLID } from '../widgets/widgetColors'
 import { useDescribeBehavior } from './BehaviorEditor'
 import { SwitchDialog } from './SwitchEditor'
 import { AddRow, Badge, InfoHint } from './ui'
+import { useTranslation } from 'react-i18next'
 
-const STATE_LABEL = { pressed: 'gedrückt', on: 'an', off: 'aus' } as const
 
 /**
  * The band's switches (docs/23 §11.4): each with its behaviour, its state and everything that
  * triggers it. Tapping one edits it - for all its triggers at once.
  */
 export function SwitchOverview() {
+  const { t } = useTranslation('actions')
   const switches = useSwitchesStore((state) => state.switches)
   const states = useSwitchesStore((state) => state.states)
   const bindings = useKeybindingsStore((state) => state.bindings)
@@ -30,13 +31,13 @@ export function SwitchOverview() {
   return (
     <section className="space-y-2">
       <div className="flex items-center gap-1">
-        <h2 className="text-sm font-bold uppercase tracking-widest text-ink-faint">Schalter</h2>
+        <h2 className="text-sm font-bold uppercase tracking-widest text-ink-faint">{t('switchesTitle')}</h2>
         <InfoHint
-          label="Erklärung: Schalter"
-          text="Einmal einrichten, überall auslösen: ein Schalter wie „Blinder“ geht per Pedal, MIDI-Knopf und Dashboard-Knopf - alle zeigen denselben Zustand."
+          label={t('switchesExplainLabel')}
+          text={t('switchesExplain')}
         />
       </div>
-      {switches.length === 0 && <p className="text-base text-ink-soft">Noch kein Schalter.</p>}
+      {switches.length === 0 && <p className="text-base text-ink-soft">{t('noSwitch')}</p>}
       {switches.map((sw) => {
         const usage = switchUsage(sw.id, { bindings, midiDocs, devices, dashboards })
         const state = states[sw.id] ?? 'off'
@@ -51,13 +52,13 @@ export function SwitchOverview() {
             <span className="flex min-w-0 flex-1 flex-col">
               <span className="font-semibold text-ink">{sw.name}</span>
               <span className="break-words text-sm text-ink-muted">{describe(sw.behavior)}</span>
-              <span className="break-words text-sm text-ink-faint">{usage.length > 0 ? `Ausgelöst von: ${usage.join(', ')}` : 'Noch von nichts ausgelöst'}</span>
+              <span className="break-words text-sm text-ink-faint">{usage.length > 0 ? t('triggeredBy', { list: usage.join(', ') }) : t('notTriggered')}</span>
             </span>
-            <Badge tone={state === 'off' ? undefined : 'accent'}>{STATE_LABEL[state]}</Badge>
+            <Badge tone={state === 'off' ? undefined : 'accent'}>{t(`switchState.${state}`)}</Badge>
           </button>
         )
       })}
-      <AddRow label="Neuer Schalter" onClick={() => setEditing('new')} />
+      <AddRow label={t('newSwitch')} onClick={() => setEditing('new')} />
       {editing && <SwitchDialog initial={editing === 'new' ? null : editing} onSaved={() => setEditing(null)} onClose={() => setEditing(null)} />}
     </section>
   )

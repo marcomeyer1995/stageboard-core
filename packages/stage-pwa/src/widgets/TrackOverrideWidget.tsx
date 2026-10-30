@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { useTouchSizes } from '../components/ui/PrepTier'
 import { INPUT } from '../components/ui/styles'
 import { isSongEntry } from 'shared-types'
@@ -36,6 +37,7 @@ import { playableTracks } from '../lib/stems'
  * carries a "Variante:" / "Track:" prefix instead (stageWidgetLayout.ts).
  */
 export function TrackOverrideWidget({ config }: { config: TrackOverrideConfig }) {
+  const { t } = useTranslation('widgets')
   const { queue, trackOverride, canControl, setTrackOverride, variantOverride, setVariantOverride } = useShowModeCore()
   const { currentEntry, currentSong, currentVariant } = queue
   const variants = useSongVariantsStore((state) => state.variants)
@@ -52,17 +54,17 @@ export function TrackOverrideWidget({ config }: { config: TrackOverrideConfig })
   const tracks = playableTracks(currentVariant?.tracks ?? [])
   const defaultTrack = resolveTrackForEntry(currentEntry, currentVariant, null)
   const trackMessage =
-    tracks.length === 0 ? 'Kein Track angehängt' : tracks.length < 2 ? 'Nur ein Track vorhanden - kein Wechsel nötig' : null
+    tracks.length === 0 ? t('to.noTrack') : tracks.length < 2 ? t('to.oneTrack') : null
 
-  const compactTrackMessage = tracks.length === 0 ? 'keiner angehängt' : 'nur einer vorhanden'
+  const compactTrackMessage = tracks.length === 0 ? t('to.noneShort') : t('to.oneShort')
   const [boxRef, box] = useElementSize()
   // With the variant picker, the track part below it (select or message) counts as the second
   // slot too - the message wraps over up to three lines otherwise and pushed the picker out of
   // a 3 x 3 tile (tablet, 2026-09-27).
   const touchSizes = useTouchSizes()
   const { showLabels } = trackOverrideLayout(box.height, fontSize, showVariantPicker ? 2 : 1, touchSizes)
-  const variantPrefix = showLabels ? '' : 'Variante: '
-  const trackPrefix = showLabels ? '' : 'Track: '
+  const variantPrefix = showLabels ? '' : t('to.variantPrefix')
+  const trackPrefix = showLabels ? '' : t('to.trackPrefix')
   const selectClass = `min-h-touch px-3 ${INPUT}`
 
   if (!showVariantPicker && trackMessage) {
@@ -76,12 +78,12 @@ export function TrackOverrideWidget({ config }: { config: TrackOverrideConfig })
           {showLabels && (
             <div className="w-full overflow-hidden">
               <span style={{ fontSize }} className="block truncate uppercase tracking-widest text-ink-faint">
-                Variante
+                {t('to.variant')}
               </span>
             </div>
           )}
           <select
-            aria-label="Variante"
+            aria-label={t('to.variant')}
             value={variantOverride ?? ''}
             onChange={(e) => setVariantOverride(e.target.value || null)}
             style={{ fontSize }}
@@ -110,7 +112,7 @@ export function TrackOverrideWidget({ config }: { config: TrackOverrideConfig })
         <span className="truncate text-sm text-ink-faint">{showLabels ? trackMessage : `${trackPrefix}${compactTrackMessage}`}</span>
       ) : (
         <select
-          aria-label="Track"
+          aria-label={t('to.track')}
           value={trackOverride ?? ''}
           disabled={!canControl}
           onChange={(e) => setTrackOverride(e.target.value || null)}
@@ -139,9 +141,10 @@ export function TrackOverrideConfigPanel({
   config: TrackOverrideConfig
   onChange: (next: TrackOverrideConfig) => void
 }) {
+  const { t } = useTranslation('widgets')
   return (
     <SizeRatioSlider
-      label="Größe"
+      label={t('w.size')}
       ratio={config.sizeRatio ?? DEFAULT_SIZE_RATIO}
       onChange={(sizeRatio) => onChange({ ...config, sizeRatio })}
     />

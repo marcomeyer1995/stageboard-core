@@ -36,7 +36,7 @@ interface JumpHost {
   now: () => number
   transport: TransportState
   loop: Loop | null
-  write: (patch: { startedAt?: number | null; accumulatedMs?: number; jump?: SectionJump | null; loop?: Loop | null }) => Promise<void>
+  write: (patch: { startedAt?: number | null; accumulatedMs?: number; skippedMs?: number; jump?: SectionJump | null; loop?: Loop | null }) => Promise<void>
 }
 
 function gigHost(): JumpHost {
@@ -50,6 +50,7 @@ function gigHost(): JumpHost {
       await applyPatch({
         ...(patch.startedAt !== undefined ? { playbackStartedAt: patch.startedAt } : {}),
         ...(patch.accumulatedMs !== undefined ? { playbackAccumulatedMs: patch.accumulatedMs } : {}),
+        ...(patch.skippedMs !== undefined ? { playbackSkippedMs: patch.skippedMs } : {}),
         ...(patch.jump !== undefined ? { playbackJump: patch.jump } : {}),
         ...(patch.loop !== undefined ? { playbackLoop: patch.loop } : {}),
       })
@@ -77,6 +78,30 @@ function practiceHost(): JumpHost {
   }
 }
 
+/** Into the Nachbericht (#673) - only the show's own jumps, not Solo Üben. Queue and show log are
+ * loaded lazily: this module stays light for the timeline, which uses it without a band. */
+function recordSection(input: { action: 'jump' | 'jump-cancelled' | 'repeat' | 'repeat-end'; at?: number; fromLabel?: string; toLabel?: string; fromMs?: number; toMs?: number }): void {
+  if (useAppModeStore.getState().mode === 'practice') return
+  void Promise.all([import('./queue'), import('./showLogRecord')])
+    .then(([queue, log]) => {
+      const { currentSong } = queue.getQueueSnapshot()
+      log.recordShowEvent({
+        type: 'section',
+        songId: currentSong?.id ?? null,
+        songTitle: currentSong?.title ?? '',
+        ...input,
+        ...(input.fromMs !== undefined ? { fromMs: Math.round(input.fromMs) } : {}),
+        ...(input.toMs !== undefined ? { toMs: Math.round(input.toMs) } : {}),
+      })
+    })
+    .catch(() => undefined)
+}
+
+/** The section a song time lies in. */
+function sectionAt(sections: readonly ShowSection[], ms: number): ShowSection | undefined {
+  return sections.find((section) => section.startMs <= ms && (section.endMs === null || ms < section.endMs))
+}
+
 /** The host of the mode this device is in. */
 function host(): JumpHost {
   return useAppModeStore.getState().mode === 'practice' ? practiceHost() : gigHost()
@@ -93,12 +118,16 @@ export async function queueSectionJump(target: ShowSection, when: JumpWhen, sect
   if (transport.startedAt === null) return 'not-playing'
   const boundary = jumpBoundary(when, computeActiveMs(transport, now) + JUMP_NOTICE_MS, sections, timeline)
   if (boundary === null) return 'no-boundary'
+  const at = transport.startedAt + (boundary - transport.accumulatedMs)
   await h.write({
     startedAt: transport.startedAt,
     accumulatedMs: transport.accumulatedMs,
-    jump: { at: transport.startedAt + (boundary - transport.accumulatedMs), toMs: target.startMs, label: target.label },
+    skippedMs: transport.skippedMs ?? 0,
+    jump: { at, toMs: target.startMs, label: target.label },
     loop: null,
   })
+  // At the moment it will happen, from the section it leaves to the target.
+  recordSection({ action: 'jump', at, fromLabel: sectionAt(sections, boundary - 1)?.label, toLabel: target.label, fromMs: boundary, toMs: target.startMs })
   return 'queued'
 }
 
@@ -108,6 +137,7 @@ export async function cancelSectionJump(): Promise<void> {
   const jump = h.transport.jump
   if (!h.allowed || !jump || jump.at - h.now() < CANCEL_MIN_MS) return
   await h.write({ jump: null })
+  recordSection({ action: 'jump-cancelled', toLabel: jump.label })
 }
 
 /** Repeats `section` until released (null). Released, the song runs on past the section end; a
@@ -118,12 +148,14 @@ export async function setSectionLoop(section: ShowSection | null): Promise<void>
   if (section) {
     if (section.endMs === null) return
     await h.write({ loop: { startMs: section.startMs, endMs: section.endMs, label: section.label } })
+    recordSection({ action: 'repeat', fromLabel: section.label, fromMs: section.startMs, toMs: section.endMs })
     return
   }
   const jump = h.transport.jump
   const loop = h.loop
   const dropJump = jump && loop && jump.toMs === loop.startMs && jump.at - h.now() >= CANCEL_MIN_MS
   await h.write(dropJump ? { loop: null, jump: null } : { loop: null })
+  if (loop) recordSection({ action: 'repeat-end', fromLabel: loop.label })
 }
 
 /** One look at jump and loop: folds a passed jump into the clock's anchor, and while a section
@@ -134,7 +166,7 @@ function driveJump(h: JumpHost): void {
   const now = h.now()
   if (transport.jump && now >= transport.jump.at) {
     const folded = foldJump(transport, now)
-    void h.write({ startedAt: folded.startedAt, accumulatedMs: folded.accumulatedMs, jump: null })
+    void h.write({ startedAt: folded.startedAt, accumulatedMs: folded.accumulatedMs, skippedMs: folded.skippedMs ?? 0, jump: null })
     return
   }
   if (!loop || transport.jump) return

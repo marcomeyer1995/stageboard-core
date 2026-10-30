@@ -1,3 +1,6 @@
+import i18n from './i18n'
+import { CRAMPED_TYPING_PX, useSettledTouchKeyboardOpen } from './lib/useTouchKeyboardOpen'
+import { useSettledVisualViewport } from './lib/useVisualViewport'
 import { useTranslation } from 'react-i18next'
 import { useCallback, useEffect, useState } from 'react'
 import { useMasterIdentity } from './lib/useMasterIdentity'
@@ -6,6 +9,7 @@ import { AppMenu } from './components/AppMenu'
 import { DashboardMenu } from './components/DashboardMenu'
 import { AudioResumeOverlay } from './components/AudioResumeOverlay'
 import { ReadyCheckOverlay } from './components/ReadyCheckOverlay'
+import { RigCheckVerdict } from './components/RigCheckVerdict'
 import { Dashboard } from './components/Dashboard'
 import { DeviceRevokedScreen } from './components/DeviceRevokedScreen'
 import { DialogHost } from './components/DialogHost'
@@ -36,6 +40,7 @@ import { useReadyCheckResponder } from './lib/useReadyCheckResponder'
 import { useMasterHeartbeatReporter } from './lib/useMasterHeartbeatReporter'
 import { usePresenceReporter } from './lib/usePresenceReporter'
 import { useShowLogTracker } from './lib/useShowLogTracker'
+import { useRigCheckDriver, useRigCheckReporter } from './lib/rigCheck'
 import { useWakeLock } from './lib/useWakeLock'
 import { useWorkspaceResource } from './lib/useWorkspaceResource'
 import { startWorkspaceSync } from './lib/workspaceDb'
@@ -49,6 +54,7 @@ import { useEditModeStore } from './store/useEditModeStore'
 import { FlashOverlay } from './components/FlashOverlay'
 import { useSwitchesStore } from './store/useSwitchesStore'
 import { useMidiControllerRulesStore } from './store/useMidiControllerRulesStore'
+import { useOscInputRulesStore } from './store/useOscInputRulesStore'
 import { useLatencyProfilesStore } from './store/useLatencyProfilesStore'
 import { useAudioRouteStore } from './store/useAudioRouteStore'
 import { useLogicalDevicesStore } from './store/useLogicalDevicesStore'
@@ -139,8 +145,15 @@ function App() {
   const { active: activeDashboard } = useModeDashboards()
   useFullscreenOnLaunch()
   useWakeLock()
+  // Typing with almost no room left (a phone in landscape, keyboard up: ~140 px): the status bar
+  // steps aside for the text lines - back the moment the keyboard goes down (Marco, 2026-10-29).
+  const typingVisible = useSettledVisualViewport()
+  const typingKeyboardUp = useSettledTouchKeyboardOpen()
+  const typingCramped = typingKeyboardUp && (typingVisible?.height ?? Infinity) < CRAMPED_TYPING_PX
   useBrowserOnlineStatus()
   useShowLogTracker()
+  useRigCheckDriver()
+  useRigCheckReporter()
 
   // The one and only live CouchDB sync for the whole app (see workspaceDb.ts) - every store
   // below still runs its own init (loading + a local, filtered change listener for just its
@@ -173,6 +186,7 @@ function App() {
   useWorkspaceResource(useDeviceTransportConfigStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(useLatencyProfilesStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(useMidiControllerRulesStore((state) => state.init), noopStart, activeWorkspaceId)
+  useWorkspaceResource(useOscInputRulesStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(useSwitchesStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(useDashboardsStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(useProfilesStore((state) => state.init), noopStart, activeWorkspaceId)
@@ -257,7 +271,7 @@ function App() {
   const inOnboarding = needsJoin || needsRosterSetup || needsProfile
   // The status bar is on every screen except onboarding, unless the dashboard shown in Live
   // switched it off (Dashboard.statusBar === false).
-  const showStatusBar = !inOnboarding && !(mode === 'boards' && activeDashboard?.statusBar === false)
+  const showStatusBar = !inOnboarding && !typingCramped && !(mode === 'boards' && activeDashboard?.statusBar === false)
 
   // The Device Ledger's admin "kick" (DeviceLedgerView.tsx, Marco's explicit request) - takes
   // priority over even needsJoin/needsRosterSetup/needsProfile above, since a revoked device
@@ -327,7 +341,7 @@ function App() {
             stay in the two top corners, so nobody is ever locked out (docs/15 D8, Marco
             2026-10-16 - before, one floating menu button bottom right). They sit exactly where they
             are in the status bar, in its empty place (Dashboard keeps it free, 2026-10-17). */}
-        {!showStatusBar && !isEditingDashboard && !inOnboarding && (
+        {!showStatusBar && !isEditingDashboard && !inOnboarding && !typingCramped && (
           <>
             {/* Above the drawers, so the same button closes them again (Marco, 2026-10-16). */}
             <div className="absolute left-2 top-0 z-dialog">
@@ -341,7 +355,7 @@ function App() {
               />
               {/* Discreet at-a-glance sync status (see #33) - a dot, since this button is always on screen. */}
               <span
-                title={{ idle: 'Synchronisiert', syncing: 'Synchronisiere…', offline: 'Offline', error: 'Fehler' }[syncStatus]}
+                title={i18n.t(`common:sync.${syncStatus}`)}
                 className={`pointer-events-none absolute right-1 top-1 h-2 w-2 rounded-full ${
                   {
                     idle: 'bg-ok',
@@ -379,6 +393,7 @@ function App() {
       {isNativeApp() && <AppUpdateBanner />}
       <AudioResumeOverlay />
       <ReadyCheckOverlay />
+      <RigCheckVerdict />
     </div>
   )
 }

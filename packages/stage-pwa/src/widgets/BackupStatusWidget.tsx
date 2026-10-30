@@ -1,3 +1,5 @@
+import i18n from '../i18n'
+import { useTranslation } from 'react-i18next'
 import { CAPABILITIES } from 'shared-types'
 import { useCapabilities } from '../lib/useCapabilities'
 import { useContentFontSizeStore } from '../store/useContentFontSizeStore'
@@ -7,9 +9,15 @@ import { SizeRatioSlider } from './SizeRatioSlider'
 import { stageFontSize } from '../lib/stageSize'
 
 const STATUS_LABEL: Record<CapabilityStatus, string> = {
-  available: 'Backup online',
-  degraded: 'Backup nicht erreichbar',
-  missing: 'Kein Backup-Plugin',
+  get available() {
+    return i18n.t('widgets:backup.available')
+  },
+  get degraded() {
+    return i18n.t('widgets:backup.degraded')
+  },
+  get missing() {
+    return i18n.t('widgets:backup.missing')
+  },
 }
 
 const STATUS_DOT: Record<CapabilityStatus, string> = {
@@ -49,9 +57,10 @@ export function BackupStatusConfigPanel({
   config: BackupStatusConfig
   onChange: (next: BackupStatusConfig) => void
 }) {
+  const { t } = useTranslation('widgets')
   return (
     <SizeRatioSlider
-      label="Größe"
+      label={t('w.size')}
       ratio={config.sizeRatio ?? DEFAULT_SIZE_RATIO}
       onChange={(sizeRatio) => onChange({ ...config, sizeRatio })}
     />

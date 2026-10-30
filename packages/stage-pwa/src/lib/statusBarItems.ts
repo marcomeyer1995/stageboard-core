@@ -10,18 +10,6 @@ export type StatusBarItem = (typeof STATUS_BAR_ITEMS)[number]
 /** Default ranking: most important first - dropped from the end. */
 export const DEFAULT_STATUS_BAR_ORDER: readonly StatusBarItem[] = STATUS_BAR_ITEMS
 
-export const STATUS_BAR_ITEM_LABEL: Record<StatusBarItem, string> = {
-  duration: 'Songlänge',
-  master: 'Master-Krone',
-  clock: 'Uhrzeit',
-  stateText: 'Status als Wort (Spielt, Pause …)',
-  sync: 'Sync-Symbol',
-  mode: 'Gig / Solo',
-  profile: 'Dein Name',
-  screen: 'Ansicht neben ☰',
-  syncText: 'Sync als Wort',
-}
-
 /** The song title keeps at least this much room (px) - items drop until it has it. */
 export const STATUS_BAR_MIN_TITLE_PX = 160
 
@@ -37,7 +25,8 @@ export function fitStatusBarItems(order: readonly StatusBarItem[], widths: Parti
   let left = room - minTitle
   for (const item of order) {
     const width = widths[item] ?? 0
-    if (width > left) break
+    // Half a pixel of rounding is not "too wide" - else an item at the edge flips in and out.
+    if (width > left + 0.5) break
     left -= width
     shown.add(item)
   }

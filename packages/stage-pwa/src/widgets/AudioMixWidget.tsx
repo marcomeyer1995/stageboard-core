@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { useShowPart } from '../lib/widgetParts'
 import { CAPABILITIES } from 'shared-types'
 import { MixFaders } from '../components/MixFaders'
@@ -19,6 +20,7 @@ const VERTICAL_MIN_W = 330
  * its mix then only matters for Solo practice and the Timeline.
  */
 export function AudioMixWidget({ config }: { config: AudioMixConfig }) {
+  const { t } = useTranslation('widgets')
   // Parts left out under "Anzeigen" in the ⋯ menu (Marco, 2026-10-17: declutter every widget).
   const showHint = useShowPart('hint')
   const { mode } = useShowModeCore()
@@ -39,11 +41,12 @@ export function AudioMixWidget({ config }: { config: AudioMixConfig }) {
       <div ref={boxRef} className={`min-h-0 flex-1 ${horizontal ? 'overflow-y-auto' : 'overflow-hidden'}`}>
         <MixFaders orientation={horizontal ? 'horizontal' : 'vertical'} fontSize={fontSize} size="stage" />
       </div>
-      {showHint && silentHere && <p className="flex-shrink-0 text-base text-ink-faint">Im Gig spielt dieses Gerät keinen Ton - der Mix gilt hier fürs Üben und die Timeline.</p>}
+      {showHint && silentHere && <p className="flex-shrink-0 text-base text-ink-faint">{t('mix.silentHere')}</p>}
     </div>
   )
 }
 
 export function AudioMixConfigPanel({ config, onChange }: { config: AudioMixConfig; onChange: (next: AudioMixConfig) => void }) {
-  return <SizeRatioSlider label="Größe" ratio={config.sizeRatio ?? DEFAULT_SIZE_RATIO} onChange={(sizeRatio) => onChange({ ...config, sizeRatio })} />
+  const { t } = useTranslation('widgets')
+  return <SizeRatioSlider label={t('w.size')} ratio={config.sizeRatio ?? DEFAULT_SIZE_RATIO} onChange={(sizeRatio) => onChange({ ...config, sizeRatio })} />
 }

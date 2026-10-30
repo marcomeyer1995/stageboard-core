@@ -1,3 +1,4 @@
+import i18n from '../i18n'
 import { useEffect, useRef, useState } from 'react'
 import { FLASH_DURATION_MS, type FlashMessage } from 'shared-types'
 import { getServerTime } from '../lib/clockSync'
@@ -75,7 +76,7 @@ export function FlashOverlay() {
     >
       <p className="max-w-full break-words text-[clamp(3rem,11vw,9rem)] font-black uppercase leading-none tracking-tight">{shown.text}</p>
       {shown.from && <p className="text-2xl font-bold">— {shown.from}</p>}
-      <p className="text-lg font-semibold opacity-70">Tippen zum Schließen</p>
+      <p className="text-lg font-semibold opacity-70">{i18n.t('common:ui.tapToClose')}</p>
     </div>
   )
 }

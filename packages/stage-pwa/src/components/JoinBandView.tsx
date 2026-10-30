@@ -1,3 +1,4 @@
+import { useSettledVisualViewport, visibleArea } from '../lib/useVisualViewport'
 import { useEffect, useRef, useState } from 'react'
 import type { WorkspaceRoster, WorkspaceSummary } from 'shared-types'
 import { decodeQrFrame, parseJoinPayload, type JoinPayload } from '../lib/qrCode'
@@ -12,6 +13,7 @@ import { useBackHandler } from '../lib/backNavigation'
 import { Icon } from './Icon'
 import { Switch, Button } from './ui'
 import { INPUT, INPUT_FREE } from './ui/styles'
+import { useTranslation } from 'react-i18next'
 
 type CameraStatus = 'idle' | 'requesting' | 'scanning' | 'denied' | 'insecure-context' | 'unsupported'
 
@@ -76,7 +78,10 @@ type CameraStatus = 'idle' | 'requesting' | 'scanning' | 'denied' | 'insecure-co
  * new usage, where it has to sit on top of the already-rendered BandManagementView.tsx.
  */
 export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
+  const { t } = useTranslation('band')
   useBackHandler(onClose ?? null)
+  // Pinned to the visible area, so the on-screen keyboard never hides the fields or the bottom row.
+  const visible = useSettledVisualViewport()
   const addWorkspace = useWorkspaceStore((state) => state.addWorkspace)
   const listWorkspaces = useWorkspaceStore((state) => state.listWorkspaces)
   const fetchRoster = useWorkspaceStore((state) => state.fetchRoster)
@@ -159,11 +164,11 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
     try {
       fingerprint = await serverFingerprint(host)
     } catch {
-      setConnectError(`Kein Stage-Server unter ${host} erreichbar.`)
+      setConnectError(t('join.noServerAt', { host }))
       return
     }
     const question = pairingConfirmation(host, host, fingerprint)
-    const trusted = await confirm(question.message, { title: question.title, confirmLabel: 'Verbinden' })
+    const trusted = await confirm(question.message, { title: question.title, confirmLabel: t('connect') })
     if (!trusted) return
     await pairWithServer(host, fingerprint)
     await loadWorkspaces()
@@ -173,7 +178,7 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
   async function joinFromPayload(payload: JoinPayload) {
     if (native) {
       if (!payload.host || !payload.fingerprint) {
-        setConnectError('Dieser QR-Code enthält keine Server-Kennung – bitte die Adresse des Stage-Servers eingeben.')
+        setConnectError(t('join.noServerId'))
         return
       }
       await pairWithServer(payload.host, payload.fingerprint)
@@ -311,11 +316,11 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
   // Step 3: pick who you are.
   if (roster) {
     return (
-      <div className="fixed inset-0 z-bars flex flex-col items-center justify-center gap-6 overflow-y-auto sb-app-bg sb-pad-safe text-ink">
+      <div className="fixed inset-0 z-bars flex flex-col items-center [justify-content:safe_center] gap-6 overflow-y-auto sb-app-bg sb-pad-safe text-ink" style={visibleArea(visible)}>
         <div className="w-full max-w-sm space-y-4 py-4">
           <div>
-            <h1 className="text-2xl font-bold">Wer bist du?</h1>
-            <p className="mt-1 text-sm text-ink-muted">Band: {roster.workspaceName}</p>
+            <h1 className="text-2xl font-bold">{t('join.whoAreYou')}</h1>
+            <p className="mt-1 text-sm text-ink-muted">{t('join.band', { band: roster.workspaceName })}</p>
           </div>
 
           <ul className="space-y-2">
@@ -334,13 +339,13 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
                       <input
                         value={memberPasswordInput}
                         onChange={(e) => setMemberPasswordInput(e.target.value.replace(/\D/g, '').slice(0, 4))}
-                        placeholder="4-stelliger Code"
+                        placeholder={t('code')}
                         inputMode="numeric"
                         autoFocus
                         className={`h-form min-w-0 flex-1 min-w-0 px-3 text-center text-lg tracking-widest ${INPUT_FREE}`}
                       />
                       <Button variant="primary" className="flex-shrink-0" type="submit" disabled={busy || memberPasswordInput.length !== 4}>
-                        {busy ? '…' : 'Beitreten'}
+                        {busy ? '…' : t('join.join')}
                       </Button>
                     </div>
                     {/* Admin-only screen (2026-09-02 second follow-up, at Marco's explicit
@@ -354,7 +359,7 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
                       onClick={() => setPasswordProfileId(null)}
                       className="min-h-form inline-flex items-center self-start text-base text-ink-faint underline"
                     >
-                      Abbrechen
+                      {t('cancel')}
                     </button>
                   </form>
                 ) : (
@@ -372,7 +377,7 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
           </ul>
 
           <button type="button" onClick={backToList} className="min-h-form w-full text-center text-sm text-ink-faint underline">
-            Andere Band oder anderer Code
+            {t('join.otherBandOrCode')}
           </button>
         </div>
       </div>
@@ -382,11 +387,11 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
   // Step 2: code entry, scoped to the band picked in step 1.
   if (selectedWorkspace) {
     return (
-      <div className="fixed inset-0 z-bars flex flex-col items-center justify-center gap-6 overflow-y-auto sb-app-bg sb-pad-safe text-ink">
+      <div className="fixed inset-0 z-bars flex flex-col items-center [justify-content:safe_center] gap-6 overflow-y-auto sb-app-bg sb-pad-safe text-ink" style={visibleArea(visible)}>
         <div className="w-full max-w-sm space-y-4 py-4">
           <div>
             <h1 className="text-2xl font-bold">{selectedWorkspace.workspaceName}</h1>
-            <p className="mt-1 text-sm text-ink-muted">Code der Band eingeben - beim Admin erfragen oder QR-Code scannen.</p>
+            <p className="mt-1 text-sm text-ink-muted">{t('join.enterCode')}</p>
           </div>
 
           <form
@@ -399,18 +404,18 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
             <input
               value={manualCode}
               onChange={(e) => setManualCode(e.target.value.replace(/\D/g, '').slice(0, 8))}
-              placeholder="8-stelliger Code"
+              placeholder={t('join.code8')}
               inputMode="numeric"
               autoFocus
               className={`h-form min-w-0 flex-1 min-w-0 px-3 text-center text-lg tracking-widest ${INPUT_FREE}`}
             />
             <Button variant="primary" className="flex-shrink-0" type="submit" disabled={busy || manualCode.trim().length === 0}>
-              {busy ? '…' : 'Weiter'}
+              {busy ? '…' : t('join.next')}
             </Button>
           </form>
 
           <button type="button" onClick={backToList} className="min-h-form w-full text-center text-sm text-ink-faint underline">
-            Andere Band wählen
+            {t('join.otherBand')}
           </button>
         </div>
       </div>
@@ -419,14 +424,14 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
 
   // Step 1: pick a band, or scan a QR to skip straight to step 3.
   return (
-    <div className="fixed inset-0 z-bars flex flex-col items-center justify-center gap-6 overflow-y-auto sb-app-bg sb-pad-safe text-ink">
+    <div className="fixed inset-0 z-bars flex flex-col items-center [justify-content:safe_center] gap-6 overflow-y-auto sb-app-bg sb-pad-safe text-ink" style={visibleArea(visible)}>
       <div className="w-full max-w-sm space-y-4 py-4">
         {!onClose && <BackToWorkingBandLink />}
 
         <div>
-          <h1 className="text-2xl font-bold">Band beitreten</h1>
+          <h1 className="text-2xl font-bold">{t('join.title')}</h1>
           <p className="mt-1 text-sm text-ink-muted">
-            Scanne den QR-Code vom Gerät des Band-Admins, oder wähle eine Band und gib ihren Code ein.
+            {t('join.intro')}
           </p>
         </div>
 
@@ -435,13 +440,13 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
             with zero known bands. */}
         {onClose && (
           <Button fullWidth onClick={onClose}>
-            Abbrechen
+            {t('cancel')}
           </Button>
         )}
 
         {!native && /Android/i.test(navigator.userAgent) && (
           <a href="/app" className="flex min-h-form items-center justify-center rounded-control bg-control-strong px-4 text-base font-semibold text-ink">
-            StageBoard-App für Android installieren
+            {t('join.installApp')}
           </a>
         )}
 
@@ -455,16 +460,17 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
           >
             {serverUrl ? (
               <p className="text-base text-ink">
-                Gekoppelt mit <span className="font-semibold">{serverUrl.replace(/^https:\/\//, '')}</span>
+                {t('join.pairedWith')}
+                <span className="font-semibold">{serverUrl.replace(/^https:\/\//, '')}</span>
               </p>
             ) : (
-              <p className="text-sm text-ink-muted">Stage-Server: unten aus dem Netzwerk wählen, QR-Code scannen oder Adresse eingeben.</p>
+              <p className="text-sm text-ink-muted">{t('join.serverHint')}</p>
             )}
             {/* Already paired (#377): the address field is only for switching to another server,
                 so it folds away instead of looking like a step that still has to be done. */}
             {serverUrl ? (
               <details>
-                <summary className="cursor-pointer select-none py-3 text-sm font-medium text-ink-muted">Anderen Stage-Server verwenden</summary>
+                <summary className="cursor-pointer select-none py-3 text-sm font-medium text-ink-muted">{t('join.otherServer')}</summary>
                 <div className="space-y-2">
                 <div className="flex gap-2">
                   <input
@@ -473,10 +479,10 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
                     placeholder="192.168.178.158"
                     inputMode="url"
                     className={`h-form min-w-0 flex-1 min-w-0 px-3 text-base ${INPUT_FREE}`}
-                    aria-label="Adresse des Stage-Servers"
+                    aria-label={t('join.serverAddress')}
                   />
                   <Button className="flex-shrink-0" type="submit" disabled={!serverAddress.trim()}>
-                    Verbinden
+                    {t('connect')}
                   </Button>
                 </div>
                 {connectError && <p className="text-sm text-warn">{connectError}</p>}
@@ -493,10 +499,10 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
                   placeholder="192.168.178.158"
                   inputMode="url"
                   className={`h-form min-w-0 flex-1 min-w-0 px-3 text-base ${INPUT_FREE}`}
-                  aria-label="Adresse des Stage-Servers"
+                  aria-label={t('join.serverAddress')}
                 />
                 <Button className="flex-shrink-0" type="submit" disabled={!serverAddress.trim()}>
-                  Verbinden
+                  {t('connect')}
                 </Button>
               </div>
               {connectError && <p className="text-sm text-warn">{connectError}</p>}
@@ -526,30 +532,30 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
               className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-ink-muted"
             >
               <Icon name="camera" size="2.5rem" />
-              {cameraStatus === 'idle' && <span>Kamera zum Scannen starten</span>}
-              {cameraStatus === 'requesting' && <span>Kamerazugriff wird angefragt…</span>}
-              {cameraStatus === 'denied' && <span className="text-sm">Kein Kamerazugriff - Band unten auswählen.</span>}
+              {cameraStatus === 'idle' && <span>{t('join.cameraStart')}</span>}
+              {cameraStatus === 'requesting' && <span>{t('join.cameraRequesting')}</span>}
+              {cameraStatus === 'denied' && <span className="text-sm">{t('join.cameraDenied')}</span>}
               {cameraStatus === 'insecure-context' && (
-                <span className="text-sm">Kamera braucht HTTPS - Band unten auswählen.</span>
+                <span className="text-sm">{t('join.cameraHttps')}</span>
               )}
-              {cameraStatus === 'unsupported' && <span className="text-sm">Kamera nicht verfügbar auf diesem Gerät.</span>}
+              {cameraStatus === 'unsupported' && <span className="text-sm">{t('join.cameraNone')}</span>}
             </button>
           )}
         </div>
 
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <h2 className="text-xs font-bold uppercase tracking-widest text-ink-faint">Verfügbare Bands</h2>
+            <h2 className="text-xs font-bold uppercase tracking-widest text-ink-faint">{t('join.available')}</h2>
             <button type="button" onClick={() => void loadWorkspaces()} className="inline-flex min-h-form items-center text-sm text-ink-faint underline">
-              Neu laden
+              {t('join.reload')}
             </button>
           </div>
-          {loadingWorkspaces && <p className="text-sm text-ink-muted">Lade…</p>}
+          {loadingWorkspaces && <p className="text-sm text-ink-muted">{t('join.loading')}</p>}
           {native && !serverUrl && !loadingWorkspaces && (
-            <p className="text-sm text-ink-muted">Erst mit einem Stage-Server koppeln (oben) - dann erscheinen hier die Bands.</p>
+            <p className="text-sm text-ink-muted">{t('join.pairFirst')}</p>
           )}
           {!loadingWorkspaces && workspaces?.length === 0 && (
-            <p className="text-sm text-ink-muted">Keine Band auf diesem Stage-Server gefunden.</p>
+            <p className="text-sm text-ink-muted">{t('join.noBands')}</p>
           )}
           {!loadingWorkspaces && workspaces && workspaces.length > 0 && (
             <ul className="space-y-2">
@@ -570,7 +576,7 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
 
         <div className="flex items-center gap-3">
           <div className="h-px flex-1 bg-line" />
-          <span className="text-xs text-ink-faint">oder</span>
+          <span className="text-xs text-ink-faint">{t('join.or')}</span>
           <div className="h-px flex-1 bg-line" />
         </div>
 
@@ -579,14 +585,14 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
             on a fresh server (or a band without any server) is still founded here. */}
         {workspacesExist ? (
           <p className="rounded-container border border-line bg-surface px-4 py-3 text-sm text-ink-muted">
-            Weitere Bands legt ein Band-Admin an: System → Band → „+ Band“. Danach lädt er dich ein.
+            {t('join.moreBands')}
           </p>
         ) : (
           <Button fullWidth disabled={loadingWorkspaces} onClick={async () => {
-              const name = await promptText('Neue Band', { label: 'Name der neuen Band' })
+              const name = await promptText(t('newBand'), { label: t('newBandName') })
               if (name?.trim()) void addWorkspace(name.trim())
             }}>
-            Neue Band gründen
+            {t('foundNew')}
           </Button>
         )}
 
@@ -596,7 +602,7 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
             onClick={() => setShowPasswordFallback((v) => !v)}
             className="inline-flex min-h-form items-center text-sm text-ink-faint underline"
           >
-            Zugangsdaten manuell eingeben
+            {t('join.manual')}
           </button>
           {showPasswordFallback && (
             <form
@@ -609,13 +615,13 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
               className="mt-2 flex flex-col gap-2"
             >
               <p className="text-sm text-ink-muted">
-                Nur für Sonderfälle - normalerweise reichen QR-Code oder Band-Code. Die Angaben gibt es beim Band-Admin.
+                {t('join.manualHint')}
               </p>
               <input
                 value={fallbackWorkspaceId}
                 onChange={(e) => setFallbackWorkspaceId(e.target.value)}
-                placeholder="Band-ID"
-                aria-label="Band-ID"
+                placeholder={t('join.bandId')}
+                aria-label={t('join.bandId')}
                 className={`h-form px-3 ${INPUT}`}
               />
               {/* Per-person-accounts follow-up: every account has its own username now, no
@@ -623,8 +629,8 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
               <input
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                placeholder="Benutzername"
-                aria-label="Benutzername"
+                placeholder={t('join.username')}
+                aria-label={t('join.username')}
                 className={`h-form px-3 ${INPUT}`}
               />
               <div className="flex gap-2">
@@ -632,8 +638,8 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Passwort oder PIN"
-                  aria-label="Passwort oder PIN"
+                  placeholder={t('join.password')}
+                  aria-label={t('join.password')}
                   className={`h-form min-w-0 flex-1 min-w-0 px-3 ${INPUT_FREE}`}
                 />
                 <Button className="flex-shrink-0" type="submit">
@@ -642,7 +648,7 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
               </div>
               {/* Self-declared, not verified here - a wrong guess only mis-shows admin UI,
                   CouchDB's roster validator is what actually enforces admin-only writes. */}
-              <Switch label="Dies ist ein Admin-Konto" checked={isAdmin} onChange={setIsAdmin} />
+              <Switch label={t('join.isAdmin')} checked={isAdmin} onChange={setIsAdmin} />
             </form>
           )}
         </div>

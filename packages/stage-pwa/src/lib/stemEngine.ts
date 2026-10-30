@@ -1,5 +1,7 @@
 import { createAudioClock } from './audioClock'
 import { sourceOutput } from './audioMix'
+import type { LevelPoint } from './playbackCues'
+import { scheduleTrackLevel } from './trackLevel'
 import { getSharedAudioContext } from './sharedAudioContext'
 import { getTrack } from './songVariantsDb'
 import { openTrackStream, type TrackStream } from './trackStream'
@@ -74,6 +76,9 @@ let loaded: Loaded | null = null
 let loading: { key: string; cancelled: boolean } | null = null
 let run: Run | null = null
 let gainsWanted = new Map<string, number>()
+/** The track's level over the song from its playback cues (#485) - on the bus, after the stems'
+ * own gains, so Stumm/Solo and the cues never fight. Empty: as uploaded. */
+let levelCurve: readonly LevelPoint[] = []
 let lastSyncAt = -Infinity
 let suspect = 0
 const clock = createAudioClock()
@@ -172,6 +177,11 @@ export function unloadStems(): void {
 }
 
 /** Each stem's gain (level, 0 when muted or another stem is soloed) - applied at once, also mid-song. */
+/** Sets the level curve of the song playing (or about to) - called by the Solo driver. */
+export function setStemLevelCurve(curve: readonly LevelPoint[]): void {
+  levelCurve = curve
+}
+
 export function setStemGains(gains: ReadonlyMap<string, number>): void {
   gainsWanted = new Map(gains)
   if (!loaded) return
@@ -349,6 +359,7 @@ export function syncStems(elapsedNow: () => number | null, shouldPlay: boolean, 
     return { blocked: false }
   }
   const songNow = elapsedMs / 1000
+  scheduleTrackLevel(loaded.bus.gain, ctx, now, songNow, levelCurve)
   if (run && run.key !== loaded.key) stopRun()
   if (!run) {
     if (songNow < -LEAD_S * 4) return { blocked: false }
@@ -401,6 +412,7 @@ export function __stemStatsForTests(): typeof stats {
 
 /** Test-only: forget all state. */
 export function __resetStemsForTests(): void {
+  levelCurve = []
   unloadStems()
   gainsWanted = new Map()
   lastSyncAt = -Infinity

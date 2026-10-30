@@ -1,3 +1,5 @@
+import i18n from '../i18n'
+import { useTranslation } from 'react-i18next'
 import { useShowPart } from '../lib/widgetParts'
 import { useState } from 'react'
 import { CAPABILITIES } from 'shared-types'
@@ -18,10 +20,30 @@ import { DEFAULT_SIZE_RATIO, type CueGridConfig } from './cueGridConfig'
 import { stageFontSize } from '../lib/stageSize'
 
 const ACTIONS: CueAction[] = [
-  { label: 'Voll', type: 'full' },
-  { label: 'Dimmen', type: 'dim' },
-  { label: 'Chase', type: 'chase' },
-  { label: 'Farbwechsel', type: 'color-change' },
+  {
+    get label() {
+      return i18n.t('widgets:light.full')
+    },
+    type: 'full',
+  },
+  {
+    get label() {
+      return i18n.t('widgets:light.dim')
+    },
+    type: 'dim',
+  },
+  {
+    get label() {
+      return i18n.t('widgets:light.chase')
+    },
+    type: 'chase',
+  },
+  {
+    get label() {
+      return i18n.t('widgets:light.color')
+    },
+    type: 'color-change',
+  },
 ]
 
 /**
@@ -33,6 +55,7 @@ const ACTIONS: CueAction[] = [
  * QuickActionsWidget's ad-hoc cues share the same binding, since they're the same physical rig.
  */
 export function LightingCuesWidget({ config }: { config: CueGridConfig }) {
+  const { t } = useTranslation('widgets')
   // Parts left out under "Anzeigen" in the ⋯ menu (Marco, 2026-10-17: declutter every widget).
   const showLast = useShowPart('last')
   const installed = usePluginsStore((state) => state.installed)
@@ -54,12 +77,12 @@ export function LightingCuesWidget({ config }: { config: CueGridConfig }) {
     }
     if (engine === 'local-other') {
       const result = await triggerDeviceControl(workspaceId, binding!.executionTarget!, CAPABILITIES.lighting, { type })
-      setError(result.status === 'error' ? (result.message ?? 'Fehler') : null)
+      setError(result.status === 'error' ? (result.message ?? t('w.error')) : null)
       return
     }
     if (!pluginId) return
     const result = await triggerShowControl(pluginId, { type })
-    setError(result.status === 'error' ? (result.message ?? 'Fehler') : null)
+    setError(result.status === 'error' ? (result.message ?? t('w.error')) : null)
   }
 
   return (

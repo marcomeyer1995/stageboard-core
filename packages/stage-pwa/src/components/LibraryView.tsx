@@ -1,3 +1,4 @@
+import i18n from '../i18n'
 import {
   DndContext,
   PointerSensor,
@@ -22,7 +23,7 @@ import { useDialogStore } from '../store/useDialogStore'
 import { useSetlistsStore } from '../store/useSetlistsStore'
 import { useSongsStore } from '../store/useSongsStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
-import { OverflowMenu } from './OverflowMenu'
+import { OverflowMenu, type OverflowMenuAction } from './OverflowMenu'
 import { countShowsWithContent, ShowDetail, ShowList, useShows } from './PostShowReport'
 import { PracticeWindowSettings, RehearsalWindowSettings } from './LibrarySettings'
 import { SetlistDetail } from './SetlistDetail'
@@ -45,6 +46,8 @@ import { useShowLogStore } from '../store/useShowLogStore'
 import { useBandSettingsStore } from '../store/useBandSettingsStore'
 import { useLibraryPrefsStore } from '../store/useLibraryPrefsStore'
 import { useActiveProfile } from '../lib/useActiveProfile'
+import { useVisibleSetlists, useVisibleSongs } from '../lib/visibleCatalog'
+import { useTranslation } from 'react-i18next'
 
 type Selection =
   | { type: 'setlist'; id: string }
@@ -78,25 +81,25 @@ function readSort(): LibrarySortChoice {
 /** The tab this device last had open (a convenience - Setlists when storage fails). */
 /** "2026-12-24" → "24.12.2026". */
 function formatGigDate(date: string): string {
-  const [y, m, d] = date.split('-')
-  return `${d}.${m}.${y}`
+  const [y, m, d] = date.split('-').map(Number)
+  return new Date(y, m - 1, d).toLocaleDateString(i18n.language, { day: '2-digit', month: '2-digit', year: 'numeric' })
 }
 
 /** "heute / gestern / vor 12 Tagen". */
 function ago(at: number): string {
   const days = Math.floor((Date.now() - at) / 86_400_000)
-  return days <= 0 ? 'heute' : days === 1 ? 'gestern' : `vor ${days} Tagen`
+  return days <= 0 ? i18n.t('library:ago.today') : days === 1 ? i18n.t('library:ago.yesterday') : i18n.t('library:ago.days', { count: days })
 }
 
 /** "30 Tagen" / "den letzten 5 Shows" - the period in "2× in …". */
 function windowText(window: RehearsalWindow): string {
-  return window.kind === 'days' ? `${window.days} Tagen` : `den letzten ${window.shows} Shows`
+  return window.kind === 'days' ? i18n.t('library:window.days', { count: window.days }) : i18n.t('library:window.shows', { count: window.shows })
 }
 
 /** While sorting by Geübt / Geprobt: "2× in 30 Tagen · zuletzt vor 3 Tagen", or "nie geübt". */
-function playNote(stat: PlayCount | undefined, period: string, verb: string): string {
-  if (!stat || stat.last === 0) return `nie ${verb}`
-  return `${stat.count}× in ${period} · zuletzt ${ago(stat.last)}`
+function playNote(stat: PlayCount | undefined, period: string, kind: 'practiced' | 'rehearsed'): string {
+  if (!stat || stat.last === 0) return i18n.t(`library:never.${kind}`)
+  return i18n.t('library:playNote', { count: stat.count, period, ago: ago(stat.last) })
 }
 
 function readTab(): LibraryTab {
@@ -180,6 +183,7 @@ function DraggableSongRow({
   note,
   onRemoveFromActiveSetlist,
 }: DraggableSongRowProps) {
+  const { t } = useTranslation('library')
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: `song:${song.id}`,
     // Drag/swipe is a touch-only gesture now (Marco, explicit request) - the pointer/mouse
@@ -192,21 +196,22 @@ function DraggableSongRow({
   // just its own "⋯" trigger. showAddButton is exactly the pointer-lane signal already, no
   // need for a second prop that could drift out of sync with it.
   const [menuOpen, setMenuOpen] = useState(false)
-  const menuActions = showAddButton
+  const menuActions: OverflowMenuAction[] = showAddButton
     ? [
         {
-          label: 'Zur aktiven Setlist hinzufügen',
+          icon: 'listAdd',
+          label: t('row.addActive'),
           onClick: () => onAddToActiveSetlist?.(),
           disabled: !onAddToActiveSetlist,
         },
-        ...(inActiveSetlist && onRemoveFromActiveSetlist ? [{ label: 'Aus aktiver Setlist entfernen', onClick: onRemoveFromActiveSetlist }] : []),
-        { label: 'Duplizieren', onClick: onDuplicate },
-        { label: pinned ? 'Offline-Pin entfernen' : 'Offline anheften', onClick: onTogglePin },
-        { label: 'Löschen', danger: true, onClick: onDelete },
+        ...(inActiveSetlist && onRemoveFromActiveSetlist ? [{ icon: 'listRemove' as const, label: t('row.removeActive'), onClick: onRemoveFromActiveSetlist }] : []),
+        { icon: 'duplicate', label: t('row.duplicate'), onClick: onDuplicate },
+        { icon: pinned ? 'unpin' : 'pin', label: pinned ? t('row.unpin') : t('row.pin'), onClick: onTogglePin },
+        { icon: 'delete', label: t('row.delete'), danger: true, onClick: onDelete },
       ]
     : [
-        { label: pinned ? 'Offline-Pin entfernen' : 'Offline anheften', onClick: onTogglePin },
-        { label: 'Löschen', danger: true, onClick: onDelete },
+        { icon: pinned ? 'unpin' : 'pin', label: pinned ? t('row.unpin') : t('row.pin'), onClick: onTogglePin },
+        { icon: 'delete', label: t('row.delete'), danger: true, onClick: onDelete },
       ]
 
   return (
@@ -222,7 +227,7 @@ function DraggableSongRow({
           one), so the reveal stays visible either way. */}
       {showSwipeReveal && (
         <div className="absolute inset-0 flex items-center bg-control-strong px-4 text-base font-medium text-ink">
-          {inActiveSetlist ? '− Aus aktiver Setlist' : '+ Zur aktiven Setlist'}
+          {inActiveSetlist ? t('row.swipeRemove') : t('row.swipeAdd')}
         </div>
       )}
       {/* The listeners/ref live on this row surface itself, not just the title button inside it
@@ -263,22 +268,22 @@ function DraggableSongRow({
           onClick={onClick}
           className="min-h-form min-w-0 flex-1 truncate px-2 text-left text-base"
         >
-          {song.title || '(ohne Titel)'}
+          {song.title || t('untitled')}
           {song.artist && <span className={selected ? '' : 'text-ink-faint'}> — {song.artist}</span>}
           {note && <span className={selected ? '' : 'text-ink-faint'}> · {note}</span>}
         </button>
         {/* Setlist songs get a quiet icon, not the yellow outline - with most songs in the setlist
             the outlines drowned the titles; yellow stays for the current song alone. The icon comes after
             "Aktuell" so it stays in one column next to ⋯ (Marco, 2026-10-20). */}
-        {current && <Badge tone={selected ? 'neutral' : 'accent'}>Aktuell</Badge>}
-        {inActiveSetlist && <Icon name="setlist" label="In der aktiven Setlist" className={selected ? '' : 'text-ink-faint'} />}
+        {current && <Badge tone={selected ? 'neutral' : 'accent'}>{t('row.current')}</Badge>}
+        {inActiveSetlist && <Icon name="setlist" label={t('row.inActive')} className={selected ? '' : 'text-ink-faint'} />}
         {showAddButton && (
-          <Button className="w-form flex-shrink-0" onClick={() => onAddToActiveSetlist?.()} disabled={!onAddToActiveSetlist} title={onAddToActiveSetlist ? 'Zur aktiven Setlist hinzufügen' : 'Keine aktive Setlist'}>
+          <Button className="w-form flex-shrink-0" onClick={() => onAddToActiveSetlist?.()} disabled={!onAddToActiveSetlist} title={onAddToActiveSetlist ? t('row.addActive') : t('row.noActive')}>
             <Icon name="add" />
           </Button>
         )}
         <OverflowMenu
-          title={song.title || '(ohne Titel)'}
+          title={song.title || t('untitled')}
           variant="flat"
           actions={menuActions}
           open={menuOpen}
@@ -302,11 +307,12 @@ function DraggableSongRow({
  * (Marco, explicit request: "as it is for the Setlists").
  */
 export function LibraryView() {
-  const songs = useSongsStore((state) => state.songs)
+  const { t } = useTranslation('library')
+  const songs = useVisibleSongs()
   const saveSong = useSongsStore((state) => state.saveSong)
   const duplicateSong = useSongsStore((state) => state.duplicateSong)
   const removeSong = useSongsStore((state) => state.remove)
-  const setlists = useSetlistsStore((state) => state.setlists)
+  const setlists = useVisibleSetlists()
   const saveSetlist = useSetlistsStore((state) => state.saveSetlist)
   const { activeSetlist } = useQueue()
   // The song loaded in the show right now (Gig: the shared queue, Solo: this device's own).
@@ -520,8 +526,8 @@ export function LibraryView() {
   }
 
   async function handleDeleteSong(song: Song) {
-    const confirmed = await confirm(`"${song.title || '(ohne Titel)'}" wirklich löschen?`, {
-      confirmLabel: 'Löschen',
+    const confirmed = await confirm(t('deleteSong', { title: song.title || t('untitled') }), {
+      confirmLabel: t('delete'),
       danger: true,
     })
     if (!confirmed) return
@@ -533,9 +539,9 @@ export function LibraryView() {
    * SetlistDetail's own handleDuplicate. Stays put on the source song rather than jumping to
    * the copy, same as duplicating a setlist doesn't navigate away from the original either. */
   async function handleDuplicateSong(song: Song) {
-    const name = await promptText('Song duplizieren', {
-      label: 'Titel der Kopie',
-      defaultValue: `${song.title} (Kopie)`,
+    const name = await promptText(t('duplicateSong'), {
+      label: t('copyTitle'),
+      defaultValue: t('copyName', { name: song.title }),
     })
     if (!name?.trim()) return
     await duplicateSong(song.id, name.trim())
@@ -564,11 +570,11 @@ export function LibraryView() {
    * awkward with a mouse) - both land on whichever setlist is currently active. */
   function addToActiveSetlist(songId: string) {
     if (!activeSetlist) {
-      showTransientMessage('Keine aktive Setlist')
+      showTransientMessage(t('row.noActive'))
       return
     }
     const intoDraft = addSongToSetlist(activeSetlist.id, songId)
-    showTransientMessage(`Zu "${activeSetlist.name}" hinzugefügt${intoDraft ? ' - noch nicht gespeichert' : ''}`)
+    showTransientMessage(t('added', { name: activeSetlist.name }) + (intoDraft ? t('notSaved') : ''))
   }
 
   /** The way back (Marco, 2026-10-07): swiping a song that is already in the active setlist takes
@@ -579,14 +585,14 @@ export function LibraryView() {
     const loadedEntryId = useShowStateStore.getState().state.activeEntryId
     const lastRemovable = (setlist: Setlist) => [...setlist.entries].reverse().find((e) => isSongEntry(e) && e.songId === songId && e.id !== loadedEntryId)
     if (!lastRemovable(activeSetlist)) {
-      showTransientMessage('Gerade geladen - erst weiterschalten')
+      showTransientMessage(t('loadedNow'))
       return
     }
     const intoDraft = changeSetlist(activeSetlist, (setlist) => {
       const entry = lastRemovable(setlist)
       return entry ? { ...setlist, entries: setlist.entries.filter((e) => e.id !== entry.id) } : setlist
     })
-    showTransientMessage(`Aus "${activeSetlist.name}" entfernt${intoDraft ? ' - noch nicht gespeichert' : ''}`)
+    showTransientMessage(t('removed', { name: activeSetlist.name }) + (intoDraft ? t('notSaved') : ''))
   }
 
   function handleDragEnd(event: DragEndEvent) {
@@ -651,17 +657,17 @@ export function LibraryView() {
         >
           <div className={`flex-shrink-0 px-2 pt-1 ${isPanel ? '' : 'border-b border-line bg-surface'}`}>
             <Tabs
-              label="Bibliothek"
+              label={t('title')}
               value={tab}
               onChange={(next) => {
                 setTab(next)
                 setFocusedIndex(null)
               }}
               tabs={[
-                { value: 'setlists', label: `Setlists (${filteredSetlists.length})` },
-                { value: 'songs', label: `Songs (${filteredSongs.length})` },
+                { value: 'setlists', label: t('tab.setlists', { count: filteredSetlists.length }) },
+                { value: 'songs', label: t('tab.songs', { count: filteredSongs.length }) },
                 // What the band played - the former System → Nachbericht (2026-10-16).
-                { value: 'shows', label: `Shows (${countShowsWithContent(shows)})` },
+                { value: 'shows', label: t('tab.shows', { count: countShowsWithContent(shows) }) },
               ]}
             />
           </div>
@@ -675,8 +681,8 @@ export function LibraryView() {
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder={showSetlists ? 'Setlists durchsuchen…' : 'Songs durchsuchen…'}
-              aria-label="Suche"
+              placeholder={showSetlists ? t('searchSetlists') : t('searchSongs')}
+              aria-label={t('search')}
               className={`h-form flex-shrink-0 px-4 text-base ${INPUT}`}
             />
             {/* The search looks into the open tab; hits in the other one shouldn't go unseen. */}
@@ -686,13 +692,13 @@ export function LibraryView() {
                 onClick={() => setTab(showSetlists ? 'songs' : 'setlists')}
                 className="min-h-form self-start text-left text-base text-accent underline"
               >
-                {showSetlists ? `${filteredSongs.length} Treffer unter Songs` : `${filteredSetlists.length} Treffer unter Setlists`}
+                {showSetlists ? t('hitsSongs', { count: filteredSongs.length }) : t('hitsSetlists', { count: filteredSetlists.length })}
               </button>
             )}
             {/* Sorting, per tab (Marco, 2026-10-07) - pick one, so a joined bar. */}
             {showSetlists ? (
               <Segmented
-                label="Setlists sortieren"
+                label={t('sortSetlists')}
                 value={sort.setlists.by}
                 onChange={(by) => setSort({ ...sort, setlists: { by, reversed: false } })}
                 // Tapping the chosen order again reverses it (Marco, 2026-10-07).
@@ -704,7 +710,7 @@ export function LibraryView() {
               />
             ) : (
               <Segmented
-                label="Songs sortieren"
+                label={t('sortSongs')}
                 value={sort.songs.by}
                 onChange={(by) => setSort({ ...sort, songs: { by, reversed: false } })}
                 onSelectedTap={() => setSort({ ...sort, songs: { ...sort.songs, reversed: !sort.songs.reversed } })}
@@ -758,7 +764,7 @@ export function LibraryView() {
                       {/* "Aktiv" = a badge (docs/15 D4), never the yellow fill a selection has. */}
                       {activeSetlist?.id === setlist.id && (
                         <span className="ml-2">
-                          <Badge tone={selection?.type === 'setlist' && selection.id === setlist.id ? 'neutral' : 'accent'}>Aktiv</Badge>
+                          <Badge tone={selection?.type === 'setlist' && selection.id === setlist.id ? 'neutral' : 'accent'}>{t('active')}</Badge>
                         </span>
                       )}
                     </button>
@@ -766,7 +772,7 @@ export function LibraryView() {
                 ))}
               </ul>
                 {/* Adding sits below the last entry, like every list (docs/15 AddRow). */}
-                <AddRow label="Neue Setlist" onClick={createSetlist} />
+                <AddRow label={t('newSetlist')} onClick={createSetlist} />
               </>
             ) : (
               <>
@@ -781,9 +787,9 @@ export function LibraryView() {
                     inActiveSetlist={!!activeSetlist && setlistSongIds.has(song.id)}
                     note={
                       sort.songs.by === 'practiced'
-                        ? playNote(practice.get(song.id), `${practiceDays} Tagen`, 'geübt')
+                        ? playNote(practice.get(song.id), t('window.days', { count: practiceDays }), 'practiced')
                         : sort.songs.by === 'rehearsed'
-                          ? playNote(rehearsal.get(song.id), windowText(rehearsalWindow), 'geprobt')
+                          ? playNote(rehearsal.get(song.id), windowText(rehearsalWindow), 'rehearsed')
                           : undefined
                     }
                     onRemoveFromActiveSetlist={() => removeFromActiveSetlist(song.id)}
@@ -800,7 +806,7 @@ export function LibraryView() {
                   />
                 ))}
               </ul>
-                <AddRow label="Neuer Song" onClick={() => void createSong()} />
+                <AddRow label={t('newSong')} onClick={() => void createSong()} />
               </>
             )}
             </>
@@ -816,51 +822,20 @@ export function LibraryView() {
           }`}
         >
           {selection?.type === 'setlist' ? (
-            <>
-              <button
-                type="button"
-                onClick={() => setSelection(null)}
-                className={`mb-3 flex min-h-form items-center gap-2 self-start rounded-control bg-control-strong px-4 text-base text-ink [@media(hover:hover)]:hover:bg-control-strong-hover ${
-                  isPanel ? 'hidden' : ''
-                }`}
-              >
-                <Icon name="back" />
-                Bibliothek
-              </button>
-              <SetlistDetail
-                key={selection.id}
-                setlistId={selection.id}
-                onSelectSong={selectSong}
-                onDeleted={() => setSelectionNow(null)}
-              />
-            </>
+            // ← in the setlist's own header row on narrow screens, not a row of its own (Marco, 2026-10-29).
+            <SetlistDetail
+              key={selection.id}
+              setlistId={selection.id}
+              onSelectSong={selectSong}
+              onDeleted={() => setSelectionNow(null)}
+              onBack={isPanel ? undefined : () => setSelection(null)}
+            />
           ) : selection?.type === 'show' ? (
-            <>
-              <button
-                type="button"
-                onClick={() => setSelection(null)}
-                className={`mb-3 flex min-h-form items-center gap-2 self-start rounded-control bg-control-strong px-4 text-base text-ink [@media(hover:hover)]:hover:bg-control-strong-hover ${
-                  isPanel ? 'hidden' : ''
-                }`}
-              >
-                <Icon name="back" />
-                Bibliothek
-              </button>
-              <ShowDetail key={selection.id} showId={selection.id} />
-            </>
+            <ShowDetail key={selection.id} showId={selection.id} onBack={isPanel ? undefined : () => setSelection(null)} />
           ) : selection?.type === 'song' ? (
             <>
-              <button
-                type="button"
-                onClick={() => setSelection(null)}
-                className={`mb-3 flex min-h-form items-center gap-2 self-start rounded-control bg-control-strong px-4 text-base text-ink [@media(hover:hover)]:hover:bg-control-strong-hover ${
-                  isPanel ? 'hidden' : ''
-                }`}
-              >
-                <Icon name="back" />
-                Bibliothek
-              </button>
               <SongPreview
+                onBack={isPanel ? undefined : () => setSelection(null)}
                 songId={selection.songId}
                 variantId={selection.variantId}
                 onEdit={(variantId) =>
@@ -872,7 +847,7 @@ export function LibraryView() {
             </>
           ) : (
             <div className="flex h-full items-center justify-center text-ink-faint">
-              {showShows ? 'Wähle links eine Show aus.' : 'Wähle links eine Setlist oder einen Song aus.'}
+              {showShows ? t('pickShow') : t('pickItem')}
             </div>
           )}
         </div>

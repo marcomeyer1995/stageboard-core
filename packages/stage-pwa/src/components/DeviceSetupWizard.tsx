@@ -1,3 +1,5 @@
+import i18n from '../i18n'
+import { useSettledVisualViewport, visibleArea } from '../lib/useVisualViewport'
 import { useEffect, useState } from 'react'
 import type { HardwareId, LogicalDevice, PluginInstallation } from 'shared-types'
 import { SERVER_EXECUTION_TARGET, CAPABILITIES } from 'shared-types'
@@ -6,7 +8,7 @@ import { assignDiscoveryCandidate, startDiscovery, stopDiscovery } from '../lib/
 import { getTranslator, hasClientTranslator } from '../lib/clientTranslator'
 import { randomId } from '../lib/id'
 import { findLogicalDeviceUsage } from '../lib/logicalDeviceUsage'
-import { capabilitiesLabel, installableCatalog, PLUGIN_CATALOG, pluginKind } from '../lib/pluginCatalog'
+import { capabilitiesLabel, installableCatalog, PLUGIN_CATALOG, pluginKind, pluginName } from '../lib/pluginCatalog'
 import { listenToPortByHardwareKey } from '../lib/webMidi'
 import { listMidiInputs, listMidiOutputs, sendCcSequence } from '../lib/webMidiOutput'
 import { useDevicesStore } from '../store/useDevicesStore'
@@ -20,9 +22,9 @@ import { useSongsStore } from '../store/useSongsStore'
 import { useBackHandler } from '../lib/backNavigation'
 import { INPUT, INPUT_FREE } from './ui/styles'
 import { Button, PrepTier } from './ui'
+import { useTranslation } from 'react-i18next'
 
 const TOTAL_STEPS = 4
-const STEP_TITLE: Record<number, string> = { 1: 'Name', 2: 'Typ', 3: 'Verbindung', 4: 'Prüfen' }
 
 interface Draft {
   id: string
@@ -45,46 +47,48 @@ interface MidiEvent {
 }
 
 function FeedLine({ events }: { events: MidiEvent[] | undefined }) {
-  if (!events || events.length === 0) return <span className="text-ink-faint/60 italic">wartet auf Daten…</span>
+  if (!events || events.length === 0) return <span className="text-ink-faint/60 italic">{i18n.t('hardware:wiz.waiting')}</span>
   return <span className="font-mono text-xs text-accent">{events.map((e) => `CC${e.cc}=${e.value}`).join(' · ')}</span>
 }
 
 /** Step 1 - name the device, with the existing roster shown for context (so a name that
  * collides with something a song already targets is an informed choice, not a surprise). */
 function NameStep({ draft, onChange, onNext, onCancel }: { draft: Draft; onChange: (draft: Draft) => void; onNext: () => void; onCancel: () => void }) {
+  const { t } = useTranslation('hardware')
   const existing = useLogicalDevicesStore((state) => state.devices)
   const variants = useSongVariantsStore((state) => state.variants)
   const songs = useSongsStore((state) => state.songs)
   const installed = usePluginsStore((state) => state.installed)
 
   function pluginNameOf(pluginId: string | null): string {
-    return (pluginId && installed.find((p) => p.id === pluginId)?.name) || pluginId || 'kein Typ'
+    const plugin = pluginId ? installed.find((p) => p.id === pluginId) : undefined
+    return (plugin && pluginName(plugin)) || pluginId || t('wiz.noType')
   }
 
   return (
     <div className="flex flex-col gap-4">
       <label className="flex flex-col gap-1 text-sm text-ink-soft">
-        Name
+        {t('wiz.name')}
         <input
           type="text"
           autoFocus
           value={draft.name}
           onChange={(e) => onChange({ ...draft, name: e.target.value })}
-          placeholder="z.B. „Marcos Kemper“"
+          placeholder={t('wiz.namePlaceholder')}
           className={`h-form px-3 text-base placeholder:text-ink-faint ${INPUT}`}
         />
       </label>
 
       {existing.length > 0 && (
         <div className="flex flex-col gap-1">
-          <p className="text-xs font-bold uppercase tracking-widest text-ink-faint">Bereits angelegt</p>
+          <p className="text-xs font-bold uppercase tracking-widest text-ink-faint">{t('wiz.existing')}</p>
           {existing.map((device) => {
             const usage = findLogicalDeviceUsage(device.id, variants, songs)
             return (
               <div key={device.id} className="rounded-control bg-control px-3 py-2 text-xs text-ink-soft">
                 <span className="font-medium">{device.name}</span> · {pluginNameOf(device.pluginId)}
                 {usage.length > 0 && (
-                  <span className="text-ink-faint"> · verwendet in: {usage.map((u) => u.songTitle).join(', ')}</span>
+                  <span className="text-ink-faint">{t('usedIn', { songs: usage.map((u) => u.songTitle).join(', ') })}</span>
                 )}
               </div>
             )
@@ -94,10 +98,10 @@ function NameStep({ draft, onChange, onNext, onCancel }: { draft: Draft; onChang
 
       <div className="flex justify-between">
         <Button onClick={onCancel}>
-          Abbrechen
+          {t('cancel')}
         </Button>
         <Button variant="primary" onClick={onNext} disabled={!draft.name.trim()}>
-          Weiter
+          {t('wiz.next')}
         </Button>
       </div>
     </div>
@@ -117,6 +121,7 @@ function TypeStep({
   onNext: () => Promise<void>
   onBack: () => void
 }) {
+  const { t } = useTranslation('hardware')
   const installed = usePluginsStore((state) => state.installed)
   const [saving, setSaving] = useState(false)
 
@@ -128,7 +133,7 @@ function TypeStep({
 
   return (
     <div className="flex flex-col gap-4">
-      <p className="text-xs text-ink-faint">Welche Art Gerät ist das?</p>
+      <p className="text-xs text-ink-faint">{t('wiz.whichType')}</p>
       <div className="flex flex-col gap-2">
         {/* A device already set up on a test plugin keeps showing its type. */}
         {/* Gear only (Marco, 2026-10-16): Add-ons like Sprachausgabe are no device. */}
@@ -145,20 +150,20 @@ function TypeStep({
               }`}
             >
               <span>
-                {candidate.name}
+                {pluginName(candidate)}
                 <span className="ml-2 text-xs text-ink-faint">{capabilitiesLabel(candidate.capabilities)}</span>
               </span>
-              {!alreadyInstalled && <span className="shrink-0 text-xs text-ink-faint">wird installiert</span>}
+              {!alreadyInstalled && <span className="shrink-0 text-xs text-ink-faint">{t('wiz.willInstall')}</span>}
             </button>
           )
         })}
       </div>
       <div className="flex justify-between">
         <Button onClick={onBack}>
-          Zurück
+          {t('wiz.back')}
         </Button>
         <Button variant="primary" onClick={() => void next()} disabled={!draft.pluginId || saving}>
-          {saving ? 'Speichere…' : 'Weiter'}
+          {saving ? t('wiz.saving') : t('wiz.next')}
         </Button>
       </div>
     </div>
@@ -187,6 +192,7 @@ function ConnectionStep({
   onNext: () => void
   onBack: () => void
 }) {
+  const { t } = useTranslation('hardware')
   const workspaceId = useDiscoverySessionStore((state) => state.workspaceId)
   const session = useDiscoverySessionStore((state) => state.session)
   const installed = usePluginsStore((state) => state.installed)
@@ -197,8 +203,14 @@ function ConnectionStep({
   const [sendingKey, setSendingKey] = useState<string | null>(null)
   const [assigningKey, setAssigningKey] = useState<string | null>(null)
   const [manualTarget, setManualTarget] = useState(device?.executionTarget ?? '')
-  const [manualTransportId, setManualTransportId] = useState('')
-  const [manualValues, setManualValues] = useState<Record<string, string>>({})
+  // What this device (or, for a Stage-Server device, the server) already has - shown again when editing.
+  const configs = useDeviceTransportConfigStore((state) => state.configs)
+  const existingConfig = configs.find((c) => c.id === `${device?.executionTarget === SERVER_EXECUTION_TARGET ? SERVER_EXECUTION_TARGET : getDeviceId()}:${draft.id}`)
+  const [manualTransportId, setManualTransportId] = useState(existingConfig?.transportId ?? '')
+  const [manualValues, setManualValues] = useState<Record<string, string>>(existingConfig?.values ?? {})
+  // Transport fields are filled in where the device runs: on this tablet for itself, and - since the
+  // Stage-Server has no screen - from any tablet for a Stage-Server device (OSC host and port, #484).
+  const configTarget = manualTarget === getDeviceId() || manualTarget === SERVER_EXECUTION_TARGET ? manualTarget : null
 
   const plugin = installed.find((p) => p.id === draft.pluginId) ?? null
   const candidates = session.candidates.filter((c) => c.matchedPluginId === draft.pluginId)
@@ -231,8 +243,8 @@ function ConnectionStep({
   }, [candidates.map((c) => c.hardwareKey).join(',')])
 
   function reporterLabel(reporterId: string): string {
-    if (reporterId === getDeviceId()) return 'Dieses Gerät'
-    if (reporterId === SERVER_EXECUTION_TARGET) return 'Stage-Server'
+    if (reporterId === getDeviceId()) return t('thisDevice')
+    if (reporterId === SERVER_EXECUTION_TARGET) return t('server')
     return devices.find((d) => d.id === reporterId)?.name ?? reporterId
   }
 
@@ -255,10 +267,10 @@ function ConnectionStep({
 
   async function saveManual() {
     await saveDevice({ id: draft.id, name: draft.name, capability: draft.capability ?? 'midi-input', pluginId: draft.pluginId, executionTarget: manualTarget || null })
-    if (manualTarget === getDeviceId() && manualTransportId) {
+    if (configTarget && manualTransportId) {
       await saveTransportConfig({
-        id: `${getDeviceId()}:${draft.id}`,
-        deviceId: getDeviceId(),
+        id: `${configTarget}:${draft.id}`,
+        deviceId: configTarget,
         logicalDeviceId: draft.id,
         transportId: manualTransportId,
         values: manualValues,
@@ -273,9 +285,10 @@ function ConnectionStep({
     <div className="flex flex-col gap-4">
       {resolvedTarget && (
         <p className="rounded-control bg-control-strong px-3 py-2 text-sm text-ink">
-          Verbunden mit {reporterLabel(resolvedTarget)}
-          {resolvedTarget !== getDeviceId() && (
-            <span className="text-ink-faint"> · wartet darauf, dass sich dieses Gerät selbst einträgt</span>
+          {t('wiz.connectedTo', { target: reporterLabel(resolvedTarget) })}
+          {/* The Stage-Server has no screen to register from - nothing to wait for there. */}
+          {resolvedTarget !== getDeviceId() && resolvedTarget !== SERVER_EXECUTION_TARGET && (
+            <span className="text-ink-faint">{t('wiz.waitsSelf')}</span>
           )}
         </p>
       )}
@@ -289,13 +302,13 @@ function ConnectionStep({
               <div key={`${c.reporterId}:${c.hardwareKey}`} className="flex items-center justify-between gap-2 rounded-control bg-control-strong px-2 py-2 text-xs">
                 <div className="flex flex-col gap-0.5">
                   <span className="text-ink-soft">
-                    {c.name || c.hardwareKey} <span className="text-ink-faint">via {reporterLabel(c.reporterId)}</span>
+                    {c.name || c.hardwareKey} <span className="text-ink-faint">{t('wiz.via', { reporter: reporterLabel(c.reporterId) })}</span>
                   </span>
                   <FeedLine events={feeds[c.hardwareKey]} />
                 </div>
                 {namePattern && c.reporterId === getDeviceId() && (
                   <Button variant="primary" className="shrink-0" onClick={() => void sendTrigger(c.hardwareKey)} disabled={sendingKey === c.hardwareKey}>
-                    {sendingKey === c.hardwareKey ? 'sende…' : 'Jetzt senden'}
+                    {sendingKey === c.hardwareKey ? t('wiz.sending') : t('wiz.sendNow')}
                   </Button>
                 )}
               </div>
@@ -304,13 +317,13 @@ function ConnectionStep({
       )}
 
       <div className="flex flex-col gap-1">
-        <p className="text-xs font-bold uppercase tracking-widest text-ink-faint">Automatisch erkannt</p>
-        {candidates.length === 0 && <p className="text-xs text-ink-faint">Noch keine passenden Geräte erkannt…</p>}
+        <p className="text-xs font-bold uppercase tracking-widest text-ink-faint">{t('wiz.detected')}</p>
+        {candidates.length === 0 && <p className="text-xs text-ink-faint">{t('wiz.noneDetected')}</p>}
         {candidates.map((c) => (
           <div key={`${c.reporterId}:${c.hardwareKey}`} className="flex items-center justify-between gap-2 rounded-control bg-control px-3 py-2 text-xs">
             <div className="flex flex-col gap-0.5">
               <span className="text-ink-soft">
-                {c.name || c.hardwareKey} <span className="text-ink-faint">via {reporterLabel(c.reporterId)}</span>
+                {c.name || c.hardwareKey} <span className="text-ink-faint">{t('wiz.via', { reporter: reporterLabel(c.reporterId) })}</span>
               </span>
               {c.reporterId === getDeviceId() && <FeedLine events={feeds[c.hardwareKey]} />}
             </div>
@@ -318,7 +331,7 @@ function ConnectionStep({
               <span className="shrink-0 text-ink-faint">{c.status}</span>
             ) : (
               <Button variant="primary" className="shrink-0" onClick={() => void claimCandidate(c.reporterId, c.hardwareKey)} disabled={assigningKey === c.hardwareKey}>
-                {assigningKey === c.hardwareKey ? 'übernehme…' : 'Verwenden'}
+                {assigningKey === c.hardwareKey ? t('wiz.claiming') : t('wiz.use')}
               </Button>
             )}
           </div>
@@ -326,22 +339,22 @@ function ConnectionStep({
       </div>
 
       <div className="flex flex-col gap-2 rounded-container border border-dashed border-line px-3 py-3">
-        <p className="text-xs font-bold uppercase tracking-widest text-ink-faint">Manuell festlegen</p>
+        <p className="text-xs font-bold uppercase tracking-widest text-ink-faint">{t('wiz.manual')}</p>
         <select
           value={manualTarget}
           onChange={(e) => setManualTarget(e.target.value)}
           className={`min-h-form px-3 text-base ${INPUT}`}
         >
-          <option value="">— nicht festgelegt —</option>
-          <option value={SERVER_EXECUTION_TARGET}>Server (Stage-Server-Plugin)</option>
+          <option value="">{t('wiz.notSet')}</option>
+          <option value={SERVER_EXECUTION_TARGET}>{t('wiz.serverPlugin')}</option>
           {devices.map((d) => (
             <option key={d.id} value={d.id}>
               {d.name}
-              {d.id === getDeviceId() ? ' (dieses Gerät)' : ''}
+              {d.id === getDeviceId() ? t('wiz.thisDevice') : ''}
             </option>
           ))}
         </select>
-        {manualTarget === getDeviceId() && plugin && plugin.transports.length > 0 && (
+        {configTarget && plugin && plugin.transports.length > 0 && (
           <>
             <select
               value={manualTransportId}
@@ -351,7 +364,7 @@ function ConnectionStep({
               }}
               className={`min-h-form px-3 text-base ${INPUT}`}
             >
-              <option value="">Anschlussart wählen…</option>
+              <option value="">{t('wiz.chooseTransport')}</option>
               {plugin.transports.map((t) => (
                 <option key={t.id} value={t.id}>
                   {t.label}
@@ -386,16 +399,16 @@ function ConnectionStep({
           </>
         )}
         <Button className="self-start" onClick={() => void saveManual()}>
-          Speichern
+          {t('wiz.save')}
         </Button>
       </div>
 
       <div className="flex justify-between">
         <Button onClick={onBack}>
-          Zurück
+          {t('wiz.back')}
         </Button>
         <Button variant="primary" onClick={onNext}>
-          {resolvedTarget ? 'Weiter' : 'Später verbinden'}
+          {resolvedTarget ? t('wiz.next') : t('wiz.later')}
         </Button>
       </div>
     </div>
@@ -407,6 +420,7 @@ function ConnectionStep({
  * port again when Android hands out a new id after a replug. */
 /** The connected MIDI outputs - or, with `inputs`, the inputs (a MIDI controller, #547). */
 function MidiOutputPicker({ label, value, onChange, inputs = false }: { label: string; value: string; onChange: (id: string, name: string) => void; inputs?: boolean }) {
+  const { t } = useTranslation('hardware')
   const [outputs, setOutputs] = useState<{ id: string; name: string }[] | null>(null)
   useEffect(() => {
     let cancelled = false
@@ -427,10 +441,10 @@ function MidiOutputPicker({ label, value, onChange, inputs = false }: { label: s
       >
         <option value="">
           {outputs === null
-            ? `Suche MIDI-${inputs ? 'Eingänge' : 'Ausgänge'}…`
+            ? t(inputs ? 'wiz.searchInputs' : 'wiz.searchOutputs')
             : outputs.length === 0
-              ? `Kein MIDI-${inputs ? 'Eingang' : 'Ausgang'} verbunden`
-              : `MIDI-${inputs ? 'Eingang' : 'Ausgang'} wählen…`}
+              ? t(inputs ? 'wiz.noInput' : 'wiz.noOutput')
+              : t(inputs ? 'wiz.chooseInput' : 'wiz.chooseOutput')}
         </option>
         {outputs?.map((o) => (
           <option key={o.id} value={o.id}>
@@ -445,6 +459,7 @@ function MidiOutputPicker({ label, value, onChange, inputs = false }: { label: s
 /** Step 4 - verify. Reuses the exact "Testen" action TransportConfigForm already had - only
  * meaningful on whichever device actually executes this role. */
 function VerifyStep({ draft, device, onBack, onFinish }: { draft: Draft; device: LogicalDevice | null; onBack: () => void; onFinish: () => void }) {
+  const { t } = useTranslation('hardware')
   const installed = usePluginsStore((state) => state.installed)
   const [testResult, setTestResult] = useState<string | null>(null)
   const executionTarget = device?.executionTarget ?? null
@@ -455,35 +470,35 @@ function VerifyStep({ draft, device, onBack, onFinish }: { draft: Draft; device:
     setTestResult('…')
     // The device being set up - with two of the same kind the test went to the first (#408 review).
     const result = await getTranslator(draft.capability)?.({ type: 'test', payload: {}, logicalDeviceId: draft.id })
-    setTestResult(result ? `${result.status}${result.message ? `: ${result.message}` : ''}` : 'kein Translator')
+    setTestResult(result ? `${result.status}${result.message ? `: ${result.message}` : ''}` : t('wiz.noTranslator'))
   }
 
   return (
     <div className="flex flex-col gap-4">
       {draft.capability === CAPABILITIES.midiController ? (
         // A controller only listens - nothing to send as a test; its buttons are tried out there.
-        <p className="text-sm text-ink-faint">Prüfen: im ⋯ des Geräts „Knöpfe belegen“ - ein Knopf am Controller wird dort sofort erkannt.</p>
+        <p className="text-sm text-ink-faint">{t('wiz.controllerCheck')}</p>
       ) : canTestHere ? (
         <div className="flex items-center gap-3">
           <Button onClick={() => void runTest()}>
-            Testen
+            {t('wiz.test')}
           </Button>
           {testResult && <span className="text-sm text-ink-faint">{testResult}</span>}
         </div>
       ) : executionTarget ? (
         <p className="text-sm text-ink-faint">
-          Wird auf {executionTarget === SERVER_EXECUTION_TARGET ? 'dem Stage-Server' : 'einem anderen Gerät'} ausgeführt - dort prüfen.
+          {t(executionTarget === SERVER_EXECUTION_TARGET ? 'wiz.runsOnServer' : 'wiz.runsElsewhere')}
         </p>
       ) : (
-        <p className="text-sm text-ink-faint">Noch keine Verbindung festgelegt - erst Schritt 3 abschließen, um hier zu testen.</p>
+        <p className="text-sm text-ink-faint">{t('wiz.noConnection')}</p>
       )}
 
       <div className="flex justify-between">
         <Button onClick={onBack}>
-          Zurück
+          {t('wiz.back')}
         </Button>
         <Button variant="primary" onClick={onFinish}>
-          Fertig
+          {t('wiz.done')}
         </Button>
       </div>
     </div>
@@ -524,7 +539,10 @@ export function DeviceSetupWizard({
   initialDraft?: NewDevicePrefill | null
   onClose: () => void
 }) {
+  const { t } = useTranslation('hardware')
   useBackHandler(onClose)
+  // Pinned to the visible area, so the on-screen keyboard never hides the fields or the bottom row.
+  const visible = useSettledVisualViewport()
   const [step, setStep] = useState(() => (device ? (device.pluginId ? 3 : 2) : initialDraft ? 2 : 1))
   const [draft, setDraft] = useState<Draft>(() => draftFrom(device, initialDraft))
   const saveDevice = useLogicalDevicesStore((state) => state.save)
@@ -547,13 +565,13 @@ export function DeviceSetupWizard({
   return (
     // A wizard is set-up (docs/15 D10): the Vorbereitung tier.
     <PrepTier>
-    <div className="fixed inset-0 z-dialog flex items-center justify-center overflow-y-auto bg-scrim/60 sb-pad-safe" onKeyDown={(e) => e.key === 'Escape' && onClose()}>
-      <div className="flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-container border border-line bg-surface shadow-sb">
+    <div className="fixed inset-0 z-dialog flex items-center justify-center overflow-y-auto bg-scrim/60 sb-pad-safe" style={visibleArea(visible)} onKeyDown={(e) => e.key === 'Escape' && onClose()}>
+      <div className="flex max-h-full w-full max-w-2xl flex-col overflow-hidden rounded-container border border-line bg-surface shadow-sb">
         {/* One way out per step, in its bottom row (docs/15 D6) - the × that sat here is gone. */}
         <div className="border-b border-line px-4 py-3">
-          <h2 className="text-lg font-bold text-ink">Gerät einrichten</h2>
+          <h2 className="text-lg font-bold text-ink">{t('wiz.title')}</h2>
           <p className="text-sm text-ink-faint">
-            Schritt {step}/{TOTAL_STEPS} · {STEP_TITLE[step]}
+            {t('wiz.step', { step, total: TOTAL_STEPS, title: t(`wiz.steps.${step as 1 | 2 | 3 | 4}`) })}
           </p>
         </div>
 

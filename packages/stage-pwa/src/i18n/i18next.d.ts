@@ -1,6 +1,20 @@
 import 'i18next'
+import type messages from './locales/de/messages.json'
+import type dashboard from './locales/de/dashboard.json'
+import type editor from './locales/de/editor.json'
+import type library from './locales/de/library.json'
+import type addons from './locales/de/addons.json'
+import type devices from './locales/de/devices.json'
+import type hardware from './locales/de/hardware.json'
+import type band from './locales/de/band.json'
+import type actions from './locales/de/actions.json'
+import type system from './locales/de/system.json'
 import type common from './locales/de/common.json'
 import type statusbar from './locales/de/statusbar.json'
+import type menu from './locales/de/menu.json'
+import type widgets from './locales/de/widgets.json'
+import type shows from './locales/de/shows.json'
+import type rigcheck from './locales/de/rigcheck.json'
 
 /**
  * Typed keys (#456): German is the reference - a key that isn't in de/*.json is a compile error.
@@ -11,8 +25,22 @@ declare module 'i18next' {
   interface CustomTypeOptions {
     defaultNS: 'common'
     resources: {
+      messages: typeof messages
+      dashboard: typeof dashboard
+      editor: typeof editor
+      library: typeof library
+      addons: typeof addons
+      devices: typeof devices
+      hardware: typeof hardware
+      band: typeof band
+      actions: typeof actions
+      system: typeof system
       common: typeof common
       statusbar: typeof statusbar
+      menu: typeof menu
+      widgets: typeof widgets
+      shows: typeof shows
+      rigcheck: typeof rigcheck
     }
   }
 }

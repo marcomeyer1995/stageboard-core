@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { useShowPart } from '../lib/widgetParts'
 import { Segmented } from '../components/ui'
 import { useState } from 'react'
@@ -40,6 +41,7 @@ const WEDGE_STYLE: Record<Role, { fill: string; text: string }> = {
  * floor (they were 11-14px at the old 4 x 7 default, GUI audit 2026-09-27).
  */
 export function CircleOfFifthsWidget({ config }: { config: CircleOfFifthsConfig }) {
+  const { t } = useTranslation('widgets')
   // Parts left out under "Anzeigen" in the ⋯ menu (Marco, 2026-10-17: declutter every widget).
   const showRelations = useShowPart('relations')
   const showSignature = useShowPart('signature')
@@ -67,7 +69,7 @@ export function CircleOfFifthsWidget({ config }: { config: CircleOfFifthsConfig 
       className={`flex h-full items-center gap-2 overflow-hidden text-ink-soft ${beside ? 'flex-row' : 'flex-col'}`}
     >
       <div ref={circleRef} className="flex min-h-0 w-full min-w-0 flex-1 items-center justify-center">
-        <svg viewBox={`0 0 ${CIRCLE_VIEWBOX} ${CIRCLE_VIEWBOX}`} role="group" aria-label="Quintenzirkel" className="h-full w-full">
+        <svg viewBox={`0 0 ${CIRCLE_VIEWBOX} ${CIRCLE_VIEWBOX}`} role="group" aria-label={t('cof.aria')} className="h-full w-full">
           {(['major', 'minor'] as const).flatMap((ring) =>
             Array.from({ length: 12 }, (_, index) => {
               const key: CircleKey = { ring, index }
@@ -121,16 +123,17 @@ export function CircleOfFifthsConfigPanel({
   config: CircleOfFifthsConfig
   onChange: (next: CircleOfFifthsConfig) => void
 }) {
+  const { t } = useTranslation('widgets')
   return (
     <div className="flex flex-col gap-3">
       <Segmented
-        label="Notenname"
+        label={t('w.noteName')}
         showLabel
         value={config.noteNaming ?? 'sharp'}
         onChange={(value) => onChange({ ...config, noteNaming: value as CircleOfFifthsConfig['noteNaming'] })}
-        options={[{ value: 'sharp', label: 'Kreuz (F#)' }, { value: 'flat', label: 'B (Gb)' }]}
+        options={[{ value: 'sharp', label: t('w.sharp') }, { value: 'flat', label: t('w.flat') }]}
       />
-      <SizeRatioSlider label="Beschreibung" ratio={config.sizeRatio ?? DEFAULT_SIZE_RATIO} onChange={(sizeRatio) => onChange({ ...config, sizeRatio })} />
+      <SizeRatioSlider label={t('cof.description')} ratio={config.sizeRatio ?? DEFAULT_SIZE_RATIO} onChange={(sizeRatio) => onChange({ ...config, sizeRatio })} />
     </div>
   )
 }

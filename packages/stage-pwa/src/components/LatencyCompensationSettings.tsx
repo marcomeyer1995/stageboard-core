@@ -1,25 +1,27 @@
 import { getDeviceId } from '../lib/deviceId'
 import { useAudioCompensationStore } from '../lib/latencyCompensation'
-import { audioOutputLatencyMs, ROUTE_LABEL } from '../lib/latencyProfiles'
+import { audioOutputLatencyMs, routeLabel } from '../lib/latencyProfiles'
 import { useAudioRouteStore } from '../store/useAudioRouteStore'
 import { useLatencyProfilesStore } from '../store/useLatencyProfilesStore'
 import { Switch } from './ui'
+import { useTranslation } from 'react-i18next'
 
 /** Per device (#491): start click and backing track earlier by the stored latency of the current
  * output route, so they are heard on the beat. Sits in this device's "Latenz…" dialog (Tablets & Handys),
  * above the values it uses. */
 export function LatencyCompensationSettings() {
+  const { t } = useTranslation('devices')
   const on = useAudioCompensationStore((state) => state.on)
   const set = useAudioCompensationStore((state) => state.set)
   const route = useAudioRouteStore((state) => state.route)
   const profiles = useLatencyProfilesStore((state) => state.profiles)
   const stored = audioOutputLatencyMs(profiles, getDeviceId(), route, true)
-  const status = stored > 0 ? `${stored} ms für ${ROUTE_LABEL[route]}` : `kein Wert für ${ROUTE_LABEL[route]} - unten eintragen`
+  const status = stored > 0 ? t('comp.stored', { ms: stored, route: routeLabel(route) }) : t('comp.none', { route: routeLabel(route) })
   return (
     <Switch
-      label="Ton-Latenz ausgleichen"
-      description={`Jetzt: ${status}.`}
-      info="Klick und Backing-Track starten um die gemessene Latenz dieses Ausgabewegs früher, damit sie auf dem Schlag klingen."
+      label={t('comp.label')}
+      description={t('comp.now', { status })}
+      info={t('comp.info')}
       checked={on}
       onChange={set}
     />

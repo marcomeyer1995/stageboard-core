@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { Song } from 'shared-types'
 import { Button, CheckRow, Dialog, Field } from './ui'
+import { useTranslation } from 'react-i18next'
 
 interface NewSetlistDialogProps {
   /** In the order the library shows them - picked songs keep this order. */
@@ -16,6 +17,7 @@ interface NewSetlistDialogProps {
  * (same reason as DialogHost's typing dialogs).
  */
 export function NewSetlistDialog({ songs, onCancel, onDone }: NewSetlistDialogProps) {
+  const { t } = useTranslation('library')
   const [name, setName] = useState('')
   const [picked, setPicked] = useState<Set<string>>(new Set())
 
@@ -41,13 +43,13 @@ export function NewSetlistDialog({ songs, onCancel, onDone }: NewSetlistDialogPr
   // row stays above it - the reason these buttons used to sit beside the title.
   return (
     <Dialog
-      title="Neue Setlist"
+      title={t('ns.title')}
       onClose={onCancel}
       actions={
         <>
-          <Button onClick={onCancel}>Abbrechen</Button>
+          <Button onClick={onCancel}>{t('cancel')}</Button>
           <Button variant="primary" disabled={!name.trim()} onClick={finish}>
-            Anlegen
+            {t('ns.create')}
           </Button>
         </>
       }
@@ -60,7 +62,7 @@ export function NewSetlistDialog({ songs, onCancel, onDone }: NewSetlistDialogPr
         }}
         className="flex min-h-0 flex-col gap-4"
       >
-        <Field label="Name der neuen Setlist" autoFocus value={name} onChange={(e) => setName(e.target.value)} />
+        <Field label={t('ns.name')} autoFocus value={name} onChange={(e) => setName(e.target.value)} />
 
         {songs.length > 0 && (
           <SongPicker songs={songs} picked={picked} onToggle={toggle} />
@@ -72,18 +74,20 @@ export function NewSetlistDialog({ songs, onCancel, onDone }: NewSetlistDialogPr
 
 /** Optional songs to start with - pick several, as rows with the chips' checkbox (docs/15 D7). */
 function SongPicker({ songs, picked, onToggle }: { songs: Song[]; picked: Set<string>; onToggle: (id: string) => void }) {
+  const { t } = useTranslation('library')
   return (
     <div className="flex flex-col gap-2">
       <p className="text-sm font-semibold text-ink-soft">
-        Songs gleich mit hinzufügen (optional){picked.size > 0 ? ` - ${picked.size} ausgewählt` : ''}
+        {t('ns.addSongs')}
+        {picked.size > 0 ? t('ns.picked', { count: picked.size }) : ''}
       </p>
-      <ul className="flex flex-col gap-1" aria-label="Songs">
+      <ul className="flex flex-col gap-1" aria-label={t('ns.songs')}>
         {songs.map((song) => {
           const on = picked.has(song.id)
           return (
             <li key={song.id}>
               <CheckRow checked={on} onToggle={() => onToggle(song.id)}>
-                {song.title || '(ohne Titel)'}
+                {song.title || t('untitled')}
                 {song.artist && <span className="text-ink-faint"> — {song.artist}</span>}
               </CheckRow>
             </li>

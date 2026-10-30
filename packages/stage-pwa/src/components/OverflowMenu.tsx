@@ -1,5 +1,6 @@
+import i18n from '../i18n'
 import { useState } from 'react'
-import { Icon } from './Icon'
+import { Icon, type IconName } from './Icon'
 import { ActionMenuDialog, menuIcon } from './ui'
 
 export interface OverflowMenuAction {
@@ -14,6 +15,8 @@ export interface OverflowMenuAction {
    * (e.g. "Zur aktiven Setlist hinzufügen" with no active setlist) - same "tell the user why,
    * don't just make it disappear" instinct the row's own "+" button already uses. */
   disabled?: boolean
+  /** Required, like every menu entry (docs/15 D12). */
+  icon: IconName
 }
 
 interface OverflowMenuProps {
@@ -72,7 +75,7 @@ export function OverflowMenu({
         <button
           type="button"
           onClick={() => setOpen(true)}
-          title="Menü öffnen"
+          title={i18n.t('common:ui.openMenu')}
           className={
             variant === 'flat'
               ? `flex ${size} flex-shrink-0 items-center justify-center rounded-control text-lg leading-none text-ink-faint [@media(hover:hover)]:hover:bg-control-hover [@media(hover:hover)]:hover:text-ink`

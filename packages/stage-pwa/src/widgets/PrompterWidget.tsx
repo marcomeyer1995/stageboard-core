@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { Segmented } from '../components/ui'
 import { useShowPart } from '../lib/widgetParts'
 import { useEffect, useMemo, useRef } from 'react'
@@ -30,6 +31,7 @@ import { stageFontSize } from '../lib/stageSize'
 import { PROMPTER_SCROLL_EVENT, type PrompterScrollDetail } from '../lib/keybindings'
 
 export function PrompterWidget({ config }: { config: PrompterConfig }) {
+  const { t } = useTranslation('widgets')
   // The one anchor size - every other element below is a ratio of this, not its own
   // absolute px value (Marco, 2026-09-14), so changing this (globally in Settings, or just
   // for this instance via the shared "Text" control below) rescales everything else with it.
@@ -60,8 +62,11 @@ export function PrompterWidget({ config }: { config: PrompterConfig }) {
   // whenever nothing is actually playing - frozen at the top of the song, same as page 0.
   // The clock is read per frame below, but the widget re-renders only when the active line or a
   // countdown second changes; the smooth scroll runs on its own frame loop (#457).
-  const { queue, elapsedNow, playbackStatus } = useShowModeCore()
+  const { queue, elapsedNow, playbackStatus, mode } = useShowModeCore()
   const playing = playbackStatus === 'playing'
+  // Chord shapes on a long press (#609) - never while a Gig song plays: an accidental press must
+  // not cover the lyrics on stage. Paused is fine - a moment to look a chord up (Marco, 2026-10-28).
+  const chordInfo = !(mode === 'gig' && playbackStatus === 'playing')
   const { currentSong, currentVariant } = queue
   const containerRef = useRef<HTMLDivElement>(null)
   // Each header part can be left out under "Anzeigen" in the ⋯ menu (Marco, 2026-10-17).
@@ -111,9 +116,9 @@ export function PrompterWidget({ config }: { config: PrompterConfig }) {
   // button; capo and a tuning that isn't standard are small chips next to it in the header -
   // in the common case (standard tuning, no capo) nothing at all takes room above the lyrics.
   const chips = [
-    offsets.effectiveCapo > 0 && `Capo ${offsets.effectiveCapo}`,
+    offsets.effectiveCapo > 0 && t('pr.capo', { capo: offsets.effectiveCapo }),
     // How to tune for this song - the chart's own notation is already in the chords.
-    !isStandard(tuning) && `Stimmung ${tuningLabel(tuning)}`,
+    !isStandard(tuning) && t('pr.tuning', { tuning: tuningLabel(tuning) }),
     unrecognisedTuningText(currentVariant),
   ].filter((chip): chip is string => Boolean(chip))
   const activeIndex = useFrameValue(() => currentLineIndex(lines, elapsedNow() ?? 0), playing)
@@ -169,7 +174,7 @@ export function PrompterWidget({ config }: { config: PrompterConfig }) {
     return (
       <div className="flex h-full flex-col gap-2 overflow-y-auto">
         <p className="text-sm uppercase tracking-widest text-ink-faint">
-          {isHeadingEntry(currentTransition) ? 'Abschnitt' : 'Ansage'}
+          {isHeadingEntry(currentTransition) ? t('w.section') : t('w.announcement')}
         </p>
         <h1
           style={{ fontSize: titleFontSize }}
@@ -180,8 +185,8 @@ export function PrompterWidget({ config }: { config: PrompterConfig }) {
         {currentTransition.estimatedDurationMs ? (
           <p style={{ fontSize: artistFontSize }} className="text-ink-muted">
             {playbackStatus === 'stopped'
-              ? `ca. ${formatItemSeconds(currentTransition.estimatedDurationMs)}`
-              : `noch ${transitionSeconds} s`}
+              ? t('pr.about', { time: formatItemSeconds(currentTransition.estimatedDurationMs) })
+              : t('pr.left', { s: transitionSeconds })}
           </p>
         ) : null}
         {currentTransition.notes ? (
@@ -198,7 +203,7 @@ export function PrompterWidget({ config }: { config: PrompterConfig }) {
   if (!currentSong) {
     return (
       <div className="flex h-full items-center justify-center text-ink-faint">
-        Keine Songs vorhanden
+        {t('w.noSongs')}
       </div>
     )
   }
@@ -245,7 +250,7 @@ export function PrompterWidget({ config }: { config: PrompterConfig }) {
               style={{ fontSize: sectionLabelFontSize }}
               className="min-w-0 overflow-hidden break-words font-bold uppercase tracking-widest text-accent"
             >
-              {page.label ?? `Seite ${pageIndex + 1}`}
+              {page.label ?? t('pr.page', { n: pageIndex + 1 })}
             </p>
             <p className="flex-shrink-0 font-sb-mono text-sm text-ink-faint">
               {pageIndex + 1}/{pages.length}
@@ -267,6 +272,7 @@ export function PrompterWidget({ config }: { config: PrompterConfig }) {
               fontSize={fontSize}
               chordFontSize={chordFontSize}
               commentFontSize={commentFontSize}
+              chordInfo={chordInfo}
             />
           </div>
         </>
@@ -278,6 +284,7 @@ export function PrompterWidget({ config }: { config: PrompterConfig }) {
             fontSize={fontSize}
             chordFontSize={chordFontSize}
             commentFontSize={commentFontSize}
+            chordInfo={chordInfo}
           />
         </div>
       )}
@@ -292,10 +299,11 @@ export function PrompterConfigPanel({
   config: PrompterConfig
   onChange: (next: PrompterConfig) => void
 }) {
+  const { t } = useTranslation('widgets')
   return (
     <div className="flex flex-col gap-3">
       <Segmented
-        label="Ansicht"
+        label={t('pr.view')}
         showLabel
         value={config.viewMode}
         onChange={(value) => onChange({ ...config, viewMode: value as PrompterConfig['viewMode'] })}
@@ -307,32 +315,32 @@ export function PrompterConfigPanel({
       <ContentFontSizeConfigPanel config={config} onChange={(next) => onChange({ ...config, ...next })} />
 
       <SizeRatioSlider
-        label="Chords"
+        label={t('pr.chords')}
         ratio={config.chordSizeRatio ?? DEFAULT_CHORD_SIZE_RATIO}
         onChange={(chordSizeRatio) => onChange({ ...config, chordSizeRatio })}
       />
       <SizeRatioSlider
-        label="Titel"
+        label={t('pr.title')}
         ratio={config.titleSizeRatio ?? DEFAULT_TITLE_SIZE_RATIO}
         onChange={(titleSizeRatio) => onChange({ ...config, titleSizeRatio })}
       />
       <SizeRatioSlider
-        label="Interpret"
+        label={t('pr.artist')}
         ratio={config.artistSizeRatio ?? DEFAULT_ARTIST_SIZE_RATIO}
         onChange={(artistSizeRatio) => onChange({ ...config, artistSizeRatio })}
       />
       <SizeRatioSlider
-        label="Abschnitt (Paginated View)"
+        label={t('pr.pageSection')}
         ratio={config.sectionLabelSizeRatio ?? DEFAULT_SECTION_LABEL_SIZE_RATIO}
         onChange={(sectionLabelSizeRatio) => onChange({ ...config, sectionLabelSizeRatio })}
       />
       <SizeRatioSlider
-        label="Key/Tuning/Capo"
+        label={t('pr.keyLine')}
         ratio={config.arrangementInfoSizeRatio ?? DEFAULT_ARRANGEMENT_INFO_SIZE_RATIO}
         onChange={(arrangementInfoSizeRatio) => onChange({ ...config, arrangementInfoSizeRatio })}
       />
       <SizeRatioSlider
-        label="Kommentare"
+        label={t('pr.comments')}
         ratio={config.commentSizeRatio ?? DEFAULT_COMMENT_SIZE_RATIO}
         onChange={(commentSizeRatio) => onChange({ ...config, commentSizeRatio })}
       />
