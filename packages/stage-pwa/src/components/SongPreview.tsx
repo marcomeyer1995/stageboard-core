@@ -7,7 +7,7 @@ import { variantToOpen } from '../lib/songVariantsDb'
 import { useSongsStore } from '../store/useSongsStore'
 import { useSongVariantsStore } from '../store/useSongVariantsStore'
 import { ChordProLyrics } from './ChordProLyrics'
-import { Button, Select } from './ui'
+import { Button, IconButton, Select } from './ui'
 import { playableTracks } from '../lib/stems'
 import { useTranslation } from 'react-i18next'
 
@@ -16,6 +16,8 @@ interface SongPreviewProps {
   variantId: string | null
   /** Opens the editor on the variant the preview currently shows. */
   onEdit: (variantId: string) => void
+  /** Back to the list on narrow screens (LibraryView) - ← at the start of the title row. */
+  onBack?: () => void
 }
 
 /**
@@ -28,7 +30,7 @@ interface SongPreviewProps {
  * #601: a dropdown switches between the song's variants - view only, it changes nothing in the
  * ShowState, queue or default; it only decides which variant "Bearbeiten" opens.
  */
-export function SongPreview({ songId, variantId, onEdit }: SongPreviewProps) {
+export function SongPreview({ songId, variantId, onEdit, onBack }: SongPreviewProps) {
   const { t } = useTranslation('editor')
   const songs = useSongsStore((state) => state.songs)
   const allVariants = useSongVariantsStore((state) => state.variants)
@@ -62,7 +64,12 @@ export function SongPreview({ songId, variantId, onEdit }: SongPreviewProps) {
   }, [songId, variantId, pickedId, !!song])
 
   if (!song || !variant) {
-    return <div className="flex h-full items-center justify-center text-ink-faint">{t('loading')}</div>
+    return (
+      <div className="flex h-full flex-col">
+        {onBack && <IconButton icon="back" label={t('library')} onClick={onBack} />}
+        <div className="flex flex-1 items-center justify-center text-ink-faint">{t('loading')}</div>
+      </div>
+    )
   }
 
   // The grips as on stage: transpose, played and chart tuning (lib/pitch.ts).
@@ -83,8 +90,9 @@ export function SongPreview({ songId, variantId, onEdit }: SongPreviewProps) {
     <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-x-hidden overflow-y-auto">
       {/* Phone: the title wraps instead of "All the small thi…", and the button keeps clear of
           the scrollbar (2026-10-16). */}
-      <div className="flex items-start justify-between gap-3 max-[599px]:pr-2">
-        <div className="min-w-0">
+      <div className="flex items-start gap-2 max-[599px]:pr-2">
+        {onBack && <IconButton icon="back" label={t('library')} onClick={onBack} />}
+        <div className="min-w-0 flex-1">
           <h2 className="truncate text-2xl font-bold text-ink max-[599px]:whitespace-normal max-[599px]:break-words">{song.title || t('untitled')}</h2>
           {song.artist && <p className="truncate text-ink-faint">{song.artist}</p>}
         </div>
@@ -106,6 +114,7 @@ export function SongPreview({ songId, variantId, onEdit }: SongPreviewProps) {
       {/* At-a-glance overview of what this song actually has attached, present or not (Marco,
           explicit request) - shown even at zero, muted, rather than only appearing once
           something exists, since "nothing here yet" is itself part of the overview. */}
+      {/* Content and facts in one wrapping row (Marco, 2026-10-29: save space). */}
       <div className="flex flex-wrap gap-2 text-sm">
         {contentBadges.map(({ label, count }) => (
           <span
@@ -118,9 +127,6 @@ export function SongPreview({ songId, variantId, onEdit }: SongPreviewProps) {
             {count > 0 ? ` (${count})` : ''}
           </span>
         ))}
-      </div>
-
-      <div className="flex flex-wrap gap-2 text-sm text-ink-muted">
         {variant.key && <span className="rounded-control bg-control px-2 py-1">{t('sp.key', { key: soundingKey(variant) })}</span>}
         {(variant.transpose ?? 0) !== 0 && (
           <span className="rounded-control bg-control px-2 py-1">{t('sp.transposed', { steps: signedSteps(variant.transpose ?? 0) })}</span>

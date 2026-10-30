@@ -3,8 +3,10 @@ import { isSongEntry, isTransitionEntry, type Setlist } from 'shared-types'
 import { useSongsStore } from '../store/useSongsStore'
 import { useSongVariantsStore } from '../store/useSongVariantsStore'
 import { formatItemSeconds } from '../lib/formatItemDuration'
+import { resolveVariantForEntry } from '../lib/computeQueue'
+import { VARIANT_ISSUE_LABEL } from '../lib/variantLabel'
 import { OverflowMenu, type OverflowMenuAction } from './OverflowMenu'
-import { Badge, Button } from './ui'
+import { Badge, Button, IconButton } from './ui'
 import { useTranslation } from 'react-i18next'
 
 interface SetlistPreviewProps {
@@ -17,6 +19,8 @@ interface SetlistPreviewProps {
   onEdit: () => void
   menu: OverflowMenuAction[]
   onSelectSong: (songId: string, variantId: string | null) => void
+  /** Back to the list - on narrow screens only, as ← at the start of the title row (no row of its own). */
+  onBack?: () => void
 }
 
 /** "Do., 24.12.2026" from "2026-12-24". */
@@ -30,12 +34,14 @@ function formatDate(iso: string): string {
  * date, schedule and the running order. Changing anything goes through "Bearbeiten"; only
  * (de)activating stays here, since that's what a show reaches for.
  */
-export function SetlistPreview({ setlist, active, canActivate, onActivate, onDeactivate, onEdit, menu, onSelectSong }: SetlistPreviewProps) {
+export function SetlistPreview({ setlist, active, canActivate, onActivate, onDeactivate, onEdit, menu, onSelectSong, onBack }: SetlistPreviewProps) {
   const { t } = useTranslation('library')
   const songs = useSongsStore((state) => state.songs)
   const variants = useSongVariantsStore((state) => state.variants)
   const songCount = setlist.entries.filter(isSongEntry).length
+  // One grey line under the title instead of a row of chips (Marco, 2026-10-29: save space).
   const facts = [
+    setlist.performanceDate && t('pv.gig', { date: formatDate(setlist.performanceDate) }),
     t('pv.songs', { count: songCount }),
     setlist.targetEndTime && t('pv.end', { time: setlist.targetEndTime }),
     setlist.defaultTransitionMs !== undefined && t('pv.pause', { s: Math.round(setlist.defaultTransitionMs / 1000) }),
@@ -47,12 +53,13 @@ export function SetlistPreview({ setlist, active, canActivate, onActivate, onDea
     <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-x-hidden overflow-y-auto">
       {/* ⋮ top right: the menu for the whole setlist (docs/15 D9). */}
       <div className="flex items-start gap-2">
+        {onBack && <IconButton icon="back" label={t('title')} onClick={onBack} />}
         <div className="min-w-0 flex-1">
           <h2 className="flex items-center gap-2 text-2xl font-bold text-ink">
             <span className="truncate">{setlist.name}</span>
             {active && <Badge tone="accent">{t('active')}</Badge>}
           </h2>
-          {setlist.performanceDate && <p className="text-ink-faint">{t('pv.gig', { date: formatDate(setlist.performanceDate) })}</p>}
+          <p className="text-ink-faint">{facts.join(' · ')}</p>
         </div>
         <OverflowMenu title={setlist.name} actions={menu} scope="page" />
       </div>
@@ -64,14 +71,6 @@ export function SetlistPreview({ setlist, active, canActivate, onActivate, onDea
         <Button onClick={active ? onDeactivate : onActivate} disabled={!canActivate}>
           {active ? t('pv.deactivate') : t('pv.activate')}
         </Button>
-      </div>
-
-      <div className="flex flex-wrap gap-2 text-sm text-ink-muted">
-        {facts.map((fact) => (
-          <span key={fact} className="rounded-control bg-control px-2 py-1">
-            {fact}
-          </span>
-        ))}
       </div>
 
       {setlist.entries.length === 0 ? (
@@ -94,19 +93,48 @@ export function SetlistPreview({ setlist, active, canActivate, onActivate, onDea
             }
             songNumber += 1
             const song = songs.find((s) => s.id === entry.songId)
-            const variant = entry.variantId ? variants.find((v) => v.id === entry.variantId) : undefined
+            // Always the variant that will play (Marco, 2026-10-29): "Abadschen (Standard)" when the
+            // entry follows the song's default, the missing one's label when it is gone.
+            const { variant, issue } = resolveVariantForEntry(entry, variants)
+            const variantText = issue
+              ? VARIANT_ISSUE_LABEL[issue]
+              : variant && (entry.variantId === null ? t('variant.isDefault', { name: variant.label }) : variant.label)
+            const variantBadge = issue
+              ? variantText
+              : variant && (entry.variantId === null ? t('variant.isDefaultShort', { name: variant.label }) : variant.label)
             return (
               <li key={entry.id}>
                 <button
                   type="button"
                   onClick={() => onSelectSong(entry.songId, entry.variantId)}
-                  className="flex min-h-form w-full items-center gap-3 rounded-control bg-control px-4 py-2 text-left text-base [@media(hover:hover)]:hover:bg-control-hover"
+                  className="flex min-h-form w-full items-center gap-2 rounded-control bg-control py-2 pl-2 pr-3 text-left text-base [@media(hover:hover)]:hover:bg-control-hover"
                 >
                   <span className="w-6 flex-shrink-0 text-right tabular-nums text-ink-faint">{songNumber}</span>
-                  <span className="min-w-0 truncate">
-                    {song ? song.title || t('untitled') : <span className="text-ink-faint">{t('pv.songMissing')}</span>}
-                    {song?.artist && <span className="text-ink-faint"> — {song.artist}</span>}
-                    {variant && <span className="text-ink-faint"> · {variant.label}</span>}
+                  {/* The variant as a badge (Marco, 2026-10-29) that always stays readable. From 600 px on
+                      the right edge of the one line, title and band cut off first; on the phone that left
+                      "All the small things — …" - there the band and the badge get a line of their own. */}
+                  <span className="flex min-w-0 flex-1 flex-col">
+                    <span className="flex min-w-0 items-center gap-2">
+                      <span className="min-w-0 flex-1 truncate">
+                        {song ? song.title || t('untitled') : <span className="text-ink-faint">{t('pv.songMissing')}</span>}
+                        {song?.artist && <span className="text-ink-faint max-[599px]:hidden"> — {song.artist}</span>}
+                      </span>
+                      {variantBadge && (
+                        <span className="max-w-[45%] flex-shrink-0 overflow-hidden whitespace-nowrap max-[599px]:hidden" title={variantText ?? undefined}>
+                          <Badge tone={issue ? 'danger' : 'neutral'}>{variantBadge}</Badge>
+                        </span>
+                      )}
+                    </span>
+                    {(song?.artist || variantBadge) && (
+                      <span className="flex min-w-0 items-center gap-2 min-[600px]:hidden">
+                        <span className="min-w-0 flex-1 truncate text-ink-faint">{song?.artist}</span>
+                        {variantBadge && (
+                          <span className="max-w-[60%] flex-shrink-0 overflow-hidden whitespace-nowrap" title={variantText ?? undefined}>
+                            <Badge tone={issue ? 'danger' : 'neutral'}>{variantBadge}</Badge>
+                          </span>
+                        )}
+                      </span>
+                    )}
                   </span>
                 </button>
               </li>

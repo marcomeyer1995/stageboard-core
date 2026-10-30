@@ -67,7 +67,10 @@
     "choose": "Variante wählen",
     "title": "Variante",
     "deleted": "Variante gelöscht",
-    "noDefault": "Keine Standard-Variante"
+    "noDefault": "Keine Standard-Variante",
+    "followDefault": "Standard ({{name}})",
+    "isDefault": "{{name}} (Standard)",
+    "isDefaultShort": "{{name}} (Std.)"
   },
   "cancel": "Abbrechen",
   "save": "Speichern",
