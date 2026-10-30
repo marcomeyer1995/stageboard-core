@@ -1,3 +1,4 @@
+import i18n from '../i18n'
 import { useEffect, useRef } from 'react'
 import { AUDIO_OUTPUT, type Setlist, type ShowLogEvent, type ShowState, type Song, type TrackMeta } from 'shared-types'
 import { cacheKey } from './audioCache'
@@ -411,7 +412,8 @@ export function useRigCheckTrackKey(): string | null {
 export function rigCheckLabel(showEvents: readonly ShowLogEvent[]): string | null {
   const run = showEvents.find(isRun)
   if (!run) return null
-  return `Rig-Check · ${run.kind === 'quick' ? 'Kurz' : 'Voll'}${run.cancelled ? ' (abgebrochen)' : ''}`
+  const label = i18n.t(run.kind === 'quick' ? 'rigcheck:label.quick' : 'rigcheck:label.full')
+  return run.cancelled ? i18n.t('rigcheck:label.cancelled', { label }) : label
 }
 
 /** How the devices of a show's Rig-Check answered - for its line in the show list. */

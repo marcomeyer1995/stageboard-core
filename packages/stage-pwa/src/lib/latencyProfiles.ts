@@ -1,3 +1,4 @@
+import i18n from '../i18n'
 import { AUDIO_OUTPUT, type AudioRoute, type LatencyProfileDoc } from 'shared-types'
 
 /** The stored profile for one output path, or null. Audio is per route; an unknown route (a browser)
@@ -12,12 +13,9 @@ export function findLatencyProfile(
 }
 
 /** German labels for the audio routes (Geräte tab, settings). */
-export const ROUTE_LABEL: Record<AudioRoute, string> = {
-  speaker: 'Lautsprecher',
-  wired: 'Kopfhörer (Kabel)',
-  bluetooth: 'Bluetooth',
-  usb: 'USB-Audio',
-  unknown: 'unbekannt (Browser)',
+/** The output route in words, in this device's language (#456). */
+export function routeLabel(route: AudioRoute): string {
+  return i18n.t(`common:route.${route}`)
 }
 
 /** How much earlier this device schedules its own audio (click, backing track): the stored value for

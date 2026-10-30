@@ -1,6 +1,6 @@
 import { getDeviceId } from '../lib/deviceId'
 import { useAudioCompensationStore } from '../lib/latencyCompensation'
-import { audioOutputLatencyMs, ROUTE_LABEL } from '../lib/latencyProfiles'
+import { audioOutputLatencyMs, routeLabel } from '../lib/latencyProfiles'
 import { useAudioRouteStore } from '../store/useAudioRouteStore'
 import { useLatencyProfilesStore } from '../store/useLatencyProfilesStore'
 import { Switch } from './ui'
@@ -14,7 +14,7 @@ export function LatencyCompensationSettings() {
   const route = useAudioRouteStore((state) => state.route)
   const profiles = useLatencyProfilesStore((state) => state.profiles)
   const stored = audioOutputLatencyMs(profiles, getDeviceId(), route, true)
-  const status = stored > 0 ? `${stored} ms für ${ROUTE_LABEL[route]}` : `kein Wert für ${ROUTE_LABEL[route]} - unten eintragen`
+  const status = stored > 0 ? `${stored} ms für ${routeLabel(route)}` : `kein Wert für ${routeLabel(route)} - unten eintragen`
   return (
     <Switch
       label="Ton-Latenz ausgleichen"

@@ -55,5 +55,12 @@
       "reference": "Nachschlagen",
       "post-show": "Nach der Show"
     }
+  },
+  "route": {
+    "speaker": "Lautsprecher",
+    "wired": "Kopfhörer (Kabel)",
+    "bluetooth": "Bluetooth",
+    "usb": "USB-Audio",
+    "unknown": "unbekannt (Browser)"
   }
 }

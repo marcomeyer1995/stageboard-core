@@ -1,11 +1,11 @@
 import { useState } from 'react'
 import { runAudioCalibration, type AudioCalibrationOutcome } from '../lib/audioCalibration'
-import { AUDIO_OUTPUT, SERVER_EXECUTION_TARGET, latencyProfileId, type AudioRoute, type LatencyProfileDoc } from 'shared-types'
+import { AUDIO_OUTPUT, AudioRouteSchema, SERVER_EXECUTION_TARGET, latencyProfileId, type AudioRoute, type LatencyProfileDoc } from 'shared-types'
 import { getDeviceId } from '../lib/deviceId'
 import { useAudioRouteStore } from '../store/useAudioRouteStore'
 import { useLatencyProfilesStore } from '../store/useLatencyProfilesStore'
 import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
-import { audioOutputLatencyMs, ROUTE_LABEL } from '../lib/latencyProfiles'
+import { audioOutputLatencyMs, routeLabel } from '../lib/latencyProfiles'
 import { LatencyCompensationSettings } from './LatencyCompensationSettings'
 import { Button, Dialog, Field, Select } from './ui'
 
@@ -18,7 +18,7 @@ function useOutputName(): (output: string) => string {
 }
 
 function profileLabel(profile: LatencyProfileDoc, outputName: (output: string) => string): string {
-  const where = profile.route ? `${outputName(profile.output)} · ${ROUTE_LABEL[profile.route]}` : outputName(profile.output)
+  const where = profile.route ? `${outputName(profile.output)} · ${routeLabel(profile.route)}` : outputName(profile.output)
   return `${where} ${Math.round(profile.latencyMs)} ms (${SOURCE_LABEL[profile.source]})`
 }
 
@@ -70,7 +70,7 @@ function AudioCalibrationSection({ deviceId }: { deviceId: string }) {
 
   return (
     <section className="flex flex-col gap-2 rounded-container border border-line p-3" aria-label="Mit Mikrofon messen">
-      <h3 className="text-base font-bold text-ink">Mit dem Mikrofon des Stage-Servers ({ROUTE_LABEL[route]})</h3>
+      <h3 className="text-base font-bold text-ink">Mit dem Mikrofon des Stage-Servers ({routeLabel(route)})</h3>
       <p className="text-sm text-ink-muted">
         Spielt 12 Klicks in unregelmäßigem Abstand; der Stage-Server hört mit und findet die Verzögerung. Gerät nah an den Stage-Server, Ton deutlich hörbar.
       </p>
@@ -192,7 +192,7 @@ export function LatencyProfileDialog({ deviceId, deviceName, onClose }: { device
                 label="Ausgabeweg"
                 value={route}
                 onChange={(e) => setRoute(e.target.value as AudioRoute)}
-                options={(Object.keys(ROUTE_LABEL) as AudioRoute[]).map((r) => ({ value: r, label: ROUTE_LABEL[r] }))}
+                options={AudioRouteSchema.options.map((r) => ({ value: r, label: routeLabel(r) }))}
               />
             )}
             <Field label="Latenz in ms" inputMode="decimal" value={value} onChange={(e) => setValue(e.target.value)} placeholder="z. B. 70" />

@@ -1,4 +1,5 @@
 import type { ShowLogEvent } from 'shared-types'
+import { useTranslation } from 'react-i18next'
 import { rigCheckLabel, runReports, type RigCheckRun } from '../lib/rigCheck'
 import { RigCheckAnalysis } from './RigCheckAnalysis'
 import { RigCheckDeviceRow } from './RigCheckView'
@@ -8,16 +9,18 @@ import { RigCheckDeviceRow } from './RigCheckView'
  * device's state and verdict. The cues it sent and the song stand below as in any show.
  */
 export function RigCheckReport({ events }: { events: readonly ShowLogEvent[] }) {
+  const { t } = useTranslation('rigcheck')
   const run = events.find((event): event is RigCheckRun => event.type === 'rig-check-run')
   if (!run) return null
   const reports = runReports(events, run.showId)
   const ok = reports.filter((r) => r.verdict === 'ok').length
   const problems = reports.filter((r) => r.verdict === 'problem').length
   return (
-    <section aria-label="Rig-Check" className="mb-4 flex flex-col gap-2">
+    <section aria-label={t('title')} className="mb-4 flex flex-col gap-2">
       <h3 className="text-lg font-bold text-ink">{rigCheckLabel(events)}</h3>
       <p className="text-sm text-ink-soft">
-        {reports.length} {reports.length === 1 ? 'Gerät' : 'Geräte'} · {ok} OK{problems > 0 ? ` · ${problems} mit Problem` : ''} · Test-Song Version {run.version}
+        {t('devices.summary', { count: reports.length, ok })}
+        {problems > 0 && ` · ${t('devices.withProblem', { count: problems })}`} · {t('devices.version', { version: run.version })}
       </p>
       {reports.length > 0 && (
         <ul className="flex flex-col">
@@ -28,7 +31,7 @@ export function RigCheckReport({ events }: { events: readonly ShowLogEvent[] }) 
       )}
       {run.analysis && (
         <>
-          <h4 className="text-base font-bold text-ink">Analyse-Prüfung</h4>
+          <h4 className="text-base font-bold text-ink">{t('analysis.title')}</h4>
           <RigCheckAnalysis check={run.analysis} />
         </>
       )}

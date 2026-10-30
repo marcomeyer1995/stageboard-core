@@ -246,3 +246,26 @@ describe('Shows tab - delete and protect (#610)', () => {
     await vi.waitFor(() => expect(deleteShows).toHaveBeenCalledWith(['d']))
   })
 })
+
+describe('Shows in English (#456)', () => {
+  it('the list and a show read in English - band content (song titles) stays as it is', async () => {
+    const { default: i18n } = await import('../i18n')
+    await i18n.changeLanguage('en')
+    try {
+      useProfilesStore.setState({ profiles: [] })
+      useShowLogStore.setState({
+        protectedShowIds: [],
+        events: [
+          { id: 'start', showId: 'show', type: 'show-started', at: t0 },
+          { id: 'p', showId: 'show', type: 'song-played', at: t0 + 1000, endedAt: t0 + 200_000, songId: 'tush', songTitle: 'Tush', activeMs: 200_000 },
+        ],
+      } as never)
+      render(<Shows />)
+      expect(screen.getByText('Recorded automatically')).toBeInTheDocument()
+      fireEvent.click(screen.getByText(/1 song · 3:20 played/))
+      expect(screen.getByText('Tush')).toBeInTheDocument()
+    } finally {
+      await i18n.changeLanguage('de')
+    }
+  })
+})
