@@ -16,6 +16,7 @@ import { showSections } from './showSections'
 import { deleteTrackFile } from './audioClient'
 import { putTrack, putVariant } from './songVariantsDb'
 import { runAnalysisCheck } from './rigCheckAnalysis'
+import { measureRoundRunning } from './rigCheckMeasure'
 import {
   buildRigCheckSong,
   encodeWav,
@@ -165,7 +166,7 @@ export async function prepareRigCheck(kind: RigCheckKind, deviceCues: readonly R
   }
 }
 
-export type StartResult = 'started' | 'not-master' | 'no-run' | 'busy' | 'not-ready'
+export type StartResult = 'started' | 'not-master' | 'no-run' | 'busy' | 'not-ready' | 'measuring'
 
 /** Whether the run's song, variant, track and setlist have all arrived on this device. */
 export function runIsPlayable(run: RigCheckRun): boolean {
@@ -192,6 +193,8 @@ export async function startRigCheck(): Promise<StartResult> {
   const run = openRun(useShowLogStore.getState().events, now)
   if (!run || run.startedAt !== undefined) return 'no-run'
   if (store.state.playbackStatus !== 'stopped') return 'busy'
+  // The measuring round's clicks and the run's track would land on the same microphone.
+  if (measureRoundRunning(run, now)) return 'measuring'
   if (!runIsPlayable(run)) return 'not-ready'
   // The master plays the run like a gig: in Solo Üben it played its own song while the band
   // followed the Rig-Check - and the band's audio device played nothing (Redmi, 2026-10-29).
@@ -339,8 +342,13 @@ function ownState(trackReady: boolean): OwnRigCheckState {
   }
 }
 
-/** Writes this device's report - its state now, keeping a verdict already given. */
-export async function writeOwnReport(run: RigCheckRun, trackReady: boolean, verdict?: { verdict: 'ok' | 'problem'; note?: string }): Promise<void> {
+/** Writes this device's report - its state now, keeping a verdict and a measurement already given. */
+export async function writeOwnReport(
+  run: RigCheckRun,
+  trackReady: boolean,
+  verdict?: { verdict: 'ok' | 'problem'; note?: string },
+  measured?: RigCheckDeviceReport['measured'],
+): Promise<void> {
   const deviceId = getDeviceId()
   const id = deviceReportId(run.showId, deviceId)
   const before = useShowLogStore.getState().events.find((e): e is RigCheckDeviceReport => e.id === id && isDeviceReport(e))
@@ -354,6 +362,7 @@ export async function writeOwnReport(run: RigCheckRun, trackReady: boolean, verd
     ...ownState(trackReady),
     verdict: verdict?.verdict ?? before?.verdict ?? null,
     ...(note ? { note } : {}),
+    ...((measured ?? before?.measured) ? { measured: measured ?? before?.measured } : {}),
   })
 }
 

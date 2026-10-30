@@ -123,6 +123,14 @@ export const ShowLogEventSchema = z.discriminatedUnion('type', [
         refine: RigCheckPathScoreSchema.nullable(),
       })
       .optional(),
+    /** The measuring round before the run (docs/24 §7.1, #662): every device's slot, one after
+     * the other - each plays its 12 clicks at `at` while the Stage-Server listens. */
+    measure: z
+      .object({
+        startedAt: z.number().int().nonnegative(),
+        slots: z.array(z.object({ deviceId: z.string().min(1), deviceName: z.string().max(120), at: z.number().int().nonnegative() })),
+      })
+      .optional(),
     previous: z
       .object({
         activeSetlistId: z.string().nullable(),
@@ -153,6 +161,24 @@ export const ShowLogEventSchema = z.discriminatedUnion('type', [
     outputLatencyMs: z.number().nullable(),
     verdict: z.enum(['ok', 'problem']).nullable(),
     note: z.string().max(300).optional(),
+    /** This device's click as the Stage-Server heard it in the measuring round (#662): played with
+     * the stored latency, so `offsetMs` near 0 means the stored value is right. */
+    measured: z
+      .object({
+        at: z.number().int().nonnegative(),
+        input: z.enum(['mic', 'cable']),
+        audioRoute: z.string().max(40),
+        /** The latency it played with. */
+        storedMs: z.number(),
+        offsetMs: z.number().nullable(),
+        jitterMs: z.number().nullable(),
+        matched: z.number().int().nonnegative(),
+        total: z.number().int().nonnegative(),
+        reliable: z.boolean(),
+        /** Why there is no result (server busy, no microphone …). */
+        error: z.string().max(300).optional(),
+      })
+      .optional(),
   }),
   z.object({
     id: z.string().min(1),

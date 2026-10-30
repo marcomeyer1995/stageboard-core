@@ -17,7 +17,8 @@ export function measureInputFor(route: AudioRoute): MeasureInputKind {
   return route === 'speaker' || route === 'unknown' ? 'mic' : 'cable'
 }
 
-export type AudioCalibrationOutcome = { ok: true; status: CalibrationRunStatus } | { ok: false; message: string }
+/** `busy`: the server is still measuring another device (HTTP 409). */
+export type AudioCalibrationOutcome = { ok: true; status: CalibrationRunStatus } | { ok: false; message: string; busy?: boolean }
 
 /**
  * Measures this device's audio output latency with the Stage-Server's microphone (docs/21 §4,
@@ -36,7 +37,10 @@ export async function runAudioCalibration(earlierByMs = 0, onProgress?: (msLeft:
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ deviceId: getDeviceId(), input: measureInputFor(useAudioRouteStore.getState().route) }),
     })
-    if (!response.ok) return { ok: false, message: ((await response.json().catch(() => ({}))) as { message?: string }).message ?? `HTTP ${response.status}` }
+    if (!response.ok) {
+      const message = ((await response.json().catch(() => ({}))) as { message?: string }).message ?? `HTTP ${response.status}`
+      return { ok: false, message, ...(response.status === 409 ? { busy: true } : {}) }
+    }
     run = (await response.json()) as CalibrationRunStart
   } catch (err) {
     return { ok: false, message: err instanceof Error ? err.message : String(err) }
