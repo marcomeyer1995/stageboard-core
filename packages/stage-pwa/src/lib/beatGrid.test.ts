@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { BeatGrid } from 'shared-types'
-import { applySectionTempo, beatsBetween, clickTimeline, gridFromBeats, gridStretches, newGrid, removePoint, renumberBars, setMeter, setPoint, tempoFromTaps } from './beatGrid'
+import { applySectionTempo, beatsBetween, clickTimeline, gridFromBeats, gridStretches, newGrid, removePoint, renumberBars, setMeter, scaleGridTempo, setPoint, tempoFromTaps } from './beatGrid'
 
 const grid = (...points: [number, number][]): BeatGrid => ({ points: points.map(([bar, timeMs], i) => ({ id: `p${i}`, bar, timeMs })), meters: [] })
 const times = (g: BeatGrid, from: number, to: number, bpm = 120, ts = '4/4') => beatsBetween(clickTimeline({ beatGrid: g, bpm, timeSignature: ts }), from, to).map((b) => Math.round(b.timeMs))
@@ -306,3 +306,26 @@ describe('gradual stretch vs. the real ritardando from #354', () => {
   })
 })
 
+
+describe('scaleGridTempo (#654)', () => {
+  const grid = { points: [{ id: 'a', bar: 1, timeMs: 1000 }, { id: 'b', bar: 9, timeMs: 17_000 }, { id: 'c', bar: 12, timeMs: 23_000 }], meters: [{ bar: 5, timeSignature: '3/4' }] }
+
+  it('×2: every bar becomes two - the click lands twice as often, the points keep their time', () => {
+    const { beatGrid, bpm } = scaleGridTempo(grid, 95, 2)
+    expect(bpm).toBe(190)
+    expect(beatGrid.points.map((p) => [p.bar, p.timeMs])).toEqual([[1, 1000], [17, 17_000], [23, 23_000]])
+    expect(beatGrid.meters).toEqual([{ bar: 9, timeSignature: '3/4' }])
+    const before = clickTimeline({ beatGrid: grid, bpm: 95, timeSignature: '4/4' })
+    const after = clickTimeline({ beatGrid, bpm: 190, timeSignature: '4/4' })
+    // Both ends are beats: twice the gaps between them.
+    expect(beatsBetween(after, 1000, 17_000).length - 1).toBe(2 * (beatsBetween(before, 1000, 17_000).length - 1))
+  })
+
+  it('÷2 undoes ×2; a point that would sit mid-bar is dropped', () => {
+    const doubled = scaleGridTempo(grid, 95, 2)
+    expect(scaleGridTempo(doubled.beatGrid, doubled.bpm, 0.5)).toEqual({ beatGrid: grid, bpm: 95 })
+    const halved = scaleGridTempo(grid, 190, 0.5)
+    expect(halved.bpm).toBe(95)
+    expect(halved.beatGrid.points.map((p) => p.bar)).toEqual([1, 5]) // bar 12 would be the middle of a bar
+  })
+})
