@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { STATUS_BAR_ITEM_LABEL } from '../lib/statusBarItems'
 import { useStatusBarPrefsStore } from '../store/useStatusBarPrefsStore'
 import { Button, Dialog, IconButton, Switch, InfoHint } from './ui'
+import { useTranslation } from 'react-i18next'
 
 /**
  * The status bar's ranking on this device (Marco, 2026-10-07): what matters most stays longest.
@@ -9,6 +9,7 @@ import { Button, Dialog, IconButton, Switch, InfoHint } from './ui'
  * hides an item for good.
  */
 export function StatusBarSettings() {
+  const { t } = useTranslation('system')
   const order = useStatusBarPrefsStore((state) => state.order)
   const hidden = useStatusBarPrefsStore((state) => state.hidden)
   const move = useStatusBarPrefsStore((state) => state.move)
@@ -17,25 +18,25 @@ export function StatusBarSettings() {
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center gap-1">
-        <span className="text-sm font-semibold text-ink-soft">Reihenfolge</span>
+        <span className="text-sm font-semibold text-ink-soft">{t('statusBar.order')}</span>
         <InfoHint
-          label="Erklärung: Reihenfolge"
-          text="Oben = wichtiger. Wird es eng, verschwindet von unten her zuerst etwas. Immer da und darum nicht in der Liste: Menü (☰), auf Dashboards die Dashboard-Auswahl (neun Punkte), Status-Symbol, Songtitel und Spielzeit; Fehler zeigen immer ihr Wort."
+          label={t('statusBar.orderExplainLabel')}
+          text={t('statusBar.orderExplain')}
         />
       </div>
-      <ol className="flex flex-col gap-2" aria-label="Statusleiste - Reihenfolge">
+      <ol className="flex flex-col gap-2" aria-label={t('statusBar.orderList')}>
         {order.map((item, index) => (
           <li key={item} className="flex items-center gap-2">
             <div className="min-w-0 flex-1">
-              <Switch label={STATUS_BAR_ITEM_LABEL[item]} checked={!hidden.includes(item)} onChange={(on) => setShown(item, on)} />
+              <Switch label={t(`statusBar.items.${item}`)} checked={!hidden.includes(item)} onChange={(on) => setShown(item, on)} />
             </div>
-            <IconButton icon="up" label={`${STATUS_BAR_ITEM_LABEL[item]} wichtiger`} disabled={index === 0} onClick={() => move(item, -1)} />
-            <IconButton icon="down" label={`${STATUS_BAR_ITEM_LABEL[item]} weniger wichtig`} disabled={index === order.length - 1} onClick={() => move(item, 1)} />
+            <IconButton icon="up" label={t('statusBar.moreImportant', { item: t(`statusBar.items.${item}`) })} disabled={index === 0} onClick={() => move(item, -1)} />
+            <IconButton icon="down" label={t('statusBar.lessImportant', { item: t(`statusBar.items.${item}`) })} disabled={index === order.length - 1} onClick={() => move(item, 1)} />
           </li>
         ))}
       </ol>
       <Button variant="quiet" onClick={reset} className="self-start">
-        Standard wiederherstellen
+        {t('statusBar.reset')}
       </Button>
     </div>
   )
@@ -46,6 +47,7 @@ export function StatusBarSettings() {
  * its switches and arrows made the page heavy) - the list itself opens in a dialog.
  */
 export function StatusBarSettingsEntry() {
+  const { t } = useTranslation('system')
   const order = useStatusBarPrefsStore((state) => state.order)
   const hidden = useStatusBarPrefsStore((state) => state.hidden)
   const [open, setOpen] = useState(false)
@@ -53,11 +55,12 @@ export function StatusBarSettingsEntry() {
   return (
     <div className="flex flex-wrap items-center justify-between gap-3">
       <p className="min-w-0 flex-1 text-sm text-ink-muted">
-        {shown.length === order.length ? 'Alles an' : `${shown.length} von ${order.length} an`} - zuerst: {shown.slice(0, 3).map((item) => STATUS_BAR_ITEM_LABEL[item]).join(', ') || '-'}
+        {shown.length === order.length ? t('statusBar.allOn') : t('statusBar.someOn', { shown: shown.length, total: order.length })} -{' '}
+        {t('statusBar.first', { items: shown.slice(0, 3).map((item) => t(`statusBar.items.${item}`)).join(', ') || '-' })}
       </p>
-      <Button onClick={() => setOpen(true)}>Anpassen…</Button>
+      <Button onClick={() => setOpen(true)}>{t('statusBar.adjust')}</Button>
       {open && (
-        <Dialog title="Statusleiste" onClose={() => setOpen(false)}>
+        <Dialog title={t('statusBar.title')} onClose={() => setOpen(false)}>
           <StatusBarSettings />
         </Dialog>
       )}

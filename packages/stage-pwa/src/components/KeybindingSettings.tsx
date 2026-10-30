@@ -6,6 +6,7 @@ import { useKeybindingsStore } from '../store/useKeybindingsStore'
 import { BehaviorEditor, useDescribeBehavior } from './BehaviorEditor'
 import { Icon } from './Icon'
 import { AddRow, Button, Dialog } from './ui'
+import { useTranslation } from 'react-i18next'
 
 /**
  * Foot switch mapping (#27): an empty list to start with - each mapping is set up step by step in
@@ -13,6 +14,7 @@ import { AddRow, Button, Dialog } from './ui'
  * song state ("Je nach Zustand"), so a single pedal can run the whole show.
  */
 export function KeybindingSettings() {
+  const { t } = useTranslation('actions')
   const bindings = useKeybindingsStore((state) => state.bindings)
   const save = useKeybindingsStore((state) => state.save)
   const remove = useKeybindingsStore((state) => state.remove)
@@ -22,9 +24,9 @@ export function KeybindingSettings() {
   return (
     <div className="flex flex-col gap-3">
       {bindings.length === 0 ? (
-        <p className="text-base text-ink-soft">Noch keine Zuordnung.</p>
+        <p className="text-base text-ink-soft">{t('keys.none')}</p>
       ) : (
-        <ul className="flex flex-col gap-2" aria-label="Zuordnungen">
+        <ul className="flex flex-col gap-2" aria-label={t('keys.list')}>
           {bindings.map((binding) => (
             <li key={binding.key} className="flex items-center gap-2 rounded-control bg-control px-3 py-2">
               <span className="flex-shrink-0 rounded-control bg-control-strong px-3 py-2 text-sm font-bold text-ink">{keyLabel(binding.key)}</span>
@@ -35,14 +37,14 @@ export function KeybindingSettings() {
               >
                 {describeMapping(binding.behavior)}
               </button>
-              <Button className="w-12 flex-shrink-0" onClick={() => remove(binding.key)} aria-label={`Zuordnung für ${keyLabel(binding.key)} löschen`}>
+              <Button className="w-12 flex-shrink-0" onClick={() => remove(binding.key)} aria-label={t('keys.delete', { key: keyLabel(binding.key) })}>
                 <Icon name="close" />
               </Button>
             </li>
           ))}
         </ul>
       )}
-      <AddRow label="Neue Zuordnung" onClick={() => setEditing('new')} />
+      <AddRow label={t('keys.new')} onClick={() => setEditing('new')} />
       {editing && (
         <KeyMappingDialog
           initial={editing === 'new' ? null : editing}
@@ -59,6 +61,7 @@ export function KeybindingSettings() {
 
 /** The step-by-step popup (docs/23 §4a): 1. press the pedal, 2. how it behaves, 3. what it does. */
 function KeyMappingDialog({ initial, onSave, onClose }: { initial: KeyBinding | null; onSave: (binding: KeyBinding) => void; onClose: () => void }) {
+  const { t } = useTranslation('actions')
   const bindings = useKeybindingsStore((state) => state.bindings)
   const describeMapping = useDescribeBehavior()
   const [key, setKey] = useState<string | null>(initial?.key ?? null)
@@ -88,32 +91,32 @@ function KeyMappingDialog({ initial, onSave, onClose }: { initial: KeyBinding | 
   const takenBy = key && key !== initial?.key ? bindingForKey(bindings, key) : null
   return (
     <Dialog
-      title={initial ? 'Zuordnung ändern' : 'Neue Zuordnung'}
+      title={initial ? t('keys.change') : t('keys.new')}
       onClose={onClose}
       actions={
         <>
-          <Button onClick={onClose}>Abbrechen</Button>
+          <Button onClick={onClose}>{t('cancel')}</Button>
           <Button variant="primary" disabled={!key || !behavior} onClick={() => key && behavior && onSave({ key, behavior })}>
-            Speichern
+            {t('save')}
           </Button>
         </>
       }
     >
       {listening ? (
         <div className="flex flex-col items-center gap-3 rounded-container bg-control p-6 text-center">
-          <span className="text-2xl font-bold text-accent">Jetzt Pedal drücken …</span>
-          <span className="text-sm text-ink-muted">oder eine Taste der Tastatur. Esc bricht ab.</span>
+          <span className="text-2xl font-bold text-accent">{t('keys.press')}</span>
+          <span className="text-sm text-ink-muted">{t('keys.orKey')}</span>
         </div>
       ) : (
         <div className="flex flex-col gap-4">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-base text-ink-soft">Taste:</span>
+            <span className="text-base text-ink-soft">{t('keys.key')}</span>
             <span className="rounded-control bg-control-strong px-3 py-2 text-base font-bold text-ink">{keyLabel(key)}</span>
-            <Button onClick={() => setKey(null)}>Andere Taste</Button>
+            <Button onClick={() => setKey(null)}>{t('keys.other')}</Button>
           </div>
           {takenBy && (
             <p className="text-sm text-warn">
-              {keyLabel(key)} ist schon belegt („{describeMapping(takenBy.behavior)}“) - beim Speichern wird das ersetzt.
+              {t('keys.taken', { key: keyLabel(key), mapping: describeMapping(takenBy.behavior) })}
             </p>
           )}
           <BehaviorEditor initial={initial?.behavior ?? null} onChange={setBehavior} />

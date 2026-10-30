@@ -1,28 +1,32 @@
 import { useEffect, useState } from 'react'
+import type { TFunction } from 'i18next'
 import { gridLabel, type Action, type Behavior, type Release } from '../lib/actions'
 import { useSwitchesStore } from '../store/useSwitchesStore'
 import { ActionField, useDescribeAction } from './ActionPicker'
 import { SwitchDialog } from './SwitchEditor'
 import { AddRow, Button, Segmented, Stepper, Switch, choiceRow } from './ui'
+import { useTranslation } from 'react-i18next'
 
 type Mode = 'momentary' | 'latching' | 'timed'
 
-const UNIT_LABEL = { ms: 'ms', beats: 'Schlägen', bars: 'Takten' } as const
-type Unit = keyof typeof UNIT_LABEL
-/** "nach 1 Takt", "nach 2 Takten". */
-const unitLabel = (unit: Unit, amount: number): string => (amount === 1 && unit !== 'ms' ? (unit === 'bars' ? 'Takt' : 'Schlag') : UNIT_LABEL[unit])
+type Unit = 'ms' | 'beats' | 'bars'
+/** "nach 1 Takt", "nach 2 Takten" - in the device's language. */
+const unitLabel = (t: TFunction<'actions'>, unit: Unit, amount: number): string =>
+  amount === 1 && unit !== 'ms' ? t(unit === 'bars' ? 'unit.bar' : 'unit.beat') : t(`unitAfter.${unit}`)
 
 /** A mapping in one line, with device names - for lists of pedal keys and the like. */
 export function useDescribeBehavior(): (behavior: Behavior) => string {
+  const { t } = useTranslation('actions')
   const describe = useDescribeAction()
   const switches = useSwitchesStore((state) => state.switches)
   return (behavior) => {
-    if (behavior.kind === 'switch') return `Schalter „${switches.find((s) => s.id === behavior.switchId)?.name ?? 'gelöscht'}“`
+    if (behavior.kind === 'switch') return t('switchNamed', { name: switches.find((s) => s.id === behavior.switchId)?.name ?? t('deleted') })
     if (behavior.kind === 'latching') return `${describe(behavior.on)} / ${describe(behavior.off)}`
     const press = describe(behavior.press)
     const { release } = behavior
-    if (release.kind === 'on-release') return `${press} · Loslassen: ${describe(release.action)}`
-    if (release.kind === 'after') return `${press} · nach ${release.amount} ${unitLabel(release.unit, release.amount)}${gridLabel(release)}: ${describe(release.action)}`
+    if (release.kind === 'on-release') return t('release', { press, action: describe(release.action) })
+    if (release.kind === 'after')
+      return t('after', { press, amount: release.amount, unit: unitLabel(t, release.unit, release.amount), grid: gridLabel(release), action: describe(release.action) })
     return press
   }
 }
@@ -42,6 +46,7 @@ export function BehaviorEditor({
   /** False in a switch's own editor - a switch never points to another. */
   allowSwitch?: boolean
 }) {
+  const { t } = useTranslation('actions')
   const switches = useSwitchesStore((state) => state.switches)
   const [useSwitch, setUseSwitch] = useState(initial?.kind === 'switch')
   const [switchId, setSwitchId] = useState<string | null>(initial?.kind === 'switch' ? initial.switchId : null)
@@ -61,42 +66,42 @@ export function BehaviorEditor({
   return (
     <div className="flex flex-col gap-4">
       <Segmented
-        label="Belegung"
+        label={t('mapping')}
         showLabel
         value={useSwitch ? 'switch' : 'own'}
         onChange={(value) => setUseSwitch(value === 'switch')}
         options={[
-          { value: 'switch', label: 'Schalter' },
-          { value: 'own', label: 'Eigene Belegung' },
+          { value: 'switch', label: t('switch') },
+          { value: 'own', label: t('own') },
         ]}
         hint={
           useSwitch
-            ? 'Ein Schalter der Band, z. B. „Blinder“: einmal eingerichtet, von Pedal, MIDI-Knopf und Dashboard-Knopf gleich ausgelöst - alle zeigen denselben Zustand.'
-            : 'Nur für diesen Auslöser. Mit „Als Schalter speichern“ für andere Auslöser wiederverwendbar.'
+            ? t('switchHint')
+            : t('ownHint')
         }
       />
       {useSwitch ? (
         <div className="flex flex-col gap-2">
-          <div className="flex flex-col gap-2" role="radiogroup" aria-label="Schalter">
+          <div className="flex flex-col gap-2" role="radiogroup" aria-label={t('switches')}>
             {switches.map((sw) => (
               <div key={sw.id} className="flex items-center gap-2">
                 <button type="button" role="radio" aria-checked={switchId === sw.id} onClick={() => setSwitchId(sw.id)} className={`flex-1 min-w-0 ${choiceRow(switchId === sw.id)}`}>
                   {sw.name}
                 </button>
                 <Button className="flex-shrink-0" onClick={() => setEditing(sw.id)}>
-                  Bearbeiten
+                  {t('edit')}
                 </Button>
               </div>
             ))}
           </div>
-          <AddRow label="Neuer Schalter" onClick={() => setEditing('new')} />
+          <AddRow label={t('newSwitch')} onClick={() => setEditing('new')} />
         </div>
       ) : (
         <>
           <OwnBehaviorEditor initial={own} onChange={setOwn} />
           {own && (
             <Button className="self-start" onClick={() => setEditing('save-as')}>
-              Als Schalter speichern…
+              {t('saveAsSwitch')}
             </Button>
           )}
         </>
@@ -118,6 +123,7 @@ export function BehaviorEditor({
 
 /** Tastend, rastend or zeitgesteuert with its actions - a trigger's own setup or a switch's. */
 function OwnBehaviorEditor({ initial, onChange }: { initial: Behavior | null; onChange: (behavior: Behavior | null) => void }) {
+  const { t } = useTranslation('actions')
   const start = initial?.kind === 'switch' ? null : initial
   const [mode, setMode] = useState<Mode>(start?.kind === 'latching' ? 'latching' : start?.release.kind === 'after' ? 'timed' : 'momentary')
   const [press, setPress] = useState<Action | null>(start?.kind === 'momentary' ? start.press : start?.kind === 'latching' ? start.on : null)
@@ -154,56 +160,56 @@ function OwnBehaviorEditor({ initial, onChange }: { initial: Behavior | null; on
   return (
     <div className="flex flex-col gap-4">
       <Segmented
-        label="Verhalten"
+        label={t('behavior')}
         showLabel
         value={mode}
         onChange={setMode}
         options={[
-          { value: 'momentary', label: 'Tastend' },
-          { value: 'latching', label: 'Rastend' },
-          { value: 'timed', label: 'Zeitgesteuert' },
+          { value: 'momentary', label: t('momentary') },
+          { value: 'latching', label: t('latching') },
+          { value: 'timed', label: t('timed') },
         ]}
         hint={
           mode === 'momentary'
-            ? 'Drücken löst die Aktion aus, Loslassen auf Wunsch eine zweite.'
+            ? t('momentaryHint')
             : mode === 'latching'
-              ? 'Erster Druck: erste Aktion, zweiter Druck: zweite - z. B. Effekt an / aus.'
-              : 'Drücken löst die Aktion aus, die zweite folgt von selbst nach der eingestellten Zeit.'
+              ? t('latchingHint')
+              : t('timedHint')
         }
       />
-      <ActionField label={mode === 'latching' ? '1. Druck' : 'Beim Drücken'} value={press} onChange={setPress} />
+      <ActionField label={mode === 'latching' ? t('firstPress') : t('onPress')} value={press} onChange={setPress} />
       {mode === 'timed' && (
         <div className="flex flex-col gap-2">
-          <Stepper label="Nach" value={amount} unit={unitLabel(unit, amount)} min={1} max={unit === 'ms' ? 10000 : 64} step={unit === 'ms' ? 100 : 1} onChange={setAmount} />
+          <Stepper label={t('after2')} value={amount} unit={unitLabel(t, unit, amount)} min={1} max={unit === 'ms' ? 10000 : 64} step={unit === 'ms' ? 100 : 1} onChange={setAmount} />
           <Segmented
-            label="Einheit"
+            label={t('unitLabel')}
             value={unit}
             onChange={(next) => {
               setUnit(next)
               setAmount(next === 'ms' ? 1000 : 2)
             }}
             options={[
-              { value: 'bars', label: 'Takte' },
-              { value: 'beats', label: 'Schläge' },
-              { value: 'ms', label: 'ms' },
+              { value: 'bars', label: t('unit.bars') },
+              { value: 'beats', label: t('unit.beats') },
+              { value: 'ms', label: t('unit.ms') },
             ]}
           />
           {unit !== 'ms' && (
             <Switch
-              label={unit === 'bars' ? 'Auf den Takt' : 'Auf den Schlag'}
+              label={unit === 'bars' ? t('onTheBar') : t('onTheBeat')}
               checked={onGrid}
               onChange={setOnGrid}
               info={
                 onGrid
-                  ? `Landet genau auf einem ${unit === 'bars' ? 'Taktanfang' : 'Schlag'} - gezählt ab dem, der dem Drücken am nächsten liegt, und vorausgeplant wie ein Cue. Läuft der Song nicht, zählt die Zeit nach dem Songtempo.`
-                  : 'Zählt ab dem Drücken nach dem Tempo in dem Moment - nicht auf den Schlag genau.'
+                  ? t(unit === 'bars' ? 'onGridBarInfo' : 'onGridBeatInfo')
+                  : t('offGridInfo')
               }
             />
           )}
         </div>
       )}
       <ActionField
-        label={mode === 'latching' ? '2. Druck' : mode === 'timed' ? 'Danach' : 'Beim Loslassen (optional)'}
+        label={mode === 'latching' ? t('secondPress') : mode === 'timed' ? t('then') : t('onRelease')}
         value={second}
         onChange={setSecond}
         optional={mode === 'momentary'}

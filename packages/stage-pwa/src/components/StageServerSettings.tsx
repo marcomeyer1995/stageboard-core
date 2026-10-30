@@ -5,6 +5,7 @@ import { isNativeApp } from '../lib/native'
 import { NetworkServerList } from './NetworkServerList'
 import { INPUT_FREE } from './ui/styles'
 import { Button, InfoHint } from './ui'
+import { useTranslation } from 'react-i18next'
 
 /**
  * Which Stage-Server this device talks to. Normally nothing to set up: a tablet that opened the
@@ -17,6 +18,7 @@ import { Button, InfoHint } from './ui'
  * flow, which writes to this same store.
  */
 export function StageServerSettings() {
+  const { t } = useTranslation('system')
   const override = useStageServerStore((state) => state.url)
   const setUrl = useStageServerStore((state) => state.setUrl)
   const automatic = getAutomaticStageServerUrl()
@@ -38,10 +40,11 @@ export function StageServerSettings() {
         <p className="text-ink-soft">
           {override ? (
             <>
-              Gekoppelt mit <span className="font-semibold break-all">{override.replace(/^https:\/\//, '')}</span>
+              {t('srv.pairedWith')}
+              <span className="font-semibold break-all">{override.replace(/^https:\/\//, '')}</span>
             </>
           ) : (
-            <span className="text-ink-faint">Noch mit keinem Stage-Server gekoppelt.</span>
+            <span className="text-ink-faint">{t('srv.notPaired')}</span>
           )}
         </p>
         <NetworkServerList />
@@ -54,50 +57,49 @@ export function StageServerSettings() {
       <p className="text-ink-soft">
         {effective ? (
           <>
-            Verbunden mit <span className="font-semibold break-all">{effective}</span>{' '}
-            <span className="text-ink-faint">{override ? '(manuell eingetragen)' : '(automatisch)'}</span>
+            {t('srv.connectedTo')}
+            <span className="font-semibold break-all">{effective}</span>{' '}
+            <span className="text-ink-faint">{override ? t('srv.manual') : t('srv.automatic')}</span>
           </>
         ) : (
-          <span className="text-ink-faint">Kein Stage-Server bekannt.</span>
+          <span className="text-ink-faint">{t('srv.unknown')}</span>
         )}
       </p>
 
       {override && (
         <div className="flex flex-col gap-2 rounded-container border border-line bg-surface p-3 text-sm">
           <p className="text-warn">
-            Diese manuelle Adresse ersetzt auf diesem Gerät die automatische
-            {automatic ? ` (${automatic})` : ''}. Stimmt sie nicht mehr, erreicht dieses Gerät den Stage-Server
-            nicht.
+            {t('srv.overrideWarn', { automatic: automatic ? ` (${automatic})` : '' })}
           </p>
           <Button className="self-start" onClick={reset}>
-            Zurücksetzen auf automatisch
+            {t('srv.reset')}
           </Button>
         </div>
       )}
 
       <details className="rounded-control bg-control px-3 py-2 text-sm text-ink-soft">
-        <summary className="cursor-pointer select-none py-3 font-medium text-ink-muted">Erweitert: andere Adresse verwenden</summary>
+        <summary className="cursor-pointer select-none py-3 font-medium text-ink-muted">{t('srv.advanced')}</summary>
         <div className="mt-2 flex flex-col gap-2">
           <div className="flex items-center gap-1">
-            <span className="text-ink-soft">Adresse des Stage-Servers</span>
+            <span className="text-ink-soft">{t('srv.address')}</span>
             <InfoHint
-              label="Erklärung: Adresse des Stage-Servers"
-              text="Nur nötig, wenn dieses Gerät die App nicht vom Stage-Server geladen hat. Leer lassen oder die automatische Adresse eintragen = automatisch."
+              label={t('srv.addressExplainLabel')}
+              text={t('srv.addressExplain')}
             />
           </div>
           <div className="flex items-center gap-2">
             <input
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
-              placeholder="z.B. https://stageboard.local"
-              aria-label="Stage-Server-Adresse"
+              placeholder={t('srv.placeholder')}
+              aria-label={t('srv.addressAria')}
               className={`h-form min-w-0 flex-1 min-w-0 px-3 ${INPUT_FREE}`}
             />
             <Button className="flex-shrink-0" onClick={() => {
                 setUrl(draftOverride)
                 setDraft(draftOverride ?? '')
               }} disabled={draftOverride === override}>
-              Speichern
+              {t('save')}
             </Button>
           </div>
         </div>

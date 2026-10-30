@@ -1,3 +1,4 @@
+import i18n from '../i18n'
 import { useMemo, useState } from 'react'
 import { Segmented, Switch, Button, InfoHint } from './ui'
 import { CueTimingPanel } from './CueTimingPanel'
@@ -5,14 +6,9 @@ import { SyncTestPanel } from './SyncTestPanel'
 import { DEBUG_FLAGS, debugFlagOn, entriesAsText, setDebugFlag, useDebugLogStore, type LogLevel } from '../lib/debugLog'
 import { INPUT_FREE } from './ui/styles'
 import { useMediaQuery } from '../lib/useMediaQuery'
+import { useTranslation } from 'react-i18next'
 
-const LEVELS: Array<{ id: LogLevel | 'all'; label: string }> = [
-  { id: 'all', label: 'Alles' },
-  { id: 'error', label: 'Fehler' },
-  { id: 'warn', label: 'Warnungen' },
-  { id: 'info', label: 'Info' },
-  { id: 'debug', label: 'Details' },
-]
+const LEVELS: Array<LogLevel | 'all'> = ['all', 'error', 'warn', 'info', 'debug']
 
 const LEVEL_CLASS: Record<LogLevel, string> = {
   error: 'text-danger',
@@ -27,6 +23,7 @@ const LEVEL_CLASS: Record<LogLevel, string> = {
  * (`localStorage.setItem('sb:debug:…')`).
  */
 export function DebugConsoleView() {
+  const { t } = useTranslation('system')
   const entries = useDebugLogStore((state) => state.entries)
   const clear = useDebugLogStore((state) => state.clear)
   const [level, setLevel] = useState<LogLevel | 'all'>('all')
@@ -44,24 +41,24 @@ export function DebugConsoleView() {
     const text = entriesAsText(entries)
     try {
       await navigator.clipboard.writeText(text)
-      setCopied(`${entries.length} Einträge kopiert.`)
+      setCopied(t('dbg.copied', { count: entries.length }))
     } catch {
-      setCopied('Kopieren nicht erlaubt - Text unten markieren.')
+      setCopied(t('dbg.copyFailed'))
     }
   }
 
   return (
     <div className="flex max-w-4xl flex-col gap-4 p-4">
       <header className="flex items-center gap-1">
-        <h2 className="text-xl font-bold text-ink">Diagnose</h2>
-        <InfoHint label="Erklärung: Diagnose" text="Was die App auf diesem Gerät protokolliert hat (die letzten 500 Einträge seit dem Laden) - ohne Kabel und Entwicklerwerkzeuge." />
+        <h2 className="text-xl font-bold text-ink">{t('dbg.title')}</h2>
+        <InfoHint label={t('dbg.explainLabel')} text={t('dbg.explain')} />
       </header>
 
       <Segmented
-        label="Einträge"
+        label={t('dbg.entries')}
         value={level}
         onChange={setLevel}
-        options={LEVELS.map((l) => ({ value: l.id, label: l.id === 'all' ? l.label : `${l.label} (${entries.filter((e) => e.level === l.id).length})` }))}
+        options={LEVELS.map((l) => ({ value: l, label: l === 'all' ? t('dbg.all') : t('dbg.levelCount', { label: t(`dbg.${l}`), count: entries.filter((e) => e.level === l).length }) }))}
         // Five filters don't fit side by side on a phone - the page scrolled sideways (2026-10-20).
         columns={phone ? 3 : undefined}
       />
@@ -69,15 +66,15 @@ export function DebugConsoleView() {
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Suchen…"
-          aria-label="Log durchsuchen"
+          placeholder={t('dbg.search')}
+          aria-label={t('dbg.searchAria')}
           className={`h-form min-w-0 flex-1 min-w-0 px-3 text-base ${INPUT_FREE}`}
         />
         <Button onClick={() => void copy()}>
-          Kopieren
+          {t('dbg.copy')}
         </Button>
         <Button onClick={clear}>
-          Leeren
+          {t('dbg.clear')}
         </Button>
       </div>
       {copied && (
@@ -86,11 +83,11 @@ export function DebugConsoleView() {
         </p>
       )}
 
-      <ol className="flex max-h-[55vh] flex-col overflow-y-auto rounded-container border border-line bg-surface font-sb-mono text-sm" aria-label="Log">
-        {shown.length === 0 && <li className="p-3 text-ink-faint">Keine Einträge.</li>}
+      <ol className="flex max-h-[55vh] flex-col overflow-y-auto rounded-container border border-line bg-surface font-sb-mono text-sm" aria-label={t('dbg.log')}>
+        {shown.length === 0 && <li className="p-3 text-ink-faint">{t('dbg.none')}</li>}
         {shown.map((e) => (
           <li key={e.id} className={`border-b border-line px-3 py-2 ${LEVEL_CLASS[e.level]}`}>
-            <span className="mr-2 text-ink-faint">{new Date(e.at).toLocaleTimeString('de-DE')}</span>
+            <span className="mr-2 text-ink-faint">{new Date(e.at).toLocaleTimeString(i18n.language)}</span>
             <span className="break-words">{e.text}</span>
           </li>
         ))}
@@ -101,13 +98,13 @@ export function DebugConsoleView() {
 
       <section className="flex flex-col gap-2 rounded-container border border-line bg-surface p-4">
         <div className="flex items-center gap-1">
-          <h3 className="text-base font-bold text-ink">Detail-Protokolle</h3>
-          <InfoHint label="Erklärung: Detail-Protokolle" text="Schreiben zusätzlich ausführliche Einträge - nur zum Fehlersuchen einschalten." />
+          <h3 className="text-base font-bold text-ink">{t('dbg.flags')}</h3>
+          <InfoHint label={t('dbg.flagsLabel')} text={t('dbg.flagsInfo')} />
         </div>
         {DEBUG_FLAGS.map((flag) => (
           <Switch
             key={flag.key}
-            label={flag.label}
+            label={t(`dbg.flag.${flag.key.replace('sb:debug:', '') as 'grid' | 'config' | 'clocksync'}`)}
             checked={debugFlagOn(flag.key)}
             onChange={(on) => {
               setDebugFlag(flag.key, on)

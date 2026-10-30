@@ -1,3 +1,4 @@
+import i18n from '../i18n'
 import type { JumpWhen } from './showSections'
 import { FIXED_ACTIONS, SONG_STATES, STEP_LABEL, type FixedAction, type SongState, type StepAction } from './keybindings'
 
@@ -50,27 +51,34 @@ export type Behavior =
   | { kind: 'switch'; switchId: string }
 
 export const SECTION_OPS: { id: SectionOp; label: string }[] = [
-  { id: 'jump', label: 'Springe zu Abschnitt …' },
-  { id: 'next', label: 'Nächster Abschnitt' },
-  { id: 'previous', label: 'Vorheriger Abschnitt' },
-  { id: 'loop-toggle', label: 'Wiederholen an/aus' },
-  { id: 'loop-on', label: 'Wiederholen an' },
-  { id: 'loop-off', label: 'Wiederholen aus' },
-  { id: 'cancel', label: 'Sprung absagen' },
+  { id: 'jump', get label() { return i18n.t('actions:section.jump') } },
+  { id: 'next', get label() { return i18n.t('actions:section.next') } },
+  { id: 'previous', get label() { return i18n.t('actions:section.previous') } },
+  { id: 'loop-toggle', get label() { return i18n.t('actions:section.loop-toggle') } },
+  { id: 'loop-on', get label() { return i18n.t('actions:section.loop-on') } },
+  { id: 'loop-off', get label() { return i18n.t('actions:section.loop-off') } },
+  { id: 'cancel', get label() { return i18n.t('actions:section.cancel') } },
 ]
 
 export const PLAYBACK_OPS: { id: PlaybackOp; label: string }[] = [
-  { id: 'click-on', label: 'Klick an' },
-  { id: 'click-off', label: 'Klick aus' },
-  { id: 'click-toggle', label: 'Klick an/aus' },
-  { id: 'click-song', label: 'Klick wie im Song' },
-  { id: 'tempo-up', label: 'Tempo +1 %' },
-  { id: 'tempo-down', label: 'Tempo −1 %' },
-  { id: 'tempo-reset', label: 'Tempo zurücksetzen' },
-  { id: 'ready-check', label: 'Ready-Check starten' },
+  { id: 'click-on', get label() { return i18n.t('actions:playback.click-on') } },
+  { id: 'click-off', get label() { return i18n.t('actions:playback.click-off') } },
+  { id: 'click-toggle', get label() { return i18n.t('actions:playback.click-toggle') } },
+  { id: 'click-song', get label() { return i18n.t('actions:playback.click-song') } },
+  { id: 'tempo-up', get label() { return i18n.t('actions:playback.tempo-up') } },
+  { id: 'tempo-down', get label() { return i18n.t('actions:playback.tempo-down') } },
+  { id: 'tempo-reset', get label() { return i18n.t('actions:playback.tempo-reset') } },
+  { id: 'ready-check', get label() { return i18n.t('actions:playback.ready-check') } },
 ]
 
-export const WHEN_LABEL: Record<JumpWhen, string> = { bar: 'am Ende des Takts', section: 'am Ende des Abschnitts' }
+export const WHEN_LABEL: Record<JumpWhen, string> = {
+  get bar() {
+    return i18n.t('actions:when.bar')
+  },
+  get section() {
+    return i18n.t('actions:when.section')
+  },
+}
 
 /** Whether a section op takes a jump moment. */
 export function sectionOpJumps(op: SectionOp): boolean {
@@ -87,7 +95,7 @@ export function describeAction(action: Action, deviceName: (id: string) => strin
         .map(({ id, label }) => `${label} → ${STEP_LABEL[action.steps[id]]}`)
         .join(' · ')
     case 'section': {
-      const base = action.op === 'jump' ? `Springe zu „${action.label ?? '?'}“` : (SECTION_OPS.find((o) => o.id === action.op)?.label ?? action.op)
+      const base = action.op === 'jump' ? i18n.t('actions:jumpTo', { label: action.label ?? '?' }) : (SECTION_OPS.find((o) => o.id === action.op)?.label ?? action.op)
       return sectionOpJumps(action.op) && action.when ? `${base} ${WHEN_LABEL[action.when]}` : base
     }
     case 'playback':
@@ -99,28 +107,30 @@ export function describeAction(action: Action, deviceName: (id: string) => strin
   }
 }
 
-const UNIT_LABEL = { ms: 'ms', beats: 'Schläge', bars: 'Takte' } as const
+const unitLabel = (unit: WaitUnit, amount = 2): string =>
+  unit === 'ms' ? i18n.t('actions:unit.ms') : amount === 1 ? i18n.t(unit === 'bars' ? 'actions:unit.bar' : 'actions:unit.beat') : i18n.t(`actions:unit.${unit}`)
 
 /** "Klick an → 1 Takt → Klick aus" - a Folge in one line, `describe` naming each step. */
 export function describeSteps(steps: readonly SequenceStep[], describe: (action: Action) => string): string {
   return steps
-    .map((step) => (step.wait ? `${step.wait.amount} ${step.wait.unit === 'ms' ? 'ms' : step.wait.amount === 1 ? (step.wait.unit === 'bars' ? 'Takt' : 'Schlag') : UNIT_LABEL[step.wait.unit]} → ` : '') + describe(step.action))
+    .map((step) => (step.wait ? `${step.wait.amount} ${unitLabel(step.wait.unit, step.wait.amount)} → ` : '') + describe(step.action))
     .join(' → ')
 }
 
 /** " auf den Takt" / " auf den Schlag" for a release planned on the grid. */
 export function gridLabel(release: Extract<Release, { kind: 'after' }>): string {
-  return release.onGrid && release.unit !== 'ms' ? (release.unit === 'bars' ? ' auf den Takt' : ' auf den Schlag') : ''
+  return release.onGrid && release.unit !== 'ms' ? i18n.t(release.unit === 'bars' ? 'actions:onBar' : 'actions:onBeat') : ''
 }
 
 /** A whole mapping in one line. */
 export function describeBehavior(behavior: Behavior, deviceName?: (id: string) => string): string {
-  if (behavior.kind === 'switch') return 'Schalter'
+  if (behavior.kind === 'switch') return i18n.t('actions:switch')
   if (behavior.kind === 'latching') return `${describeAction(behavior.on, deviceName)} / ${describeAction(behavior.off, deviceName)}`
   const press = describeAction(behavior.press, deviceName)
   const { release } = behavior
-  if (release.kind === 'on-release') return `${press} · Loslassen: ${describeAction(release.action, deviceName)}`
-  if (release.kind === 'after') return `${press} · nach ${release.amount} ${UNIT_LABEL[release.unit]}${gridLabel(release)}: ${describeAction(release.action, deviceName)}`
+  if (release.kind === 'on-release') return i18n.t('actions:release', { press, action: describeAction(release.action, deviceName) })
+  if (release.kind === 'after')
+    return i18n.t('actions:after', { press, amount: release.amount, unit: unitLabel(release.unit), grid: gridLabel(release), action: describeAction(release.action, deviceName) })
   return press
 }
 

@@ -1,3 +1,4 @@
+import i18n from '../i18n'
 import type { Behavior } from './actions'
 
 /**
@@ -82,7 +83,7 @@ const KIND_LABEL: Record<MidiMessageKind, string> = { note: 'Note', cc: 'CC', pr
 
 export function describeMidiTrigger(trigger: MidiTrigger): string {
   const value = trigger.message === 'cc' && trigger.value !== undefined ? ` = ${trigger.value}` : ''
-  return `${KIND_LABEL[trigger.message]} ${trigger.number}${value} · Kanal ${trigger.channel}`
+  return i18n.t('hardware:midi.channel', { kind: KIND_LABEL[trigger.message], number: trigger.number, value, channel: trigger.channel })
 }
 
 export function sameMidiTrigger(a: MidiTrigger, b: MidiTrigger): boolean {

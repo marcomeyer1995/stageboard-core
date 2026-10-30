@@ -1,3 +1,4 @@
+import i18n from '../i18n'
 import type { Action, Behavior } from './actions'
 /**
  * Bluetooth foot switches (#27): AirTurn, PageFlip and similar pedals pair as a keyboard and send
@@ -9,37 +10,53 @@ import type { Action, Behavior } from './actions'
 export type FixedAction = 'next' | 'previous' | 'play-pause' | 'stop' | 'prompter-down' | 'prompter-up'
 
 export const FIXED_ACTIONS: Array<{ id: FixedAction; label: string }> = [
-  { id: 'next', label: 'Nächster Song' },
-  { id: 'previous', label: 'Vorheriger Song' },
-  { id: 'play-pause', label: 'Play / Pause' },
-  { id: 'stop', label: 'Stop' },
-  { id: 'prompter-down', label: 'Prompter weiterblättern' },
-  { id: 'prompter-up', label: 'Prompter zurückblättern' },
+  { id: 'next', get label() { return i18n.t('actions:fixed.next') } },
+  { id: 'previous', get label() { return i18n.t('actions:fixed.previous') } },
+  { id: 'play-pause', get label() { return i18n.t('actions:fixed.play-pause') } },
+  { id: 'stop', get label() { return i18n.t('actions:fixed.stop') } },
+  { id: 'prompter-down', get label() { return i18n.t('actions:fixed.prompter-down') } },
+  { id: 'prompter-up', get label() { return i18n.t('actions:fixed.prompter-up') } },
 ]
 
 /** The five states a song can be in - the same the status bar shows (#27). */
 export type SongState = 'ready' | 'count-in' | 'playing' | 'paused' | 'finished'
 
 export const SONG_STATES: Array<{ id: SongState; label: string }> = [
-  { id: 'ready', label: 'Bereit' },
-  { id: 'count-in', label: 'Einzählen' },
-  { id: 'playing', label: 'Spielt' },
-  { id: 'paused', label: 'Pause' },
-  { id: 'finished', label: 'Beendet' },
+  { id: 'ready', get label() { return i18n.t('actions:state.ready') } },
+  { id: 'count-in', get label() { return i18n.t('actions:state.count-in') } },
+  { id: 'playing', get label() { return i18n.t('actions:state.playing') } },
+  { id: 'paused', get label() { return i18n.t('actions:state.paused') } },
+  { id: 'finished', get label() { return i18n.t('actions:state.finished') } },
 ]
 
 /** What a state-dependent key does in one state. */
 export type StepAction = 'play' | 'pause' | 'resume' | 'stop' | 'stop-next' | 'next' | 'next-play' | 'none'
 
 export const STEP_LABEL: Record<StepAction, string> = {
-  play: 'Play',
-  pause: 'Pause',
-  resume: 'Fortsetzen',
-  stop: 'Stop',
-  'stop-next': 'Stop & nächster Song',
-  next: 'Nächster Song',
-  'next-play': 'Nächster Song und starten',
-  none: 'nichts',
+  get play() {
+    return i18n.t('actions:step.play')
+  },
+  get pause() {
+    return i18n.t('actions:step.pause')
+  },
+  get resume() {
+    return i18n.t('actions:step.resume')
+  },
+  get stop() {
+    return i18n.t('actions:step.stop')
+  },
+  get ['stop-next']() {
+    return i18n.t('actions:step.stop-next')
+  },
+  get next() {
+    return i18n.t('actions:step.next')
+  },
+  get ['next-play']() {
+    return i18n.t('actions:step.next-play')
+  },
+  get none() {
+    return i18n.t('actions:step.none')
+  },
 }
 
 /** The choices per state - only what makes sense there (no "Pause" for a song that isn't running). */
@@ -117,17 +134,39 @@ export function isBindableKey(key: string): boolean {
 }
 
 const KEY_LABEL: Record<string, string> = {
-  ' ': 'Leertaste',
-  PageDown: 'Bild ↓',
-  PageUp: 'Bild ↑',
-  ArrowDown: 'Pfeil ↓',
-  ArrowUp: 'Pfeil ↑',
-  ArrowLeft: 'Pfeil ←',
-  ArrowRight: 'Pfeil →',
-  Enter: 'Enter',
-  Backspace: 'Rücktaste',
-  Home: 'Pos1',
-  End: 'Ende',
+  get [' ']() {
+    return i18n.t('actions:key.space')
+  },
+  get PageDown() {
+    return i18n.t('actions:key.PageDown')
+  },
+  get PageUp() {
+    return i18n.t('actions:key.PageUp')
+  },
+  get ArrowDown() {
+    return i18n.t('actions:key.ArrowDown')
+  },
+  get ArrowUp() {
+    return i18n.t('actions:key.ArrowUp')
+  },
+  get ArrowLeft() {
+    return i18n.t('actions:key.ArrowLeft')
+  },
+  get ArrowRight() {
+    return i18n.t('actions:key.ArrowRight')
+  },
+  get Enter() {
+    return i18n.t('actions:key.Enter')
+  },
+  get Backspace() {
+    return i18n.t('actions:key.Backspace')
+  },
+  get Home() {
+    return i18n.t('actions:key.Home')
+  },
+  get End() {
+    return i18n.t('actions:key.End')
+  },
 }
 
 export function keyLabel(key: string): string {

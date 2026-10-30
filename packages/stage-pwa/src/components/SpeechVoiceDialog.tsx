@@ -4,6 +4,7 @@ import { previewSpeech } from '../lib/speechClips'
 import { bandSpeechVoice, fetchSpeechVoices, fetchVoiceLicense, installSpeechVoice, PIPER_SPEECH_PLUGIN, previewText } from '../lib/speechVoices'
 import { usePluginsStore } from '../store/usePluginsStore'
 import { Badge, Button, Dialog, Field, ListRow, Select, Slider } from './ui'
+import { useTranslation } from 'react-i18next'
 
 const mb = (bytes: number) => `${Math.round(bytes / 1_000_000)} MB`
 
@@ -13,6 +14,7 @@ const mb = (bytes: number) => `${Math.round(bytes / 1_000_000)} MB`
  * with it.
  */
 export function SpeechVoiceDialog({ onClose }: { onClose: () => void }) {
+  const { t } = useTranslation('addons')
   const installed = usePluginsStore((state) => state.installed)
   const updateSettings = usePluginsStore((state) => state.updateSettings)
   const band = bandSpeechVoice(installed)
@@ -61,20 +63,19 @@ export function SpeechVoiceDialog({ onClose }: { onClose: () => void }) {
   const voice = voices.find((v) => v.key === selected) ?? null
 
   return (
-    <Dialog title="Sprachausgabe - Stimme" onClose={onClose} size="l">
+    <Dialog title={t('voice.title')} onClose={onClose} size="l">
       <div className="flex flex-col gap-4">
         <p className="text-sm text-ink-muted">
-          Mit dieser Stimme sagen alle Geräte die Songteile an. Eine Stimme wird einmal auf den Stage-Server geladen (Internet nötig, am besten zu Hause), danach geht alles
-          offline.
+          {t('voice.intro')}
         </p>
         {error && <p className="text-base text-danger">{error}</p>}
-        {data && !data.piperInstalled && <p className="text-base text-danger">Piper ist auf dem Stage-Server nicht installiert (docs/21 §9.1).</p>}
-        {data?.catalog === 'none' && <p className="text-base text-ink">Stimmenliste nicht erreichbar - Stage-Server offline. Gezeigt werden nur die schon geladenen Stimmen.</p>}
-        {!data && !error && <p className="text-base text-ink-muted">Lade Stimmen…</p>}
+        {data && !data.piperInstalled && <p className="text-base text-danger">{t('voice.noPiper')}</p>}
+        {data?.catalog === 'none' && <p className="text-base text-ink">{t('voice.noCatalog')}</p>}
+        {!data && !error && <p className="text-base text-ink-muted">{t('voice.loading')}</p>}
         {data && (
           <>
             <Slider
-              label="Sprechtempo"
+              label={t('voice.speed')}
               valueLabel={`${speed.toFixed(1).replace('.', ',')}×`}
               min={SPEECH_SPEED_MIN}
               max={SPEECH_SPEED_MAX}
@@ -83,23 +84,23 @@ export function SpeechVoiceDialog({ onClose }: { onClose: () => void }) {
               onChange={changeSpeed}
             />
             <Select
-              label="Sprache"
+              label={t('voice.language')}
               value={currentLanguage}
               onChange={(e) => setLanguage(e.target.value)}
               options={languages.map(([code, name]) => ({ value: code, label: `${name} · ${code}` }))}
             />
-            <div className="flex flex-col gap-1" role="listbox" aria-label="Stimmen">
+            <div className="flex flex-col gap-1" role="listbox" aria-label={t('voice.list')}>
               {shown.map((v) => (
                 <ListRow
                   key={v.key}
                   title={v.name}
-                  subtitle={`${v.languageName} · Qualität ${v.quality || '?'} · ${mb(v.sizeBytes)}`}
+                  subtitle={t('voice.subtitle', { language: v.languageName, quality: v.quality || '?', size: mb(v.sizeBytes) })}
                   selected={v.key === selected}
                   onClick={() => setSelected(v.key)}
                   trailing={
                     <span className="flex gap-1">
-                      {v.key === bandVoice && <Badge tone="accent">Band</Badge>}
-                      {v.installed && <Badge>geladen</Badge>}
+                      {v.key === bandVoice && <Badge tone="accent">{t('voice.band')}</Badge>}
+                      {v.installed && <Badge>{t('voice.loaded')}</Badge>}
                     </span>
                   }
                 />
@@ -138,6 +139,7 @@ function VoiceDetail({
   onChoose: () => void
   onStarted: () => void
 }) {
+  const { t } = useTranslation('addons')
   const [license, setLicense] = useState<SpeechVoiceLicense | null>(null)
   const [text, setText] = useState(previewText(voice.languageCode))
   const [message, setMessage] = useState<string | null>(null)
@@ -161,41 +163,41 @@ function VoiceDetail({
     setMessage(null)
     const ok = await previewSpeech(text, { voice: voice.key, speed })
     setBusy(false)
-    if (!ok) setMessage('Konnte nicht abgespielt werden - ist die Stimme geladen und der Stage-Server erreichbar?')
+    if (!ok) setMessage(t('voice.cantPlay'))
   }
 
   return (
-    <section className="flex flex-col gap-3 rounded-container border border-line p-3" aria-label="Gewählte Stimme">
+    <section className="flex flex-col gap-3 rounded-container border border-line p-3" aria-label={t('voice.chosen')}>
       <h3 className="text-base font-bold text-ink">
         {voice.name} <span className="font-normal text-ink-muted">({voice.languageName})</span>
       </h3>
       <p className="text-sm text-ink-muted">
-        Lizenz: {license ? (license.license ?? 'unbekannt') : '…'}
-        {license?.finetunedFrom ? ` · weitertrainiert aus ${license.finetunedFrom} (dessen Lizenz gilt evtl. mit)` : ''}
+        {t('voice.license', { license: license ? (license.license ?? t('voice.unknown')) : '…' })}
+        {license?.finetunedFrom ? t('voice.finetuned', { base: license.finetunedFrom }) : ''}
       </p>
       {!voice.installed && (
         <div className="flex flex-wrap items-center gap-3">
           <Button variant="primary" disabled={download?.state === 'running' || otherRunning || !data.piperInstalled} onClick={() => void startDownload()}>
-            Auf den Stage-Server laden ({mb(voice.sizeBytes)})
+            {t('voice.download', { size: mb(voice.sizeBytes) })}
           </Button>
           {download?.state === 'running' && (
             <span role="status" className="text-base text-ink">
               {download.totalBytes > 0 ? Math.floor((download.receivedBytes / download.totalBytes) * 100) : 0} %
             </span>
           )}
-          {download?.state === 'failed' && <span className="text-base text-danger">Fehlgeschlagen: {download.error}</span>}
-          {otherRunning && <span className="text-sm text-ink-muted">Erst lädt noch eine andere Stimme.</span>}
+          {download?.state === 'failed' && <span className="text-base text-danger">{t('voice.failed', { error: download.error })}</span>}
+          {otherRunning && <span className="text-sm text-ink-muted">{t('voice.otherLoading')}</span>}
         </div>
       )}
       {voice.installed && (
         <>
-          <Field label="Text zum Probehören" value={text} onChange={(e) => setText(e.target.value)} maxLength={80} />
+          <Field label={t('voice.sample')} value={text} onChange={(e) => setText(e.target.value)} maxLength={80} />
           <div className="flex flex-wrap gap-2">
             <Button disabled={busy || text.trim() === ''} onClick={() => void listen()}>
-              {busy ? 'Erzeuge…' : '▶ Probehören'}
+              {busy ? t('voice.making') : t('voice.listen')}
             </Button>
             <Button variant="primary" disabled={isBandVoice} onClick={onChoose}>
-              {isBandVoice ? 'Stimme der Band' : 'Für die Band verwenden'}
+              {isBandVoice ? t('voice.isBand') : t('voice.useBand')}
             </Button>
           </div>
         </>

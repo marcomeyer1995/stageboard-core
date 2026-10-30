@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { discoverServers, pairingConfirmation, pairWithServer, serverFingerprint, type FoundServer } from '../lib/native'
 import { useDialogStore } from '../store/useDialogStore'
 import { Button } from './ui'
+import { useTranslation } from 'react-i18next'
 
 /**
  * Native app (#351): the Stage-Servers announcing themselves on the local network - tap one to
@@ -9,6 +10,7 @@ import { Button } from './ui'
  * presents and asks to confirm its fingerprint, exactly as for a typed-in address.
  */
 export function NetworkServerList({ autoSearch = false, onPaired }: { autoSearch?: boolean; onPaired?: () => void }) {
+  const { t } = useTranslation('band')
   const confirm = useDialogStore((state) => state.confirm)
   const [servers, setServers] = useState<FoundServer[] | null>(null)
   const [searching, setSearching] = useState(false)
@@ -36,11 +38,11 @@ export function NetworkServerList({ autoSearch = false, onPaired }: { autoSearch
     try {
       fingerprint = await serverFingerprint(server.host)
     } catch {
-      setError(`${server.name} antwortet nicht.`)
+      setError(t('servers.notAnswering', { name: server.name }))
       return
     }
     const question = pairingConfirmation(server.name, server.host, fingerprint)
-    if (!(await confirm(question.message, { title: question.title, confirmLabel: 'Verbinden' }))) return
+    if (!(await confirm(question.message, { title: question.title, confirmLabel: t('servers.connect') }))) return
     await pairWithServer(server.host, fingerprint)
     onPaired?.()
   }
@@ -48,12 +50,12 @@ export function NetworkServerList({ autoSearch = false, onPaired }: { autoSearch
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-sm text-ink-muted">Stage-Server im Netzwerk</span>
+        <span className="text-sm text-ink-muted">{t('servers.inNetwork')}</span>
         <Button disabled={searching} onClick={() => void search()}>
-          {searching ? 'Sucht…' : 'Suchen'}
+          {searching ? t('servers.searching') : t('servers.search')}
         </Button>
       </div>
-      {servers?.length === 0 && !searching && <p className="text-sm text-ink-faint">Keiner gefunden – Adresse eingeben oder QR-Code scannen.</p>}
+      {servers?.length === 0 && !searching && <p className="text-sm text-ink-faint">{t('servers.none')}</p>}
       {servers?.map((server) => (
         <button
           key={`${server.name}@${server.host}`}

@@ -1,3 +1,4 @@
+import { pluginName } from '../lib/pluginCatalog'
 import { useRef, useState } from 'react'
 import { CAPABILITIES, HEALTH_TIMEOUT_MS, type PluginInstallation } from 'shared-types'
 import { useDialogStore } from '../store/useDialogStore'
@@ -12,6 +13,7 @@ import {
 } from '../lib/workspaceSnapshot'
 import { ServerBackupTargets } from './ServerBackupTargets'
 import { Badge, Button, InfoHint } from './ui'
+import { useTranslation } from 'react-i18next'
 
 /** Same look as the "Sicherung des Stage-Servers" heading above it (ui Section). */
 const SUBHEADING = 'text-xs font-bold uppercase tracking-widest text-ink-faint'
@@ -25,6 +27,7 @@ const SUBHEADING = 'text-xs font-bold uppercase tracking-widest text-ink-faint'
  * capability already exists to report on (see availableModes in lib/modes.ts).
  */
 export function BackupManager() {
+  const { t } = useTranslation('system')
   const installed = usePluginsStore((state) => state.installed)
   const health = usePluginsStore((state) => state.health)
   const now = useNow()
@@ -38,40 +41,40 @@ export function BackupManager() {
   )
 
   async function handleExport() {
-    setSnapshotStatus('Erstelle Backup…')
+    setSnapshotStatus(t('bk.creating'))
     try {
       const snapshot = await buildWorkspaceSnapshot(workspaceId)
       downloadWorkspaceSnapshot(snapshot)
-      setSnapshotStatus('Backup heruntergeladen.')
+      setSnapshotStatus(t('bk.downloaded'))
     } catch (err) {
-      setSnapshotStatus(err instanceof Error ? err.message : 'Backup fehlgeschlagen.')
+      setSnapshotStatus(err instanceof Error ? err.message : t('bk.failed'))
     }
   }
 
   async function handleImportFile(file: File) {
-    const confirmed = await confirm(`"${file.name}" wiederherstellen und mit den lokalen Daten zusammenführen?`, {
-      confirmLabel: 'Wiederherstellen',
+    const confirmed = await confirm(t('bk.restoreConfirm', { file: file.name }), {
+      confirmLabel: t('bk.restore'),
     })
     if (!confirmed) {
       return
     }
-    setSnapshotStatus('Stelle Backup wieder her…')
+    setSnapshotStatus(t('bk.restoring'))
     try {
       const raw = await file.text()
       const snapshot = parseWorkspaceSnapshot(raw)
       await restoreWorkspaceSnapshot(snapshot, workspaceId)
-      setSnapshotStatus('Backup wiederhergestellt.')
+      setSnapshotStatus(t('bk.restored'))
     } catch (err) {
-      setSnapshotStatus(err instanceof Error ? err.message : 'Wiederherstellung fehlgeschlagen.')
+      setSnapshotStatus(err instanceof Error ? err.message : t('bk.restoreFailed'))
     }
   }
 
   function healthLabel(plugin: PluginInstallation): string {
-    if (plugin.runtime === 'client') return 'läuft auf dem Tablet'
+    if (plugin.runtime === 'client') return t('bk.onTablet')
     const entry = health.plugins[plugin.id]
-    if (!entry) return 'kein Heartbeat — Stage-Server offline?'
+    if (!entry) return t('bk.noHeartbeat')
     if (entry.status !== 'online') return entry.message ?? entry.status
-    if (now - entry.lastSeenAt > HEALTH_TIMEOUT_MS) return 'Heartbeat veraltet'
+    if (now - entry.lastSeenAt > HEALTH_TIMEOUT_MS) return t('bk.staleHeartbeat')
     return 'online'
   }
 
@@ -81,7 +84,7 @@ export function BackupManager() {
     <div className="flex flex-col text-ink">
       <ServerBackupTargets />
 
-      {backupPlugins.length > 0 && <h4 className={`mb-2 mt-3 ${SUBHEADING}`}>Backup-Plugins</h4>}
+      {backupPlugins.length > 0 && <h4 className={`mb-2 mt-3 ${SUBHEADING}`}>{t('bk.plugins')}</h4>}
       <div className="space-y-2">
         {backupPlugins.map((plugin) => (
           <div
@@ -90,30 +93,30 @@ export function BackupManager() {
           >
             <div className="flex-1">
               <p className="font-semibold">
-                {plugin.name}{' '}
+                {pluginName(plugin)}{' '}
                 <span className="text-xs font-normal text-ink-faint">v{plugin.version}</span>
               </p>
               <p className="text-xs text-ink-muted">{healthLabel(plugin)}</p>
             </div>
-            <Badge tone={healthLabel(plugin) === 'online' ? 'accent' : 'neutral'}>{plugin.enabled ? 'Aktiv' : 'Deaktiviert'}</Badge>
+            <Badge tone={healthLabel(plugin) === 'online' ? 'accent' : 'neutral'}>{plugin.enabled ? t('bk.active') : t('bk.disabled')}</Badge>
           </div>
         ))}
       </div>
 
       <div className="mb-2 mt-3 flex items-center gap-1">
-        <h4 className={SUBHEADING}>Lokale Snapshots</h4>
+        <h4 className={SUBHEADING}>{t('bk.snapshots')}</h4>
         <InfoHint
-          label="Erklärung: Lokale Snapshots"
-          text="Unabhängig von einem Backup-Plugin: ein vollständiger Datei-Dump dieser Band (Songs, Setlists, Dashboards, Profile, Plugins, Show-Log) zum lokalen Speichern und Wiederherstellen - ideal vor größeren Änderungen oder Tourbeginn."
+          label={t('bk.snapshotsLabel')}
+          text={t('bk.snapshotsInfo')}
         />
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
         <Button variant="primary" onClick={() => void handleExport()}>
-          Backup herunterladen
+          {t('bk.download')}
         </Button>
         <Button onClick={() => fileInputRef.current?.click()}>
-          Backup wiederherstellen…
+          {t('bk.restoreFile')}
         </Button>
         <input
           ref={fileInputRef}

@@ -107,7 +107,7 @@ describe('SyncIndicator', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Reparieren' }))
       await vi.waitFor(() => expect(joinAsMember).toHaveBeenCalled())
 
-      expect(promptText).toHaveBeenCalledWith('Sync reparieren', { label: 'Zugangscode für „Band A"' })
+      expect(promptText).toHaveBeenCalledWith('Sync reparieren', { label: 'Zugangscode für „Band A“' })
       expect(joinAsMember).toHaveBeenCalledWith('band-a', 'Band A', '12345678', 'p1', '5678')
     })
 

@@ -1,5 +1,7 @@
+import i18n from '../i18n'
 import { useEffect, useState } from 'react'
 import { getStageServerUrl } from '../lib/stageServer'
+import { useTranslation } from 'react-i18next'
 
 interface BackupStatus {
   ok: boolean
@@ -12,10 +14,10 @@ interface BackupStatus {
 /** How long ago, in words a musician reads at a glance. */
 function ago(iso: string, now = Date.now()): string {
   const minutes = Math.round((now - new Date(iso).getTime()) / 60_000)
-  if (minutes < 60) return `vor ${Math.max(1, minutes)} Min.`
+  if (minutes < 60) return i18n.t('devices:backup.minutes', { n: Math.max(1, minutes) })
   const hours = Math.round(minutes / 60)
-  if (hours < 48) return `vor ${hours} Std.`
-  return `vor ${Math.round(hours / 24)} Tagen`
+  if (hours < 48) return i18n.t('devices:backup.hours', { n: hours })
+  return i18n.t('devices:backup.days', { n: Math.round(hours / 24) })
 }
 
 /**
@@ -24,6 +26,7 @@ function ago(iso: string, now = Date.now()): string {
  * stale, a hint when backups were never set up.
  */
 export function BackupStatusLine() {
+  const { t } = useTranslation('devices')
   const [status, setStatus] = useState<BackupStatus | null | undefined>(undefined)
 
   useEffect(() => {
@@ -42,13 +45,13 @@ export function BackupStatusLine() {
   }, [])
 
   if (status === undefined) return null
-  if (status === null) return <span className="text-warn">Backup: noch nicht eingerichtet (System → Stage-Server)</span>
+  if (status === null) return <span className="text-warn">{t('backup.notSetUp')}</span>
   const stale = status.at ? Date.now() - new Date(status.at).getTime() > 48 * 3600_000 : true
-  if (!status.ok) return <span className="text-danger">Backup fehlgeschlagen{status.at ? ` (${ago(status.at)})` : ''}: {status.error}</span>
+  if (!status.ok) return <span className="text-danger">{t('backup.failed', { when: status.at ? ` (${ago(status.at)})` : '', error: status.error })}</span>
   return (
     <span className={stale ? 'text-warn' : 'text-ok'}>
-      Letztes Backup {status.at ? ago(status.at) : ''}
-      {stale ? ' - älter als zwei Tage' : ''}
+      {t('backup.last', { when: status.at ? ago(status.at) : '' })}
+      {stale ? t('backup.stale') : ''}
     </span>
   )
 }

@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { Icon } from './Icon'
+import { useTranslation } from 'react-i18next'
 
 /**
  * Escape hatch for App.tsx's three onboarding gates (JoinBandView, RosterSetupView,
@@ -22,6 +23,7 @@ import { Icon } from './Icon'
  * not calling it already leaves the untouched active workspace exactly where it was.
  */
 export function BackToWorkingBandLink() {
+  const { t } = useTranslation('band')
   const activeWorkspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
   const setActiveWorkspace = useWorkspaceStore((state) => state.setActiveWorkspace)
   // Select the raw (stable-reference) array, not a filtered derivation - a selector that
@@ -45,7 +47,7 @@ export function BackToWorkingBandLink() {
           onClick={() => setActiveWorkspace(w.id)}
           className="flex min-h-form items-center gap-1 text-base text-ink-faint underline"
         >
-          <Icon name="back" /> Zurück zu {w.name}
+          <Icon name="back" /> {t('backTo', { band: w.name })}
         </button>
       ))}
     </div>

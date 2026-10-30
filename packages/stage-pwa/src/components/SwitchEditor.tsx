@@ -6,18 +6,19 @@ import { useSwitchesStore } from '../store/useSwitchesStore'
 import { WIDGET_COLORS, type WidgetColor } from '../widgets/widgetColors'
 import { BehaviorEditor } from './BehaviorEditor'
 import { Button, Dialog, Field, Select } from './ui'
+import { useTranslation } from 'react-i18next'
 
 function newSwitchId(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
 }
 
-const COLOR_LABEL: Record<WidgetColor, string> = { neutral: 'Neutral', accent: 'Akzent', green: 'Grün', amber: 'Gelb', red: 'Rot' }
 
 /**
  * A switch (docs/23 §11): name, colour, behaviour and actions - for the whole band. `initial`
  * without an id: a new switch, optionally prefilled ("Als Schalter speichern").
  */
 export function SwitchDialog({ initial, onSaved, onClose }: { initial: (Partial<Switch> & { behavior?: Behavior }) | null; onSaved: (sw: Switch) => void; onClose: () => void }) {
+  const { t } = useTranslation('actions')
   const save = useSwitchesStore((state) => state.save)
   const remove = useSwitchesStore((state) => state.remove)
   const confirm = useDialogStore((state) => state.confirm)
@@ -35,7 +36,7 @@ export function SwitchDialog({ initial, onSaved, onClose }: { initial: (Partial<
 
   return (
     <Dialog
-      title={existing ? 'Schalter bearbeiten' : 'Neuer Schalter'}
+      title={existing ? t('editSwitch') : t('newSwitch')}
       onClose={onClose}
       actions={
         <>
@@ -43,27 +44,27 @@ export function SwitchDialog({ initial, onSaved, onClose }: { initial: (Partial<
             <Button
               variant="danger"
               onClick={async () => {
-                if (!(await confirm(`Schalter „${existing.name}“ löschen? Pedale, MIDI-Knöpfe und Dashboard-Knöpfe, die ihn auslösen, tun dann nichts mehr.`, { confirmLabel: 'Löschen', danger: true })))
+                if (!(await confirm(t('deleteSwitch', { name: existing.name }), { confirmLabel: t('delete'), danger: true })))
                   return
                 await remove(existing.id!)
                 onClose()
               }}
             >
-              Löschen
+              {t('delete')}
             </Button>
           ) : (
-            <Button onClick={onClose}>Abbrechen</Button>
+            <Button onClick={onClose}>{t('cancel')}</Button>
           )}
           <Button variant="primary" disabled={!behavior || !name.trim()} onClick={() => void submit()}>
-            Speichern
+            {t('save')}
           </Button>
         </>
       }
     >
       <div className="flex flex-col gap-4">
-        <p className="text-sm text-ink-muted">Gilt für die ganze Band. Jede Änderung wirkt auf alle Pedale, MIDI-Knöpfe und Dashboard-Knöpfe, die ihn auslösen.</p>
-        <Field label="Name" value={name} onChange={(e) => setName(e.target.value)} placeholder="z. B. Blinder" />
-        <Select label="Farbe" value={color} onChange={(e) => setColor(e.target.value as WidgetColor)} options={WIDGET_COLORS.map((c) => ({ value: c, label: COLOR_LABEL[c] }))} />
+        <p className="text-sm text-ink-muted">{t('switchBandWide')}</p>
+        <Field label={t('name')} value={name} onChange={(e) => setName(e.target.value)} placeholder={t('namePlaceholder')} />
+        <Select label={t('color')} value={color} onChange={(e) => setColor(e.target.value as WidgetColor)} options={WIDGET_COLORS.map((c) => ({ value: c, label: t(`colors.${c}`) }))} />
         <BehaviorEditor initial={behavior} onChange={setBehavior} allowSwitch={false} />
       </div>
     </Dialog>

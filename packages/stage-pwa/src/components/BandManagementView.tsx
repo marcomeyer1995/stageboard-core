@@ -18,6 +18,7 @@ import { useBackHandler } from '../lib/backNavigation'
 import { MASTER_MODE_LABEL, MasterModeDialog } from './MasterModeDialog'
 import { ActionMenuDialog, AddRow, Badge, Button } from './ui'
 import { CONTROL, FOCUS, INPUT_FREE } from './ui/styles'
+import { useTranslation } from 'react-i18next'
 
 /**
  * SystemView.tsx's "Band" tab (see 2026-08-30 menu-decluttering follow-up) - every band/roster
@@ -133,13 +134,14 @@ import { CONTROL, FOCUS, INPUT_FREE } from './ui/styles'
  * band from their own device.
  */
 function MemberRowLabel({ profile, onlineDeviceCount }: { profile: Profile; onlineDeviceCount: number }) {
+  const { t } = useTranslation('band')
   return (
     <>
       <span className="inline-flex items-center gap-1.5">
         {onlineDeviceCount > 0 && (
           <span
             className="h-2 w-2 flex-shrink-0 rounded-full bg-ok"
-            title={`${onlineDeviceCount} Gerät${onlineDeviceCount === 1 ? '' : 'e'} gerade angemeldet`}
+            title={t('online', { count: onlineDeviceCount })}
           />
         )}
         {profile.name}
@@ -162,6 +164,7 @@ function MemberRowLabel({ profile, onlineDeviceCount }: { profile: Profile; onli
 }
 
 export function BandManagementView() {
+  const { t } = useTranslation('band')
   const workspaces = useWorkspaceStore((state) => state.workspaces)
   const activeWorkspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
   const setActiveWorkspace = useWorkspaceStore((state) => state.setActiveWorkspace)
@@ -269,13 +272,13 @@ export function BandManagementView() {
 
   return (
     <div className="flex flex-col gap-6 p-4 text-ink">
-      <h1 className="text-2xl font-bold">Band</h1>
+      <h1 className="text-2xl font-bold">{t('title')}</h1>
 
       {/* Which band the Stage-Server's hardware serves is shown once, with "Band wechseln…", in
           Einstellungen - this line said the same again (System cleanup, 2026-10-16). */}
 
       <section className="space-y-2">
-        <h2 className="text-sm font-bold uppercase tracking-widest text-ink-faint">Bands</h2>
+        <h2 className="text-sm font-bold uppercase tracking-widest text-ink-faint">{t('bands')}</h2>
         {workspaces.map((workspace) => (
           <div
             key={workspace.id}
@@ -293,7 +296,7 @@ export function BandManagementView() {
               className="sb-hit flex min-h-prep min-w-[10rem] flex-1 items-center gap-3 text-left font-semibold [@media(hover:hover)]:hover:underline disabled:hover:no-underline"
             >
               <span className="truncate">{workspace.name}</span>
-              {workspace.id === activeWorkspaceId && <Badge tone="accent">Aktiv</Badge>}
+              {workspace.id === activeWorkspaceId && <Badge tone="accent">{t('active')}</Badge>}
             </button>
             {/* How master works here - a band setting, so it sits with the band (Marco, 2026-10-16);
                 only on the active band. Tap: admins change it, everyone else reads what it means. */}
@@ -301,15 +304,15 @@ export function BandManagementView() {
               <button
                 type="button"
                 onClick={() => setMasterModeWorkspaceId(workspace.id)}
-                aria-label={`Master ${MASTER_MODE_LABEL[workspace.masterMode ?? 'device']} - Master-Kontrolle`}
+                aria-label={t('masterAria', { mode: MASTER_MODE_LABEL[workspace.masterMode ?? 'device'] })}
                 className={`sb-hit flex min-h-prep flex-shrink-0 items-center ${CONTROL} ${FOCUS}`}
               >
-                <Badge>Master {MASTER_MODE_LABEL[workspace.masterMode ?? 'device']}</Badge>
+                <Badge>{t('masterBadge', { mode: MASTER_MODE_LABEL[workspace.masterMode ?? 'device'] })}</Badge>
               </button>
             )}
             {(workspace.isAdmin || !!workspace.username) && (
               <RowMenuButton
-                label={`Weitere Optionen für ${workspace.name}`}
+                label={t('moreFor', { name: workspace.name })}
                 onClick={() => setActionsMenuWorkspaceId(workspace.id)}
               />
             )}
@@ -324,11 +327,11 @@ export function BandManagementView() {
                   <RowActionButton
                     onClick={async () => {
                       setActionsMenuWorkspaceId(null)
-                      const name = await promptText('Band umbenennen', { label: 'Neuer Name', defaultValue: workspace.name })
+                      const name = await promptText(t('renameBand'), { label: t('newName'), defaultValue: workspace.name })
                       if (name?.trim() && name.trim() !== workspace.name) void renameWorkspace(workspace.id, name.trim())
                     }}
                   >
-                    Umbenennen
+                    {t('rename')}
                   </RowActionButton>
                 )}
                 {/* Only once this band has a real Stage-Server account to invite anyone
@@ -342,7 +345,7 @@ export function BandManagementView() {
                       setInviteWorkspaceId(workspace.id)
                     }}
                   >
-                    Einladen
+                    {t('invite')}
                   </RowActionButton>
                 )}
                 {workspace.isAdmin && !!workspace.username && (
@@ -352,7 +355,7 @@ export function BandManagementView() {
                       setMasterModeWorkspaceId(workspace.id)
                     }}
                   >
-                    Master-Kontrolle…
+                    {t('masterControl')}
                   </RowActionButton>
                 )}
                 {/* 2026-09-02 thirteenth follow-up, at Marco's explicit request ("welche
@@ -370,20 +373,20 @@ export function BandManagementView() {
                     onClick={async () => {
                       setActionsMenuWorkspaceId(null)
                       const confirmed = await confirm(
-                        `"${workspace.name}" von diesem Gerät entfernen? Die Band bleibt auf dem Server bestehen - andere Geräte sind nicht betroffen, und du kannst jederzeit wieder beitreten.`,
-                        { confirmLabel: 'Entfernen' },
+                        t('removeLocalText', { band: workspace.name }),
+                        { confirmLabel: t('remove') },
                       )
                       if (confirmed) await removeWorkspaceLocally(workspace.id)
                     }}
                   >
-                    Von diesem Gerät entfernen
+                    {t('removeLocal')}
                   </RowActionButton>
                 )}
                 {workspace.isAdmin && (
                   <>
                     {/* Set apart and named for what it does (#361): on 2026-10-04 "Löschen" next
                         to "Von diesem Gerät entfernen" deleted a band for everyone by mistake. */}
-                    {!!workspace.username && <div className="border-t border-line pt-2 text-xs font-bold uppercase tracking-widest text-danger">Für alle Geräte</div>}
+                    {!!workspace.username && <div className="border-t border-line pt-2 text-xs font-bold uppercase tracking-widest text-danger">{t('forAll')}</div>}
                     <RowActionButton
                       danger
                       onClick={async () => {
@@ -392,24 +395,24 @@ export function BandManagementView() {
                         const choice = await confirmDestructive(
                           onServer
                             ? {
-                                title: `„${workspace.name}" für alle löschen?`,
-                                message: 'Songs, Setlisten, Roster und Dashboards werden auf dem Stage-Server gelöscht - für jedes Gerät, jedes Mitglied verliert den Zugang. Willst du die Band nur von diesem Gerät entfernen, nimm den Knopf darunter.',
+                                title: t('deleteAllTitle', { band: workspace.name }),
+                                message: t('deleteAllText'),
                                 typeToConfirm: workspace.name,
-                                confirmLabel: 'Für alle löschen',
-                                alternativeLabel: 'Nur von diesem Gerät entfernen',
+                                confirmLabel: t('deleteAll'),
+                                alternativeLabel: t('removeLocalOnly'),
                               }
                             : {
-                                title: `„${workspace.name}" löschen?`,
-                                message: 'Die Band ist nur auf diesem Gerät - Songs, Setlisten und Roster gehen verloren.',
+                                title: t('deleteLocalTitle', { band: workspace.name }),
+                                message: t('deleteLocalText'),
                                 typeToConfirm: workspace.name,
-                                confirmLabel: 'Löschen',
+                                confirmLabel: t('delete'),
                               },
                         )
                         if (choice === 'confirm') void deleteWorkspace(workspace.id)
                         else if (choice === 'alternative') await removeWorkspaceLocally(workspace.id)
                       }}
                     >
-                      {workspace.username ? 'Band für alle löschen …' : 'Band löschen …'}
+                      {workspace.username ? t('deleteBandAll') : t('deleteBand')}
                     </RowActionButton>
                   </>
                 )}
@@ -417,29 +420,27 @@ export function BandManagementView() {
             )}
           </div>
         ))}
-        <AddRow label="Band hinzufügen" onClick={() => setShowAddBandChoice(true)} />
+        <AddRow label={t('addBand')} onClick={() => setShowAddBandChoice(true)} />
       </section>
 
       {activeWorkspace && (
         <section className="space-y-2">
           <h2 className="text-xs font-bold uppercase tracking-widest text-ink-faint">
-            Mitglieder ({activeWorkspace.name})
+            {t('members', { band: activeWorkspace.name })}
           </h2>
           {!activeWorkspace.isAdmin && (
-            <p className="text-sm text-ink-faint">Nur der Band-Admin kann Mitglieder verwalten.</p>
+            <p className="text-sm text-ink-faint">{t('adminOnlyMembers')}</p>
           )}
           {activeWorkspace.isAdmin && !activeWorkspace.username && (
             <div className="space-y-2 rounded-container border border-line bg-surface p-4">
               <p className="text-sm text-ink-soft">
-                Diese Band läuft bisher nur lokal auf diesem Gerät. Sobald ein Stage-Server bereitsteht (z.B. beim
-                nächsten Bandtreffen), verbindet "Verbinden" diese Band damit - danach kann jedes Mitglied sich über
-                den "Einladen"-Code oben selbst auf seinem Gerät anmelden.
+                {t('localOnly')}
               </p>
               <Button onClick={async () => {
                   // Pre-filled with the address this app was loaded from - on a tablet that opened
                   // the app from the Stage-Server that is already the right one, just confirm.
-                  const serverUrl = await promptText('Mit Stage-Server verbinden', {
-                    label: 'Server-Adresse (z.B. https://stageboard.local)',
+                  const serverUrl = await promptText(t('connectTitle'), {
+                    label: t('serverAddress'),
                     defaultValue: getAutomaticStageServerUrl() ?? '',
                   })
                   if (!serverUrl?.trim()) return
@@ -448,7 +449,7 @@ export function BandManagementView() {
                   setStageServerUrl(overrideForTypedUrl(serverUrl))
                   await connectToServer(normalizeStageServerUrl(serverUrl))
                 }}>
-                Verbinden
+                {t('connect')}
               </Button>
             </div>
           )}
@@ -475,7 +476,7 @@ export function BandManagementView() {
                       <div className="min-w-0">
                         <MemberRowLabel profile={profile} onlineDeviceCount={onlineDeviceCount} />
                       </div>
-                      <Badge tone="accent">Du</Badge>
+                      <Badge tone="accent">{t('you')}</Badge>
                     </div>
                   ) : (
                     <button type="button" onClick={() => handlePickProfile(profile)} className="sb-hit min-h-prep min-w-0 flex-1 text-left [@media(hover:hover)]:hover:opacity-80">
@@ -484,7 +485,7 @@ export function BandManagementView() {
                   )}
                   {((isActiveProfile && isAdminProfile) || activeWorkspace.isAdmin) && (
                     <RowMenuButton
-                      label={`Weitere Optionen für ${profile.name}`}
+                      label={t('moreFor', { name: profile.name })}
                       onClick={() => setActionsMenuProfileId(profile.id)}
                     />
                   )}
@@ -495,19 +496,19 @@ export function BandManagementView() {
                       <RowActionButton
                         onClick={async () => {
                           setActionsMenuProfileId(null)
-                          const result = await promptFields('Eigenen PIN setzen', [
-                            { key: 'pin', label: 'Neuer 4-stelliger PIN', type: 'pin' },
+                          const result = await promptFields(t('setOwnPinTitle'), [
+                            { key: 'pin', label: t('newPin'), type: 'pin' },
                           ])
                           const pin = result?.pin?.trim()
                           if (!pin) return
                           if (!/^\d{4}$/.test(pin)) {
-                            await alert('Der PIN muss genau 4 Ziffern haben.')
+                            await alert(t('pinDigits'))
                             return
                           }
                           await setOwnPin(activeWorkspaceId, profile.id, pin)
                         }}
                       >
-                        Meinen PIN setzen
+                        {t('setMyPin')}
                       </RowActionButton>
                     )}
                     {activeWorkspace.isAdmin && (
@@ -515,14 +516,14 @@ export function BandManagementView() {
                         <RowActionButton
                           onClick={async () => {
                             setActionsMenuProfileId(null)
-                            const name = await promptText('Mitglied umbenennen', {
-                              label: 'Neuer Name',
+                            const name = await promptText(t('renameMember'), {
+                              label: t('newName'),
                               defaultValue: profile.name,
                             })
                             if (name?.trim()) void updateProfile(profile.id, name.trim())
                           }}
                         >
-                          Umbenennen
+                          {t('rename')}
                         </RowActionButton>
                         <RowActionButton
                           onClick={async () => {
@@ -530,12 +531,12 @@ export function BandManagementView() {
                             // Your own admin rights stay: only another admin can take them away
                             // (Marco, 2026-10-07; the Stage-Server refuses it too).
                             const keepOwnAdmin = isActiveProfile && isAdminProfile
-                            const result = await promptFields('Stage-Rollen anpassen', [
+                            const result = await promptFields(t('rolesTitle'), [
                               {
                                 key: 'stageRoles',
                                 label: keepOwnAdmin
-                                  ? 'Steuert sichtbare Widgets/Dashboards. Deine Admin-Rechte kann dir nur ein anderer Admin entziehen.'
-                                  : 'Steuert sichtbare Widgets/Dashboards - "Admin" verwaltet die Band',
+                                  ? t('rolesKeepAdmin')
+                                  : t('rolesHint'),
                                 type: 'checkboxes',
                                 options: STAGE_ROLES.filter((role) => !(keepOwnAdmin && role === 'admin')).map((role) => ({ value: role, label: STAGE_ROLE_LABELS[role] })),
                                 defaultValue: profile.stageRoles.join(','),
@@ -547,7 +548,7 @@ export function BandManagementView() {
                             void updateStageRoles(profile.id, stageRoles)
                           }}
                         >
-                          Stage-Rollen anpassen
+                          {t('rolesTitle')}
                         </RowActionButton>
                         {/* Not for isActiveProfile (2026-09-02 eleventh follow-up, found live:
                             Marco locked his own phone out with this) - resetMemberPassword
@@ -562,18 +563,18 @@ export function BandManagementView() {
                             onClick={async () => {
                               setActionsMenuProfileId(null)
                               const confirmed = await confirm(
-                                `Neuen PIN für "${profile.name}" setzen? Der alte hört sofort auf zu funktionieren.`,
-                                { confirmLabel: 'Zurücksetzen', danger: true },
+                                t('resetPinConfirm', { name: profile.name }),
+                                { confirmLabel: t('reset'), danger: true },
                               )
                               if (!confirmed) return
                               const credentials = await resetMemberPassword(activeWorkspaceId, profile.id)
                               if (!credentials) return
-                              await alert(`Neuer PIN für "${profile.name}": ${credentials.password}`, {
-                                title: 'PIN zurückgesetzt',
+                              await alert(t('newPinFor', { name: profile.name, pin: credentials.password }), {
+                                title: t('pinReset'),
                               })
                             }}
                           >
-                            Passwort zurücksetzen
+                            {t('resetPassword')}
                           </RowActionButton>
                         )}
                         <RowActionButton
@@ -583,14 +584,14 @@ export function BandManagementView() {
                           disabled={isLastAdmin(profile) || (isActiveProfile && profile.stageRoles.includes('admin'))}
                           title={
                             isLastAdmin(profile)
-                              ? 'Mindestens ein Admin muss bestehen bleiben.'
+                              ? t('lastAdmin')
                               : isActiveProfile && profile.stageRoles.includes('admin')
-                                ? 'Dein eigenes Admin-Profil entfernt nur ein anderer Admin.'
+                                ? t('ownAdmin')
                                 : undefined
                           }
                           onClick={async () => {
                             setActionsMenuProfileId(null)
-                            if (await confirm(`"${profile.name}" aus der Band entfernen?`, { confirmLabel: 'Entfernen', danger: true })) {
+                            if (await confirm(t('removeMember', { name: profile.name }), { confirmLabel: t('remove'), danger: true })) {
                               const removed = await removeProfile(profile.id)
                               // Only clear the active-profile choice if this device happened to be
                               // showing the member just deleted - deleting someone else's roster
@@ -599,7 +600,7 @@ export function BandManagementView() {
                             }
                           }}
                         >
-                          Löschen
+                          {t('delete')}
                         </RowActionButton>
                       </>
                     )}
@@ -617,13 +618,13 @@ export function BandManagementView() {
                       <input
                         value={activatePasswordInput}
                         onChange={(e) => setActivatePasswordInput(e.target.value.replace(/\D/g, '').slice(0, 4))}
-                        placeholder="4-stelliger Code"
+                        placeholder={t('code')}
                         inputMode="numeric"
                         autoFocus
                         className={`h-form min-w-0 flex-1 min-w-0 px-3 text-center text-lg tracking-widest ${INPUT_FREE}`}
                       />
                       <Button variant="primary" className="flex-shrink-0" type="submit" disabled={activating || activatePasswordInput.length !== 4}>
-                        {activating ? '…' : 'Wechseln'}
+                        {activating ? '…' : t('switch')}
                       </Button>
                     </div>
                     {/* Only reached for an admin profile - non-admin picks activate immediately,
@@ -635,7 +636,7 @@ export function BandManagementView() {
                       onClick={() => setActivatingProfileId(null)}
                       className="min-h-form inline-flex items-center self-start text-base text-ink-faint underline"
                     >
-                      Abbrechen
+                      {t('cancel')}
                     </button>
                   </form>
                 )}
@@ -644,9 +645,9 @@ export function BandManagementView() {
           })}
           {activeWorkspace.isAdmin && (
             <AddRow
-              label="Neues Mitglied"
+              label={t('newMember')}
               onClick={async () => {
-                const name = await promptText('Neues Mitglied', { label: 'Name' })
+                const name = await promptText(t('newMember'), { label: t('name') })
                 if (name?.trim()) await createProfile(name.trim())
               }}
             />
@@ -665,14 +666,14 @@ export function BandManagementView() {
       {showJoinAnotherBand && <JoinBandView onClose={() => setShowJoinAnotherBand(false)} />}
       {showAddBandChoice && (
         <ActionMenuDialog
-          title="Band hinzufügen"
+          title={t('addBand')}
           onClose={() => setShowAddBandChoice(false)}
           actions={[
-            { label: 'Bestehender Band beitreten', onClick: () => setShowJoinAnotherBand(true) },
+            { label: t('joinExisting'), onClick: () => setShowJoinAnotherBand(true) },
             {
-              label: 'Neue Band gründen',
+              label: t('foundNew'),
               onClick: async () => {
-                const name = await promptText('Neue Band', { label: 'Name der neuen Band' })
+                const name = await promptText(t('newBand'), { label: t('newBandName') })
                 if (name?.trim()) void addWorkspace(name.trim())
               },
             },

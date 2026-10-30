@@ -1,6 +1,8 @@
+import i18n from '../i18n'
 import { useState } from 'react'
 import { CUE_BEAT, CUE_NAME, type CuePattern } from 'shared-types'
 import { AddRow, Button, Dialog, Field, Select } from './ui'
+import { useTranslation } from 'react-i18next'
 
 export interface CuePreset {
   label: string
@@ -12,18 +14,28 @@ const B = CUE_BEAT
 
 /** Ready-made patterns for the bars before a part (#63) - a start, every cell can be changed. */
 export const PART_CUE_PRESETS: CuePreset[] = [
-  { label: 'Nur Name: Chorus – – –', pattern: [[N, '', '', '']] },
-  { label: 'Name und zählen: Chorus 2 3 4', pattern: [[N, B, B, B]] },
-  { label: 'Name, halbe: Chorus – 3 –', pattern: [[N, '', B, '']] },
+  { get label() {
+      return i18n.t('addons:cue.onlyName')
+    }, pattern: [[N, '', '', '']] },
+  { get label() {
+      return i18n.t('addons:cue.nameCount')
+    }, pattern: [[N, B, B, B]] },
+  { get label() {
+      return i18n.t('addons:cue.nameHalf')
+    }, pattern: [[N, '', B, '']] },
   {
-    label: 'Name, dann zählen: Chorus – – – | 1 2 3 4',
+    get label() {
+      return i18n.t('addons:cue.nameThenCount')
+    },
     pattern: [
       [N, '', '', ''],
       [B, B, B, B],
     ],
   },
   {
-    label: 'Countdown: Chorus – 3 – | 2 – 1 –',
+    get label() {
+      return i18n.t('addons:cue.countdown')
+    },
     pattern: [
       [N, '', '3', ''],
       ['2', '', '1', ''],
@@ -34,28 +46,38 @@ export const PART_CUE_PRESETS: CuePreset[] = [
 /** Ready-made patterns for the count-in before bar 1 (#63). */
 export const COUNT_IN_CUE_PRESETS: CuePreset[] = [
   {
-    label: 'Klassisch: 1 – 2 – | 1 2 3 4',
+    get label() {
+      return i18n.t('addons:cue.classic')
+    },
     pattern: [
       ['1', '', '2', ''],
       [B, B, B, B],
     ],
   },
   {
-    label: 'Jeder Schlag: 1 2 3 4 | 1 2 3 4',
+    get label() {
+      return i18n.t('addons:cue.everyBeat')
+    },
     pattern: [
       [B, B, B, B],
       [B, B, B, B],
     ],
   },
-  { label: 'Nur der letzte Takt: 1 2 3 4', pattern: [[B, B, B, B]] },
+  { get label() {
+      return i18n.t('addons:cue.lastBar')
+    }, pattern: [[B, B, B, B]] },
   {
-    label: 'Intro ansagen: Intro – – – | 1 2 3 4',
+    get label() {
+      return i18n.t('addons:cue.intro')
+    },
     pattern: [
       [N, '', '', ''],
       [B, B, B, B],
     ],
   },
-  { label: 'Nichts, nur Klick', pattern: [['', '', '', '']] },
+  { get label() {
+      return i18n.t('addons:cue.nothing')
+    }, pattern: [['', '', '', '']] },
 ]
 
 const MIN_CELLS = 4
@@ -75,7 +97,7 @@ export function samePattern(a: CuePattern, b: CuePattern): boolean {
 function cellLabel(cell: string, beat: number): string {
   const value = cell.trim()
   if (!value) return '–'
-  if (value === CUE_NAME) return 'Name'
+  if (value === CUE_NAME) return i18n.t('addons:cue.name')
   if (value === CUE_BEAT) return `${beat}`
   return value
 }
@@ -85,6 +107,7 @@ function cellLabel(cell: string, beat: number): string {
  * - tap a cell to choose nothing, the part's name, the beat's number or a word of your own.
  */
 export function CuePatternEditor({ label, pattern, presets, onChange }: { label: string; pattern: CuePattern; presets: CuePreset[]; onChange: (pattern: CuePattern) => void }) {
+  const { t } = useTranslation('addons')
   const [editing, setEditing] = useState<{ bar: number; cell: number } | null>(null)
   const preset = presets.findIndex((p) => samePattern(p.pattern, pattern))
   const bars = pattern.map((bar) => {
@@ -104,16 +127,16 @@ export function CuePatternEditor({ label, pattern, presets, onChange }: { label:
         label={label}
         value={preset >= 0 ? String(preset) : 'own'}
         onChange={(e) => e.target.value !== 'own' && onChange(presets[Number(e.target.value)]!.pattern)}
-        options={[...presets.map((p, i) => ({ value: String(i), label: p.label })), ...(preset < 0 ? [{ value: 'own', label: 'Eigenes Muster' }] : [])]}
+        options={[...presets.map((p, i) => ({ value: String(i), label: p.label })), ...(preset < 0 ? [{ value: 'own', label: t('cue.own') }] : [])]}
       />
       {bars.map((cells, b) => (
         <div key={b} className="flex flex-col gap-1">
-          <span className="text-sm text-ink-muted">{bars.length - b === 1 ? 'Takt davor' : `${bars.length - b} Takte davor`}</span>
+          <span className="text-sm text-ink-muted">{bars.length - b === 1 ? t('cue.barBefore') : t('cue.barsBefore', { n: bars.length - b })}</span>
           <div className="flex flex-wrap gap-2">
             {cells.map((cell, c) => (
               <Button
                 key={c}
-                aria-label={`Takt ${b + 1}, Schlag ${c + 1}: ${cellLabel(cell, c + 1)}`}
+                aria-label={t('cue.cellAria', { bar: b + 1, beat: c + 1, value: cellLabel(cell, c + 1) })}
                 onClick={() => setEditing({ bar: b, cell: c })}
                 className="min-w-16 flex-1 basis-0 truncate"
               >
@@ -121,7 +144,7 @@ export function CuePatternEditor({ label, pattern, presets, onChange }: { label:
               </Button>
             ))}
             {cells.length < MAX_CELLS && (
-              <Button variant="quiet" className="shrink-0" aria-label={`Takt ${b + 1}: Schlag dazu`} onClick={() => setCell(b, cells.length, '')}>
+              <Button variant="quiet" className="shrink-0" aria-label={t('cue.addBeat', { bar: b + 1 })} onClick={() => setCell(b, cells.length, '')}>
                 +
               </Button>
             )}
@@ -129,10 +152,10 @@ export function CuePatternEditor({ label, pattern, presets, onChange }: { label:
         </div>
       ))}
       {bars.length === 1 ? (
-        <AddRow label="Takt davor hinzufügen" onClick={() => onChange([['', '', '', ''], ...pattern])} />
+        <AddRow label={t('cue.addBar')} onClick={() => onChange([['', '', '', ''], ...pattern])} />
       ) : (
         <Button variant="quiet" className="self-start" onClick={() => onChange(pattern.slice(1))}>
-          Vorderen Takt entfernen
+          {t('cue.removeBar')}
         </Button>
       )}
       {editing && (
@@ -151,23 +174,24 @@ export function CuePatternEditor({ label, pattern, presets, onChange }: { label:
 }
 
 function CellDialog({ beat, value, onPick, onClose }: { beat: number; value: string; onPick: (value: string) => void; onClose: () => void }) {
+  const { t } = useTranslation('addons')
   const own = value.trim() !== '' && value !== CUE_NAME && value !== CUE_BEAT
   const [text, setText] = useState(own ? value : '')
   return (
-    <Dialog title={`Schlag ${beat}`} onClose={onClose} size="s">
+    <Dialog title={t('cue.beat', { beat })} onClose={onClose} size="s">
       <div className="flex flex-col gap-3">
         <Button variant={value.trim() === '' ? 'primary' : 'secondary'} onClick={() => onPick('')}>
-          Nichts
+          {t('cue.none')}
         </Button>
         <Button variant={value === CUE_NAME ? 'primary' : 'secondary'} onClick={() => onPick(CUE_NAME)}>
-          Name des Teils
+          {t('cue.partName')}
         </Button>
         <Button variant={value === CUE_BEAT ? 'primary' : 'secondary'} onClick={() => onPick(CUE_BEAT)}>
-          Zahl des Schlags („{beat}“)
+          {t('cue.beatNumber', { beat })}
         </Button>
-        <Field label="Eigenes Wort" value={text} maxLength={30} placeholder="z. B. Los" onChange={(e) => setText(e.target.value)} />
+        <Field label={t('cue.ownWord')} value={text} maxLength={30} placeholder={t('cue.ownPlaceholder')} onChange={(e) => setText(e.target.value)} />
         <Button variant={own ? 'primary' : 'secondary'} disabled={text.trim() === ''} onClick={() => onPick(text.trim())}>
-          Wort übernehmen
+          {t('cue.takeWord')}
         </Button>
       </div>
     </Dialog>

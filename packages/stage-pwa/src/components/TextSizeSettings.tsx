@@ -1,5 +1,6 @@
 import { MAX_CONTENT_FONT_SIZE, MIN_CONTENT_FONT_SIZE, useContentFontSizeStore } from '../store/useContentFontSizeStore'
 import { Stepper } from './ui'
+import { useTranslation } from 'react-i18next'
 
 /**
  * The device-wide default text size for list/scrolling-content widgets (Prompter,
@@ -10,12 +11,13 @@ import { Stepper } from './ui'
  * scrolling the page brushed over it.
  */
 export function TextSizeSettings() {
+  const { t } = useTranslation('system')
   const baseFontSize = useContentFontSizeStore((state) => state.baseFontSize)
   const setBaseFontSize = useContentFontSizeStore((state) => state.setBaseFontSize)
 
   return (
     <div className="flex flex-col gap-2 text-ink-soft">
-      <Stepper label="Standard-Textgröße" value={baseFontSize} unit="px" min={MIN_CONTENT_FONT_SIZE} max={MAX_CONTENT_FONT_SIZE} onChange={setBaseFontSize} />
+      <Stepper label={t('textSize.default')} value={baseFontSize} unit="px" min={MIN_CONTENT_FONT_SIZE} max={MAX_CONTENT_FONT_SIZE} onChange={setBaseFontSize} />
       <p style={{ fontSize: baseFontSize, lineHeight: 1.3 }} className="overflow-x-auto whitespace-nowrap rounded-control bg-control px-2 py-1 font-sb-mono text-ink">
         1. Highway to Hell
       </p>

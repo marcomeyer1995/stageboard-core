@@ -7,16 +7,11 @@ import {
   SAFE_QUOTA_FRACTION,
   type StorageEstimate,
 } from '../lib/audioStorageManager'
-import { useAudioSyncStore, type AudioSyncMode } from '../store/useAudioSyncStore'
+import { useAudioSyncStore } from '../store/useAudioSyncStore'
 import { useSongVariantsStore } from '../store/useSongVariantsStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { Segmented } from './ui'
-
-const MODE_LABEL: Record<AudioSyncMode, string> = {
-  none: 'Keine',
-  selective: 'Selektiv',
-  full: 'Komplett',
-}
+import { useTranslation } from 'react-i18next'
 
 function formatMb(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(0)} MB`
@@ -30,6 +25,7 @@ function formatMb(bytes: number): string {
  * from here; this component only reads and writes the chosen mode.
  */
 export function AudioSyncSettings() {
+  const { t } = useTranslation('system')
   const workspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
   const mode = useAudioSyncStore((state) => state.modeFor(workspaceId))
   const setMode = useAudioSyncStore((state) => state.setMode)
@@ -52,24 +48,24 @@ export function AudioSyncSettings() {
     <div className="flex flex-col gap-2">
       <p className="text-sm text-ink-soft">
         {estimate
-          ? `${formatMb(estimate.usageBytes)} von ${formatMb(estimate.quotaBytes)} genutzt`
-          : 'Speicherbelegung unbekannt'}
+          ? t('sync.usage', { used: formatMb(estimate.usageBytes), quota: formatMb(estimate.quotaBytes) })
+          : t('sync.usageUnknown')}
         {' · '}
-        Katalog: {formatMb(catalogSizeBytes)} · Stems: {formatMb(stemCatalogSizeBytes)}
+        {t('sync.catalog', { catalog: formatMb(catalogSizeBytes), stems: formatMb(stemCatalogSizeBytes) })}
       </p>
 
       <div className="flex gap-2">
         <Segmented
-          label="Speicher & Sync"
+          label={t('sync.label')}
           value={mode}
           onChange={(candidate) => setMode(workspaceId, candidate)}
           options={(['none', 'selective', 'full'] as const).map((candidate) => {
             const disabled = candidate === 'full' && !fullIsSafe
             return {
               value: candidate,
-              label: MODE_LABEL[candidate],
+              label: t(`sync.${candidate}`),
               disabled,
-              title: disabled ? `Katalog zu groß für "Komplett" (mehr als ${Math.round(SAFE_QUOTA_FRACTION * 100)}% des verfügbaren Speichers)` : undefined,
+              title: disabled ? t('sync.tooBig', { percent: Math.round(SAFE_QUOTA_FRACTION * 100) }) : undefined,
             }
           })}
         />
@@ -77,14 +73,14 @@ export function AudioSyncSettings() {
 
       {/* Stems on their own (Marco, 2026-10-16): they are big, and not every device needs them. */}
       <Segmented
-        label="Stems"
+        label={t('sync.stems')}
         showLabel
-        info="Keine: nur die Stems, die gerade geübt werden - vom Stage-Server geladen. Selektiv: Stems der aktiven Setlist und angehefteter Songs. Komplett: alle."
+        info={t('sync.stemsInfo')}
         value={stemMode}
         onChange={(candidate) => setStemMode(workspaceId, candidate)}
         options={(['none', 'selective', 'full'] as const).map((candidate) => ({
           value: candidate,
-          label: MODE_LABEL[candidate],
+          label: t(`sync.${candidate}`),
           disabled: candidate === 'full' && !stemsFullIsSafe,
         }))}
       />
