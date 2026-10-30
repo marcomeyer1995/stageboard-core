@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { MeasureInputSchema, MeasureInputsSchema } from './timing.js'
 
 /**
  * Backup targets of a Stage-Server (#363, Marco 2026-10-08): the admin chooses where the server's
@@ -73,5 +74,8 @@ export const BackupAdminRequestSchema = z.object({
   adminUsername: z.string().min(1),
   adminPassword: z.string().min(1),
 })
+/** Measuring inputs (#662), also for an admin of the band this server serves. */
+export const MeasureInputsSaveRequestSchema = BackupAdminRequestSchema.extend({ selected: MeasureInputsSchema })
+export const MeasureLevelRequestSchema = BackupAdminRequestSchema.extend({ input: MeasureInputSchema, durationMs: z.number().int().min(300).max(5000).optional() })
 export const BackupSaveRequestSchema = BackupAdminRequestSchema.extend({ target: BackupTargetSchema })
 export const BackupTargetRequestSchema = BackupAdminRequestSchema.extend({ targetId: z.string().min(1) })
