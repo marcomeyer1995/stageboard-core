@@ -116,12 +116,10 @@ function VariantPicker({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        title={t('variant.choose')}
-        // The whole name, wrapping onto more lines - it used to be cut to "Auto: music-tem…",
-        // which left two detected variants of one song indistinguishable (GUI audit 2026-09-26).
-        // Under the song title, at its own width (#414): a fixed 144 px in the row left a phone's
-        // title 0 px wide.
-        className={`min-h-form max-w-full self-start whitespace-normal break-words rounded-control px-3 py-1 text-left text-base leading-tight ${
+        title={`${t('variant.choose')}: ${selectedLabel}`}
+        // In the song's line (2026-10-30), cut off when long - the full name in the tooltip and in
+        // the dialog. Never more than 40 % of the line, so the title keeps its room on a phone.
+        className={`h-form min-w-0 max-w-[40%] flex-shrink truncate whitespace-nowrap rounded-control px-2 text-left text-base ${
           issue
             ? 'border border-danger bg-danger/15 text-danger'
             : 'bg-control-strong text-ink [@media(hover:hover)]:hover:bg-control-strong-hover'
@@ -206,7 +204,8 @@ function TransitionPicker({
       >
         <span className="flex items-center gap-1">
           <Icon name="forward" />
-          {type === 'manual' ? null : current.label}
+          {/* The phone shows only the arrow (filled when not manual) - the line stays for the title. */}
+          {type === 'manual' ? null : <span className="max-[599px]:hidden">{current.label}</span>}
         </span>
       </button>
       {open && (
@@ -286,25 +285,24 @@ function EntryRow({
     <li
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
-      className={`flex items-center gap-2 rounded-control bg-control px-3 py-3 text-base ${
-        isDragging ? 'opacity-50' : ''
-      }`}
+      // One line per song (Marco, 2026-10-30: on the phone a row was so tall only one fit).
+      className={`flex items-center gap-1 rounded-control bg-control py-1 pl-1 pr-1 text-base ${isDragging ? 'opacity-50' : ''}`}
     >
       <button
         type="button"
         {...listeners}
         {...attributes}
         style={{ touchAction: 'none' }}
-        className="flex h-form w-form flex-shrink-0 cursor-grab items-center justify-center text-ink-faint active:cursor-grabbing"
+        className="flex h-form w-8 flex-shrink-0 cursor-grab items-center justify-center text-ink-faint active:cursor-grabbing"
         aria-label={t('drag')}
       >
         ⠿
       </button>
-      <div className="flex min-w-0 flex-1 flex-col gap-1">
+      <div className="flex min-w-0 flex-1 items-center gap-2">
         <button
           type="button"
           onClick={() => onSelectSong(entry.songId, entry.variantId)}
-          className="min-h-form min-w-0 truncate text-left [@media(hover:hover)]:hover:underline"
+          className="min-h-form min-w-0 flex-1 truncate text-left [@media(hover:hover)]:hover:underline"
         >
           {songNumber}. {title}
         </button>
@@ -424,7 +422,7 @@ function TransitionItemRow({ entry, index, onEdit, onSetTransition, onRemove }: 
     <li
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
-      className={`flex items-center gap-2 px-3 py-3 text-base ${
+      className={`flex items-center gap-1 py-1 pl-1 pr-1 text-base ${
         heading ? 'mt-2 border-b-2 border-accent' : 'rounded-control border border-dashed border-line bg-control'
       } ${isDragging ? 'opacity-50' : ''}`}
     >
@@ -433,7 +431,7 @@ function TransitionItemRow({ entry, index, onEdit, onSetTransition, onRemove }: 
         {...listeners}
         {...attributes}
         style={{ touchAction: 'none' }}
-        className="flex h-form w-form flex-shrink-0 cursor-grab items-center justify-center text-ink-faint active:cursor-grabbing"
+        className="flex h-form w-8 flex-shrink-0 cursor-grab items-center justify-center text-ink-faint active:cursor-grabbing"
         aria-label={t('drag')}
       >
         ⠿
@@ -796,7 +794,7 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted, onBack }: Se
       <ScheduleSettings setlist={setlist} onSave={update} />
       <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
         <SortableContext items={setlist.entries.map((e) => e.id)} strategy={verticalListSortingStrategy}>
-          <ul className="flex flex-1 flex-col gap-1 overflow-y-auto">
+          <ul className="flex flex-col gap-1">
             {setlist.entries.map((entry, index) =>
               isTransitionEntry(entry) ? (
                 <TransitionItemRow
