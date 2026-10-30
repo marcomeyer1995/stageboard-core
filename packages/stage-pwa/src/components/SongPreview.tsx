@@ -119,7 +119,6 @@ export function SongPreview({ songId, variantId, onEdit, onBack }: SongPreviewPr
       {/* At-a-glance overview of what this song actually has attached, present or not (Marco,
           explicit request) - shown even at zero, muted, rather than only appearing once
           something exists, since "nothing here yet" is itself part of the overview. */}
-      {/* Content and facts in one wrapping row (Marco, 2026-10-29: save space). */}
       <div className="flex flex-wrap gap-2 text-sm">
         {contentBadges.map(({ label, count }) => (
           <span
