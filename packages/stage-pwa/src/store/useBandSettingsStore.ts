@@ -2,6 +2,7 @@ import { coalesced } from '../lib/coalesced'
 import { create } from 'zustand'
 import type { BandSettings } from 'shared-types'
 import type { LocalChangesHandle } from '../lib/localChanges'
+import { setShowLogOff } from '../lib/showLogPolicy'
 import { bandSettingsChanges, getAllBandSettings, putBandSettings, switchBandSettingsWorkspace } from '../lib/bandSettingsDb'
 
 interface BandSettingsState {
@@ -15,7 +16,9 @@ let changesHandle: LocalChangesHandle<BandSettings> | null = null
 
 async function refresh(set: (partial: Partial<BandSettingsState>) => void) {
   const docs = await getAllBandSettings()
-  set({ settings: docs.find((doc) => doc.id === 'band') ?? EMPTY })
+  const settings = docs.find((doc) => doc.id === 'band') ?? EMPTY
+  setShowLogOff(settings.showLogOff)
+  set({ settings })
 }
 
 /** Settings that apply to the whole band (e.g. what "Geprobt" counts). */
@@ -26,6 +29,7 @@ export const useBandSettingsStore = create<BandSettingsState>((set) => ({
     changesHandle = null
     switchBandSettingsWorkspace(workspaceId)
     set({ settings: EMPTY })
+    setShowLogOff(undefined)
     await refresh(set)
     changesHandle = bandSettingsChanges()
     changesHandle.on('change', coalesced(() => refresh(set)))

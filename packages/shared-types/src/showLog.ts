@@ -162,5 +162,126 @@ export const ShowLogEventSchema = z.discriminatedUnion('type', [
     text: z.string().min(1),
     authorProfileId: z.string().nullable(),
   }),
+  // --- #673: everything that happened, for a Nachbericht of what happened when and how. Written
+  // by the master (every one of these is a master action), except `flash` (by its sender). ---
+  /** A transport action on the current song: Play, Pause, Stop, Reset, or the track ran out. */
+  z.object({
+    id: z.string().min(1),
+    showId: z.string().min(1),
+    type: z.literal('playback'),
+    at: z.number().int().nonnegative(),
+    action: z.enum(['play', 'pause', 'stop', 'reset', 'track-end']),
+    songId: z.string().nullable(),
+    songTitle: z.string(),
+    /** Where in the song it happened (song time, ms). */
+    positionMs: z.number().int(),
+  }),
+  /** A section jump queued or called off, or a section repeated / released (#479). */
+  z.object({
+    id: z.string().min(1),
+    showId: z.string().min(1),
+    type: z.literal('section'),
+    at: z.number().int().nonnegative(),
+    action: z.enum(['jump', 'jump-cancelled', 'repeat', 'repeat-end']),
+    songId: z.string().nullable(),
+    songTitle: z.string(),
+    /** The section it leaves / repeats, and where it goes (labels as in the song). */
+    fromLabel: z.string().optional(),
+    toLabel: z.string().optional(),
+    /** Song time where the jump happens and where it lands. */
+    fromMs: z.number().int().optional(),
+    toMs: z.number().int().optional(),
+  }),
+  /** Another device took the Master-Token. */
+  z.object({
+    id: z.string().min(1),
+    showId: z.string().min(1),
+    type: z.literal('master'),
+    at: z.number().int().nonnegative(),
+    deviceName: z.string(),
+    profileName: z.string().nullable(),
+    forced: z.boolean(),
+  }),
+  /** A Ready Check started, or ended with who was ready and who was missing (#60). */
+  z.object({
+    id: z.string().min(1),
+    showId: z.string().min(1),
+    type: z.literal('ready-check'),
+    at: z.number().int().nonnegative(),
+    action: z.enum(['started', 'ended']),
+    ready: z.array(z.string()).optional(),
+    missing: z.array(z.string()).optional(),
+  }),
+  /** Something about how the song sounds changed live: tempo correction, track or variant, click. */
+  z.object({
+    id: z.string().min(1),
+    showId: z.string().min(1),
+    type: z.literal('sound'),
+    at: z.number().int().nonnegative(),
+    what: z.enum(['tempo', 'track', 'variant', 'click', 'click-extend']),
+    songId: z.string().nullable(),
+    songTitle: z.string(),
+    /** The new value, as the user saw it: "+3 %", the track's or variant's name, "aus", "+2 Takte". */
+    value: z.string(),
+  }),
+  /** A flash message sent to the band or some of it. */
+  z.object({
+    id: z.string().min(1),
+    showId: z.string().min(1),
+    type: z.literal('flash'),
+    at: z.number().int().nonnegative(),
+    text: z.string().min(1),
+    from: z.string().nullable(),
+    /** Names it went to; empty = everyone. */
+    to: z.array(z.string()),
+  }),
+  /** An announcement / pause / section heading between songs, with how long it really took. */
+  z.object({
+    id: z.string().min(1),
+    showId: z.string().min(1),
+    type: z.literal('item-played'),
+    at: z.number().int().nonnegative(),
+    endedAt: z.number().int().nonnegative(),
+    title: z.string(),
+    style: z.enum(['announcement', 'heading']),
+    activeMs: z.number().int().nonnegative(),
+    plannedMs: z.number().int().nonnegative().optional(),
+  }),
 ])
 export type ShowLogEvent = z.infer<typeof ShowLogEventSchema>
+
+/**
+ * What a band records for its Nachbericht (#673): one switch per category, all on unless an admin
+ * switched one off. Song plays also feed "Geprobt" in the Bibliothek.
+ */
+export const SHOW_LOG_CATEGORIES = ['songs', 'playback', 'sections', 'cues', 'devices', 'master', 'sound', 'messages', 'between'] as const
+export type ShowLogCategory = (typeof SHOW_LOG_CATEGORIES)[number]
+
+/** The category an event belongs to - for the setting and the Nachbericht's filter. Show start and
+ * Rig-Check results always count (they hold the show together). */
+export function showLogCategory(event: Pick<ShowLogEvent, 'type'>): ShowLogCategory | null {
+  switch (event.type) {
+    case 'song-played':
+      return 'songs'
+    case 'playback':
+      return 'playback'
+    case 'section':
+      return 'sections'
+    case 'cue-fired':
+      return 'cues'
+    case 'capability-changed':
+      return 'devices'
+    case 'master':
+    case 'ready-check':
+      return 'master'
+    case 'sound':
+      return 'sound'
+    case 'flash':
+    case 'note':
+      return 'messages'
+    case 'item-played':
+      return 'between'
+    default:
+      return null
+  }
+}

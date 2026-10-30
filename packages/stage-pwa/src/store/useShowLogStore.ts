@@ -3,6 +3,7 @@ import type { LocalChangesHandle } from '../lib/localChanges'
 import { create } from 'zustand'
 import { randomId } from '../lib/id'
 import { ShowLogEventSchema, type ShowLogEvent } from 'shared-types'
+import { isShowLogTypeRecorded } from '../lib/showLogPolicy'
 import {
   deleteShowEvents,
   getAllShowLogEvents,
@@ -133,7 +134,7 @@ export const useShowLogStore = create<ShowLogState>((set, get) => ({
   },
   addNote: async (text, authorProfileId) => {
     const showId = latestShowId(get().events)
-    if (!showId) return
+    if (!showId || !isShowLogTypeRecorded('note')) return
     await putShowLogEvent({
       id: randomId(),
       showId,
@@ -144,6 +145,9 @@ export const useShowLogStore = create<ShowLogState>((set, get) => ({
     })
   },
   append: async (event) => {
+    // The one door every writer goes through, so a category the band switched off (#673) is never
+    // recorded, whoever writes it.
+    if (!isShowLogTypeRecorded(event.type)) return
     await putShowLogEvent(event)
   },
 }))

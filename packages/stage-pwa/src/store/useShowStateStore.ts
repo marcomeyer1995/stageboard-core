@@ -139,10 +139,16 @@ export const useShowStateStore = create<ShowStateStore>((set, get) => ({
   },
   startReadyCheck: async () => {
     if (!get().isMaster) return
-    await putShowState({ readyCheckId: randomId() })
+    const checkId = randomId()
+    await putShowState({ readyCheckId: checkId })
+    // Into the Nachbericht (#673) - loaded lazily: the show log module reads this store.
+    void import('../lib/readyCheckLog').then((log) => log.recordReadyCheck('started', checkId))
   },
   endReadyCheck: async () => {
     if (!get().isMaster) return
+    const checkId = get().state.readyCheckId
+    // Who answered is read before the check closes.
+    if (checkId) void import('../lib/readyCheckLog').then((log) => log.recordReadyCheck('ended', checkId))
     await putShowState({ readyCheckId: null })
   },
   setActiveSetlist: async (setlistId) => {
