@@ -212,16 +212,17 @@ export const ShowLogEventSchema = z.discriminatedUnion('type', [
     ready: z.array(z.string()).optional(),
     missing: z.array(z.string()).optional(),
   }),
-  /** Something about how the song sounds changed live: tempo correction, track or variant, click. */
+  /** Something about how the song sounds changed live: tempo correction, track, click. */
   z.object({
     id: z.string().min(1),
     showId: z.string().min(1),
     type: z.literal('sound'),
     at: z.number().int().nonnegative(),
-    what: z.enum(['tempo', 'track', 'variant', 'click', 'click-extend']),
+    what: z.enum(['tempo', 'track', 'click', 'click-extend']),
     songId: z.string().nullable(),
     songTitle: z.string(),
-    /** The new value, as the user saw it: "+3 %", the track's or variant's name, "aus", "+2 Takte". */
+    /** The new value: the percent ("3"), the track's name ('' = the setlist's), 'on' / 'off' ('' =
+     * the song's own), the bars added. */
     value: z.string(),
   }),
   /** A flash message sent to the band or some of it. */

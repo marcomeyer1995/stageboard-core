@@ -1,7 +1,7 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import i18n from '../i18n'
-import type { ShowLogEvent, SongVariant } from 'shared-types'
+import { SHOW_LOG_CATEGORIES, showLogCategory, type ShowLogCategory, type ShowLogEvent, type SongVariant } from 'shared-types'
 import { pauseBefore } from '../lib/showPauses'
 import { capabilitiesLabel } from '../lib/pluginCatalog'
 import { useActiveProfile } from '../lib/useActiveProfile'
@@ -11,9 +11,9 @@ import { useProfilesStore } from '../store/useProfilesStore'
 import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
 import { describeCue } from '../lib/deviceCommands'
 import { useSongVariantsStore } from '../store/useSongVariantsStore'
-import { Icon } from './Icon'
+import { Icon, type IconName } from './Icon'
 import { CueDialog, type CueContent } from './timeline/CueDialog'
-import { ActionMenu, Button, InfoHint, PageHeader, type MenuAction } from './ui'
+import { ActionMenu, Button, ChipGroup, InfoHint, PageHeader, ToggleChip, type MenuAction } from './ui'
 import { CONTROL, FOCUS, HOVER, SELECTED } from './ui/styles'
 import { RigCheckReport } from './RigCheckReport'
 import { rigCheckLabel, rigCheckVerdicts } from '../lib/rigCheck'
@@ -65,8 +65,6 @@ function fmtDiff(ms: number): string {
   return `${ms < 0 ? '-' : '+'}${fmtDuration(Math.abs(ms))}`
 }
 
-type CapabilityChanged = Extract<ShowLogEvent, { type: 'capability-changed' }>
-type Note = Extract<ShowLogEvent, { type: 'note' }>
 type CueFired = Extract<ShowLogEvent, { type: 'cue-fired' }>
 
 /** The variant a logged cue belongs to: the one it names, else (older events) the song's variant
@@ -91,7 +89,7 @@ const FoldArrow = () => <Icon name="next" className="transition-transform group-
  * (typed or − / +), saved straight into the variant's cue list - after a show, "the patch change
  * came a bit late" is fixed where it was noticed.
  */
-function CueRow({ event, className, prefix, suffix = '' }: { event: CueFired; className: string; prefix: ReactNode; suffix?: string }) {
+function CueRow({ event, className, prefix, suffix = '', clockColumn = false }: { event: CueFired; className: string; prefix: ReactNode; suffix?: string; clockColumn?: boolean }) {
   const variants = useSongVariantsStore((state) => state.variants)
   const saveVariant = useSongVariantsStore((state) => state.saveVariant)
   const devices = useLogicalDevicesStore((state) => state.devices)
@@ -112,9 +110,12 @@ function CueRow({ event, className, prefix, suffix = '' }: { event: CueFired; cl
 
   return (
     <div className={`flex items-center gap-2 ${className}`}>
+      {/* In the timeline the time stands in its own column, like every other line. */}
+      {clockColumn && <span className="w-20 flex-shrink-0 tabular-nums text-sm text-ink-faint">{fmtClock(event.at)}</span>}
       <span className="min-w-0 flex-1">
         {prefix}
-        {fmtClock(event.at)} · {event.songTitle} · {what} → {event.target}
+        {!clockColumn && `${fmtClock(event.at)} · `}
+        {event.songTitle} · {what} → {event.target}
         {suffix}
       </span>
       <ActionMenu
@@ -147,10 +148,7 @@ function CueRow({ event, className, prefix, suffix = '' }: { event: CueFired; cl
 function ShowSections({ show, authorName, children, onBack }: { show: ShowGroup; authorName: (id: string | null) => string; children?: ReactNode; onBack?: () => void }) {
   const byTime = [...show.events].sort((a, b) => a.at - b.at)
   const songs = byTime.filter((event): event is SongPlayed => event.type === 'song-played')
-  const notes = byTime.filter((event): event is Note => event.type === 'note')
-  const technical = byTime.filter((event): event is CapabilityChanged => event.type === 'capability-changed')
-  const cues = byTime.filter((event): event is CueFired => event.type === 'cue-fired')
-  const failedCues = cues.filter((event) => !event.ok)
+  const failedCues = byTime.filter((event): event is CueFired => event.type === 'cue-fired' && !event.ok)
   const playedMs = songs.reduce((sum, song) => sum + song.activeMs, 0)
   const longPauses = songs.slice(1).filter((song, i) => pauseBefore(songs[i], song).tooLong).length
   const { t } = useTranslation('shows')
@@ -201,18 +199,7 @@ function ShowSections({ show, authorName, children, onBack }: { show: ShowGroup;
         })}
         {songs.length === 0 && <p className="text-sm text-ink-faint">{t('noSong')}</p>}
       </div>
-      {notes.length > 0 && (
-        <div className="mt-4 space-y-1">
-          <h3 className="text-xs font-bold uppercase tracking-widest text-ink-faint">{t('notesHeading', { count: notes.length })}</h3>
-          {notes.map((event) => (
-            <p key={event.id} className="text-ink-soft">
-              <Icon name="note" className="mr-1" />
-              {event.text} — {authorName(event.authorProfileId)} ({fmtTime(event.at)})
-            </p>
-          ))}
-        </div>
-      )}
-      {/* Cues (#8, Marco 2026-10-08): the ones that failed stay in sight, all of them fold away. */}
+      {/* What went wrong stays in sight above the timeline (#8). */}
       {failedCues.length > 0 && (
         <div className="mt-4 space-y-1">
           <h3 className="text-xs font-bold uppercase tracking-widest text-danger">{t('cuesFailedHeading', { count: failedCues.length })}</h3>
@@ -221,36 +208,149 @@ function ShowSections({ show, authorName, children, onBack }: { show: ShowGroup;
           ))}
         </div>
       )}
-      {cues.length > 0 && (
-        <details className="group mt-4">
-          <summary className={`${FOLD} text-ink-soft`}>
-            <FoldArrow />
-            {failedCues.length > 0 ? t('cuesHeadingFailed', { count: cues.length, failed: failedCues.length }) : t('cuesHeading', { count: cues.length })}
-          </summary>
-          <div className="space-y-1 text-sm text-ink-soft">
-            {cues.map((event) => (
-              <CueRow key={event.id} event={event} className={event.ok ? '' : 'text-danger'} prefix={event.ok ? '✓ ' : '✗ '} />
-            ))}
-          </div>
-        </details>
-      )}
-      {technical.length > 0 && (
-        <details className="group mt-4">
-          <summary className={`${FOLD} text-warn`}>
-            <FoldArrow />
-            {t('technical', { count: technical.length })}
-          </summary>
-          <div className="space-y-1 text-sm text-warn">
-            {technical.map((event) => (
-              <div key={event.id}>
-                <Icon name="warning" className="mr-1" />
-                {capabilitiesLabel([event.capability])}: {event.from} → {event.to} ({fmtTime(event.at)})
-              </div>
-            ))}
-          </div>
-        </details>
-      )}
+      <ShowTimeline show={show} authorName={authorName} />
     </>
+  )
+}
+
+/** One line of the timeline: when, what, and where in the song. */
+interface TimelineRow {
+  key: string
+  at: number
+  category: ShowLogCategory | null
+  icon: IconName
+  text: string
+  /** Song time, where the event knows it. */
+  songMs?: number
+  tone?: 'warn' | 'danger' | 'faint'
+  cue?: CueFired
+}
+
+/** The rows one event makes - a song two: its start and its end. Rig-Check results have their own
+ * report (#464), the show's start is the first line. */
+function timelineRows(event: ShowLogEvent, authorName: (id: string | null) => string): TimelineRow[] {
+  // Keys built from the event's kind - checked by the tests that render every kind.
+  const t = (key: string, options?: Record<string, unknown>) => (i18n.t as (key: string, options?: Record<string, unknown>) => string)(`shows:${key}`, options)
+  const row = (icon: IconName, text: string, extra: Partial<TimelineRow> = {}): TimelineRow[] => [{ key: event.id, at: event.at, category: showLogCategory(event), icon, text, ...extra }]
+  switch (event.type) {
+    case 'show-started':
+      return row('play', t('tl.showStarted'))
+    case 'song-played':
+      return [
+        { key: `${event.id}-start`, at: event.at, category: 'songs', icon: 'setlist', text: t('tl.songStart', { song: event.songTitle }) },
+        {
+          key: `${event.id}-end`,
+          at: event.endedAt,
+          category: 'songs',
+          icon: 'setlist',
+          text: `${t('tl.songEnd', { song: event.songTitle, duration: fmtDuration(event.activeMs) })}${event.plannedMs !== undefined ? ` (${fmtDiff(event.activeMs - event.plannedMs)})` : ''}`,
+        },
+      ]
+    case 'playback': {
+      const key = { play: 'tl.play', pause: 'tl.pause', stop: 'tl.stop', reset: 'tl.reset', 'track-end': 'tl.trackEnd' }[event.action]
+      const icon: IconName = { play: 'play', pause: 'pause', stop: 'stop', reset: 'reset', 'track-end': 'stop' }[event.action] as IconName
+      return row(icon, t(key, { song: event.songTitle }), { songMs: event.positionMs })
+    }
+    case 'section': {
+      const unknown = t('tl.unknownSection')
+      if (event.action === 'jump') return row('forward', t('tl.jump', { from: event.fromLabel ?? unknown, to: event.toLabel ?? unknown }), { songMs: event.fromMs })
+      if (event.action === 'jump-cancelled') return row('undo', t('tl.jumpCancelled', { to: event.toLabel ?? unknown }), { tone: 'faint' })
+      if (event.action === 'repeat') return row('repeat', t('tl.repeat', { section: event.fromLabel ?? unknown }), { songMs: event.fromMs })
+      return row('repeat', t('tl.repeatEnd', { section: event.fromLabel ?? unknown }))
+    }
+    case 'cue-fired':
+      return row(event.ok ? 'check' : 'warning', '', { cue: event, tone: event.ok ? undefined : 'danger' })
+    case 'capability-changed':
+      return row('warning', t('tl.capability', { capability: capabilitiesLabel([event.capability]), from: event.from, to: event.to }), { tone: 'warn' })
+    case 'master': {
+      const who = event.profileName ? `${event.deviceName} (${event.profileName})` : event.deviceName
+      return row('master', t(event.forced ? 'tl.masterForced' : 'tl.master', { who }), event.forced ? { tone: 'warn' } : {})
+    }
+    case 'ready-check': {
+      if (event.action === 'started') return row('check', t('tl.readyStarted'))
+      const missing = event.missing ?? []
+      const text = t('tl.readyEnded', { count: (event.ready ?? []).length }) + (missing.length ? ` · ${t('tl.readyMissing', { names: missing.join(', ') })}` : '')
+      return row('check', text, missing.length ? { tone: 'warn' } : {})
+    }
+    case 'sound': {
+      const song = event.songTitle
+      if (event.what === 'tempo') return row('tapSync', t('tl.tempo', { value: Number(event.value) > 0 ? `+${event.value}` : event.value, song }))
+      if (event.what === 'track') return row('replace', event.value ? t('tl.track', { value: event.value, song }) : t('tl.trackDefault', { song }))
+      if (event.what === 'click-extend') return row('timeline', t('tl.clickExtend', { value: event.value, song }))
+      return row('timeline', t(event.value === 'on' ? 'tl.clickOn' : event.value === 'off' ? 'tl.clickOff' : 'tl.clickDefault', { song }))
+    }
+    case 'flash': {
+      const to = event.to.length ? event.to.join(', ') : t('tl.everyone')
+      return row('comment', event.from ? t('tl.flashFrom', { from: event.from, to, text: event.text }) : t('tl.flash', { to, text: event.text }))
+    }
+    case 'note':
+      return row('note', t('tl.note', { author: authorName(event.authorProfileId), text: event.text }))
+    case 'item-played': {
+      const duration = fmtDuration(event.activeMs)
+      return [
+        {
+          key: event.id,
+          at: event.at,
+          category: 'between',
+          icon: event.style === 'heading' ? 'heading' : 'comment',
+          text: event.plannedMs !== undefined ? t('tl.itemPlanned', { title: event.title, duration, planned: fmtDuration(event.plannedMs) }) : t('tl.item', { title: event.title, duration }),
+        },
+      ]
+    }
+    default:
+      return []
+  }
+}
+
+const TONE: Record<NonNullable<TimelineRow['tone']>, string> = { warn: 'text-warn', danger: 'text-danger', faint: 'text-ink-faint' }
+
+/**
+ * Everything that happened in the show, in order (#673, Marco 2026-10-30: "what happened, when and
+ * how" - not only what ran off plan): time of day, what, and where in the song. Chips filter by
+ * category; only categories this show has events of are offered.
+ */
+function ShowTimeline({ show, authorName }: { show: ShowGroup; authorName: (id: string | null) => string }) {
+  const { t } = useTranslation('shows')
+  const [hidden, setHidden] = useState<ReadonlySet<ShowLogCategory>>(new Set())
+  const rows = useMemo(() => show.events.flatMap((event) => timelineRows(event, authorName)).sort((a, b) => a.at - b.at), [show.events, authorName])
+  const present = SHOW_LOG_CATEGORIES.filter((category) => rows.some((row) => row.category === category))
+  const shown = rows.filter((row) => row.category === null || !hidden.has(row.category))
+  const toggle = (category: ShowLogCategory, on: boolean) =>
+    setHidden((current) => {
+      const next = new Set(current)
+      if (on) next.delete(category)
+      else next.add(category)
+      return next
+    })
+
+  return (
+    <section aria-label={t('tl.title', { count: shown.length })} className="mt-4 space-y-2">
+      <h3 className="text-xs font-bold uppercase tracking-widest text-ink-faint">{t('tl.title', { count: shown.length })}</h3>
+      {present.length > 1 && (
+        <ChipGroup label={t('tl.filter')} hint={null}>
+          {present.map((category) => (
+            <ToggleChip key={category} label={t(`cat.${category}`)} selected={!hidden.has(category)} onToggle={(on) => toggle(category, on)} />
+          ))}
+        </ChipGroup>
+      )}
+      <ol className="space-y-1 text-base">
+        {shown.map((row) =>
+          row.cue ? (
+            <li key={row.key}>
+              <CueRow clockColumn event={row.cue} className={row.cue.ok ? 'text-ink' : 'text-danger'} prefix={<Icon name={row.icon} className="mr-1" />} suffix={row.cue.message ? ` - ${row.cue.message}` : ''} />
+            </li>
+          ) : (
+            <li key={row.key} className={`flex items-baseline gap-2 ${row.tone ? TONE[row.tone] : 'text-ink'}`}>
+              <span className="w-20 flex-shrink-0 tabular-nums text-sm text-ink-faint">{fmtClock(row.at)}</span>
+              <Icon name={row.icon} className="flex-shrink-0 self-center" />
+              <span className="min-w-0 flex-1 break-words">{row.text}</span>
+              {row.songMs !== undefined && <span className="flex-shrink-0 tabular-nums text-sm text-ink-faint">{t('tl.at', { time: fmtDuration(Math.max(0, row.songMs)) })}</span>}
+            </li>
+          ),
+        )}
+        {shown.length === 0 && <li className="text-sm text-ink-faint">{t('tl.nothing')}</li>}
+      </ol>
+    </section>
   )
 }
 
