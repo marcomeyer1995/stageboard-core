@@ -821,7 +821,6 @@ export function LibraryView() {
           }`}
         >
           {selection?.type === 'setlist' ? (
-<<<<<<< HEAD
             // ← in the setlist's own header row on narrow screens, not a row of its own (Marco, 2026-10-29).
             <SetlistDetail
               key={selection.id}
@@ -830,26 +829,6 @@ export function LibraryView() {
               onDeleted={() => setSelectionNow(null)}
               onBack={isPanel ? undefined : () => setSelection(null)}
             />
-=======
-            <>
-              <button
-                type="button"
-                onClick={() => setSelection(null)}
-                className={`mb-3 flex min-h-form items-center gap-2 self-start rounded-control bg-control-strong px-4 text-base text-ink [@media(hover:hover)]:hover:bg-control-strong-hover ${
-                  isPanel ? 'hidden' : ''
-                }`}
-              >
-                <Icon name="back" />
-                {t('title')}
-              </button>
-              <SetlistDetail
-                key={selection.id}
-                setlistId={selection.id}
-                onSelectSong={selectSong}
-                onDeleted={() => setSelectionNow(null)}
-              />
-            </>
->>>>>>> origin/main
           ) : selection?.type === 'show' ? (
             <>
               <button
@@ -866,19 +845,6 @@ export function LibraryView() {
             </>
           ) : selection?.type === 'song' ? (
             <>
-<<<<<<< HEAD
-=======
-              <button
-                type="button"
-                onClick={() => setSelection(null)}
-                className={`mb-3 flex min-h-form items-center gap-2 self-start rounded-control bg-control-strong px-4 text-base text-ink [@media(hover:hover)]:hover:bg-control-strong-hover ${
-                  isPanel ? 'hidden' : ''
-                }`}
-              >
-                <Icon name="back" />
-                {t('title')}
-              </button>
->>>>>>> origin/main
               <SongPreview
                 onBack={isPanel ? undefined : () => setSelection(null)}
                 songId={selection.songId}
