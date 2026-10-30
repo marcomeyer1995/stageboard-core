@@ -25,7 +25,9 @@
     "inTimeline": "Edit in the timeline",
     "analyzing": "Analysing…",
     "analyze": "Analyse track",
-    "clear": "Delete grid"
+    "clear": "Delete grid",
+    "double": "Tempo ×2 (twice as fast)",
+    "half": "Tempo ÷2 (half as fast)"
   },
   "bpm": "BPM",
   "meter": "Time signature",
@@ -612,7 +614,13 @@
     "onlyStem": "Hear only {{name}}",
     "stems": "Stems ({{count}})",
     "onlySolo": " · only {{name}}",
-    "hitsFrom": " · hits from {{name}}"
+    "hitsFrom": " · hits from {{name}}",
+    "doubled": "Double tempo: every bar becomes two. (Can be undone)",
+    "halved": "Half tempo: two bars become one. (Can be undone)",
+    "doubleTitle": "Double tempo - when the detection heard the song at half its speed",
+    "halfTitle": "Half tempo - when the detection heard the song at twice its speed",
+    "double": "Tempo ×2",
+    "half": "Tempo ÷2"
   },
   "apply": "Apply",
   "pc": {
