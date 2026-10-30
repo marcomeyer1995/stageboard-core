@@ -13,7 +13,7 @@
   "pausesTooLong_one": "{{count}} Pause zu lang",
   "pausesTooLong_other": "{{count}} Pausen zu lang",
   "playedExplainLabel": "Erklärung: geplant und gespielt",
-  "playedExplain": "Neben jedem Song, wie weit er von seiner geplanten Länge abwich. Pause = vom Ende des Songs davor bis dieser spielte, mit Einzählen und Unterbrechungen; markiert, wenn sie 15 s länger war als in der Setlist geplant.",
+  "playedExplain": "Gespielt = die Zeit, die wirklich lief: übersprungene Teile zählen nicht, eine Schleife zählt jedes Mal. Neben jedem Song, wie weit er von seiner geplanten Länge abwich. Pause = vom Ende des Songs davor bis dieser spielte, mit Einzählen und Unterbrechungen; markiert, wenn sie 15 s länger war als in der Setlist geplant.",
   "pause": "Pause {{duration}}",
   "planned": "geplant {{duration}}",
   "noSong": "Kein Song lange genug gespielt.",
