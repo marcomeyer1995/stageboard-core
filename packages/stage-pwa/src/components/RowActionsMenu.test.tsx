@@ -18,7 +18,7 @@ describe('RowActionsMenu', () => {
   it('renders the title, children, and an "Abbrechen" at the bottom (docs/15 D6)', () => {
     render(
       <RowActionsMenu title="Marco" onClose={vi.fn()}>
-        <RowActionButton>Umbenennen</RowActionButton>
+        <RowActionButton icon="edit">Umbenennen</RowActionButton>
       </RowActionsMenu>,
     )
 
@@ -39,7 +39,7 @@ describe('RowActionsMenu', () => {
     const onClose = vi.fn()
     render(
       <RowActionsMenu title="Marco" onClose={onClose}>
-        <RowActionButton>Umbenennen</RowActionButton>
+        <RowActionButton icon="edit">Umbenennen</RowActionButton>
       </RowActionsMenu>,
     )
 
@@ -58,7 +58,7 @@ describe('RowActionsMenu', () => {
 describe('RowActionButton', () => {
   it('renders its children and forwards onClick', () => {
     const onClick = vi.fn()
-    render(<RowActionButton onClick={onClick}>Löschen</RowActionButton>)
+    render(<RowActionButton icon="edit" onClick={onClick}>Löschen</RowActionButton>)
 
     fireEvent.click(screen.getByText('Löschen'))
     expect(onClick).toHaveBeenCalledOnce()
@@ -66,7 +66,7 @@ describe('RowActionButton', () => {
 
   it('forwards disabled and title', () => {
     render(
-      <RowActionButton disabled title="Mindestens ein Admin muss bestehen bleiben.">
+      <RowActionButton icon="edit" disabled title="Mindestens ein Admin muss bestehen bleiben.">
         Löschen
       </RowActionButton>,
     )
@@ -77,7 +77,7 @@ describe('RowActionButton', () => {
   })
 
   it('applies a distinct style for danger actions', () => {
-    render(<RowActionButton danger>Löschen</RowActionButton>)
+    render(<RowActionButton icon="edit" danger>Löschen</RowActionButton>)
     expect(screen.getByText('Löschen').className).toMatch(/text-danger/)
   })
 })

@@ -149,8 +149,8 @@ export function DashboardMenuList({ onSelect, onEdit }: { onSelect: (id: string)
           title={t('isTemplate', { name: templateChoice.name })}
           onClose={() => setTemplateChoice(null)}
           actions={[
-            { label: t('editTemplate'), onClick: () => openForEditing(templateChoice.id) },
-            { label: t('editOwnCopy'), onClick: () => void editOwnCopy(templateChoice) },
+            { icon: 'edit', label: t('editTemplate'), onClick: () => openForEditing(templateChoice.id) },
+            { icon: 'ownCopy', label: t('editOwnCopy'), onClick: () => void editOwnCopy(templateChoice) },
           ]}
         />
       )}

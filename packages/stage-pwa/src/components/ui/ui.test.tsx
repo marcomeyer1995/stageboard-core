@@ -190,7 +190,7 @@ describe('UI system (docs/15)', () => {
 
   it('ActionMenu: opens from a wide ⋯, runs an action and closes; red actions apart, disabled stays disabled', () => {
     const rename = vi.fn()
-    render(<ActionMenu title="Bühne" actions={[{ label: 'Umbenennen', onClick: rename }, { label: 'Löschen', onClick: vi.fn(), danger: true, disabled: true }]} />)
+    render(<ActionMenu title="Bühne" actions={[{ icon: 'rename', label: 'Umbenennen', onClick: rename }, { icon: 'delete', label: 'Löschen', onClick: vi.fn(), danger: true, disabled: true }]} />)
     fireEvent.click(screen.getByRole('button', { name: 'Menü: Bühne' }))
     expect(screen.getByRole('button', { name: 'Löschen' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Abbrechen' })).toBeInTheDocument()

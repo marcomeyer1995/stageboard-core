@@ -13,7 +13,7 @@ import { describeCue } from '../lib/deviceCommands'
 import { useSongVariantsStore } from '../store/useSongVariantsStore'
 import { Icon } from './Icon'
 import { CueDialog, type CueContent } from './timeline/CueDialog'
-import { ActionMenu, Button, InfoHint, PageHeader } from './ui'
+import { ActionMenu, Button, InfoHint, PageHeader, type MenuAction } from './ui'
 import { CONTROL, FOCUS, HOVER, SELECTED } from './ui/styles'
 import { RigCheckReport } from './RigCheckReport'
 import { rigCheckLabel, rigCheckVerdicts } from '../lib/rigCheck'
@@ -121,8 +121,8 @@ function CueRow({ event, className, prefix, suffix = '' }: { event: CueFired; cl
         title={t('cueTitle', { what })}
         actions={[
           event.songId === RIG_CHECK_SONG_ID
-            ? { label: t('cueAdjustRigCheck'), disabled: true, onClick: () => undefined }
-            : { label: cue ? t('cueAdjust') : t('cueAdjustGone'), disabled: !cue, onClick: () => setEditing(true) },
+            ? { icon: 'edit', label: t('cueAdjustRigCheck'), disabled: true, onClick: () => undefined }
+            : { icon: 'edit', label: cue ? t('cueAdjust') : t('cueAdjustGone'), disabled: !cue, onClick: () => setEditing(true) },
         ]}
       />
       {editing && cue && variant && (
@@ -300,7 +300,7 @@ function ShowRow({
   show: ShowGroup
   selected: boolean
   locked: boolean
-  actions: { label: string; danger?: boolean; disabled?: boolean; onClick: () => void }[] | null
+  actions: MenuAction[] | null
   onOpen: () => void
 }) {
   const summary = summarize(show)
@@ -372,13 +372,13 @@ export function ShowList({ shows, selectedId, onOpen }: { shows: ShowGroup[]; se
     })
     if (ok) await deleteShows(targets.map((show) => show.showId))
   }
-  const actionsFor = (show: ShowGroup) =>
+  const actionsFor = (show: ShowGroup): MenuAction[] | null =>
     editing
       ? [
           isProtected(show)
-            ? { label: t('unprotect'), onClick: () => void setProtected(show.showId, false, profile?.id ?? null) }
-            : { label: t('protect'), onClick: () => void setProtected(show.showId, true, profile?.id ?? null) },
-          { label: isProtected(show) ? t('deleteProtected') : t('delete'), danger: true, disabled: isProtected(show), onClick: () => void remove([show], t('deleteOneTitle')) },
+            ? { icon: 'unlocked', label: t('unprotect'), onClick: () => void setProtected(show.showId, false, profile?.id ?? null) }
+            : { icon: 'locked', label: t('protect'), onClick: () => void setProtected(show.showId, true, profile?.id ?? null) },
+          { icon: 'delete', label: isProtected(show) ? t('deleteProtected') : t('delete'), danger: true, disabled: isProtected(show), onClick: () => void remove([show], t('deleteOneTitle')) },
         ]
       : null
   const row = (show: ShowGroup) => (
@@ -411,12 +411,14 @@ export function ShowList({ shows, selectedId, onOpen }: { shows: ShowGroup[]; se
               // The usual tidy-up: the shows nothing was played in (a Play pressed by mistake, a
               // reload) - folded away below, so the count in the tab doesn't include them.
               {
+                icon: 'delete',
                 label: t('deleteEmpty', { count: emptyUnprotected.length }),
                 danger: true,
                 disabled: emptyUnprotected.length === 0,
                 onClick: () => void remove(emptyUnprotected, t('deleteEmptyTitle')),
               },
               {
+                icon: 'delete',
                 label: emptyUnprotected.length > 0 ? t('deleteUnprotectedWithEmpty', { count: unprotected.length, empty: emptyUnprotected.length }) : t('deleteUnprotected', { count: unprotected.length }),
                 danger: true,
                 disabled: unprotected.length === 0,

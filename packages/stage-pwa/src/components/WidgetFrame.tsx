@@ -168,6 +168,7 @@ export function WidgetFrame({
           <div className="mt-2 border-t border-line pt-4">
             <Button
               variant="danger"
+              icon="remove"
               fullWidth
               onClick={() => {
                 setMenuOpen(false)

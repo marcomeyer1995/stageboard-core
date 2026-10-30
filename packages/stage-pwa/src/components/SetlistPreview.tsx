@@ -59,8 +59,8 @@ export function SetlistPreview({ setlist, active, canActivate, onActivate, onDea
           title: setlist.name,
           actions: [
             active
-              ? { label: t('pv.deactivate'), onClick: onDeactivate, disabled: !canActivate }
-              : { label: t('pv.activate'), onClick: onActivate, disabled: !canActivate },
+              ? { icon: 'deactivate', label: t('pv.deactivate'), onClick: onDeactivate, disabled: !canActivate }
+              : { icon: 'activate', label: t('pv.activate'), onClick: onActivate, disabled: !canActivate },
             ...menu,
           ],
         }}

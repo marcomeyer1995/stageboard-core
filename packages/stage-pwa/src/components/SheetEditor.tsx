@@ -467,10 +467,10 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
 
   const variantActions: MenuAction[] = variantSaved
     ? [
-        ...(draft.isDefaultVariant ? [] : [{ label: t('setDefault'), onClick: () => void handleSetDefault() }]),
+        ...(draft.isDefaultVariant ? [] : [{ icon: 'makeDefault' as const, label: t('setDefault'), onClick: () => void handleSetDefault() }]),
         // The last one can't go: without any variant the song would play its old default's
         // content again (the Song mirror) - delete the song instead (Bibliothek ⋯).
-        ...(variantsForSong.length > 1 ? [{ label: t('delVar.title'), danger: true, onClick: () => void handleDeleteVariant() }] : []),
+        ...(variantsForSong.length > 1 ? [{ icon: 'delete' as const, label: t('delVar.title'), danger: true, onClick: () => void handleDeleteVariant() }] : []),
       ]
     : []
 
@@ -772,8 +772,8 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
           <ActionMenu
             title={t('grid.title')}
             actions={[
-              { label: isAnalyzing ? t('grid.analyzing') : t('grid.analyze'), disabled: !tapTrack || isAnalyzing, onClick: () => void handleAnalyzeTrack() },
-              { label: t('grid.clear'), danger: true, disabled: !draft.beatGrid, onClick: () => void handleClearGrid() },
+              { icon: 'analyse', label: isAnalyzing ? t('grid.analyzing') : t('grid.analyze'), disabled: !tapTrack || isAnalyzing, onClick: () => void handleAnalyzeTrack() },
+              { icon: 'delete', label: t('grid.clear'), danger: true, disabled: !draft.beatGrid, onClick: () => void handleClearGrid() },
             ]}
           />
         </div>
@@ -917,10 +917,11 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
   // In the text itself (#605) - for imported or pasted charts; the variant's own transpose stays
   // in Song-Angaben.
   const toolActions: MenuAction[] = [
-    { label: t('tool.transpose'), onClick: () => void askTranspose() },
-    { label: t('tool.merge'), onClick: () => applyTextTool(t('tool.merged'), mergeChordLines) },
-    { label: t('tool.cleanup'), onClick: () => setToolDialog({ kind: 'cleanup', ...toolRange() }) },
+    { icon: 'transpose', label: t('tool.transpose'), onClick: () => void askTranspose() },
+    { icon: 'merge', label: t('tool.merge'), onClick: () => applyTextTool(t('tool.merged'), mergeChordLines) },
+    { icon: 'cleanup', label: t('tool.cleanup'), onClick: () => setToolDialog({ kind: 'cleanup', ...toolRange() }) },
     {
+      icon: 'replace',
       label: t('tool.find'),
       onClick: () => {
         const range = toolRange()
@@ -930,17 +931,18 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
   ]
 
   const insertActions: MenuAction[] = [
-    ...PART_LABELS.map((label) => ({ label: `+ ${label}`, onClick: () => insertPart(label) })),
-    { label: t('insert.comment'), onClick: () => setNoteDialog('comment') },
-    { label: t('insert.tab'), onClick: () => setNoteDialog('tab') },
+    ...PART_LABELS.map((label) => ({ icon: 'heading' as const, label: `+ ${label}`, onClick: () => insertPart(label) })),
+    { icon: 'comment' as const, label: t('insert.comment'), onClick: () => setNoteDialog('comment') },
+    { icon: 'tab' as const, label: t('insert.tab'), onClick: () => setNoteDialog('tab') },
   ]
   // The page's own actions behind ⋮ (docs/15 D9, #617) - out of the way of the text.
   const pageActions: MenuAction[] = [
-    { label: t('page.insert'), onClick: () => setInsertMenuOpen(true) },
-    { label: t('page.tools'), onClick: () => setToolsMenuOpen(true) },
-    { label: showInvisibles ? t('page.hideInvisibles') : t('page.showInvisibles'), onClick: toggleInvisibles },
-    { label: t('page.import'), onClick: () => setIsImporting(true) },
+    { icon: 'add', label: t('page.insert'), onClick: () => setInsertMenuOpen(true) },
+    { icon: 'textTools', label: t('page.tools'), onClick: () => setToolsMenuOpen(true) },
+    { icon: 'invisibles', label: showInvisibles ? t('page.hideInvisibles') : t('page.showInvisibles'), onClick: toggleInvisibles },
+    { icon: 'import', label: t('page.import'), onClick: () => setIsImporting(true) },
     {
+      icon: 'tapSync',
       label: t('page.tapSync'),
       disabled: !draft.chordProContent.trim(),
       onClick: () => {

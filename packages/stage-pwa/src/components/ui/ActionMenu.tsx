@@ -12,8 +12,9 @@ export interface MenuAction {
   onClick: () => void
   danger?: boolean
   disabled?: boolean
-  /** Shown before the label - a page's main action repeated in ⋮ with the symbol it has up top. */
-  icon?: IconName
+  /** Required (docs/15 D12, 2026-10-30): every menu entry has its icon, the same action the same one
+   * in every menu - the type check keeps new entries from coming without. */
+  icon: IconName
 }
 
 const ROW = `flex min-h-form w-full items-center px-4 text-left text-base ${CONTROL} ${FOCUS} ${DISABLED}`

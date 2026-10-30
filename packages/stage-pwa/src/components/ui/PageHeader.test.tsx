@@ -17,7 +17,7 @@ describe('PageHeader (docs/15 D12)', () => {
     render(
       <PageHeader
         actions={[{ icon: 'edit', label: 'Bearbeiten', onClick: vi.fn() }]}
-        menu={{ title: 'Setlist', actions: [{ label: 'Deaktivieren', onClick: vi.fn() }, { label: 'Löschen', danger: true, onClick: vi.fn() }] }}
+        menu={{ title: 'Setlist', actions: [{ icon: 'deactivate', label: 'Deaktivieren', onClick: vi.fn() }, { icon: 'delete', label: 'Löschen', danger: true, onClick: vi.fn() }] }}
         title="Setlist"
       />,
     )

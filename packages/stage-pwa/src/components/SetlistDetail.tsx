@@ -329,7 +329,7 @@ function EntryRow({
       <OverflowMenu
         title={title}
         variant="flat"
-        actions={[{ label: t('remove'), danger: true, onClick: () => onRemove(index) }]}
+        actions={[{ icon: 'remove', label: t('remove'), danger: true, onClick: () => onRemove(index) }]}
       />
     </li>
   )
@@ -463,8 +463,8 @@ function TransitionItemRow({ entry, index, onEdit, onSetTransition, onRemove }: 
         title={entry.title}
         variant="flat"
         actions={[
-          { label: t('edit'), onClick: () => onEdit(entry) },
-          { label: t('remove'), danger: true, onClick: () => onRemove(index) },
+          { icon: 'edit', label: t('edit'), onClick: () => onEdit(entry) },
+          { icon: 'remove', label: t('remove'), danger: true, onClick: () => onRemove(index) },
         ]}
       />
     </li>
@@ -759,8 +759,8 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted, onBack }: Se
           setEditing(true)
         }}
         menu={[
-          { label: t('row.duplicate'), onClick: () => void handleDuplicate() },
-          { label: t('delete'), danger: true, onClick: () => void handleDelete() },
+          { icon: 'duplicate', label: t('row.duplicate'), onClick: () => void handleDuplicate() },
+          { icon: 'delete', label: t('delete'), danger: true, onClick: () => void handleDelete() },
         ]}
         onSelectSong={onSelectSong}
         onBack={onBack}

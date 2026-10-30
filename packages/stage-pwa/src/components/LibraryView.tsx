@@ -23,7 +23,7 @@ import { useDialogStore } from '../store/useDialogStore'
 import { useSetlistsStore } from '../store/useSetlistsStore'
 import { useSongsStore } from '../store/useSongsStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
-import { OverflowMenu } from './OverflowMenu'
+import { OverflowMenu, type OverflowMenuAction } from './OverflowMenu'
 import { countShowsWithContent, ShowDetail, ShowList, useShows } from './PostShowReport'
 import { PracticeWindowSettings, RehearsalWindowSettings } from './LibrarySettings'
 import { SetlistDetail } from './SetlistDetail'
@@ -196,21 +196,22 @@ function DraggableSongRow({
   // just its own "⋯" trigger. showAddButton is exactly the pointer-lane signal already, no
   // need for a second prop that could drift out of sync with it.
   const [menuOpen, setMenuOpen] = useState(false)
-  const menuActions = showAddButton
+  const menuActions: OverflowMenuAction[] = showAddButton
     ? [
         {
+          icon: 'listAdd',
           label: t('row.addActive'),
           onClick: () => onAddToActiveSetlist?.(),
           disabled: !onAddToActiveSetlist,
         },
-        ...(inActiveSetlist && onRemoveFromActiveSetlist ? [{ label: t('row.removeActive'), onClick: onRemoveFromActiveSetlist }] : []),
-        { label: t('row.duplicate'), onClick: onDuplicate },
-        { label: pinned ? t('row.unpin') : t('row.pin'), onClick: onTogglePin },
-        { label: t('row.delete'), danger: true, onClick: onDelete },
+        ...(inActiveSetlist && onRemoveFromActiveSetlist ? [{ icon: 'listRemove' as const, label: t('row.removeActive'), onClick: onRemoveFromActiveSetlist }] : []),
+        { icon: 'duplicate', label: t('row.duplicate'), onClick: onDuplicate },
+        { icon: pinned ? 'unpin' : 'pin', label: pinned ? t('row.unpin') : t('row.pin'), onClick: onTogglePin },
+        { icon: 'delete', label: t('row.delete'), danger: true, onClick: onDelete },
       ]
     : [
-        { label: pinned ? t('row.unpin') : t('row.pin'), onClick: onTogglePin },
-        { label: t('row.delete'), danger: true, onClick: onDelete },
+        { icon: pinned ? 'unpin' : 'pin', label: pinned ? t('row.unpin') : t('row.pin'), onClick: onTogglePin },
+        { icon: 'delete', label: t('row.delete'), danger: true, onClick: onDelete },
       ]
 
   return (
