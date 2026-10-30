@@ -1,6 +1,7 @@
 import i18n from '../i18n'
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
 import { Dialog, IconButton, MENU_ROW, menuIcon } from './ui'
+import { Icon, type IconName } from './Icon'
 
 /**
  * The "⋯ opens a popup of actions" pattern (⋮ until 2026-10-16 - docs/15 D9: ⋯ for one row) (see BandManagementView.tsx's member-row follow-up,
@@ -28,6 +29,12 @@ export function RowActionsMenu({ title, onClose, children }: { title: string; on
   )
 }
 
-export function RowActionButton({ danger, className, ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { danger?: boolean }) {
-  return <button type="button" {...props} className={`${MENU_ROW} ${danger ? 'text-danger' : 'text-ink'} ${className ?? ''}`} />
+/** A menu entry - with its icon, like every menu entry (docs/15 D12). */
+export function RowActionButton({ danger, className, icon, children, ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { danger?: boolean; icon: IconName }) {
+  return (
+    <button type="button" {...props} className={`${MENU_ROW} gap-3 ${danger ? 'text-danger' : 'text-ink'} ${className ?? ''}`}>
+      <Icon name={icon} size="1.2em" />
+      {children}
+    </button>
+  )
 }

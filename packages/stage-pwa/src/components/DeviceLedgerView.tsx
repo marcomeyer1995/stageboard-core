@@ -248,16 +248,16 @@ export function DeviceLedgerView() {
                   <ActionMenu
                     title={device.name}
                     actions={[
-                      { label: t('latency'), onClick: () => setLatencyFor({ id: device.id, name: device.name }) },
+                      { icon: 'latency', label: t('latency'), onClick: () => setLatencyFor({ id: device.id, name: device.name }) },
                       ...(!isAdmin ? [] : !device.revoked && device.id !== myId
-                        ? [{ label: t('forget'), disabled: used.length > 0, onClick: () => void forgetOne(device) }]
+                        ? [{ icon: 'remove' as const, label: t('forget'), disabled: used.length > 0, onClick: () => void forgetOne(device) }]
                         : []),
                       ...(!isAdmin
                         ? []
                         : [
                             device.revoked
-                              ? { label: t('allow'), onClick: () => void toggleRevoked(device) }
-                              : { label: t('block'), danger: true, disabled: device.id === myId, onClick: () => void toggleRevoked(device) },
+                              ? { icon: 'allow' as const, label: t('allow'), onClick: () => void toggleRevoked(device) }
+                              : { icon: 'blocked' as const, label: t('block'), danger: true, disabled: device.id === myId, onClick: () => void toggleRevoked(device) },
                           ]),
                     ]}
                   />

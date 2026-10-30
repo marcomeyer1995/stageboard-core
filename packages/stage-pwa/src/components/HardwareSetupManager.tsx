@@ -82,9 +82,10 @@ function DeviceList({ onEdit, onAdd }: { onEdit: (device: LogicalDevice) => void
             <ActionMenu
               title={device.name}
               actions={[
-                { label: t('setUp'), onClick: () => onEdit(device) },
-                ...(device.capability === CAPABILITIES.midiController || device.capability === OSC_INPUT_CAPABILITY ? [{ label: t('buttons'), onClick: () => setButtonsFor(device) }] : []),
+                { icon: 'setup', label: t('setUp'), onClick: () => onEdit(device) },
+                ...(device.capability === CAPABILITIES.midiController || device.capability === OSC_INPUT_CAPABILITY ? [{ icon: 'keys' as const, label: t('buttons'), onClick: () => setButtonsFor(device) }] : []),
                 {
+                  icon: 'remove' as const,
                   label: t('remove'),
                   danger: true,
                   onClick: async () => {

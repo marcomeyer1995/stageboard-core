@@ -324,7 +324,7 @@ export function BandManagementView() {
                     ordinary workspace-db sync, so this is what makes the new name actually
                     reach everyone (unlike the old client-only rename this replaces). */}
                 {workspace.isAdmin && (
-                  <RowActionButton
+                  <RowActionButton icon="rename"
                     onClick={async () => {
                       setActionsMenuWorkspaceId(null)
                       const name = await promptText(t('renameBand'), { label: t('newName'), defaultValue: workspace.name })
@@ -339,7 +339,7 @@ export function BandManagementView() {
                     admin-only, unlike "Von diesem Gerät entfernen" below: inviting is a band-
                     management action, not something a plain member does. */}
                 {workspace.isAdmin && !!workspace.username && (
-                  <RowActionButton
+                  <RowActionButton icon="invite"
                     onClick={() => {
                       setActionsMenuWorkspaceId(null)
                       setInviteWorkspaceId(workspace.id)
@@ -349,7 +349,7 @@ export function BandManagementView() {
                   </RowActionButton>
                 )}
                 {workspace.isAdmin && !!workspace.username && (
-                  <RowActionButton
+                  <RowActionButton icon="master"
                     onClick={() => {
                       setActionsMenuWorkspaceId(null)
                       setMasterModeWorkspaceId(workspace.id)
@@ -369,7 +369,7 @@ export function BandManagementView() {
                     band: for a local-only one (no `username`), this and "Löschen" would be the
                     exact same operation, so just "Löschen" stays the one option there. */}
                 {!!workspace.username && (
-                  <RowActionButton
+                  <RowActionButton icon="remove"
                     onClick={async () => {
                       setActionsMenuWorkspaceId(null)
                       const confirmed = await confirm(
@@ -387,7 +387,7 @@ export function BandManagementView() {
                     {/* Set apart and named for what it does (#361): on 2026-10-04 "Löschen" next
                         to "Von diesem Gerät entfernen" deleted a band for everyone by mistake. */}
                     {!!workspace.username && <div className="border-t border-line pt-2 text-xs font-bold uppercase tracking-widest text-danger">{t('forAll')}</div>}
-                    <RowActionButton
+                    <RowActionButton icon="delete"
                       danger
                       onClick={async () => {
                         setActionsMenuWorkspaceId(null)
@@ -493,7 +493,7 @@ export function BandManagementView() {
                 {actionsMenuProfileId === profile.id && (
                   <RowActionsMenu title={profile.name} onClose={() => setActionsMenuProfileId(null)}>
                     {isActiveProfile && isAdminProfile && (
-                      <RowActionButton
+                      <RowActionButton icon="pinCode"
                         onClick={async () => {
                           setActionsMenuProfileId(null)
                           const result = await promptFields(t('setOwnPinTitle'), [
@@ -513,7 +513,7 @@ export function BandManagementView() {
                     )}
                     {activeWorkspace.isAdmin && (
                       <>
-                        <RowActionButton
+                        <RowActionButton icon="rename"
                           onClick={async () => {
                             setActionsMenuProfileId(null)
                             const name = await promptText(t('renameMember'), {
@@ -525,7 +525,7 @@ export function BandManagementView() {
                         >
                           {t('rename')}
                         </RowActionButton>
-                        <RowActionButton
+                        <RowActionButton icon="roles"
                           onClick={async () => {
                             setActionsMenuProfileId(null)
                             // Your own admin rights stay: only another admin can take them away
@@ -559,7 +559,7 @@ export function BandManagementView() {
                             to recover the new value - "Meinen PIN setzen" above is the only
                             safe self-service path, and stays the only one offered here now. */}
                         {isAdminProfile && !isActiveProfile && (
-                          <RowActionButton
+                          <RowActionButton icon="reset"
                             onClick={async () => {
                               setActionsMenuProfileId(null)
                               const confirmed = await confirm(
@@ -577,7 +577,7 @@ export function BandManagementView() {
                             {t('resetPassword')}
                           </RowActionButton>
                         )}
-                        <RowActionButton
+                        <RowActionButton icon="delete"
                           danger
                           // An admin doesn't remove themselves - only another admin can (Marco, 2026-10-08,
                           // like their own admin rights in #428; the server refuses it too).
@@ -669,8 +669,9 @@ export function BandManagementView() {
           title={t('addBand')}
           onClose={() => setShowAddBandChoice(false)}
           actions={[
-            { label: t('joinExisting'), onClick: () => setShowJoinAnotherBand(true) },
+            { icon: 'invite', label: t('joinExisting'), onClick: () => setShowJoinAnotherBand(true) },
             {
+              icon: 'add',
               label: t('foundNew'),
               onClick: async () => {
                 const name = await promptText(t('newBand'), { label: t('newBandName') })

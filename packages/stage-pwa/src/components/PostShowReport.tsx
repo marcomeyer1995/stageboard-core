@@ -13,7 +13,7 @@ import { describeCue } from '../lib/deviceCommands'
 import { useSongVariantsStore } from '../store/useSongVariantsStore'
 import { Icon } from './Icon'
 import { CueDialog, type CueContent } from './timeline/CueDialog'
-import { ActionMenu, Button, InfoHint } from './ui'
+import { ActionMenu, Button, InfoHint, PageHeader, type MenuAction } from './ui'
 import { CONTROL, FOCUS, HOVER, SELECTED } from './ui/styles'
 import { RigCheckReport } from './RigCheckReport'
 import { rigCheckLabel, rigCheckVerdicts } from '../lib/rigCheck'
@@ -121,8 +121,8 @@ function CueRow({ event, className, prefix, suffix = '' }: { event: CueFired; cl
         title={t('cueTitle', { what })}
         actions={[
           event.songId === RIG_CHECK_SONG_ID
-            ? { label: t('cueAdjustRigCheck'), disabled: true, onClick: () => undefined }
-            : { label: cue ? t('cueAdjust') : t('cueAdjustGone'), disabled: !cue, onClick: () => setEditing(true) },
+            ? { icon: 'edit', label: t('cueAdjustRigCheck'), disabled: true, onClick: () => undefined }
+            : { icon: 'edit', label: cue ? t('cueAdjust') : t('cueAdjustGone'), disabled: !cue, onClick: () => setEditing(true) },
         ]}
       />
       {editing && cue && variant && (
@@ -144,7 +144,7 @@ function CueRow({ event, className, prefix, suffix = '' }: { event: CueFired; cl
  * "Technik (n)" line - they used to sit between the songs, dozens of "click-track: degraded →
  * available" lines burying the setlist that was actually played (GUI audit 2026-09-26).
  */
-function ShowSections({ show, authorName, children }: { show: ShowGroup; authorName: (id: string | null) => string; children?: ReactNode }) {
+function ShowSections({ show, authorName, children, onBack }: { show: ShowGroup; authorName: (id: string | null) => string; children?: ReactNode; onBack?: () => void }) {
   const byTime = [...show.events].sort((a, b) => a.at - b.at)
   const songs = byTime.filter((event): event is SongPlayed => event.type === 'song-played')
   const notes = byTime.filter((event): event is Note => event.type === 'note')
@@ -157,15 +157,20 @@ function ShowSections({ show, authorName, children }: { show: ShowGroup; authorN
 
   return (
     <>
-      <h2 className="text-xl font-bold">{fmtTime(show.startedAt)}</h2>
-      <p className="mb-3 flex flex-wrap items-center gap-x-1 text-sm text-ink-muted">
-        {t('songs', { count: songs.length })} · {t('played', { duration: fmtDuration(playedMs) })}
-        {longPauses > 0 && <span className="font-semibold text-warn"> · {t('pausesTooLong', { count: longPauses })}</span>}
-        <InfoHint
-          label={t('playedExplainLabel')}
-          text={t('playedExplain')}
+      {/* The page header every page has (docs/15 D12). */}
+      <div className="mb-3">
+        <PageHeader
+          back={onBack && { label: t('back'), onClick: onBack }}
+          title={fmtTime(show.startedAt)}
+          subtitle={
+            <span className="flex flex-wrap items-center gap-x-1">
+              {t('songs', { count: songs.length })} · {t('played', { duration: fmtDuration(playedMs) })}
+              {longPauses > 0 && <span className="font-semibold text-warn"> · {t('pausesTooLong', { count: longPauses })}</span>}
+              <InfoHint label={t('playedExplainLabel')} text={t('playedExplain')} />
+            </span>
+          }
         />
-      </p>
+      </div>
       {/* A Rig-Check's result (#464) under the show's own heading, above its songs. */}
       {children}
       <div className="space-y-1 text-base">
@@ -295,7 +300,7 @@ function ShowRow({
   show: ShowGroup
   selected: boolean
   locked: boolean
-  actions: { label: string; danger?: boolean; disabled?: boolean; onClick: () => void }[] | null
+  actions: MenuAction[] | null
   onOpen: () => void
 }) {
   const summary = summarize(show)
@@ -367,13 +372,13 @@ export function ShowList({ shows, selectedId, onOpen }: { shows: ShowGroup[]; se
     })
     if (ok) await deleteShows(targets.map((show) => show.showId))
   }
-  const actionsFor = (show: ShowGroup) =>
+  const actionsFor = (show: ShowGroup): MenuAction[] | null =>
     editing
       ? [
           isProtected(show)
-            ? { label: t('unprotect'), onClick: () => void setProtected(show.showId, false, profile?.id ?? null) }
-            : { label: t('protect'), onClick: () => void setProtected(show.showId, true, profile?.id ?? null) },
-          { label: isProtected(show) ? t('deleteProtected') : t('delete'), danger: true, disabled: isProtected(show), onClick: () => void remove([show], t('deleteOneTitle')) },
+            ? { icon: 'unlocked', label: t('unprotect'), onClick: () => void setProtected(show.showId, false, profile?.id ?? null) }
+            : { icon: 'locked', label: t('protect'), onClick: () => void setProtected(show.showId, true, profile?.id ?? null) },
+          { icon: 'delete', label: isProtected(show) ? t('deleteProtected') : t('delete'), danger: true, disabled: isProtected(show), onClick: () => void remove([show], t('deleteOneTitle')) },
         ]
       : null
   const row = (show: ShowGroup) => (
@@ -406,12 +411,14 @@ export function ShowList({ shows, selectedId, onOpen }: { shows: ShowGroup[]; se
               // The usual tidy-up: the shows nothing was played in (a Play pressed by mistake, a
               // reload) - folded away below, so the count in the tab doesn't include them.
               {
+                icon: 'delete',
                 label: t('deleteEmpty', { count: emptyUnprotected.length }),
                 danger: true,
                 disabled: emptyUnprotected.length === 0,
                 onClick: () => void remove(emptyUnprotected, t('deleteEmptyTitle')),
               },
               {
+                icon: 'delete',
                 label: emptyUnprotected.length > 0 ? t('deleteUnprotectedWithEmpty', { count: unprotected.length, empty: emptyUnprotected.length }) : t('deleteUnprotected', { count: unprotected.length }),
                 danger: true,
                 disabled: unprotected.length === 0,
@@ -437,7 +444,7 @@ export function ShowList({ shows, selectedId, onOpen }: { shows: ShowGroup[]; se
 }
 
 /** One show in full: the songs played, notes, cues and technical events. */
-export function ShowDetail({ showId }: { showId: string }) {
+export function ShowDetail({ showId, onBack }: { showId: string; onBack?: () => void }) {
   const shows = useShows()
   const profiles = useProfilesStore((state) => state.profiles)
   const show = shows.find((candidate) => candidate.showId === showId)
@@ -448,10 +455,16 @@ export function ShowDetail({ showId }: { showId: string }) {
     return profiles.find((profile) => profile.id === authorProfileId)?.name ?? t('unknownAuthor')
   }
 
-  if (!show) return <p className="text-ink-faint">{t('removed')}</p>
+  if (!show)
+    return (
+      <div className="flex flex-col gap-3">
+        <PageHeader back={onBack && { label: t('back'), onClick: onBack }} />
+        <p className="text-ink-faint">{t('removed')}</p>
+      </div>
+    )
   return (
     <div className="text-ink">
-      <ShowSections show={show} authorName={authorName}>
+      <ShowSections show={show} authorName={authorName} onBack={onBack}>
         <RigCheckReport events={show.events} />
       </ShowSections>
     </div>

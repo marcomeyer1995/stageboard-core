@@ -5,8 +5,8 @@ import { useSongVariantsStore } from '../store/useSongVariantsStore'
 import { formatItemSeconds } from '../lib/formatItemDuration'
 import { resolveVariantForEntry } from '../lib/computeQueue'
 import { VARIANT_ISSUE_LABEL } from '../lib/variantLabel'
-import { OverflowMenu, type OverflowMenuAction } from './OverflowMenu'
-import { Badge, Button, IconButton } from './ui'
+import { type OverflowMenuAction } from './OverflowMenu'
+import { Badge, PageHeader } from './ui'
 import { useTranslation } from 'react-i18next'
 
 interface SetlistPreviewProps {
@@ -51,27 +51,23 @@ export function SetlistPreview({ setlist, active, canActivate, onActivate, onDea
   let songNumber = 0
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-x-hidden overflow-y-auto">
-      {/* ⋮ top right: the menu for the whole setlist (docs/15 D9). */}
-      <div className="flex items-start gap-2">
-        {onBack && <IconButton icon="back" label={t('title')} onClick={onBack} />}
-        <div className="min-w-0 flex-1">
-          <h2 className="flex items-center gap-2 text-2xl font-bold text-ink">
-            <span className="truncate">{setlist.name}</span>
-            {active && <Badge tone="accent">{t('active')}</Badge>}
-          </h2>
-          <p className="text-ink-faint">{facts.join(' · ')}</p>
-        </div>
-        <OverflowMenu title={setlist.name} actions={menu} scope="page" />
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2">
-        <Button variant="primary" onClick={onEdit}>
-          {t('edit')}
-        </Button>
-        <Button onClick={active ? onDeactivate : onActivate} disabled={!canActivate}>
-          {active ? t('pv.deactivate') : t('pv.activate')}
-        </Button>
-      </div>
+      <PageHeader
+        back={onBack && { label: t('title'), onClick: onBack }}
+        actions={[{ icon: 'edit', label: t('edit'), variant: 'primary', onClick: onEdit }]}
+        // (De)activating is not needed that often - in ⋮, first (Marco, 2026-10-30).
+        menu={{
+          title: setlist.name,
+          actions: [
+            active
+              ? { icon: 'deactivate', label: t('pv.deactivate'), onClick: onDeactivate, disabled: !canActivate }
+              : { icon: 'activate', label: t('pv.activate'), onClick: onActivate, disabled: !canActivate },
+            ...menu,
+          ],
+        }}
+        title={setlist.name}
+        titleExtra={active && <Badge tone="accent">{t('active')}</Badge>}
+        subtitle={facts.join(' · ')}
+      />
 
       {setlist.entries.length === 0 ? (
         <p className="text-ink-faint">{t('pv.empty')}</p>

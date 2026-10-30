@@ -79,6 +79,7 @@ export function PluginManager({ kind = 'extensions' }: { kind?: PluginKind }) {
                 title={pluginName(plugin)}
                 actions={[
                   {
+                    icon: 'remove',
                     label: t('remove'),
                     danger: true,
                     onClick: async () => {

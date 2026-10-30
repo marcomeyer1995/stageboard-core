@@ -91,12 +91,12 @@ describe('SongPreview', () => {
     render(<SongPreview songId={song.id} variantId={null} onEdit={vi.fn()} />)
 
     expect(await screen.findByText('Sweet Child O’ Mine')).toBeInTheDocument()
-    expect(screen.getByText('Guns N’ Roses')).toBeInTheDocument()
-    expect(screen.getByText('Key: Db')).toBeInTheDocument()
+    expect(screen.getByText(/Guns N’ Roses/)).toBeInTheDocument()
+    expect(screen.getByText(/Key: Db/)).toBeInTheDocument()
     // Standard tuning takes no chip.
     expect(screen.queryByText(/Tuning|Stimmung/)).not.toBeInTheDocument()
-    expect(screen.getByText('Capo: 3')).toBeInTheDocument()
-    expect(screen.getByText('125 BPM · 4/4')).toBeInTheDocument()
+    expect(screen.getByText(/Capo: 3/)).toBeInTheDocument()
+    expect(screen.getByText(/125 BPM · 4\/4/)).toBeInTheDocument()
     // The rendered chord sheet, not raw ChordPro markup - "Take my hand" with the [C]/[G]
     // chord markers stripped out by ChordProLyrics's own rendering.
     expect(screen.getByText(/Take my/)).toBeInTheDocument()
@@ -172,13 +172,13 @@ describe('SongPreview - variant dropdown (#601)', () => {
     const select = await screen.findByRole('combobox', { name: 'Variante' })
     expect(select).toHaveValue('variant-1')
     expect(screen.getByRole('option', { name: 'Original (Standard)' })).toBeInTheDocument()
-    expect(screen.getByText('Key: Db')).toBeInTheDocument()
+    expect(screen.getByText(/Key: Db/)).toBeInTheDocument()
 
     fireEvent.change(select, { target: { value: 'variant-live' } })
 
-    expect(await screen.findByText('Key: B')).toBeInTheDocument()
-    expect(screen.getByText('Transponiert: −2')).toBeInTheDocument()
-    expect(screen.queryByText('Capo: 3')).not.toBeInTheDocument()
+    expect(await screen.findByText(/Key: B\b/)).toBeInTheDocument()
+    expect(screen.getByText(/Transponiert: −2/)).toBeInTheDocument()
+    expect(screen.queryByText(/Capo: 3/)).not.toBeInTheDocument()
     expect(screen.getByText('F')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Bearbeiten' }))
     expect(onEdit).toHaveBeenCalledWith('variant-live')
@@ -191,7 +191,7 @@ describe('SongPreview - variant dropdown (#601)', () => {
     useSongVariantsStore.setState({ variants: [variant] })
     render(<SongPreview songId={song.id} variantId={null} onEdit={vi.fn()} />)
 
-    expect(await screen.findByText('Key: Db')).toBeInTheDocument()
+    expect(await screen.findByText(/Key: Db/)).toBeInTheDocument()
     expect(screen.queryByRole('combobox', { name: 'Variante' })).not.toBeInTheDocument()
   })
 })

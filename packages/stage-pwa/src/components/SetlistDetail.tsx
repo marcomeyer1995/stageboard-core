@@ -38,7 +38,7 @@ import { formatItemSeconds } from '../lib/formatItemDuration'
 import { OverflowMenu } from './OverflowMenu'
 import { SetlistPreview } from './SetlistPreview'
 import { Icon } from './Icon'
-import { AddRow, Badge, Dialog, Field, Button, IconButton, InfoHint, choiceRow } from './ui'
+import { AddRow, Badge, Dialog, Field, InfoHint, PageHeader, choiceRow } from './ui'
 import { INPUT } from './ui/styles'
 import { useVisibleSongs } from '../lib/visibleCatalog'
 import { useTranslation } from 'react-i18next'
@@ -329,7 +329,7 @@ function EntryRow({
       <OverflowMenu
         title={title}
         variant="flat"
-        actions={[{ label: t('remove'), danger: true, onClick: () => onRemove(index) }]}
+        actions={[{ icon: 'remove', label: t('remove'), danger: true, onClick: () => onRemove(index) }]}
       />
     </li>
   )
@@ -463,8 +463,8 @@ function TransitionItemRow({ entry, index, onEdit, onSetTransition, onRemove }: 
         title={entry.title}
         variant="flat"
         actions={[
-          { label: t('edit'), onClick: () => onEdit(entry) },
-          { label: t('remove'), danger: true, onClick: () => onRemove(index) },
+          { icon: 'edit', label: t('edit'), onClick: () => onEdit(entry) },
+          { icon: 'remove', label: t('remove'), danger: true, onClick: () => onRemove(index) },
         ]}
       />
     </li>
@@ -759,8 +759,8 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted, onBack }: Se
           setEditing(true)
         }}
         menu={[
-          { label: t('row.duplicate'), onClick: () => void handleDuplicate() },
-          { label: t('delete'), danger: true, onClick: () => void handleDelete() },
+          { icon: 'duplicate', label: t('row.duplicate'), onClick: () => void handleDuplicate() },
+          { icon: 'delete', label: t('delete'), danger: true, onClick: () => void handleDelete() },
         ]}
         onSelectSong={onSelectSong}
         onBack={onBack}
@@ -776,15 +776,13 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted, onBack }: Se
     // not just this list) - flex-1 instead claims only what's left after the button.
     <div className="flex min-h-0 flex-1 flex-col gap-3">
       {/* Editing (Marco, 2026-10-07): nothing is stored before "Speichern"; "Abbrechen" drops it. */}
-      <div className="flex items-center justify-end gap-2">
-        {onBack && <IconButton icon="back" label={t('title')} onClick={onBack} className="mr-auto" />}
-        <Button onClick={() => void leaveEditing()}>
-          {t('cancel')}
-        </Button>
-        <Button variant="primary" onClick={() => void handleSave()} disabled={!setlist.name.trim()}>
-          {t('save')}
-        </Button>
-      </div>
+      <PageHeader
+        // ← leaves the editor to the preview, asking first when something changed - no "Abbrechen"
+        // of its own (Marco, 2026-10-30). Also beside the list: it is the only way out.
+        back={{ label: t('backToView'), onClick: () => void leaveEditing() }}
+        actions={[{ icon: 'save', label: t('save'), variant: 'primary', onClick: () => void handleSave(), disabled: !setlist.name.trim() }]}
+        menuTitle={setlist.name}
+      />
       <Field label={t('name')} value={setlist.name} onChange={(e) => update({ ...setlist, name: e.target.value })} />
       {/* For sorting the Bibliothek by gig (Marco, 2026-10-07) - optional, a plain date. */}
       <div className="max-w-56">

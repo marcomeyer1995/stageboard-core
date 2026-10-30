@@ -152,9 +152,9 @@ function QueueRow({ item, number, status, canManage, sorting, onPlayNext, onRemo
           onOpenChange={setMenuOpen}
           actions={[
             ...(onPlayNext
-              ? [{ label: t('q.playNext'), onClick: () => onPlayNext(item.entry.id) }]
+              ? [{ icon: 'playNext' as const, label: t('q.playNext'), onClick: () => onPlayNext(item.entry.id) }]
               : []),
-            { label: t('q.remove'), danger: true, onClick: () => onRemove(item.entry.id) },
+            { icon: 'remove' as const, label: t('q.remove'), danger: true, onClick: () => onRemove(item.entry.id) },
           ]}
         />
       )}
