@@ -14,6 +14,7 @@ import { useShowLogStore } from '../store/useShowLogStore'
 import { useShowStateStore } from '../store/useShowStateStore'
 import { useSongsStore } from '../store/useSongsStore'
 import { useSongVariantsStore } from '../store/useSongVariantsStore'
+import { recordShowEvent } from './showLogRecord'
 
 /** Reactive queue for use in components: current/next song, honoring the active setlist's order. */
 export function useQueue(): Queue & { isMaster: boolean } {
@@ -59,6 +60,21 @@ const REARM_PATCH: Partial<ShowState> = { ...transportPatch(ARMED_TRANSPORT), ac
  * (activeEntryStartedAt null - e.g. Stop pressed with nothing ever having played). */
 function finalizeCurrentSong(state: ShowState, now: number): void {
   const { currentEntry, currentSong, currentVariant, orderedItems, activeSetlist } = getQueueSnapshot()
+  // An announcement / pause / heading between songs (#673): how long it really took against its plan.
+  if (currentEntry !== null && isTransitionEntry(currentEntry) && state.activeEntryStartedAt !== null) {
+    const startedAt = Math.round(state.activeEntryStartedAt)
+    recordShowEvent({
+      type: 'item-played',
+      showId: state.currentShowId,
+      at: startedAt,
+      endedAt: Math.max(startedAt, Math.round(now)),
+      title: currentEntry.title,
+      style: currentEntry.style === 'heading' ? 'heading' : 'announcement',
+      activeMs: Math.max(0, Math.round(now - state.activeEntryStartedAt)),
+      ...(currentEntry.estimatedDurationMs !== undefined ? { plannedMs: Math.round(currentEntry.estimatedDurationMs) } : {}),
+    })
+    return
+  }
   if (currentEntry === null || currentSong === null || state.activeEntryStartedAt === null) return
 
   // The time really played, not where the song stood (#64): jumps and loops (#479) leap in song time.
@@ -82,6 +98,13 @@ function finalizeCurrentSong(state: ShowState, now: number): void {
     ...(pauseAfter !== null ? { plannedPauseAfterMs: Math.round(pauseAfter) } : {}),
   }
   if (result) void useShowLogStore.getState().append({ id: `song-played-${showId}-${state.activeEntryStartedAt}`, type: 'song-played', ...result, ...planned })
+}
+
+/** The current song as the Nachbericht names it (#673), and where in it the show stands. */
+function songAt(state: ShowState, now: number): { songId: string | null; songTitle: string; positionMs: number } {
+  const { currentEntry, currentSong } = getQueueSnapshot()
+  const songTitle = currentSong?.title ?? (currentEntry && isTransitionEntry(currentEntry) ? currentEntry.title : '')
+  return { songId: currentSong?.id ?? null, songTitle, positionMs: Math.round(computeActiveMs(currentTransport(state), now)) }
 }
 
 /** Starts a fresh `show` in ShowLog if enough idle time passed since the last activity,
@@ -191,7 +214,10 @@ export async function playSong(opts: PlayOptions = {}): Promise<void> {
   if (isFreshStart) {
     Object.assign(patch, { activeEntryId: currentEntry.id, activeEntryStartedAt: now }, showBookkeepingPatch(state, now))
   }
+  const where = songAt(state, now)
   await applyPatch(patch)
+  // After the patch: a first Play may just have started the show the event belongs to.
+  recordShowEvent({ type: 'playback', action: 'play', at: Math.round(now), ...where, positionMs: Math.max(0, where.positionMs) })
 }
 
 /** Freezes the current entry's play timer, expecting a resume soon (stage banter, retuning) -
@@ -199,7 +225,9 @@ export async function playSong(opts: PlayOptions = {}): Promise<void> {
 export async function pauseSong(): Promise<void> {
   const { isMaster, state, applyPatch } = useShowStateStore.getState()
   if (!isMaster) return
-  await applyPatch(transportPatch(pauseTransport(currentTransport(state), getServerTime())))
+  const now = getServerTime()
+  recordShowEvent({ type: 'playback', action: 'pause', at: Math.round(now), showId: state.currentShowId, ...songAt(state, now) })
+  await applyPatch(transportPatch(pauseTransport(currentTransport(state), now)))
 }
 
 /** Ends the current entry's play-through now: logs it if it qualifies, then rearms - unlike
@@ -210,6 +238,7 @@ export async function stopSong(): Promise<void> {
   const now = getServerTime()
   const { currentEntry, currentVariant } = getQueueSnapshot()
   const ended = stoppedNearEnd(currentEntry && isSongEntry(currentEntry) ? currentEntry : null, currentVariant, state.trackOverride, computeActiveMs(currentTransport(state), now))
+  recordShowEvent({ type: 'playback', action: 'stop', at: Math.round(now), showId: state.currentShowId, ...songAt(state, now) })
   finalizeCurrentSong(state, now)
   await applyPatch({ ...REARM_PATCH, trackEnded: ended })
 }
@@ -219,15 +248,19 @@ export async function stopSong(): Promise<void> {
 export async function stopSongAtTrackEnd(): Promise<void> {
   const { isMaster, state, applyPatch } = useShowStateStore.getState()
   if (!isMaster) return
-  finalizeCurrentSong(state, getServerTime())
+  const now = getServerTime()
+  recordShowEvent({ type: 'playback', action: 'track-end', at: Math.round(now), showId: state.currentShowId, ...songAt(state, now) })
+  finalizeCurrentSong(state, now)
   await applyPatch({ ...REARM_PATCH, trackEnded: true })
 }
 
 /** Rearms the current entry without logging anything - an explicit "that didn't count"
  * override (a false start), usable even past the confirmation threshold, unlike Stop. */
 export async function resetSong(): Promise<void> {
-  const { isMaster, applyPatch } = useShowStateStore.getState()
+  const { isMaster, state, applyPatch } = useShowStateStore.getState()
   if (!isMaster) return
+  const now = getServerTime()
+  recordShowEvent({ type: 'playback', action: 'reset', at: Math.round(now), showId: state.currentShowId, ...songAt(state, now) })
   await applyPatch(REARM_PATCH)
 }
 
@@ -238,8 +271,12 @@ export async function resetSong(): Promise<void> {
  * automatically once the entry changes (activateEntry above), so it never silently carries
  * over onto a different song. */
 export async function setTrackOverride(trackId: string | null): Promise<void> {
-  const { isMaster, applyPatch } = useShowStateStore.getState()
+  const { isMaster, state, applyPatch } = useShowStateStore.getState()
   if (!isMaster) return
+  const { songId, songTitle } = songAt(state, getServerTime())
+  // The track's name; '' = back to the setlist's own track.
+  const value = trackId ? (getQueueSnapshot().currentVariant?.tracks.find((track) => track.id === trackId)?.label ?? trackId) : ''
+  recordShowEvent({ type: 'sound', what: 'track', showId: state.currentShowId, songId, songTitle, value })
   await applyPatch({ trackOverride: trackId })
 }
 
@@ -251,6 +288,11 @@ export async function setLiveTempoAdjustPercent(percent: number): Promise<void> 
   const { isMaster, applyPatch } = useShowStateStore.getState()
   if (!isMaster) return
   const clamped = Math.max(-LIVE_TEMPO_ADJUST_LIMIT_PERCENT, Math.min(LIVE_TEMPO_ADJUST_LIMIT_PERCENT, percent))
+  const { state } = useShowStateStore.getState()
+  if (clamped !== state.liveTempoAdjustPercent) {
+    const { songId, songTitle } = songAt(state, getServerTime())
+    recordShowEvent({ type: 'sound', what: 'tempo', showId: state.currentShowId, songId, songTitle, value: String(clamped) })
+  }
   await applyPatch({ liveTempoAdjustPercent: clamped })
 }
 
@@ -268,8 +310,11 @@ export async function nudgeLiveTempoAdjustPercent(deltaPercent: number): Promise
  * and shared like `trackOverride`/`liveTempoAdjustPercent` above; cleared automatically on song
  * change (activateEntry), so a force-off for one difficult song never silently carries over. */
 export async function setClickTrackOverride(override: 'on' | 'off' | null): Promise<void> {
-  const { isMaster, applyPatch } = useShowStateStore.getState()
+  const { isMaster, state, applyPatch } = useShowStateStore.getState()
   if (!isMaster) return
+  const { songId, songTitle } = songAt(state, getServerTime())
+  // 'on' / 'off', '' = the song's own setting again.
+  recordShowEvent({ type: 'sound', what: 'click', showId: state.currentShowId, songId, songTitle, value: override ?? '' })
   await applyPatch({ clickTrackOverride: override })
 }
 
@@ -299,5 +344,7 @@ export async function extendClickTrack(bars: number): Promise<void> {
       countInBars: currentVariant?.countInEnabled ? currentVariant.countInBars : 0,
     }),
   )
+  const { songId, songTitle } = songAt(state, getServerTime())
+  recordShowEvent({ type: 'sound', what: 'click-extend', showId: state.currentShowId, songId, songTitle, value: String(bars) })
   await applyPatch({ clickExtendMs: state.clickExtendMs + bars * perBarMs })
 }

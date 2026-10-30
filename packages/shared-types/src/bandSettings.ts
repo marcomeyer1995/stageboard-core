@@ -26,5 +26,8 @@ export const BandSettingsSchema = z.object({
   rigCheckCues: z
     .array(z.object({ targetLogicalDeviceId: z.string().min(1), type: z.string().min(1), payload: z.record(z.string(), z.unknown()) }))
     .optional(),
+  /** Categories the Nachbericht does not record (#673) - absent or empty: everything is recorded.
+   * Kept as the list of what is OFF, so a category added later starts recorded. Admins only. */
+  showLogOff: z.array(z.string()).optional(),
 })
 export type BandSettings = z.infer<typeof BandSettingsSchema>

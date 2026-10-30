@@ -3,6 +3,7 @@ import { AddRow, Button, IconButton, ToggleChip } from '../components/ui'
 import { INPUT } from '../components/ui/styles'
 import { useState } from 'react'
 import { flashPresets, sendFlash } from '../lib/flash'
+import { recordShowEvent } from '../lib/showLogRecord'
 import { useActiveProfile } from '../lib/useActiveProfile'
 import { useContentFontSize } from '../lib/useContentFontSize'
 import { useProfilesStore } from '../store/useProfilesStore'
@@ -42,7 +43,10 @@ export function StageMessengerWidget({ config }: { config: StageMessengerConfig 
           ? t('msg.notSignedIn')
           : t('msg.offline'),
     )
-    if (result === 'sent') setText('')
+    if (result !== 'sent') return
+    setText('')
+    // Into the Nachbericht (#673): what went out, from whom, to whom (names; empty = everyone).
+    recordShowEvent({ type: 'flash', text: trimmed.slice(0, 120), from: from ?? null, to: profiles.filter((p) => to.includes(p.id)).map((p) => p.name) })
   }
 
   return (

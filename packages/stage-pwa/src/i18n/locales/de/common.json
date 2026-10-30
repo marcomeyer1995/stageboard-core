@@ -86,7 +86,11 @@
     "stale": "Das Master-Gerät antwortet nicht mehr",
     "noControl": "Dieses Gerät hat aktuell keine Kontrolle über die Queue",
     "forceButton": "Übernahme erzwingen",
-    "claim": "Master übernehmen"
+    "claim": "Master übernehmen",
+    "forceAsk": "Das aktive Master-Gerät wirklich verdrängen?",
+    "forceTitle": "Übernahme erzwingen",
+    "forceConfirm": "Übernehmen",
+    "thisDevice": "Dieses Gerät"
   },
   "rc": {
     "title": "Ready-Check",

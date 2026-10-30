@@ -86,7 +86,11 @@
     "stale": "The master device no longer responds",
     "noControl": "This device currently has no control over the queue",
     "forceButton": "Force takeover",
-    "claim": "Take over as master"
+    "claim": "Take over as master",
+    "forceAsk": "Really push the active master device aside?",
+    "forceTitle": "Force takeover",
+    "forceConfirm": "Take over",
+    "thisDevice": "This device"
   },
   "rc": {
     "title": "Ready check",

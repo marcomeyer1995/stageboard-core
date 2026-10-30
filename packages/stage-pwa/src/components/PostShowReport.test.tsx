@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import type { ShowLogEvent } from 'shared-types'
@@ -39,7 +39,7 @@ const tech = (n: number): ShowLogEvent =>
   ({ id: `c${n}`, showId: 'show', type: 'capability-changed', at: t0 + n * 60_000, capability: 'click-track', from: 'degraded', to: 'available' }) as ShowLogEvent
 
 describe('PostShowReport (GUI audit 2026-09-26)', () => {
-  it('lists the played songs first and folds technical events into one "Technik" line', () => {
+  it('lists the played songs first, then everything in order in the timeline (#673)', () => {
     useProfilesStore.setState({ profiles: [] })
     useShowLogStore.setState({
       events: [
@@ -51,12 +51,19 @@ describe('PostShowReport (GUI audit 2026-09-26)', () => {
     render(<Shows />)
     fireEvent.click(screen.getByText(/2 Songs · 6:40 gespielt/))
     expect(screen.getByText('Highway to Hell')).toBeInTheDocument()
-    expect(screen.getByText('Notizen (1)')).toBeInTheDocument()
-    const technik = screen.getByText('Technik (3)')
-    expect(technik.closest('details')).not.toHaveAttribute('open')
+    const timeline = within(screen.getByRole('region', { name: /Ablauf/ }))
+    const lines = timeline.getAllByRole('listitem').map((item) => item.textContent)
+    // Show start, 3 device changes, 2 songs (start + end each), 1 note = 9 lines, by time.
+    expect(lines).toHaveLength(9)
+    expect(lines[0]).toMatch(/Show gestartet/)
+    expect(lines.findIndex((line) => /Highway to Hell beginnt/.test(line ?? ''))).toBeLessThan(lines.findIndex((line) => /Free Bird beginnt/.test(line ?? '')))
+    expect(lines.some((line) => /Notiz von .*Gitarre zu laut/.test(line ?? ''))).toBe(true)
+    // A category chip hides its lines.
+    fireEvent.click(timeline.getByRole('button', { name: 'Geräte' }))
+    expect(timeline.getAllByRole('listitem')).toHaveLength(6)
   })
 
-  it('shows every fired cue folded away, the failed ones in sight with the reason (#8)', () => {
+  it('shows every fired cue in the timeline, the failed ones also in sight above with the reason (#8)', () => {
     useProfilesStore.setState({ profiles: [] })
     const cue = (n: number, ok: boolean, message?: string) =>
       ({ id: `q${n}`, showId: 'show', type: 'cue-fired', at: t0 + n * 30_000, songId: 'song1', songTitle: 'Highway to Hell', cueId: `cue${n}`, cueType: 'kemper.selectRig', target: 'Marcos Kemper', ok, ...(message ? { message } : {}) }) as ShowLogEvent
@@ -66,8 +73,8 @@ describe('PostShowReport (GUI audit 2026-09-26)', () => {
     render(<Shows />)
     fireEvent.click(screen.getByText('1 Cue fehlgeschlagen'))
     expect(screen.getByText('Cues fehlgeschlagen (1)')).toBeInTheDocument()
-    expect(screen.getByText(/kemper.selectRig → Marcos Kemper - kein MIDI-Ausgang/)).toBeInTheDocument()
-    expect(screen.getByText('Cues (3, 1 fehlgeschlagen)').closest('details')).not.toHaveAttribute('open')
+    expect(screen.getAllByText(/kemper.selectRig → Marcos Kemper - kein MIDI-Ausgang/)).toHaveLength(2)
+    expect(screen.getAllByText(/kemper.selectRig → Marcos Kemper$/)).toHaveLength(2)
   })
 
   it('lists the shows and opens one at a time; starts with nothing in them fold away (2026-10-16)', () => {
@@ -87,6 +94,37 @@ describe('PostShowReport (GUI audit 2026-09-26)', () => {
     expect(screen.getByText('Highway to Hell')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Bibliothek' }))
     expect(screen.getByText('Ohne gespielte Songs (1)')).toBeInTheDocument()
+  })
+})
+
+describe('Nachbericht - what happened, when and how (#673)', () => {
+  it('names every kind of event in words, with the song time where known', () => {
+    useProfilesStore.setState({ profiles: [] })
+    const e = (id: string, offset: number, rest: Record<string, unknown>) => ({ id, showId: 'show', at: t0 + offset, ...rest })
+    useShowLogStore.setState({
+      protectedShowIds: [],
+      events: [
+        { id: 'start', showId: 'show', type: 'show-started', at: t0 },
+        song(1, 'Tush'),
+        e('p1', 241_000, { type: 'playback', action: 'pause', songId: 'song1', songTitle: 'Tush', positionMs: 65_000 }),
+        e('j1', 250_000, { type: 'section', action: 'jump', songId: 'song1', songTitle: 'Tush', fromLabel: 'Solo', toLabel: 'Chorus 2', fromMs: 120_000, toMs: 150_000 }),
+        e('m1', 260_000, { type: 'master', deviceName: 'Redmi', profileName: 'Marco', forced: true }),
+        e('r1', 270_000, { type: 'ready-check', action: 'ended', ready: ['Marco'], missing: ['Caro'] }),
+        e('t1', 280_000, { type: 'sound', what: 'tempo', songId: 'song1', songTitle: 'Tush', value: '3' }),
+        e('f1', 290_000, { type: 'flash', text: 'Kürzer!', from: 'Marco', to: [] }),
+        e('i1', 300_000, { type: 'item-played', endedAt: t0 + 345_000, title: 'Merch-Ansage', style: 'announcement', activeMs: 45_000, plannedMs: 30_000 }),
+      ],
+    } as never)
+    render(<Shows />)
+    fireEvent.click(screen.getByText(/1 Song · 3:20 gespielt/))
+    expect(screen.getByText('Pause · Tush')).toBeInTheDocument()
+    expect(screen.getByText('bei 1:05')).toBeInTheDocument()
+    expect(screen.getByText('Sprung Solo → Chorus 2')).toBeInTheDocument()
+    expect(screen.getByText('Redmi (Marco) ist jetzt Master (dem laufenden Master abgenommen)')).toBeInTheDocument()
+    expect(screen.getByText('Ready-Check beendet: 1 bereit · es fehlte: Caro')).toBeInTheDocument()
+    expect(screen.getByText('Tempo-Korrektur +3 % · Tush')).toBeInTheDocument()
+    expect(screen.getByText('Nachricht von Marco an alle: „Kürzer!“')).toBeInTheDocument()
+    expect(screen.getByText('Merch-Ansage · 0:45 (geplant 0:30)')).toBeInTheDocument()
   })
 })
 
@@ -147,7 +185,7 @@ describe('Nachbericht - "Cue anpassen" saves into the variant (#8)', () => {
     fireEvent.click(screen.getByText(/1 Song · 3:20 gespielt/))
 
     // The failed one in sight, in words while the song still has it: its ⋯ → Cue anpassen.
-    expect(screen.getAllByText(/Tush · Patch 02B → NUX MG-30 - kein Ausgang/)).toHaveLength(1)
+    expect(screen.getAllByText(/Tush · Patch 02B → NUX MG-30 - kein Ausgang/)).toHaveLength(2)
     fireEvent.click(screen.getAllByRole('button', { name: 'Menü: Cue Patch 02B' })[0])
     fireEvent.click(screen.getByRole('button', { name: 'Cue anpassen' }))
     expect(screen.getByRole('dialog', { name: /Cue in Tush \(Live\)/ })).toBeInTheDocument()

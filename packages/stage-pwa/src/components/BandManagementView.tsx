@@ -1,4 +1,5 @@
 import { SwitchOverview } from './SwitchOverview'
+import { ShowLogSettings } from './ShowLogSettings'
 import { CommentTemplatesSettings } from './CommentTemplatesSettings'
 import { useMemo, useState } from 'react'
 import { PRESENCE_TIMEOUT_MS, STAGE_ROLES, type Profile, type StageRole } from 'shared-types'
@@ -657,6 +658,7 @@ export function BandManagementView() {
 
       {/* Band-wide texts for the song editor's "+ Kommentar" (#608). */}
       {activeWorkspace && <CommentTemplatesSettings />}
+      {activeWorkspace && <ShowLogSettings />}
 
       {masterModeWorkspace && <MasterModeDialog workspace={masterModeWorkspace} onClose={() => setMasterModeWorkspaceId(null)} />}
 
