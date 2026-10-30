@@ -1,3 +1,4 @@
+import i18n from '../i18n'
 import type { StemRole, TrackMeta } from 'shared-types'
 import type { DialogField } from '../store/useDialogStore'
 
@@ -30,15 +31,11 @@ export function uploadedStems(tracks: readonly TrackMeta[]): TrackMeta[] {
   return tracks.filter((t) => isStem(t) && (t.parentTrackId === null || !ids.has(t.parentTrackId)))
 }
 
-export const STEM_ROLE_LABELS: Record<StemRole, string> = {
-  drums: 'Schlagzeug',
-  bass: 'Bass',
-  guitar: 'Gitarre',
-  keys: 'Keys',
-  vocals: 'Gesang',
-  choir: 'Chor',
-  click: 'Klick',
-  other: 'Sonstiges',
+export const STEM_ROLE_LABELS = Object.fromEntries(
+  (['drums', 'bass', 'guitar', 'keys', 'vocals', 'choir', 'click', 'other'] as const).map((role) => [role, role]),
+) as Record<StemRole, string>
+for (const role of Object.keys(STEM_ROLE_LABELS) as StemRole[]) {
+  Object.defineProperty(STEM_ROLE_LABELS, role, { get: () => i18n.t(`editor:stem.role.${role}`), enumerable: true })
 }
 
 /** Checked in this order - "Bassdrum" is drums, "Bass guitar" bass, "Backing vocals" choir. */
@@ -92,10 +89,10 @@ export const UPLOADED_SET = 'upload'
 export function stemSetsOf(tracks: readonly TrackMeta[]): StemSet[] {
   const sets: StemSet[] = []
   const uploaded = uploadedStems(tracks)
-  if (uploaded.length) sets.push({ key: UPLOADED_SET, label: 'Hochgeladen', stems: uploaded })
+  if (uploaded.length) sets.push({ key: UPLOADED_SET, label: i18n.t('editor:stem.uploaded'), stems: uploaded })
   for (const track of playableTracks(tracks)) {
     const stems = stemsOf(tracks, track.id)
-    if (stems.length) sets.push({ key: track.id, label: `Aus ${track.label}`, stems })
+    if (stems.length) sets.push({ key: track.id, label: i18n.t('editor:stem.from', { name: track.label }), stems })
   }
   return sets
 }
@@ -124,17 +121,17 @@ export async function askAnalysisSource(
 ): Promise<string | null | undefined> {
   if (stems.length === 0) return null
   const result = await promptFields(
-    'Welche Spur analysieren?',
+    i18n.t('editor:src.title'),
     [
       {
         key: 'source',
-        label: 'Treffer aus - der Mix ist meist zuverlässiger',
+        label: i18n.t('editor:src.field'),
         type: 'radio',
         defaultValue: current ?? '',
-        options: [{ value: '', label: 'Mix (ganzer Track)' }, ...stems.map((s) => ({ value: s.id, label: s.label }))],
+        options: [{ value: '', label: i18n.t('editor:src.mix') }, ...stems.map((s) => ({ value: s.id, label: s.label }))],
       },
     ],
-    'Analysieren',
+    i18n.t('editor:src.go'),
   )
   if (!result) return undefined
   return result.source || null

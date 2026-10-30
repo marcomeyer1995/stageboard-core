@@ -1,3 +1,4 @@
+import i18n from '../i18n'
 import type { OpenTuning, SongVariant, Tuning } from 'shared-types'
 import { transposeKey } from './transposeChord'
 
@@ -71,8 +72,8 @@ const OPEN_NAMES: Record<OpenTuning, string> = { dadgad: 'DADGAD', 'open-g': 'Op
 
 function offsetLabel(semitones: number): string {
   const n = Math.abs(semitones)
-  const amount = n === 1 ? '½ Ton' : n === 2 ? '1 Ton' : `${n} Halbtöne`
-  return `${amount} ${semitones < 0 ? 'tiefer' : 'höher'}`
+  const amount = n === 1 ? i18n.t('editor:tune.half') : n === 2 ? i18n.t('editor:tune.whole') : i18n.t('editor:tune.semis', { n })
+  return semitones < 0 ? i18n.t('editor:tune.down', { amount }) : i18n.t('editor:tune.up', { amount })
 }
 
 /** How a tuning reads: "Standard", "½ Ton tiefer (Eb)", "Drop D", "Drop C#", "Open G ½ Ton tiefer". */
@@ -80,7 +81,7 @@ export function tuningLabel(tuning: Tuning): string {
   const { semitones } = tuning
   if (tuning.open) return semitones === 0 ? OPEN_NAMES[tuning.open] : `${OPEN_NAMES[tuning.open]} ${offsetLabel(semitones)}`
   if (tuning.drop) return `Drop ${spellSharp(2 + semitones)}`
-  if (semitones === 0) return 'Standard'
+  if (semitones === 0) return i18n.t('editor:tune.standard')
   return `${offsetLabel(semitones)} (${transposeKey('E', semitones)})`
 }
 

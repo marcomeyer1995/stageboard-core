@@ -1,3 +1,4 @@
+import i18n from '../i18n'
 import { PLAYBACK_CUE_TARGET, PLAYBACK_CUE_TYPE, type ShowCue } from 'shared-types'
 import type { ClickTimeline } from './beatGrid'
 
@@ -50,22 +51,26 @@ export function playbackCueContent(switches: PlaybackSwitches): Omit<ShowCue, 'i
 }
 
 const FADE_UNIT_LABEL: Record<FadeUnit, (n: number) => string> = {
-  ms: (n) => `${n} ms`,
-  beats: (n) => `${n} ${n === 1 ? 'Schlag' : 'Schlägen'}`,
-  bars: (n) => `${n} ${n === 1 ? 'Takt' : 'Takten'}`,
+  ms: (n) => i18n.t('editor:pb.ms', { n }),
+  beats: (n) => i18n.t('editor:pb.beats', { count: n }),
+  bars: (n) => i18n.t('editor:pb.bars', { count: n }),
 }
 
 /** "Track −6 dB in 2 Takten", "Track stumm" - for the cue lane and lists. */
 export function trackLevelLabel(level: TrackLevel): string {
-  const what = level.db === null ? 'stumm' : level.db === 0 ? 'normal' : `${level.db > 0 ? '+' : '−'}${Math.abs(level.db)} dB`
-  return `Track ${what}${level.fade ? ` in ${FADE_UNIT_LABEL[level.fade.unit](level.fade.amount)}` : ''}`
+  const what = level.db === null ? i18n.t('editor:pb.mute') : level.db === 0 ? i18n.t('editor:pb.normal') : `${level.db > 0 ? '+' : '−'}${Math.abs(level.db)} dB`
+  return i18n.t('editor:pb.track', { what }) + (level.fade ? i18n.t('editor:pb.fade', { amount: FADE_UNIT_LABEL[level.fade.unit](level.fade.amount) }) : '')
 }
 
 /** "Klick aus · Ansagen an · Track stumm" - for the cue lane. */
 export function playbackCueLabel(cue: Pick<ShowCue, 'payload'>): string {
   const { click, voice, track } = playbackSwitches(cue)
-  const parts = [click && `Klick ${click === 'on' ? 'an' : 'aus'}`, voice && `Ansagen ${voice === 'on' ? 'an' : 'aus'}`, track && trackLevelLabel(track)].filter(Boolean)
-  return parts.length ? parts.join(' · ') : 'Wiedergabe'
+  const parts = [
+    click && i18n.t(click === 'on' ? 'editor:pb.clickOn' : 'editor:pb.clickOff'),
+    voice && i18n.t(voice === 'on' ? 'editor:pb.voiceOn' : 'editor:pb.voiceOff'),
+    track && trackLevelLabel(track),
+  ].filter(Boolean)
+  return parts.length ? parts.join(' · ') : i18n.t('editor:pb.playback')
 }
 
 /** A cue counts from this much before its time - a cue placed on a bar line also covers the

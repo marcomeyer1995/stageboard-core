@@ -3,6 +3,7 @@ import { CUE_BEAT, CUE_NAME, type CuePattern } from 'shared-types'
 import { isSilentCue } from '../../lib/partCues'
 import { COUNT_IN_CUE_PRESETS, CuePatternEditor, PART_CUE_PRESETS } from '../CuePatternEditor'
 import { Button, Dialog, Segmented } from '../ui'
+import { useTranslation } from 'react-i18next'
 
 type Mode = 'band' | 'silent' | 'own'
 
@@ -32,42 +33,44 @@ export function PartCueDialog({
   onSave: (pattern: CuePattern | null) => void
   onClose: () => void
 }) {
+  const { t } = useTranslation('editor')
   const [mode, setMode] = useState<Mode>(own === null ? 'band' : isSilentCue(own) ? 'silent' : 'own')
   const [draft, setDraft] = useState<CuePattern>(own && !isSilentCue(own) ? own : bandPattern)
   return (
     <Dialog
-      title={`Ansage: ${name}`}
+      title={t('pc.title', { name })}
       onClose={onClose}
       actions={
         <>
-          <Button onClick={onClose}>Abbrechen</Button>
+          <Button onClick={onClose}>{t('cancel')}</Button>
           <Button variant="primary" onClick={() => onSave(mode === 'band' ? null : mode === 'silent' ? [['']] : draft)}>
-            Übernehmen
+            {t('apply')}
           </Button>
         </>
       }
     >
       <div className="flex flex-col gap-3">
         <Segmented
-          label="Ansage"
+          label={t('pc.label')}
           value={mode}
           onChange={setMode}
           options={[
-            { value: 'band', label: 'Standard' },
-            { value: 'silent', label: 'Stumm' },
-            { value: 'own', label: 'Eigenes Muster' },
+            { value: 'band', label: t('pc.standard') },
+            { value: 'silent', label: t('pc.silent') },
+            { value: 'own', label: t('pc.own') },
           ]}
         />
         {mode === 'band' && (
           <p className="text-base text-ink">
-            Wie bei allen Teilen: <span className="font-semibold">{describeCuePattern(bandPattern, name)}</span>
-            <span className="block text-sm text-ink-muted">Einstellen unter System → Add-ons → Ansagen der Songteile.</span>
+            {t('pc.likeAll')}
+            <span className="font-semibold">{describeCuePattern(bandPattern, name)}</span>
+            <span className="block text-sm text-ink-muted">{t('pc.where')}</span>
           </p>
         )}
-        {mode === 'silent' && <p className="text-base text-ink">Vor diesem Teil wird nichts gesagt.</p>}
-        {mode === 'own' && <CuePatternEditor label="Muster" pattern={draft} presets={countIn ? COUNT_IN_CUE_PRESETS : PART_CUE_PRESETS} onChange={setDraft} />}
+        {mode === 'silent' && <p className="text-base text-ink">{t('pc.nothing')}</p>}
+        {mode === 'own' && <CuePatternEditor label={t('pc.pattern')} pattern={draft} presets={countIn ? COUNT_IN_CUE_PRESETS : PART_CUE_PRESETS} onChange={setDraft} />}
         <p className="text-sm text-ink-muted">
-          {countIn ? 'Dieser Teil beginnt auf Takt 1 - das Muster gilt für die Einzähltakte.' : 'Gilt nur für diese Stelle im Song, nicht für andere Teile mit demselben Namen.'}
+          {countIn ? t('pc.countIn') : t('pc.onlyHere')}
         </p>
       </div>
     </Dialog>

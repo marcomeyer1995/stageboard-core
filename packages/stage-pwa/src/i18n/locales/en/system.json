@@ -338,5 +338,6 @@
     "lightDark": "Light or dark",
     "dark": "Dark",
     "light": "Light"
-  }
+  },
+  "unknownError": "unknown error"
 }

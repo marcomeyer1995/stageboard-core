@@ -126,5 +126,8 @@
       "3": "Verbindung",
       "4": "Prüfen"
     }
+  },
+  "builtIn": {
+    "playsOn": "{{label}} - spielt auf"
   }
 }

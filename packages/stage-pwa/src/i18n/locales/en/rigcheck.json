@@ -100,5 +100,7 @@
     "whatWrong": "What was wrong?",
     "placeholder": "e.g. click and beeps sounded doubled, prompter late",
     "question": "Did click and beeps sound like one, did the prompter change on the beat, did the jump come everywhere at once, and did your device react to its cue?"
-  }
+  },
+  "masterOnly": "Only the master prepares the rig check.",
+  "thisDevice": "This device"
 }

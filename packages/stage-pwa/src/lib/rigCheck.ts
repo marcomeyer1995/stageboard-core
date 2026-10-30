@@ -112,7 +112,7 @@ export type PrepareResult = { ok: true } | { ok: false; message: string }
  * the run so every device starts loading the track and reporting. Master only.
  */
 export async function prepareRigCheck(kind: RigCheckKind, deviceCues: readonly RigCheckDeviceCue[]): Promise<PrepareResult> {
-  if (!useShowStateStore.getState().isMaster) return { ok: false, message: 'Nur der Master bereitet den Rig-Check vor.' }
+  if (!useShowStateStore.getState().isMaster) return { ok: false, message: i18n.t('rigcheck:masterOnly') }
   const song = buildRigCheckSong(kind)
   const variantId = rigCheckVariantId(kind)
   try {
@@ -329,7 +329,7 @@ function ownState(trackReady: boolean): OwnRigCheckState {
   const route = useAudioRouteStore.getState().route
   const profile = findLatencyProfile(useLatencyProfilesStore.getState().profiles, deviceId, AUDIO_OUTPUT, route)
   return {
-    deviceName: useDevicesStore.getState().devices.find((d) => d.id === deviceId)?.name ?? rememberedDeviceName() ?? 'Dieses Gerät',
+    deviceName: useDevicesStore.getState().devices.find((d) => d.id === deviceId)?.name ?? rememberedDeviceName() ?? i18n.t('rigcheck:thisDevice'),
     mode: useAppModeStore.getState().mode,
     trackReady,
     clockOffsetMs: clock.lastSyncedAt === null ? null : Math.round(clock.offsetMs),

@@ -100,5 +100,7 @@
     "whatWrong": "Was war falsch?",
     "placeholder": "z. B. Klick und Beeps klangen doppelt, Prompter zu spät",
     "question": "Klangen Klick und Beeps wie ein Ton, wechselte der Prompter auf dem Schlag, kam der Sprung überall gleichzeitig, und hat dein Gerät auf seinen Cue reagiert?"
-  }
+  },
+  "masterOnly": "Nur der Master bereitet den Rig-Check vor.",
+  "thisDevice": "Dieses Gerät"
 }

@@ -1,15 +1,9 @@
 import { useEffect, useMemo, useState, type MutableRefObject, type SyntheticEvent } from 'react'
+import { useTranslation } from 'react-i18next'
 import { explainPattern, findMatches, REGEX_BLOCKS, REPLACEMENT_BLOCKS, replaceOne, replaceText, type RegexBlock, type ReplaceOptions, type SearchMode, type TextMatch } from '../lib/textReplace'
 import type { BackdropMark } from './EditorBackdrop'
 import { Button, Dialog, IconButton, InfoHint, Segmented, ToggleChip } from './ui'
 import { INPUT } from './ui/styles'
-
-const MODE_INFO =
-  'Normal: der Text genau so. Erweitert: wie Normal, dazu \\n = Zeilenumbruch, \\t = Tabulator, \\\\ = Backslash. ' +
-  'Regulärer Ausdruck: ein Suchmuster - „\\d+“ findet jede Zahl, „^\\[“ jede Zeile, die mit „[“ beginnt; ^ und $ meinen Anfang und Ende einer Zeile. ' +
-  'Mit ( ) gefundene Teile kommen beim Ersetzen als $1, $2 … zurück.'
-const REPLACE_INFO =
-  'Womit ein Treffer ersetzt wird; leer löscht ihn. Erweitert: \\n und \\t gehen auch hier. Regulärer Ausdruck: $1, $2 … = was die erste, zweite ( ) gefunden hat, $<name> = eine benannte Gruppe, $& = der ganze Treffer, $$ = ein Dollarzeichen.'
 
 type Caret = { start: number; end: number }
 const caretOf = (e: SyntheticEvent<HTMLInputElement>): Caret => ({ start: e.currentTarget.selectionStart ?? e.currentTarget.value.length, end: e.currentTarget.selectionEnd ?? e.currentTarget.value.length })
@@ -22,6 +16,7 @@ function insertAt(value: string, caret: Caret | null, block: RegexBlock): string
 
 /** One line of the preview: the matches in it marked, before and after. */
 function PreviewRow({ content, line, matches, onPick, current }: { content: string; line: number; matches: TextMatch[]; onPick: () => void; current: boolean }) {
+  const { t } = useTranslation('editor')
   const lineStart = content.split('\n').slice(0, line - 1).reduce((sum, l) => sum + l.length + 1, 0)
   const lineText = content.slice(lineStart, content.indexOf('\n', lineStart) === -1 ? content.length : content.indexOf('\n', lineStart))
   const before: React.ReactNode[] = []
@@ -41,7 +36,7 @@ function PreviewRow({ content, line, matches, onPick, current }: { content: stri
   after.push(lineText.slice(at))
   return (
     <button type="button" onClick={onPick} className={`flex w-full flex-col gap-0.5 rounded-control px-3 py-2 text-left font-sb-mono text-base ${current ? 'bg-control-strong' : 'bg-control'}`}>
-      <span className="font-sans text-sm text-ink-faint">Zeile {line}</span>
+      <span className="font-sans text-sm text-ink-faint">{t('find.line', { line })}</span>
       <span className="whitespace-pre-wrap break-all text-ink-soft">{before}</span>
       <span className="whitespace-pre-wrap break-all text-ink">{after}</span>
     </button>
@@ -86,6 +81,7 @@ export function FindReplaceBar({
   onMarks: (marks: BackdropMark[], current: TextMatch | null) => void
   onClose: () => void
 }) {
+  const { t } = useTranslation('editor')
   const [find, setFind] = useState(memory.current.find ?? '')
   const [replacement, setReplacement] = useState(memory.current.replacement ?? '')
   const [mode, setMode] = useState<SearchMode>(memory.current.mode ?? 'normal')
@@ -132,11 +128,11 @@ export function FindReplaceBar({
     let next = index + by
     if (next >= matches.length || next < 0) {
       if (!wrap) {
-        setNotice(by > 0 ? 'Ende erreicht.' : 'Anfang erreicht.')
+        setNotice(by > 0 ? t('find.endReached') : t('find.startReached'))
         return
       }
       next = (next + matches.length) % matches.length
-      setNotice(by > 0 ? 'Wieder von vorn.' : 'Wieder vom Ende.')
+      setNotice(by > 0 ? t('find.fromStart') : t('find.fromEnd'))
     } else setNotice(null)
     setCurrent(next)
   }
@@ -148,7 +144,7 @@ export function FindReplaceBar({
     if (!match) return
     const after = replaceOne(content, match)
     keepScope(after)
-    onReplace(after, 'Ersetzt')
+    onReplace(after, t('find.replaced'))
     // The same index is now the next match.
     setNotice(null)
   }
@@ -156,7 +152,7 @@ export function FindReplaceBar({
     const result = replaceText(content, options, limited ? scope.start : 0, limited ? scope.end : content.length)
     if ('error' in result || result.count === 0) return
     keepScope(result.content)
-    onReplace(result.content, `${result.count}× ersetzt`)
+    onReplace(result.content, t('find.replacedN', { count: result.count }))
     setCurrent(0)
   }
 
@@ -170,7 +166,7 @@ export function FindReplaceBar({
     <>
         {explanation.length > 0 && (
           <p className="rounded-control bg-control px-3 py-2 text-sm text-ink-soft">
-            <span className="font-semibold text-ink">Das Muster sucht: </span>
+            <span className="font-semibold text-ink">{t('find.patternSeeks')}</span>
             {explanation.join(' · ')}
           </p>
         )}
@@ -178,40 +174,40 @@ export function FindReplaceBar({
           {/* Never narrower than its three words - the ⓘ wrap below it on a phone instead of overlapping. */}
           <div className="min-w-[17rem] flex-1">
           <Segmented
-            label="Suchmodus"
+            label={t('find.mode')}
             value={mode}
             onChange={(v) => {
               setMode(v as SearchMode)
               setCurrent(0)
             }}
             options={[
-              { value: 'normal', label: 'Normal' },
-              { value: 'extended', label: 'Erweitert' },
-              { value: 'regex', label: 'Regex' },
+              { value: 'normal', label: t('find.normal') },
+              { value: 'extended', label: t('find.extended') },
+              { value: 'regex', label: t('find.regex') },
             ]}
           />
           </div>
-          <InfoHint text={MODE_INFO} />
+          <InfoHint text={t('find.modeInfo')} />
         {compact && (
           <span className="flex items-center gap-1 text-sm text-ink-soft">
-            Ersetzen
-            <InfoHint text={REPLACE_INFO} label="Erklärung: Ersetzen durch" />
+            {t('find.replace')}
+            <InfoHint text={t('find.replaceInfo')} label={t('find.replaceLabel')} />
           </span>
         )}
         </div>
         <div className="flex flex-wrap gap-2">
-          <ToggleChip label="Groß/klein beachten" selected={caseSensitive} onToggle={setCaseSensitive} />
-          <ToggleChip label="Nur ganze Wörter" selected={wholeWord} onToggle={setWholeWord} />
-          <ToggleChip label="Am Ende von vorn" selected={wrap} onToggle={setWrap} />
-          {scope && <ToggleChip label="Nur markierte Zeilen" selected={inSelection} onToggle={setInSelection} />}
-          {mode === 'regex' && <ToggleChip label="Baukasten" selected={showBuilder} onToggle={setShowBuilder} />}
-          <ToggleChip label="Vorschau" selected={showPreview} onToggle={setShowPreview} />
+          <ToggleChip label={t('find.case')} selected={caseSensitive} onToggle={setCaseSensitive} />
+          <ToggleChip label={t('find.whole')} selected={wholeWord} onToggle={setWholeWord} />
+          <ToggleChip label={t('find.wrap')} selected={wrap} onToggle={setWrap} />
+          {scope && <ToggleChip label={t('find.inSelection')} selected={inSelection} onToggle={setInSelection} />}
+          {mode === 'regex' && <ToggleChip label={t('find.builder')} selected={showBuilder} onToggle={setShowBuilder} />}
+          <ToggleChip label={t('find.preview')} selected={showPreview} onToggle={setShowPreview} />
         </div>
 
         {mode === 'regex' && showBuilder && (
-          <div role="group" aria-label="Regex-Baukasten" className="flex flex-col gap-2">
+          <div role="group" aria-label={t('find.builderAria')} className="flex flex-col gap-2">
             <p className="flex items-center gap-2 text-sm text-ink-soft">
-              Tippen setzt den Baustein an der Cursor-Stelle ein; „Gruppe“ und „Eins von“ legen sich um markierten Text.
+              {t('find.builderHint')}
             </p>
             {REGEX_BLOCKS.map(({ group, blocks }) => (
               <div key={group} className="flex flex-wrap items-center gap-2">
@@ -224,7 +220,7 @@ export function FindReplaceBar({
               </div>
             ))}
             <div className="flex flex-wrap items-center gap-2">
-              <span className="w-20 text-sm font-semibold text-ink-faint">Ersetzen</span>
+              <span className="w-20 text-sm font-semibold text-ink-faint">{t('find.replace')}</span>
               {REPLACEMENT_BLOCKS.map((block) => (
                 <button key={block.label} type="button" className={chip} title={block.meaning} onClick={() => setReplacement((value) => insertAt(value, replaceCaret, block))}>
                   {block.label} <span className="font-sb-mono text-ink-soft">{block.insert}</span>
@@ -235,7 +231,7 @@ export function FindReplaceBar({
         )}
 
         {showPreview && matches.length > 0 && (
-          <div role="region" aria-label="Vorschau" className="flex flex-col gap-1">
+          <div role="region" aria-label={t('find.preview')} className="flex flex-col gap-1">
             {previewLines.map(([line, inLine]) => (
               <PreviewRow
                 key={line}
@@ -246,27 +242,27 @@ export function FindReplaceBar({
                 onPick={() => setCurrent(matches.indexOf(inLine[0]!))}
               />
             ))}
-            {byLine.size > previewLines.length && <p className="text-sm text-ink-faint">… und {byLine.size - previewLines.length} weitere Zeilen.</p>}
+            {byLine.size > previewLines.length && <p className="text-sm text-ink-faint">{t('find.more', { count: byLine.size - previewLines.length })}</p>}
           </div>
         )}
     </>
   )
 
   return (
-    <section aria-label="Suchen & Ersetzen" className={`flex flex-shrink-0 flex-col gap-2 rounded-container border border-line bg-surface ${compact ? 'p-1' : 'max-h-[60%] overflow-y-auto p-2'}`}>
+    <section aria-label={t('find.aria')} className={`flex flex-shrink-0 flex-col gap-2 rounded-container border border-line bg-surface ${compact ? 'p-1' : 'max-h-[60%] overflow-y-auto p-2'}`}>
       {/* Side by side where wide enough, else one under the other. */}
       <div className="flex flex-wrap items-center gap-2">
       <div className="flex min-w-[18rem] flex-1 flex-wrap items-center gap-2">
         {/* The field keeps a readable width; on a narrow phone the buttons wrap below it. */}
         <div className="flex min-w-[12rem] flex-1 items-center gap-2">
         <input
-          aria-label="Suchen"
+          aria-label={t('find.search')}
           value={find}
           autoFocus
           spellCheck={false}
           autoCapitalize="off"
           autoCorrect="off"
-          placeholder="Suchen"
+          placeholder={t('find.search')}
           aria-invalid={error ? true : undefined}
           className={`${field} ${error ? '!border-danger' : ''}`}
           onChange={(e) => {
@@ -283,14 +279,14 @@ export function FindReplaceBar({
         </span>
         </div>
         <div className="ml-auto flex items-center gap-2">
-        <IconButton icon="previous" label="Vorheriger Treffer" disabled={matches.length === 0} onClick={() => go(-1)} />
-        <IconButton icon="next" label="Nächster Treffer" disabled={matches.length === 0} onClick={() => go(1)} />
+        <IconButton icon="previous" label={t('find.prev')} disabled={matches.length === 0} onClick={() => go(-1)} />
+        <IconButton icon="next" label={t('find.next')} disabled={matches.length === 0} onClick={() => go(1)} />
         {compact && (
           <>
-            <IconButton icon="edit" label={showReplace ? 'Ersetzen ausblenden' : 'Ersetzen anzeigen'} variant={showReplace ? 'primary' : 'secondary'} onClick={() => setShowReplace((on) => !on)} />
+            <IconButton icon="edit" label={showReplace ? t('find.hideReplace') : t('find.showReplace')} variant={showReplace ? 'primary' : 'secondary'} onClick={() => setShowReplace((on) => !on)} />
             <IconButton
               icon="details"
-              label="Suchoptionen"
+              label={t('find.options')}
               onClick={() => {
                 // The keyboard goes down first: the options get the whole height.
                 if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
@@ -299,18 +295,18 @@ export function FindReplaceBar({
             />
           </>
         )}
-        <IconButton icon="close" label="Suche schließen" variant="quiet" onClick={onClose} />
+        <IconButton icon="close" label={t('find.close')} variant="quiet" onClick={onClose} />
         </div>
       </div>
       {(!compact || showReplace) && (
         <div className={`flex items-center gap-2 ${compact ? 'min-w-[18rem] flex-1' : 'w-full flex-wrap'}`}>
           <input
-            aria-label="Ersetzen durch"
+            aria-label={t('find.replaceWith')}
             value={replacement}
             spellCheck={false}
             autoCapitalize="off"
             autoCorrect="off"
-            placeholder="Ersetzen durch"
+            placeholder={t('find.replaceWith')}
             className={field}
             onChange={(e) => {
               setReplacement(e.target.value)
@@ -318,12 +314,18 @@ export function FindReplaceBar({
             }}
             onSelect={(e) => setReplaceCaret(caretOf(e))}
           />
-          {!compact && <InfoHint text={REPLACE_INFO} />}
+          {!compact && <InfoHint text={t('find.replaceInfo')} />}
           <Button disabled={index < 0} onClick={replaceCurrent}>
-            Ersetzen
+            {t('find.replace')}
           </Button>
           <Button variant="primary" disabled={matches.length === 0} onClick={replaceAll}>
-            {compact ? `Alle${matches.length > 0 ? ` (${matches.length})` : ''}` : matches.length > 0 ? `Alle ersetzen (${matches.length})` : 'Alle ersetzen'}
+            {compact
+              ? matches.length > 0
+                ? t('find.allShortN', { count: matches.length })
+                : t('find.allShort')
+              : matches.length > 0
+                ? t('find.allN', { count: matches.length })
+                : t('find.all')}
           </Button>
         </div>
       )}
@@ -332,7 +334,7 @@ export function FindReplaceBar({
       {notice && <p className="text-sm text-ink-soft">{notice}</p>}
       {!compact && optionsPanel}
       {compact && optionsOpen && (
-        <Dialog title="Suchoptionen" size="l" onClose={() => setOptionsOpen(false)}>
+        <Dialog title={t('find.options')} size="l" onClose={() => setOptionsOpen(false)}>
           {optionsPanel}
         </Dialog>
       )}

@@ -126,5 +126,8 @@
       "3": "Connection",
       "4": "Check"
     }
+  },
+  "builtIn": {
+    "playsOn": "{{label}} - plays on"
   }
 }

@@ -3,6 +3,7 @@ import { Button, Dialog } from './ui'
 import type { ChordOffsets } from '../lib/useChordOffsets'
 import { MAX_CAPO_FRET, MAX_TRANSPOSE } from '../lib/useChordOffsets'
 import { transposeKey } from '../lib/transposeChord'
+import { useTranslation } from 'react-i18next'
 
 function Stepper({
   label,
@@ -17,6 +18,7 @@ function Stepper({
   canIncrease: boolean
   onStep: (delta: number) => void
 }) {
+  const { t } = useTranslation('widgets')
   const buttonClass =
     'flex h-touch w-touch items-center justify-center rounded-control bg-control-strong text-2xl font-bold text-ink [@media(hover:hover)]:hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-40'
   // One grid row per stepper (label column of fixed width), so the buttons of both rows line up
@@ -24,11 +26,11 @@ function Stepper({
   return (
     <>
       <span className="text-sm uppercase tracking-widest text-ink-faint">{label}</span>
-      <button type="button" aria-label={`${label} verringern`} disabled={!canDecrease} onClick={() => onStep(-1)} className={buttonClass}>
+      <button type="button" aria-label={t('co.decrease', { label })} disabled={!canDecrease} onClick={() => onStep(-1)} className={buttonClass}>
         −
       </button>
       <span className="text-center text-lg font-bold text-ink">{value}</span>
-      <button type="button" aria-label={`${label} erhöhen`} disabled={!canIncrease} onClick={() => onStep(1)} className={buttonClass}>
+      <button type="button" aria-label={t('co.increase', { label })} disabled={!canIncrease} onClick={() => onStep(1)} className={buttonClass}>
         +
       </button>
     </>
@@ -49,6 +51,7 @@ function keyLabel(offsets: ChordOffsets, baseKey: string | undefined): string {
  * open in a popup. Local to this tablet - see useChordOffsetStore.
  */
 export function ChordOffsetControls({ offsets, authoredCapo, baseKey }: { offsets: ChordOffsets; authoredCapo: number; baseKey?: string }) {
+  const { t } = useTranslation('widgets')
   const [open, setOpen] = useState(false)
   const shown = keyLabel(offsets, baseKey)
   const changed = offsets.transposeOffset !== 0 || offsets.capoOffset !== 0
@@ -63,7 +66,7 @@ export function ChordOffsetControls({ offsets, authoredCapo, baseKey }: { offset
         }`}
       >
         {/* "Tonart: A" (Marco) - a lone "A" didn't say that tapping changes the key. */}
-        {baseKey ? `Tonart: ${shown}` : shown ? `Tonart ${shown}` : 'Tonart'}
+        {baseKey ? t('co.keyIs', { key: shown }) : shown ? t('co.keyStep', { step: shown }) : t('co.key')}
       </button>
       {open && <ChordOffsetDialog offsets={offsets} authoredCapo={authoredCapo} onClose={() => setOpen(false)} />}
     </>
@@ -71,41 +74,42 @@ export function ChordOffsetControls({ offsets, authoredCapo, baseKey }: { offset
 }
 
 function ChordOffsetDialog({ offsets, authoredCapo, onClose }: { offsets: ChordOffsets; authoredCapo: number; onClose: () => void }) {
+  const { t } = useTranslation('widgets')
   const { transposeOffset, effectiveCapo } = offsets
   const dirty = transposeOffset !== 0 || offsets.capoOffset !== 0
   // Applies at once - the way out is one "Fertig"; "Zurücksetzen" sits beside it while changed.
   return (
     <Dialog
-      title="Tonart"
+      title={t('co.key')}
       size="s"
       onClose={onClose}
       actions={
         <>
-          {dirty ? <Button onClick={offsets.reset}>Zurücksetzen</Button> : <span />}
+          {dirty ? <Button onClick={offsets.reset}>{t('co.reset')}</Button> : <span />}
           <Button variant="primary" onClick={onClose}>
-            Fertig
+            {t('co.done')}
           </Button>
         </>
       }
     >
       <div className="grid grid-cols-[7rem_auto_3rem_auto] items-center gap-3">
         <Stepper
-          label="Transpose"
+          label={t('co.transpose')}
           value={transposeOffset > 0 ? `+${transposeOffset}` : String(transposeOffset)}
           canDecrease={transposeOffset > -MAX_TRANSPOSE}
           canIncrease={transposeOffset < MAX_TRANSPOSE}
           onStep={offsets.stepTranspose}
         />
         <Stepper
-          label="Capo"
+          label={t('co.capo')}
           value={String(effectiveCapo)}
           canDecrease={effectiveCapo > 0}
           canIncrease={effectiveCapo < MAX_CAPO_FRET}
           onStep={offsets.stepCapo}
         />
       </div>
-      {authoredCapo > 0 && <p className="text-sm text-ink-faint">Akkorde sind für Capo {authoredCapo} notiert.</p>}
-      <p className="text-sm text-ink-faint">Gilt nur auf diesem Gerät und nur für diesen Song.</p>
+      {authoredCapo > 0 && <p className="text-sm text-ink-faint">{t('co.authored', { capo: authoredCapo })}</p>}
+      <p className="text-sm text-ink-faint">{t('co.local')}</p>
     </Dialog>
   )
 }

@@ -223,5 +223,18 @@
       "relations": "Verwandte Tonarten",
       "signature": "Vorzeichen"
     }
+  },
+  "co": {
+    "decrease": "{{label}} verringern",
+    "increase": "{{label}} erhöhen",
+    "keyIs": "Tonart: {{key}}",
+    "keyStep": "Tonart {{step}}",
+    "key": "Tonart",
+    "reset": "Zurücksetzen",
+    "done": "Fertig",
+    "transpose": "Transpose",
+    "capo": "Capo",
+    "authored": "Akkorde sind für Capo {{capo}} notiert.",
+    "local": "Gilt nur auf diesem Gerät und nur für diesen Song."
   }
 }

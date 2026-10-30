@@ -338,5 +338,6 @@
     "lightDark": "Hell oder dunkel",
     "dark": "Dunkel",
     "light": "Hell"
-  }
+  },
+  "unknownError": "unbekannter Fehler"
 }

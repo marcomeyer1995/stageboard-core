@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { TextFixOffer } from '../lib/variantTextFix'
 import { Button, CheckRow, Dialog } from './ui'
+import { useTranslation } from 'react-i18next'
 
 /** A picked place: which offer, which target in it. */
 export type TextFixPick = { offer: number; target: number }
@@ -14,6 +15,7 @@ const key = (pick: TextFixPick) => `${pick.offer}:${pick.target}`
  * "Abbrechen" goes back to the editor with nothing saved (D6).
  */
 export function TextFixDialog({ offers, onSave, onCancel }: { offers: TextFixOffer[]; onSave: (picks: TextFixPick[]) => void; onCancel: () => void }) {
+  const { t } = useTranslation('editor')
   const [picked, setPicked] = useState<Set<string>>(new Set())
   const toggle = (pick: TextFixPick) =>
     setPicked((current) => {
@@ -27,14 +29,14 @@ export function TextFixDialog({ offers, onSave, onCancel }: { offers: TextFixOff
 
   return (
     <Dialog
-      title="Auch in anderen Varianten ändern?"
+      title={t('fix.title')}
       onClose={onCancel}
       closeOnBackdrop={false}
       actions={
         <>
-          <Button onClick={onCancel}>Abbrechen</Button>
+          <Button onClick={onCancel}>{t('cancel')}</Button>
           <Button variant="primary" onClick={() => onSave(picks)}>
-            {picks.length > 0 ? `Speichern + ${picks.length} ${picks.length === 1 ? 'Änderung' : 'Änderungen'}` : 'Speichern'}
+            {picks.length > 0 ? t('fix.save', { count: picks.length }) : t('save')}
           </Button>
         </>
       }
@@ -46,7 +48,7 @@ export function TextFixDialog({ offers, onSave, onCancel }: { offers: TextFixOff
           // top while the lines scroll under it (over the dialog body's padding too).
           <div className="sticky -top-4 z-content -mt-4 border-b border-line bg-surface pb-4 pt-4">
             <CheckRow checked={allPicked} onToggle={() => setPicked(allPicked ? new Set() : new Set(all.map(key)))}>
-              <span className="font-semibold">Alle auswählen ({all.length})</span>
+              <span className="font-semibold">{t('fix.all', { count: all.length })}</span>
             </CheckRow>
           </div>
         )}
@@ -54,11 +56,11 @@ export function TextFixDialog({ offers, onSave, onCancel }: { offers: TextFixOff
           <section key={o} className="flex flex-col gap-2">
             <div className="flex flex-col gap-1 rounded-control bg-control px-3 py-2 font-sb-mono text-base">
               <span className="text-ink-faint line-through">{offer.before}</span>
-              {offer.after === null ? <span className="font-sans text-ink-soft">Zeile entfernen</span> : <span className="text-ink">{offer.after}</span>}
+              {offer.after === null ? <span className="font-sans text-ink-soft">{t('fix.removeLine')}</span> : <span className="text-ink">{offer.after}</span>}
             </div>
-            {offer.targets.map((target, t) => (
-              <CheckRow key={target.variantId} checked={picked.has(key({ offer: o, target: t }))} onToggle={() => toggle({ offer: o, target: t })}>
-                {target.variantLabel} · Zeile {target.lineIndex + 1}
+            {offer.targets.map((target, ti) => (
+              <CheckRow key={target.variantId} checked={picked.has(key({ offer: o, target: ti }))} onToggle={() => toggle({ offer: o, target: ti })}>
+                {t('fix.target', { variant: target.variantLabel, line: target.lineIndex + 1 })}
               </CheckRow>
             ))}
           </section>

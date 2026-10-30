@@ -8,6 +8,7 @@ import {
 import { useProfilesStore } from '../store/useProfilesStore'
 import { INPUT_FREE } from './ui/styles'
 import { ToggleChip, Button } from './ui'
+import { useTranslation } from 'react-i18next'
 
 interface CommentListEditorProps {
   content: string
@@ -30,6 +31,7 @@ interface CommentListEditorProps {
  * never a value held across a render.
  */
 export function CommentListEditor({ content, onChange }: CommentListEditorProps) {
+  const { t } = useTranslation('editor')
   const profiles = useProfilesStore((state) => state.profiles)
   const occurrences = listCommentDirectives(content)
   const tabBlocks = listTabBlocks(content)
@@ -56,10 +58,10 @@ export function CommentListEditor({ content, onChange }: CommentListEditorProps)
 
   return (
     <div className="flex flex-col gap-2">
-      <p className="text-sm text-ink-muted">Kommentare</p>
+      <p className="text-sm text-ink-muted">{t('cm.comments')}</p>
       {occurrences.length === 0 ? (
         <p className="text-xs text-ink-faint">
-          Noch keine Kommentare - "+ Kommentar" im ChordPro-Text fügt einen an der Cursorposition ein.
+          {t('cm.none')}
         </p>
       ) : (
         // Capped height, not open-ended - a long list must not push what follows it down.
@@ -77,7 +79,7 @@ export function CommentListEditor({ content, onChange }: CommentListEditorProps)
                   className={`min-h-form flex-1 min-w-0 px-3 text-base ${INPUT_FREE}`}
                 />
                 <Button onClick={() => remove(occurrence.lineNumber)}>
-                  Entfernen
+                  {t('remove')}
                 </Button>
               </div>
               <TargetPicker
@@ -89,11 +91,10 @@ export function CommentListEditor({ content, onChange }: CommentListEditorProps)
           ))}
         </div>
       )}
-      <p className="mt-2 text-sm text-ink-muted">Tab-Blöcke</p>
+      <p className="mt-2 text-sm text-ink-muted">{t('cm.tabs')}</p>
       {tabBlocks.length === 0 ? (
         <p className="text-xs text-ink-faint">
-          Noch keine Tab-Blöcke - "+ Tab" im ChordPro-Text fügt einen an der Cursorposition ein (Import aus Ultimate
-          Guitar legt sie automatisch an).
+          {t('cm.noTabs')}
         </p>
       ) : (
         <div className="flex max-h-64 flex-col gap-2 overflow-y-auto">
@@ -103,8 +104,8 @@ export function CommentListEditor({ content, onChange }: CommentListEditorProps)
               className="flex flex-col gap-2 rounded-control bg-control px-3 py-2 text-sm text-ink-soft"
             >
               <span>
-                {block.label ?? `Tab ${index + 1}`}{' '}
-                <span className="text-xs text-ink-faint">({block.lineCount} Zeilen)</span>
+                {block.label ?? t('cm.tabN', { n: index + 1 })}{' '}
+                <span className="text-xs text-ink-faint">{t('cm.lines', { count: block.lineCount })}</span>
               </span>
               <TargetPicker
                 profiles={profiles}
@@ -132,6 +133,7 @@ export function TargetPicker({
   targets: string[] | null
   onChange: (targets: string[] | null) => void
 }) {
+  const { t } = useTranslation('editor')
   function toggle(profile: Profile) {
     const key = profile.name.trim().toLowerCase()
     const current = targets ?? []
@@ -142,9 +144,9 @@ export function TargetPicker({
 
   return (
     <div className="flex flex-wrap items-center gap-1 text-xs">
-      <span className="text-ink-faint">Sichtbar für:</span>
+      <span className="text-ink-faint">{t('cm.visible')}</span>
       {profiles.length === 0 ? (
-        <span className="text-ink-faint">alle (keine Bandmitglieder angelegt)</span>
+        <span className="text-ink-faint">{t('cm.allNoMembers')}</span>
       ) : (
         <>
           {profiles.map((profile) => {
@@ -153,7 +155,7 @@ export function TargetPicker({
               <ToggleChip key={profile.id} label={profile.name} selected={checked} onToggle={() => toggle(profile)} />
             )
           })}
-          {targets === null && <span className="text-ink-faint">(alle, da niemand ausgewählt)</span>}
+          {targets === null && <span className="text-ink-faint">{t('cm.allNone')}</span>}
         </>
       )}
     </div>

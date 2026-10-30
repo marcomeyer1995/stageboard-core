@@ -2,6 +2,7 @@ import type { PointerEvent, ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useSettledTouchKeyboardOpen } from '../lib/useTouchKeyboardOpen'
 import { useSettledVisualViewport } from '../lib/useVisualViewport'
+import { useTranslation } from 'react-i18next'
 
 /** The four characters ChordPro needs that phone keyboards hide behind a symbol page (#606). */
 export const CHORDPRO_KEYS = ['[', ']', '/', '|'] as const
@@ -46,6 +47,7 @@ interface ChordProKeyBarProps {
  * on the keyboard in the app and in the browser alike, and is gone when the keyboard closes.
  */
 export function ChordProKeyBar({ active, chords, onKey, onChord, onInsertMenu }: ChordProKeyBarProps) {
+  const { t } = useTranslation('editor')
   // Settled: the WebView's brief wrong height while the keyboard comes up must not place the bar.
   const visible = useSettledVisualViewport()
   const keyboardOpen = useSettledTouchKeyboardOpen()
@@ -54,7 +56,7 @@ export function ChordProKeyBar({ active, chords, onKey, onChord, onInsertMenu }:
   return createPortal(
     <div
       role="toolbar"
-      aria-label="ChordPro-Tasten"
+      aria-label={t('keys.aria')}
       style={{ top: visible.offsetTop + visible.height }}
       className="fixed inset-x-0 z-menu flex -translate-y-full items-center overflow-x-auto border-t border-line bg-surface px-2"
     >
@@ -65,12 +67,12 @@ export function ChordProKeyBar({ active, chords, onKey, onChord, onInsertMenu }:
       ))}
       {chords.length > 0 && <span aria-hidden="true" className="mx-1 h-6 w-px flex-shrink-0 bg-line" />}
       {chords.map((chord) => (
-        <Key key={chord} label={`[${chord}] einfügen`} onPress={() => onChord(chord)}>
+        <Key key={chord} label={t('keys.chord', { chord })} onPress={() => onChord(chord)}>
           <span className="text-accent">{chord}</span>
         </Key>
       ))}
       <span className="flex-1" />
-      <Key label="Einfügen" onPress={onInsertMenu}>
+      <Key label={t('keys.insert')} onPress={onInsertMenu}>
         +
       </Key>
     </div>,

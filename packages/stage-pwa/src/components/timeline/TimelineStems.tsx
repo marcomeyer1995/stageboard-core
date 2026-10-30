@@ -1,3 +1,4 @@
+import i18n from '../../i18n'
 import { useEffect, useRef, type PointerEvent } from 'react'
 import type { TrackMeta } from 'shared-types'
 import { timeToX, tokenColor, xToTime, type TimelineView } from '../../lib/timeline'
@@ -49,8 +50,9 @@ export function StemsToggle({ count, open, top, onToggle, soloLabel, analysisSou
       style={{ top }}
     >
       <Icon name={open ? 'collapse' : 'expand'} />
-      Stems ({count}){soloLabel ? ` · nur ${soloLabel}` : ''}
-      {analysisSourceLabel ? ` · Treffer aus ${analysisSourceLabel}` : ''}
+      {i18n.t('editor:tl.stems', { count })}
+      {soloLabel ? i18n.t('editor:tl.onlySolo', { name: soloLabel }) : ''}
+      {analysisSourceLabel ? i18n.t('editor:tl.hitsFrom', { name: analysisSourceLabel }) : ''}
     </button>
   )
 }
@@ -137,7 +139,7 @@ export function TimelineStems({ stems, analyses, top, height, width, view, playh
               key={stem.id}
               type="button"
               aria-pressed={solo}
-              title={solo ? 'Wieder alle Spuren hören' : `Nur ${stem.label} hören`}
+              title={solo ? i18n.t('editor:tl.allStems') : i18n.t('editor:tl.onlyStem', { name: stem.label })}
               onClick={() => onSolo(solo ? null : stem.id)}
               className="absolute left-0 flex w-full items-start"
               style={{ top: i * STEM_LANE_H, height: STEM_LANE_H }}

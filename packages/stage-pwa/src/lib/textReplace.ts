@@ -1,3 +1,4 @@
+import i18n from '../i18n'
 /**
  * "Suchen & Ersetzen" (#605; like Notepad++, Marco 2026-10-29): three modes - normal (the text
  * literally), extended (normal plus \n, \t, \\ as line break, tab, backslash) and regular
@@ -97,63 +98,61 @@ export interface RegexBlock {
   wrap?: [string, string]
 }
 
+/** A builder button whose words follow the device's language (#456). */
+function block(key: string, insert: string, wrap?: [string, string]): RegexBlock {
+  return {
+    insert,
+    ...(wrap ? { wrap } : {}),
+    get label() {
+      return i18n.t(`editor:rx.block.${key}` as 'editor:rx.block.any')
+    },
+    get meaning() {
+      return i18n.t(`editor:rx.mean.${key}` as 'editor:rx.mean.any')
+    },
+  }
+}
+
+function group(key: string, blocks: RegexBlock[]): { group: string; blocks: RegexBlock[] } {
+  return {
+    get group() {
+      return i18n.t(`editor:rx.group.${key}` as 'editor:rx.group.chars')
+    },
+    blocks,
+  }
+}
+
 export const REGEX_BLOCKS: { group: string; blocks: RegexBlock[] }[] = [
-  {
-    group: 'Zeichen',
-    blocks: [
-      { label: 'Beliebiges Zeichen', insert: '.', meaning: 'ein beliebiges Zeichen' },
-      { label: 'Ziffer', insert: '\\d', meaning: 'eine Ziffer 0-9' },
-      { label: 'Buchstabe/Ziffer', insert: '\\w', meaning: 'ein Buchstabe, eine Ziffer oder _' },
-      { label: 'Leerzeichen', insert: '\\s', meaning: 'ein Leerzeichen oder Tabulator' },
-      { label: 'Akkord', insert: '\\[[^\\]]+\\]', meaning: 'etwas in eckigen Klammern, z. B. ein Akkord' },
-      { label: 'Zeitmarke', insert: '\\[\\d{2}:\\d{2}(?:\\.\\d+)?\\]', meaning: 'eine Zeitmarke wie [01:14.50]' },
-    ],
-  },
-  {
-    group: 'Wie oft',
-    blocks: [
-      { label: 'Einmal oder öfter', insert: '+', meaning: 'das davor einmal oder öfter' },
-      { label: 'Beliebig oft', insert: '*', meaning: 'das davor beliebig oft, auch keinmal' },
-      { label: 'Optional', insert: '?', meaning: 'das davor kann fehlen' },
-    ],
-  },
-  {
-    group: 'Position',
-    blocks: [
-      { label: 'Zeilenanfang', insert: '^', meaning: 'der Anfang einer Zeile' },
-      { label: 'Zeilenende', insert: '$', meaning: 'das Ende einer Zeile' },
-      { label: 'Wortgrenze', insert: '\\b', meaning: 'Anfang oder Ende eines Worts' },
-    ],
-  },
-  {
-    group: 'Gruppen',
-    blocks: [
-      { label: 'Gruppe', insert: '()', wrap: ['(', ')'], meaning: 'eine Gruppe - im Ersetzen als $1, $2 … wieder einsetzbar' },
-      { label: 'Eins von', insert: '[]', wrap: ['[', ']'], meaning: 'eines der Zeichen in den Klammern' },
-      { label: 'Oder', insert: '|', meaning: 'das links oder das rechts davon' },
-    ],
-  },
+  group('chars', [
+    block('any', '.'),
+    block('digit', '\\d'),
+    block('word', '\\w'),
+    block('space', '\\s'),
+    block('chord', '\\[[^\\]]+\\]'),
+    block('time', '\\[\\d{2}:\\d{2}(?:\\.\\d+)?\\]'),
+  ]),
+  group('howOften', [
+    block('oneOrMore', '+'),
+    block('any2', '*'),
+    block('optional', '?'),
+  ]),
+  group('position', [
+    block('lineStart', '^'),
+    block('lineEnd', '$'),
+    block('wordEdge', '\\b'),
+  ]),
+  group('groups', [
+    block('group', '()', ['(', ')']),
+    block('oneOf', '[]', ['[', ']']),
+    block('or', '|'),
+  ]),
 ]
 
 /** Building blocks for the replacement field. */
-export const REPLACEMENT_BLOCKS: RegexBlock[] = [
-  { label: 'Gruppe 1', insert: '$1', meaning: 'was die erste ( ) gefunden hat' },
-  { label: 'Gruppe 2', insert: '$2', meaning: 'was die zweite ( ) gefunden hat' },
-  { label: 'Ganzer Treffer', insert: '$&', meaning: 'alles, was gefunden wurde' },
-]
+export const REPLACEMENT_BLOCKS: RegexBlock[] = [block('g1', '$1'), block('g2', '$2'), block('all', '$&')]
 
-const QUANTIFIER_MEANING: Record<string, string> = { '+': 'einmal oder öfter', '*': 'beliebig oft', '?': 'optional' }
-const ESCAPE_MEANING: Record<string, string> = {
-  d: 'eine Ziffer',
-  D: 'keine Ziffer',
-  w: 'ein Buchstabe, eine Ziffer oder _',
-  W: 'kein Buchstabe und keine Ziffer',
-  s: 'ein Leerzeichen',
-  S: 'kein Leerzeichen',
-  b: 'eine Wortgrenze',
-  n: 'ein Zeilenumbruch',
-  t: 'ein Tabulator',
-}
+const QUANTIFIER_MEANING = (q: string): string => (q === '+' || q === '*' || q === '?' ? i18n.t(`editor:rx.q.${q}`) : q)
+const ESCAPES = new Set(['d', 'D', 'w', 'W', 's', 'S', 'b', 'n', 't'])
+const ESCAPE_MEANING = (c: string): string => i18n.t(`editor:rx.esc.${c}` as 'editor:rx.esc.d')
 
 /**
  * The pattern in words, piece by piece - shown under the field so a pattern explains itself
@@ -165,21 +164,21 @@ export function explainPattern(pattern: string): string[] {
   let literal = ''
   let group = 0
   const flush = () => {
-    if (literal) out.push(`der Text „${literal}“`)
+    if (literal) out.push(i18n.t('editor:rx.x.text', { text: literal }))
     literal = ''
   }
   const quantify = (q: string) => {
     flush()
     const last = out.pop()
-    if (last !== undefined) out.push(`${last}, ${QUANTIFIER_MEANING[q] ?? q}`)
+    if (last !== undefined) out.push(`${last}, ${QUANTIFIER_MEANING(q)}`)
   }
   for (let i = 0; i < pattern.length; i++) {
     const c = pattern[i]!
     if (c === '\\' && i + 1 < pattern.length) {
       const next = pattern[++i]!
-      if (ESCAPE_MEANING[next]) {
+      if (ESCAPES.has(next)) {
         flush()
-        out.push(ESCAPE_MEANING[next])
+        out.push(ESCAPE_MEANING(next))
       } else literal += next
     } else if (c === '+' || c === '*' || c === '?') {
       if (literal.length > 1) {
@@ -187,7 +186,7 @@ export function explainPattern(pattern: string): string[] {
         const lastChar = literal.slice(-1)
         literal = keep
         flush()
-        out.push(`das Zeichen „${lastChar}“`)
+        out.push(i18n.t('editor:rx.x.char', { char: lastChar }))
         quantify(c)
       } else quantify(c)
     } else if (c === '{') {
@@ -195,33 +194,33 @@ export function explainPattern(pattern: string): string[] {
       if (m) {
         flush()
         const last = out.pop() ?? ''
-        out.push(`${last}, ${m[2] === undefined ? `genau ${m[1]}-mal` : m[2] === '' ? `mindestens ${m[1]}-mal` : `${m[1]}- bis ${m[2]}-mal`}`)
+        out.push(`${last}, ${m[2] === undefined ? i18n.t('editor:rx.x.exactly', { n: m[1] }) : m[2] === '' ? i18n.t('editor:rx.x.atLeast', { n: m[1] }) : i18n.t('editor:rx.x.range', { from: m[1], to: m[2] })}`)
         i += m[0].length - 1
       } else literal += c
     } else if (c === '.') {
       flush()
-      out.push('ein beliebiges Zeichen')
+      out.push(i18n.t('editor:rx.x.any'))
     } else if (c === '^') {
       flush()
-      out.push('Zeilenanfang')
+      out.push(i18n.t('editor:rx.x.lineStart'))
     } else if (c === '$') {
       flush()
-      out.push('Zeilenende')
+      out.push(i18n.t('editor:rx.x.lineEnd'))
     } else if (c === '|') {
       flush()
-      out.push('- oder -')
+      out.push(i18n.t('editor:rx.x.or'))
     } else if (c === '(') {
       flush()
       if (pattern.startsWith('(?:', i)) {
-        out.push('Anfang einer Klammer (ohne Nummer)')
+        out.push(i18n.t('editor:rx.x.nonCapture'))
         i += 2
       } else {
         group += 1
-        out.push(`Anfang Gruppe ${group} ($${group})`)
+        out.push(i18n.t('editor:rx.x.groupStart', { n: group }))
       }
     } else if (c === ')') {
       flush()
-      out.push('Ende der Gruppe')
+      out.push(i18n.t('editor:rx.x.groupEnd'))
     } else if (c === '[') {
       const end = pattern.indexOf(']', i + 2)
       if (end === -1) {
@@ -230,7 +229,7 @@ export function explainPattern(pattern: string): string[] {
       }
       flush()
       const set = pattern.slice(i + 1, end)
-      out.push(set.startsWith('^') ? `ein Zeichen außer „${set.slice(1).replace(/\\/g, '')}“` : `eines von „${set.replace(/\\/g, '')}“`)
+      out.push(set.startsWith('^') ? i18n.t('editor:rx.x.notOf', { set: set.slice(1).replace(/\\/g, '') }) : i18n.t('editor:rx.x.oneOf', { set: set.replace(/\\/g, '') }))
       i = end
     } else literal += c
   }

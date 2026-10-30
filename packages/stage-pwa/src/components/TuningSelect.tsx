@@ -2,6 +2,7 @@ import { useId } from 'react'
 import type { Tuning } from 'shared-types'
 import { tuningLabel } from '../lib/pitch'
 import { INPUT } from './ui/styles'
+import { useTranslation } from 'react-i18next'
 
 const OFFSETS = [0, -1, -2, -3, -4, -5, -6, 1, 2]
 const DROPS = [0, -1, -2, -3, -4]
@@ -38,6 +39,7 @@ export function TuningSelect({
   value: Tuning | undefined
   onChange: (tuning: Tuning) => void
 }) {
+  const { t } = useTranslation('editor')
   const id = useId()
   const whole = OFFSETS.map((semitones): Tuning => ({ semitones }))
   const drops = DROPS.map((semitones): Tuning => ({ semitones, drop: true }))
@@ -53,21 +55,21 @@ export function TuningSelect({
         onChange={(e) => onChange(decode(e.target.value))}
       >
         {value && !known.has(current) && <option value={current}>{tuningLabel(value)}</option>}
-        <optgroup label="Ganzer Hals">
+        <optgroup label={t('ts.whole')}>
           {whole.map((tuning) => (
             <option key={encode(tuning)} value={encode(tuning)}>
               {tuningLabel(tuning)}
             </option>
           ))}
         </optgroup>
-        <optgroup label="Drop (tiefste Saite einen Ton tiefer)">
+        <optgroup label={t('ts.drop')}>
           {drops.map((tuning) => (
             <option key={encode(tuning)} value={encode(tuning)}>
               {tuningLabel(tuning)}
             </option>
           ))}
         </optgroup>
-        <optgroup label="Offen (Akkorde wie geschrieben)">
+        <optgroup label={t('ts.open')}>
           {OPENS.map((tuning) => (
             <option key={encode(tuning)} value={encode(tuning)}>
               {tuningLabel(tuning)}

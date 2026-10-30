@@ -1,3 +1,4 @@
+import i18n from '../i18n'
 import { useEffect, useState } from 'react'
 import { CAPABILITIES, isYoutubeUrl, StemRoleSchema, type AsyncJob, type StemModel, type StemRole, type TrackKind, type TrackMeta, type YoutubeSearchResult } from 'shared-types'
 import { measureAudioDurationMs } from '../lib/measureAudioDuration'
@@ -13,8 +14,16 @@ import { usePluginsStore } from '../store/usePluginsStore'
 import { StemSeparationDialog } from './StemSeparationDialog'
 import { INPUT } from './ui/styles'
 import { AddRow, Button, Dialog, IconButton } from './ui'
+import { useTranslation } from 'react-i18next'
 
-const JOB_LABELS: Record<AsyncJob['type'], string> = { 'youtube-extract': 'YouTube-Extraktion', 'stem-separation': 'Spuren trennen' }
+const JOB_LABELS: Record<AsyncJob['type'], string> = {
+  get 'youtube-extract'() {
+    return i18n.t('editor:tm.job.youtube')
+  },
+  get 'stem-separation'() {
+    return i18n.t('editor:tm.job.stems')
+  },
+}
 
 interface TrackManagerFieldProps {
   variantId: string
@@ -26,9 +35,15 @@ interface TrackManagerFieldProps {
 }
 
 const KIND_LABELS: Record<TrackKind, string> = {
-  reference: 'Referenz',
-  'band-mix': 'Band-Playback',
-  stem: 'Stem',
+  get reference() {
+    return i18n.t('editor:tm.kind.reference')
+  },
+  get 'band-mix'() {
+    return i18n.t('editor:tm.kind.bandMix')
+  },
+  get stem() {
+    return i18n.t('editor:tm.kind.stem')
+  },
 }
 
 const NO_ROLE = 'none'
@@ -38,6 +53,7 @@ const NO_ROLE = 'none'
  * Stems form sets (docs/22 §2): those split from a track are listed under it, uploaded ones
  * (several files at once, e.g. from the band leader) in a set of their own. */
 export function TrackManagerField({ variantId, tracks, disabled, searchQuery = '' }: TrackManagerFieldProps) {
+  const { t } = useTranslation('editor')
   const [busyTrackId, setBusyTrackId] = useState<string | null>(null)
   const [uploadKind, setUploadKind] = useState<TrackKind>('band-mix')
   const [youtubeUrl, setYoutubeUrl] = useState('')
@@ -85,18 +101,18 @@ export function TrackManagerField({ variantId, tracks, disabled, searchQuery = '
   /** Name and role of a stem - the role may stay empty (band-leader stems have no fixed structure). */
   async function editStem(track: TrackMeta) {
     const result = await promptFields(
-      'Spur bearbeiten',
+      t('tm.editStem'),
       [
-        { key: 'label', label: 'Name', defaultValue: track.label },
+        { key: 'label', label: t('tm.name'), defaultValue: track.label },
         {
           key: 'role',
-          label: 'Rolle (optional)',
+          label: t('tm.role'),
           type: 'radio',
           defaultValue: track.role ?? NO_ROLE,
-          options: [{ value: NO_ROLE, label: 'Keine' }, ...StemRoleSchema.options.map((role) => ({ value: role, label: STEM_ROLE_LABELS[role] }))],
+          options: [{ value: NO_ROLE, label: t('tm.noRole') }, ...StemRoleSchema.options.map((role) => ({ value: role, label: STEM_ROLE_LABELS[role] }))],
         },
       ],
-      'Übernehmen',
+      t('tm.apply'),
     )
     if (!result?.label?.trim()) return
     const role = StemRoleSchema.safeParse(result.role)
@@ -109,7 +125,7 @@ export function TrackManagerField({ variantId, tracks, disabled, searchQuery = '
     return (
       <IconButton
         icon={playing ? 'pause' : 'play'}
-        label={playing ? `${track.label} anhalten` : `${track.label} anhören`}
+        label={playing ? t('tm.pause', { name: track.label }) : t('tm.listen', { name: track.label })}
         variant={playing ? 'primary' : 'secondary'}
         aria-pressed={playing}
         onClick={() => void listen(track)}
@@ -122,7 +138,7 @@ export function TrackManagerField({ variantId, tracks, disabled, searchQuery = '
     return (
       <IconButton
         icon="delete"
-        label={`${track.label} entfernen`}
+        label={t('tm.remove', { name: track.label })}
         // Red like every destructive action - over the button's own ink colour.
         className="!text-danger"
         onClick={() => void handleRemove(track)}
@@ -134,7 +150,7 @@ export function TrackManagerField({ variantId, tracks, disabled, searchQuery = '
   function stemSet(stems: TrackMeta[]) {
     return (
       <>
-        {stemLengthsDiffer(stems) && <span className="ml-4 text-sm text-warn">Die Spuren sind unterschiedlich lang - sie laufen ab 0:00 zusammen, eine passt vielleicht nicht.</span>}
+        {stemLengthsDiffer(stems) && <span className="ml-4 text-sm text-warn">{t('tm.lengthsDiffer')}</span>}
         {stems.map((stem) => (
           <div key={stem.id} className="ml-4 flex flex-col gap-1 border-l-2 border-line pl-2">
             <div className="flex items-center gap-2">
@@ -144,7 +160,7 @@ export function TrackManagerField({ variantId, tracks, disabled, searchQuery = '
                 {stem.role && STEM_ROLE_LABELS[stem.role] !== stem.label && <span className="ml-2 text-xs text-ink-faint">{STEM_ROLE_LABELS[stem.role]}</span>}
               </span>
               {playButton(stem)}
-              <IconButton icon="edit" label={`${stem.label} bearbeiten`} onClick={() => void editStem(stem)} disabled={disabled} />
+              <IconButton icon="edit" label={t('tm.edit', { name: stem.label })} onClick={() => void editStem(stem)} disabled={disabled} />
               {removeButton(stem)}
             </div>
             {listening?.trackId === stem.id && <audio controls autoPlay src={listening.url} className="w-full" />}
@@ -178,7 +194,7 @@ export function TrackManagerField({ variantId, tracks, disabled, searchQuery = '
     for (const [i, file] of (stem ? files : files.slice(0, 1)).entries()) {
       const id = randomId()
       setBusyTrackId(id)
-      if (stem && files.length > 1) setUploadProgress(`Lade Spur ${i + 1} von ${files.length}…`)
+      if (stem && files.length > 1) setUploadProgress(t('tm.uploading', { n: i + 1, total: files.length }))
       const durationMs = await measureAudioDurationMs(file)
       const role: StemRole | undefined = stem ? guessStemRole(file.name) : undefined
       try {
@@ -210,7 +226,7 @@ export function TrackManagerField({ variantId, tracks, disabled, searchQuery = '
 
   /** An icon is quickly tapped by mistake - removing asks first (#604). */
   async function handleRemove(track: TrackMeta) {
-    if (!(await confirm(`„${track.label}“ entfernen?`, { confirmLabel: 'Entfernen', danger: true }))) return
+    if (!(await confirm(t('tm.removeAsk', { name: track.label }), { confirmLabel: t('remove'), danger: true }))) return
     setBusyTrackId(track.id)
     await removeTrack(variantId, track.id)
     setBusyTrackId(null)
@@ -223,10 +239,10 @@ export function TrackManagerField({ variantId, tracks, disabled, searchQuery = '
     e.preventDefault()
     const url = youtubeUrl.trim()
     if (!isYoutubeUrl(url)) {
-      setYoutubeError('Bitte einen youtube.com- oder youtu.be-Link einfügen.')
+      setYoutubeError(t('tm.youtubeLink'))
       return
     }
-    await queueYoutube(url, 'YouTube Referenz')
+    await queueYoutube(url, t('tm.youtubeRef'))
   }
 
   /** Searched by the Stage-Server (#618) - no copying links out of YouTube any more. */
@@ -264,12 +280,12 @@ export function TrackManagerField({ variantId, tracks, disabled, searchQuery = '
 
   return (
     <div className="flex flex-col gap-1 text-sm text-ink-muted">
-      Tracks
+      {t('tm.tracks')}
       {/* Capped height, not open-ended - a long list must not push what follows it down, applied
           consistently even though this list is usually short (Marco: every dynamically-sized
           list should get this, not just the ones that obviously need it today). */}
       <div className="flex max-h-64 flex-col gap-1 overflow-y-auto">
-        {tracks.length === 0 && <span className="text-xs text-ink-faint">Keine Tracks</span>}
+        {tracks.length === 0 && <span className="text-xs text-ink-faint">{t('tm.none')}</span>}
         {playableTracks(tracks).map((track) => (
           <div key={track.id} className="flex flex-col gap-1">
             <div className="flex items-center gap-2">
@@ -278,7 +294,7 @@ export function TrackManagerField({ variantId, tracks, disabled, searchQuery = '
                 <span className="ml-2 text-xs text-ink-faint">{KIND_LABELS[track.kind]}</span>
               </span>
               {playButton(track)}
-              {canSeparate && <IconButton icon="split" label="Spuren trennen" onClick={() => setSeparating(track)} disabled={disabled} />}
+              {canSeparate && <IconButton icon="split" label={t('tm.split')} onClick={() => setSeparating(track)} disabled={disabled} />}
               {removeButton(track)}
             </div>
             {listening?.trackId === track.id && <audio controls autoPlay src={listening.url} className="w-full" />}
@@ -287,7 +303,7 @@ export function TrackManagerField({ variantId, tracks, disabled, searchQuery = '
         ))}
         {uploadedStems(tracks).length > 0 && (
           <div className="flex flex-col gap-1">
-            <span className="text-xs text-ink-faint">Hochgeladene Spuren</span>
+            <span className="text-xs text-ink-faint">{t('tm.uploaded')}</span>
             {stemSet(uploadedStems(tracks))}
           </div>
         )}
@@ -298,32 +314,32 @@ export function TrackManagerField({ variantId, tracks, disabled, searchQuery = '
             <div key={job.id} className="flex items-center gap-2 text-xs">
               {job.status === 'error' ? (
                 <span className="text-danger">
-                  {JOB_LABELS[job.type]} fehlgeschlagen: {job.error}
+                  {t('tm.failed', { job: JOB_LABELS[job.type], error: job.error })}
                 </span>
               ) : job.status === 'done' ? (
-                <span className="text-ink-faint">{JOB_LABELS[job.type]} abgeschlossen</span>
+                <span className="text-ink-faint">{t('tm.done', { job: JOB_LABELS[job.type] })}</span>
               ) : (
                 <span className="text-ink-faint">
-                  {JOB_LABELS[job.type]} {job.status === 'running' ? `${Math.round(job.progress * 100)} %` : 'wartet…'}
+                  {JOB_LABELS[job.type]} {job.status === 'running' ? `${Math.round(job.progress * 100)} %` : t('tm.waiting')}
                 </span>
               )}
               {(job.status === 'error' || job.status === 'done') && (
                 <Button onClick={() => void removeAsyncJob(job.id)}>
-                  Ausblenden
+                  {t('tm.hide')}
                 </Button>
               )}
             </div>
           ))}
         </div>
       )}
-      <AddRow label="Track hinzufügen" onClick={() => setAdding(true)} disabled={disabled || busyTrackId !== null} />
+      <AddRow label={t('tm.add')} onClick={() => setAdding(true)} disabled={disabled || busyTrackId !== null} />
       {uploadProgress && <span className="text-xs text-ink-faint">{uploadProgress}</span>}
-      {disabled && <span className="text-xs text-ink-faint">Erst speichern, dann Tracks anhängen.</span>}
+      {disabled && <span className="text-xs text-ink-faint">{t('tm.saveFirst')}</span>}
       {adding && (
-        <Dialog title="Track hinzufügen" closeLabel="Abbrechen" onClose={() => setAdding(false)}>
+        <Dialog title={t('tm.add')} closeLabel={t('cancel')} onClose={() => setAdding(false)}>
           <div className="flex flex-col gap-3 text-base text-ink">
             <label className="flex flex-col gap-1 text-sm text-ink-muted">
-              Art
+              {t('tm.kindLabel')}
               <select className={`min-h-form px-3 text-base ${INPUT}`} value={uploadKind} onChange={(e) => setUploadKind(e.target.value as TrackKind)}>
                 {(Object.keys(KIND_LABELS) as TrackKind[]).map((kind) => (
                   <option key={kind} value={kind}>
@@ -338,32 +354,32 @@ export function TrackManagerField({ variantId, tracks, disabled, searchQuery = '
                 busyTrackId !== null ? 'pointer-events-none opacity-40' : ''
               }`}
             >
-              {uploadKind === 'stem' ? 'Dateien wählen' : 'Datei wählen'}
+              {uploadKind === 'stem' ? t('tm.chooseFiles') : t('tm.chooseFile')}
               <input type="file" accept="audio/*" multiple={uploadKind === 'stem'} className="hidden" disabled={busyTrackId !== null} onChange={handleFiles} />
             </label>
             {uploadKind === 'stem' && (
-              <span className="text-sm text-ink-faint">Mehrere Dateien auf einmal - alle gleich lang ab 0:00. Name und Rolle kommen aus dem Dateinamen.</span>
+              <span className="text-sm text-ink-faint">{t('tm.multi')}</span>
             )}
             {canDownload && (
               <div className="flex flex-col gap-2 border-t border-line pt-3">
                 <form onSubmit={handleSearch} className="flex flex-col gap-2">
-                  <span className="text-sm text-ink-muted">Oder eine Referenz von YouTube</span>
+                  <span className="text-sm text-ink-muted">{t('tm.orYoutube')}</span>
                   {/* Not inside a <label>: its text would become the button's name too. */}
                   <div className="flex gap-2">
                     <input
                       type="search"
-                      aria-label="YouTube durchsuchen"
+                      aria-label={t('tm.searchYoutube')}
                       value={query}
                       onChange={(e) => setQuery(e.target.value)}
-                      placeholder="Titel und Band"
+                      placeholder={t('tm.titleBand')}
                       className={`min-h-form flex-1 min-w-0 px-3 text-base placeholder:text-ink-faint ${INPUT}`}
                     />
                     <Button type="submit" disabled={searching || !query.trim()}>
-                      {searching ? 'Suche…' : 'Suchen'}
+                      {searching ? t('tm.searching') : t('tm.search')}
                     </Button>
                   </div>
                 </form>
-                {hits && hits.length === 0 && <span className="text-sm text-ink-faint">Nichts gefunden.</span>}
+                {hits && hits.length === 0 && <span className="text-sm text-ink-faint">{t('tm.nothing')}</span>}
                 {hits && hits.length > 0 && (
                   // A tap on a hit loads it - the same job as a pasted link.
                   <ul aria-label="Suchergebnisse" className="flex max-h-80 flex-col gap-1 overflow-y-auto">
@@ -392,14 +408,14 @@ export function TrackManagerField({ variantId, tracks, disabled, searchQuery = '
                 <form onSubmit={handleYoutubeSubmit} className="flex gap-2">
                   <input
                     type="url"
-                    aria-label="YouTube-Link"
+                    aria-label={t('tm.link')}
                     value={youtubeUrl}
                     onChange={(e) => setYoutubeUrl(e.target.value)}
-                    placeholder="oder Link einfügen: https://youtu.be/…"
+                    placeholder={t('tm.linkPlaceholder')}
                     className={`min-h-form flex-1 min-w-0 px-3 text-base placeholder:text-ink-faint ${INPUT}`}
                   />
                   <Button type="submit" disabled={youtubeUrl.trim() === ''}>
-                    Laden
+                    {t('tm.load')}
                   </Button>
                 </form>
                 {youtubeError && <span className="text-sm text-danger">{youtubeError}</span>}

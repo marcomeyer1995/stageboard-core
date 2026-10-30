@@ -136,7 +136,7 @@ export async function installAppUpdate(): Promise<void> {
  * shown with the message - without it a failure on one phone could not be told apart (2026-10-20). */
 export function updateFailureReason(err: unknown): string {
   const text = err instanceof Error ? err.message : String(err)
-  return text.replace(/^Update failed: /, '') || 'unbekannter Fehler'
+  return text.replace(/^Update failed: /, '') || i18n.t('system:unknownError')
 }
 
 /** The question asked before trusting a Stage-Server's certificate (#377): name, address and the
