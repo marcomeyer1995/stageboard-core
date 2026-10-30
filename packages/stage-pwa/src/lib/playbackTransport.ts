@@ -12,6 +12,8 @@ export interface TransportState {
   /** A queued or just-passed section jump (#479, ShowState.playbackJump): from server time `at`
    * on, song time continues at `toMs`. */
   jump?: SectionJump | null
+  /** Song time leapt over by passed jumps (ShowState.playbackSkippedMs) - forward +, back −. */
+  skippedMs?: number
 }
 
 export interface SectionJump {
@@ -22,12 +24,12 @@ export interface SectionJump {
 
 /** The transport slice of a show state. */
 export function transportOf(state: ShowState): TransportState {
-  return { status: state.playbackStatus, startedAt: state.playbackStartedAt, accumulatedMs: state.playbackAccumulatedMs, jump: state.playbackJump ?? null }
+  return { status: state.playbackStatus, startedAt: state.playbackStartedAt, accumulatedMs: state.playbackAccumulatedMs, jump: state.playbackJump ?? null, skippedMs: state.playbackSkippedMs ?? 0 }
 }
 
 /** "Unarmed": no time accumulated, nothing running. What Reset always returns to, and what a
  * freshly activated entry starts as. */
-export const ARMED_TRANSPORT: TransportState = { status: 'stopped', startedAt: null, accumulatedMs: 0, jump: null }
+export const ARMED_TRANSPORT: TransportState = { status: 'stopped', startedAt: null, accumulatedMs: 0, jump: null, skippedMs: 0 }
 
 /** Net active elapsed ms for the current play-through - the accumulated total, plus whatever
  * has elapsed since the current run began if still playing. Paused/stopped time is never
@@ -50,22 +52,32 @@ export function jumpBoundaryMs(state: TransportState): number | null {
 
 /** The same song clock without the passed jump: anchored on it (#479). Unchanged before the jump. */
 export function foldJump(state: TransportState, now: number): TransportState {
-  if (!state.jump || now < state.jump.at || state.status !== 'playing') return state
-  return { status: 'playing', startedAt: state.jump.at, accumulatedMs: state.jump.toMs, jump: null }
+  if (!state.jump || now < state.jump.at || state.status !== 'playing' || state.startedAt === null) return state
+  const boundary = state.accumulatedMs + (state.jump.at - state.startedAt)
+  return { status: 'playing', startedAt: state.jump.at, accumulatedMs: state.jump.toMs, jump: null, skippedMs: (state.skippedMs ?? 0) + (state.jump.toMs - boundary) }
+}
+
+/** The time really played (#64, Marco 2026-10-29): song time without what jumps leapt over -
+ * a skipped part doesn't count, a looped chorus counts each time. Paused time never does. */
+export function computePlayedMs(state: TransportState, now: number): number {
+  const folded = foldJump(state, now)
+  return computeActiveMs(folded, now) - (folded.skippedMs ?? 0)
 }
 
 /** Starts or resumes - a no-op if already playing, so re-pressing Play mid-song never resets
  * the accumulated position. */
 export function play(state: TransportState, now: number): TransportState {
   if (state.status === 'playing') return state
-  return { status: 'playing', startedAt: now, accumulatedMs: state.accumulatedMs, jump: null }
+  return { status: 'playing', startedAt: now, accumulatedMs: state.accumulatedMs, jump: null, skippedMs: state.skippedMs ?? 0 }
 }
 
 /** Freezes the current position for a later resume - a no-op unless currently playing. */
 export function pause(state: TransportState, now: number): TransportState {
   if (state.status !== 'playing') return state
-  // A jump not reached yet is dropped - after Pause the song resumes where it stood.
-  return { status: 'paused', startedAt: null, accumulatedMs: computeActiveMs(state, now), jump: null }
+  // A jump not reached yet is dropped - after Pause the song resumes where it stood. One already
+  // passed is folded first, so what it skipped is kept.
+  const folded = foldJump(state, now)
+  return { status: 'paused', startedAt: null, accumulatedMs: computeActiveMs(folded, now), jump: null, skippedMs: folded.skippedMs ?? 0 }
 }
 
 /** Rearms: back to 0. Both Reset (no log) and Stop (queue.ts's stopSong logs first, from the
