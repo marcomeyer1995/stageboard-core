@@ -19,13 +19,32 @@ import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { RigCheckAnalysis } from './RigCheckAnalysis'
 import { Group, Page } from './SystemSettings'
 import { RigCheckInputs } from './RigCheckInputs'
+import { currentSlot, measuredVerdict, measureRoundRunning, startMeasureRound } from '../lib/rigCheckMeasure'
 import { CueDialog } from './timeline/CueDialog'
 import { Badge, Button, Section, Segmented } from './ui'
 
 const KINDS: RigCheckKind[] = ['quick', 'full']
 
 const startMessage = (t: TFunction<'rigcheck'>, result: Exclude<StartResult, 'started'>): string =>
-  ({ 'not-master': t('flow.notMasterStart'), 'no-run': t('flow.noRun'), busy: t('flow.songPlaying'), 'not-ready': t('flow.notReady') })[result]
+  ({ 'not-master': t('flow.notMasterStart'), 'no-run': t('flow.noRun'), busy: t('flow.songPlaying'), 'not-ready': t('flow.notReady'), measuring: t('flow.measuringStart') })[result]
+
+/** "+3" / "-12" ms. */
+const signed = (ms: number) => `${ms > 0 ? '+' : ''}${Math.round(ms)}`
+
+/** The measuring round's result for one device (#662): green within the limits, red otherwise. */
+function MeasuredLine({ report, slotted }: { report: RigCheckDeviceReport; slotted: boolean }) {
+  const { t } = useTranslation('rigcheck')
+  const measured = report.measured
+  if (!measured) return slotted ? <p className="text-sm text-ink-faint">{t('devices.notMeasured')}</p> : null
+  const verdict = measuredVerdict(measured)
+  const via = t('devices.measuredVia', { input: t(`devices.input.${measured.input}`) })
+  const text = measured.error
+    ? t('devices.measuredFailed', { message: measured.error })
+    : measured.offsetMs === null || !measured.reliable
+      ? t('devices.measuredUnclear', { matched: measured.matched, total: measured.total })
+      : t('devices.measured', { offset: signed(measured.offsetMs), jitter: Math.round(measured.jitterMs ?? 0), matched: measured.matched, total: measured.total })
+  return <p className={`text-sm font-semibold ${verdict === 'ok' ? 'text-ok' : 'text-danger'}`}>{`${text} · ${via}`}</p>
+}
 
 /** "1:05" for a duration in ms. */
 function formatLength(ms: number): string {
@@ -34,7 +53,7 @@ function formatLength(ms: number): string {
 }
 
 /** One device's line in the live list and in the result. */
-export function RigCheckDeviceRow({ report, showVerdict }: { report: RigCheckDeviceReport; showVerdict: boolean }) {
+export function RigCheckDeviceRow({ report, showVerdict, slotted = false }: { report: RigCheckDeviceReport; showVerdict: boolean; slotted?: boolean }) {
   const { t } = useTranslation('rigcheck')
   const parsedRoute = AudioRouteSchema.safeParse(report.audioRoute)
   const route = parsedRoute.success ? routeLabel(parsedRoute.data) : report.audioRoute
@@ -56,6 +75,7 @@ export function RigCheckDeviceRow({ report, showVerdict }: { report: RigCheckDev
         {route}
         {`, ${report.outputLatencyMs !== null ? t('devices.latency', { ms: report.outputLatencyMs }) : t('devices.latencyNone')}`}
       </p>
+      <MeasuredLine report={report} slotted={slotted} />
       {showVerdict && report.note && <p className="text-sm text-ink">„{report.note}“</p>}
     </li>
   )
@@ -191,6 +211,14 @@ export function RigCheckView() {
     setBusy(false)
     setMessage(result.ok ? null : t('flow.prepareFailed', { message: result.message }))
   }
+  const measuring = !!open && measureRoundRunning(open, now)
+  const slotNow = open ? currentSlot(open, now) : null
+  const measure = async (run: RigCheckRun) => {
+    setBusy(true)
+    const count = await startMeasureRound(run, reports)
+    setBusy(false)
+    setMessage(count === 0 ? t('flow.measureNone') : null)
+  }
   const start = async () => {
     setBusy(true)
     const result = await startRigCheck()
@@ -215,7 +243,7 @@ export function RigCheckView() {
 
       <RigCheckInputs />
 
-      <Group title={t('flow.title')} info={t('flow.info')}>
+      <Group title={t('flow.title')} info={`${t('flow.info')} ${t('flow.measureInfo')}`}>
         {!isMaster && <p className="text-base text-ink-soft">{t('flow.notMaster')}</p>}
         {isMaster && state !== 'prepared' && state !== 'running' && (
           <Button variant="primary" disabled={busy} onClick={() => void prepare()}>
@@ -223,9 +251,14 @@ export function RigCheckView() {
           </Button>
         )}
         {state === 'prepared' && open && (
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             {isMaster && (
-              <Button variant="primary" className="flex-1" disabled={busy || playbackStatus !== 'stopped' || !runIsPlayable(open)} onClick={() => void start()}>
+              <Button disabled={busy || measuring} onClick={() => void measure(open)}>
+                {t('flow.measure')}
+              </Button>
+            )}
+            {isMaster && (
+              <Button variant="primary" className="flex-1" disabled={busy || measuring || playbackStatus !== 'stopped' || !runIsPlayable(open)} onClick={() => void start()}>
                 {t('flow.start')}
               </Button>
             )}
@@ -239,6 +272,11 @@ export function RigCheckView() {
           </div>
         )}
         {isMaster && state === 'prepared' && playbackStatus !== 'stopped' && <p className="text-sm text-warn">{t('flow.songPlaying')}</p>}
+        {state === 'prepared' && open?.measure && (
+          <p role="status" className="text-base text-ink">
+            {slotNow ? t('flow.measuring', { device: slotNow.deviceName, n: slotNow.index + 1, count: slotNow.count }) : measuring ? t('flow.measureWaiting') : t('flow.measureDone')}
+          </p>
+        )}
         {message && <p className="text-sm text-ink-soft">{message}</p>}
       </Group>
 
@@ -254,7 +292,7 @@ export function RigCheckView() {
           ) : (
             <ul className="flex flex-col">
               {reports.map((report) => (
-                <RigCheckDeviceRow key={report.id} report={report} showVerdict={state === 'ended'} />
+                <RigCheckDeviceRow key={report.id} report={report} showVerdict={state === 'ended'} slotted={!!shown.measure?.slots.some((slot) => slot.deviceId === report.deviceId) && !(open && measureRoundRunning(open, now))} />
               ))}
             </ul>
           )}

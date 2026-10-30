@@ -41,6 +41,7 @@ import { useMasterHeartbeatReporter } from './lib/useMasterHeartbeatReporter'
 import { usePresenceReporter } from './lib/usePresenceReporter'
 import { useShowLogTracker } from './lib/useShowLogTracker'
 import { useRigCheckDriver, useRigCheckReporter } from './lib/rigCheck'
+import { useRigCheckMeasurer } from './lib/rigCheckMeasure'
 import { useWakeLock } from './lib/useWakeLock'
 import { useWorkspaceResource } from './lib/useWorkspaceResource'
 import { startWorkspaceSync } from './lib/workspaceDb'
@@ -154,6 +155,7 @@ function App() {
   useShowLogTracker()
   useRigCheckDriver()
   useRigCheckReporter()
+  useRigCheckMeasurer()
 
   // The one and only live CouchDB sync for the whole app (see workspaceDb.ts) - every store
   // below still runs its own init (loading + a local, filtered change listener for just its

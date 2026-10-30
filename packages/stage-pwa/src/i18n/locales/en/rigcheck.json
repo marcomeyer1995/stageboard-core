@@ -37,7 +37,14 @@
     "prepareFailed": "Prepare failed: {{message}}",
     "notMasterStart": "Only the master starts the rig check.",
     "noRun": "Prepare first.",
-    "notReady": "Song or track haven't arrived on this device yet - one moment."
+    "notReady": "Song or track haven't arrived on this device yet - one moment.",
+    "measure": "Measure",
+    "measureInfo": "Before the start, can be skipped: each device in turn plays 12 clicks with its stored latency while the Stage-Server listens on the matching measuring input (~18 s per device).",
+    "measuring": "Measuring {{device}} ({{n}} of {{count}}) …",
+    "measureWaiting": "Measuring starts …",
+    "measureDone": "Measuring done - result per device below.",
+    "measureNone": "No device in Gig mode has reported - nothing to measure.",
+    "measuringStart": "Let the measuring finish first."
   },
   "devices": {
     "title": "Devices",
@@ -59,7 +66,16 @@
     "summary_one": "{{count}} device · {{ok}} OK",
     "summary_other": "{{count}} devices · {{ok}} OK",
     "withProblem": "{{count}} with a problem",
-    "version": "Test song version {{version}}"
+    "version": "Test song version {{version}}",
+    "measured": "Click measured: {{offset}} ms (± {{jitter}} ms), {{matched}}/{{total}}",
+    "measuredUnclear": "Click not clearly heard ({{matched}}/{{total}})",
+    "measuredFailed": "Not measured: {{message}}",
+    "notMeasured": "not measured",
+    "measuredVia": "via {{input}}",
+    "input": {
+      "mic": "microphone",
+      "cable": "cable"
+    }
   },
   "analysis": {
     "title": "Analysis check",
