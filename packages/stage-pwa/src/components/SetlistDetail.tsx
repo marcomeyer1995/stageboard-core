@@ -117,9 +117,9 @@ function VariantPicker({
         type="button"
         onClick={() => setOpen(true)}
         title={`${t('variant.choose')}: ${selectedLabel}`}
-        // In the song's line (2026-10-30), cut off when long - the full name in the tooltip and in
-        // the dialog. Never more than 40 % of the line, so the title keeps its room on a phone.
-        className={`h-form min-w-0 max-w-[40%] flex-shrink truncate whitespace-nowrap rounded-control px-2 text-left text-base ${
+        // One line, cut off when long - the full name in the tooltip and in the dialog. On the tablet's
+        // single line never more than 40 % of it, so the title keeps its room (2026-10-30).
+        className={`h-form min-w-0 flex-shrink truncate whitespace-nowrap rounded-control px-2 text-left text-base min-[600px]:max-w-[40%] ${
           issue
             ? 'border border-danger bg-danger/15 text-danger'
             : 'bg-control-strong text-ink [@media(hover:hover)]:hover:bg-control-strong-hover'
@@ -204,8 +204,7 @@ function TransitionPicker({
       >
         <span className="flex items-center gap-1">
           <Icon name="forward" />
-          {/* The phone shows only the arrow (filled when not manual) - the line stays for the title. */}
-          {type === 'manual' ? null : <span className="max-[599px]:hidden">{current.label}</span>}
+          {type === 'manual' ? null : current.label}
         </span>
       </button>
       {open && (
@@ -298,30 +297,36 @@ function EntryRow({
       >
         ⠿
       </button>
-      <div className="flex min-w-0 flex-1 items-center gap-2">
+      {/* Tablet: one line. Phone (Marco, 2026-10-30): the title in full on line 1, variant and
+          transition on line 2 - in one line both were cut to "2. Highway to …" / "Standar…". */}
+      <div className="flex min-w-0 flex-1 flex-col min-[600px]:flex-row min-[600px]:items-center min-[600px]:gap-2">
         <button
           type="button"
           onClick={() => onSelectSong(entry.songId, entry.variantId)}
-          className="min-h-form min-w-0 flex-1 truncate text-left [@media(hover:hover)]:hover:underline"
+          className="min-h-form min-w-0 break-words py-2 text-left min-[600px]:flex-1 min-[600px]:truncate min-[600px]:py-0 [@media(hover:hover)]:hover:underline"
         >
           {songNumber}. {title}
         </button>
-        {(songVariants.length > 1 || issue) && (
-          <VariantPicker
-            variants={songVariants}
-            selectedId={entry.variantId}
-            issue={issue}
-            onSelect={(variantId) => onSetVariant(entry.id, variantId)}
-          />
+        {((songVariants.length > 1 || issue) || onSetTransition) && (
+          <div className="flex min-w-0 items-center gap-1 min-[600px]:contents">
+            {(songVariants.length > 1 || issue) && (
+              <VariantPicker
+                variants={songVariants}
+                selectedId={entry.variantId}
+                issue={issue}
+                onSelect={(variantId) => onSetVariant(entry.id, variantId)}
+              />
+            )}
+            {onSetTransition && (
+              <TransitionPicker
+                type={entry.transitionType ?? 'manual'}
+                delayMs={entry.transitionDelayMs ?? DEFAULT_TRANSITION_DELAY_MS}
+                onChange={(type, delayMs) => onSetTransition(entry.id, type, delayMs)}
+              />
+            )}
+          </div>
         )}
       </div>
-      {onSetTransition && (
-        <TransitionPicker
-          type={entry.transitionType ?? 'manual'}
-          delayMs={entry.transitionDelayMs ?? DEFAULT_TRANSITION_DELAY_MS}
-          onChange={(type, delayMs) => onSetTransition(entry.id, type, delayMs)}
-        />
-      )}
       {/* flat, not the default boxed pill - same unboxed treatment LibraryView.tsx's own song
           rows already use for their ⋯ (Marco, explicit request: match "the left ones"). */}
       <OverflowMenu
