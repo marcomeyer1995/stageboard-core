@@ -36,15 +36,15 @@ describe('RigCheckInputs (#662)', () => {
     await act(async () => {
       fireEvent.change(cable[1]!, { target: { value: 'plughw:CARD=U192k,DEV=0' } })
     })
-    expect(calls.at(-1)).toMatchObject({ path: 'save', body: { adminUsername: 'band-marco', selected: { mic: null, cable: { device: 'plughw:CARD=U192k,DEV=0', channel: 0 } } } })
+    expect(calls[calls.length - 1]).toMatchObject({ path: 'save', body: { adminUsername: 'band-marco', selected: { mic: null, cable: { device: 'plughw:CARD=U192k,DEV=0', channel: 0 } } } })
     await act(async () => {
       fireEvent.change(screen.getAllByLabelText('Kanal')[1]!, { target: { value: '1' } })
     })
-    expect(calls.at(-1)?.body.selected).toEqual({ mic: null, cable: { device: 'plughw:CARD=U192k,DEV=0', channel: 1 } })
+    expect(calls[calls.length - 1]?.body.selected).toEqual({ mic: null, cable: { device: 'plughw:CARD=U192k,DEV=0', channel: 1 } })
 
     fireEvent.click(screen.getAllByRole('button', { name: 'Pegel prüfen' })[1]!)
     await waitFor(() => expect(screen.getByText('Pegel -12.5 dB · 1 Klick gehört')).toBeInTheDocument())
-    expect(calls.at(-1)).toMatchObject({ path: 'level', body: { input: { device: 'plughw:CARD=U192k,DEV=0', channel: 1 } } })
+    expect(calls[calls.length - 1]).toMatchObject({ path: 'level', body: { input: { device: 'plughw:CARD=U192k,DEV=0', channel: 1 } } })
   })
 
   it('a member who is no admin only reads that admins set it', () => {
