@@ -25,7 +25,9 @@
     "inTimeline": "In der Timeline bearbeiten",
     "analyzing": "Analysiere…",
     "analyze": "Track analysieren",
-    "clear": "Raster löschen"
+    "clear": "Raster löschen",
+    "double": "Tempo ×2 (doppelt so schnell)",
+    "half": "Tempo ÷2 (halb so schnell)"
   },
   "bpm": "BPM",
   "meter": "Takt",
@@ -612,7 +614,13 @@
     "onlyStem": "Nur {{name}} hören",
     "stems": "Stems ({{count}})",
     "onlySolo": " · nur {{name}}",
-    "hitsFrom": " · Treffer aus {{name}}"
+    "hitsFrom": " · Treffer aus {{name}}",
+    "doubled": "Doppeltes Tempo: aus jedem Takt werden zwei. (Rückgängig möglich)",
+    "halved": "Halbes Tempo: aus zwei Takten wird einer. (Rückgängig möglich)",
+    "doubleTitle": "Doppeltes Tempo - wenn die Erkennung den Song halb so schnell gehört hat",
+    "halfTitle": "Halbes Tempo - wenn die Erkennung den Song doppelt so schnell gehört hat",
+    "double": "Tempo ×2",
+    "half": "Tempo ÷2"
   },
   "apply": "Übernehmen",
   "pc": {

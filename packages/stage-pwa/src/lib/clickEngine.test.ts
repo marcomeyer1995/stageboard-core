@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BeatGrid } from 'shared-types'
-import { clickTimeline } from './beatGrid'
+import { clickTimeline, scaleGridTempo } from './beatGrid'
 import { __resetClickEngineForTests, startClick, stopClick } from './clickEngine'
 
 // happy-dom (vitest.config.ts) has no real Web Audio implementation, so every test here runs
@@ -471,5 +471,44 @@ describe('section jump in the show (#479)', () => {
     const all = clicks()
     for (let i = 1; i < all.length; i++) expect(all[i].at - all[i - 1].at).toBeCloseTo(0.5, 3)
     expect(all.find((c) => Math.abs(c.at - 1000.3) < 0.01)?.downbeat).toBe(true)
+  })
+})
+
+describe('a grid changed while the click runs (Tempo ×2 / ÷2 in the timeline, #654)', () => {
+  /** The audio time of every click queued so far, in song ms after the start. */
+  const clickTimes = () =>
+    fakeCtx.createOscillator.mock.results.map((r) => Math.round(((r.value as FakeOscillator).start.mock.calls[0]![0] as number - 1000) * 1000))
+
+  it('keeps clicking on the new grid - after ÷2 the old beat number lay past the song', () => {
+    // 120 BPM, aligned at two bars: 500 ms a beat.
+    const base = grid([1, 0], [9, 16_000])
+    const doubled = scaleGridTempo(base, 120, 2)
+    const halved = scaleGridTempo(doubled.beatGrid, doubled.bpm, 0.5)
+    let timeline = clickTimeline({ beatGrid: base, bpm: 120, timeSignature: '4/4', countInBars: 0 })
+    let elapsedMs = 9_900
+    startClick(() => ({ elapsedMs, timeline }))
+    const play = (untilMs: number) => {
+      while (elapsedMs < untilMs) {
+        elapsedMs += 50
+        fakeCtx.currentTime += 0.05
+        vi.advanceTimersByTime(50)
+      }
+    }
+    play(12_000)
+    timeline = clickTimeline({ beatGrid: doubled.beatGrid, bpm: doubled.bpm, timeSignature: '4/4', countInBars: 0 })
+    play(14_000)
+    timeline = clickTimeline({ beatGrid: halved.beatGrid, bpm: halved.bpm, timeSignature: '4/4', countInBars: 0 })
+    play(16_000)
+
+    const gaps = clickTimes()
+      .map((t, i, all) => (i === 0 ? null : t - all[i - 1]!))
+      .filter((gap): gap is number => gap !== null)
+    // 500 ms, then 250 ms on the doubled grid, then 500 ms again - never a double click, never silence.
+    expect(Math.min(...gaps)).toBeGreaterThanOrEqual(249)
+    expect(Math.max(...gaps)).toBeLessThanOrEqual(501)
+    expect(gaps.filter((gap) => Math.abs(gap - 250) <= 1).length).toBeGreaterThanOrEqual(6)
+    // Still clicking at the end (before the fix: silent after ÷2).
+    const times = clickTimes()
+    expect(times[times.length - 1]!).toBeGreaterThan(15_000 - 9_900)
   })
 })
