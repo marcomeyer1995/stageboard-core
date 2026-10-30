@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { CAPABILITIES, type BeatGrid, type ShowCue } from 'shared-types'
 import { applySectionTempo, beatsBetween, clickTimeline, gridStretches, newGrid, removePoint, renumberBars, setMeter, setPoint, tempoFromTaps } from '../../lib/beatGrid'
+import { scaleSongTempo } from '../../lib/tempoScale'
 import { gridFromTappedCurve, type CurveGridResult } from '../../lib/tempoCurve'
 import { refineGrid, type RefineResult } from '../../lib/gridRefine'
 import { startClick, stopClick } from '../../lib/clickEngine'
@@ -1412,6 +1413,13 @@ export function TimelineEditor(props: TimelineEditorProps) {
     }
   }
 
+  /** Tempo ×2 / ÷2 (#654): the detection heard a fast song at half its tempo - or the other way. */
+  function scaleTempo(factor: 2 | 0.5) {
+    setSelection(null)
+    commit({ ...current, ...scaleSongTempo({ bpm, beatGrid, timeSignature, cues, chordProContent: content }, factor) })
+    setNotice(factor === 2 ? 'Doppeltes Tempo: aus jedem Takt werden zwei. (Rückgängig möglich)' : 'Halbes Tempo: aus zwei Takten wird einer. (Rückgängig möglich)')
+  }
+
   async function clearGrid() {
     if (!(await confirm('Klick-Raster löschen? Der Klick läuft danach ab 0:00 im eingetragenen Tempo. (Rückgängig möglich)', { confirmLabel: 'Löschen', danger: true }))) return
     setSelection(null)
@@ -1802,6 +1810,12 @@ export function TimelineEditor(props: TimelineEditorProps) {
             {detecting ? 'Analysiere…' : 'Track analysieren'}
           </Button>
         )}
+        <Button disabled={tapMode !== null} title="Doppeltes Tempo - wenn die Erkennung den Song halb so schnell gehört hat" onClick={() => scaleTempo(2)}>
+          Tempo ×2
+        </Button>
+        <Button disabled={tapMode !== null} title="Halbes Tempo - wenn die Erkennung den Song doppelt so schnell gehört hat" onClick={() => scaleTempo(0.5)}>
+          Tempo ÷2
+        </Button>
         <Button disabled={quality.length === 0} onClick={jumpToNextProblem}>
           Nächste Problemstelle
         </Button>
