@@ -98,9 +98,52 @@ export function latencyProfileId(deviceId: string, output: string, route: AudioR
   return `${deviceId}:${output}:${route ?? '-'}`
 }
 
+/** Where the Stage-Server listens when it measures (docs/24 §7.2, #662): an ALSA capture device
+ * and one of its channels (0-based). */
+export const MeasureInputSchema = z.object({
+  device: z.string().min(1).max(200),
+  channel: z.number().int().min(0).max(63),
+})
+export type MeasureInput = z.infer<typeof MeasureInputSchema>
+
+/** The two measuring inputs: a microphone for speakers, a cable for headphones, in-ear and
+ * Bluetooth receivers. Null: not set (the microphone then falls back to the server's default). */
+export const MeasureInputsSchema = z.object({
+  mic: MeasureInputSchema.nullable(),
+  cable: MeasureInputSchema.nullable(),
+})
+export type MeasureInputs = z.infer<typeof MeasureInputsSchema>
+export type MeasureInputKind = keyof MeasureInputs
+
+/** An audio input the Stage-Server sees (`arecord -l`). `channels` null: unknown (busy). */
+export interface AudioInputInfo {
+  device: string
+  name: string
+  channels: number | null
+}
+
+/** Answer of `POST /server/measure-inputs/overview`. */
+export interface MeasureInputsOverview {
+  inputs: AudioInputInfo[]
+  selected: MeasureInputs
+  /** The microphone used while none is chosen (CALIBRATION_AUDIO_DEVICE or ALSA `default`). */
+  fallbackMic: string
+}
+
+/** Answer of `POST /server/measure-inputs/level`: the loudest moment in a short recording. */
+export interface MeasureLevel {
+  /** Peak level, dBFS (0 = full scale); null: nothing recorded. */
+  peakDb: number | null
+  /** Clicks the onset detector found. */
+  clicks: number
+  error: string | null
+}
+
 /** Body of `POST /calibration/runs` (docs/21 §4, #491). */
 export const CalibrationRunRequestSchema = z.object({
   count: z.number().int().min(6).max(24).optional(),
+  /** Which measuring input listens (#662) - the microphone unless the device plays into a cable. */
+  input: z.enum(['mic', 'cable']).optional(),
   /** Only for the server log. */
   deviceId: z.string().optional(),
 })
