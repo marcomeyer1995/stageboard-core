@@ -2,6 +2,8 @@
 
 StageBoard ist modular aufgebaut. Du entscheidest selbst, wie viel Technik (und Budget) deine Band benötigt. Du kannst jederzeit mit Stufe 1 starten und das System später aufrüsten.
 
+> **Hinweis (2026-10-28):** Grundidee, Band-Sync auch ohne eigene Box zu ermöglichen (ein Gerät der Band als Host): [docs/25](25_Betriebsstufen_Host.md). Noch kein Beschluss; die Matrix unten ist davon noch nicht angepasst.
+
 ## Übersicht der Ausbaustufen
 
 | Feature | Stufe 1: Solo/Akustik | Stufe 2: Garage Band | Stufe 3: Club Gig | Stufe 4: Cloud | Stufe 5: Arena (Touring) |
