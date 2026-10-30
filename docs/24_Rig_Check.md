@@ -19,6 +19,7 @@ Vor einem Gig will die Band wissen: **alles in einer Linie, alles im Timing** (M
 | 2026-10-26 | **Geräte-Cues je Gerät gewählt**: In der Einrichtung des Rig-Checks bekommt jedes Gerät **eine** Aktion aus der Aktionsauswahl (z. B. Kemper Stimmgerät an, RC-500 Patch). Geräte ohne Wahl bleiben unberührt. Bandweit gespeichert. |
 | 2026-10-26 | **Track wie ein echter**: Der Master erzeugt den Track einmal und lädt ihn auf den Stage-Server; die anderen laden ihn auf dem normalen Weg. So wird auch der Download geprüft, der Rig-Check zeigt „Track da“ je Gerät. |
 | 2026-10-26 | **Kurzcheck-Inhalt**: Einzählen, 8 Takte 120, ein Abschnitts-Sprung, 4 Takte 140, ein `{alert:}` und der Cue jedes Geräts - etwa 45 s. |
+| 2026-10-29 | **Gemessen statt nur gefragt** (§7): Messrunde vor dem Lauf (alle Geräte nacheinander, wie „Prüfen“); Lautsprecher über Mikrofon **und** Kopfhörer/In-Ear über Kabel; Interface frei wählbar (Laptop, UMC204HD, Mischpult mit Interface-Funktion), Mikrofon wählbar; Grenzwerte ±15 ms / ±5 ms / alle Klicks; bei Rot „Latenz neu speichern“ und vorbelegte Antwort „Problem“. MIDI-Rückweg und Reaktions-Sensoren später. |
 
 ## 3. Bedienung
 
@@ -85,11 +86,34 @@ Beide Läufe beginnen mit **2 s Stille** (ein Takt Einzählen bei 120 passt gena
 
 Auf dem Gerät, das den Lauf startet, läuft danach die Analyse des Timeline-Editors auf dem erzeugten Track: Tempoerkennung, Schlag-Verfolgung (Verfeinern, #517-#520). Verglichen wird mit der Grundwahrheit **je Abschnitt**: mittlere und größte Abweichung der erkannten Schläge, Tempo-Fehler, Treffer in Prozent (≤ 15 ms). „Wechsel im Takt“ ist als bekannte Grenze markiert. Das Ergebnis steht im Nachbericht neben den Geräten - so fällt eine Verschlechterung der Analyse nach einem Update sofort auf.
 
-## 7. Gemessene Teile (später)
+## 7. Gemessene Teile
 
-- **Server-Mikrofon** (#498): während des Laufs nimmt der Stage-Server auf; aus den Beeps (Tonhöhe je Takt) und dem Klick je Gerät ergibt sich der Versatz jedes Geräts gegen die Server-Zeit - wie „Prüfen“ im Geräte-Tab, aber für alle Geräte in einem Lauf. Mehrere Geräte gleichzeitig trennt erst eine Kennung je Gerät (eigene Tonhöhe oder Zeitfenster) - offen.
-- **MIDI-Rückweg**: ein Cue an einen Ausgang, dessen Thru zurück an einen Eingang führt, meldet seine Ankunft.
-- **Lichtsensor** (#491): sobald es DMX/OSC-Cues gibt (#484).
+Entscheidungen Marco, 2026-10-29. Baut auf „Messen/Prüfen“ auf (docs/21 §4 und §8.6, #498): ein Gerät spielt 12 Klicks in unregelmäßigem Abstand, der Stage-Server nimmt auf und rechnet aus dem ganzen Muster den Versatz - bisher nur von Hand und je Gerät.
+
+### 7.1 Messrunde vor dem Lauf (Schritt 5a)
+
+- **Wann:** nach „Vorbereiten“, vor „Start“, als eigene Stufe „Messen“ (überspringbar). Die Geräte spielen **nacheinander** je 12 Klicks (~15 s je Gerät) - dasselbe Verfahren wie „Prüfen“, nur für alle Geräte der Band automatisch. Ein Gerät, das nicht antwortet oder dessen Klicks der Server nicht eindeutig findet, steht als „nicht gemessen“ da - der Lauf geht trotzdem.
+- **Was:** je Gerät und **aktuellem Ausgabeweg** der Versatz gegen den Schlag mit der gespeicherten Latenz eingerechnet, die Streuung und wie viele der 12 Klicks ankamen.
+- **Grenzwerte:** Versatz höchstens ±15 ms, Streuung höchstens ±5 ms, alle Klicks da. Sonst rot.
+- Nicht gewählt (vorerst): Messen während des Laufs mit eigener Tonhöhe je Gerät - mehr Aussage (Drift, Aussetzer an Sprung und Pause), aber aufwendiger; später möglich.
+
+### 7.2 Eingänge: Mikrofon und Kabel
+
+- **Beides:** Lautsprecher über ein **Mikrofon**; Kopfhörer, In-Ear und Bluetooth-Empfänger über ein **Kabel** vom Kopfhörer-/Line-Ausgang in einen Eingang. Gemessen wird immer der Ausgabeweg, der gerade steckt (jeder Weg hat seine eigene gespeicherte Latenz, #497).
+- **Audio-Interface frei wählbar:** jedes Gerät, das der Stage-Server als Audio-Eingang sieht - das Laptop-Mikrofon (heute `CALIBRATION_AUDIO_DEVICE`), ein **Behringer UMC204HD** (vorhanden), oder ein **Mischpult mit Interface-Funktion**. Allen & Heath CQ-18T meldet sich per USB als Audio-Interface (zu prüfen: Kanalbelegung). Beim Soundcraft Ui24R ist zu prüfen, ob es einen USB-Audioweg zum Rechner gibt - sonst über einen Ausgang des Pults in ein Interface.
+- **Eingang je Zweck:** in der Einrichtung des Rig-Checks (System → Rig-Check, nur Admins) ein „Messeingang Mikrofon“ und ein „Messeingang Kabel“: jeweils Gerät und Kanal. Im Bandraum hängen mehrere Mikrofone - eins davon wird gewählt, dazu Pegelanzeige und „Testklick“, damit man sieht, dass etwas ankommt.
+- Heute nimmt der Server nur ein festes Gerät per Umgebungsvariable auf; dafür braucht es die Auswahl im Backend (Liste der Eingänge, Kanal wählen).
+
+### 7.3 Ergebnis und Urteil
+
+- Im Nachbericht je Gerät: „Klick gemessen: +3 ms (± 1 ms), 12/12“ grün - oder rot mit dem Wert.
+- Bei Rot ein Knopf **„Latenz neu speichern“**: übernimmt den gemessenen Wert für diesen Ausgabeweg (wie „Übernehmen“ bei „Messen“).
+- Rot **belegt die Antwort vor**: die Frage „Alles in Ordnung?“ öffnet auf diesem Gerät gleich bei „Problem“ mit der Notiz „Klick 40 ms zu spät (gemessen)“ - änderbar, das Urteil bleibt beim Musiker.
+
+### 7.4 Später
+
+- **MIDI-Rückweg:** ein Cue an einen Ausgang, dessen Thru zurück an einen Eingang führt, meldet seine Ankunft - misst die Leitung, nicht das Gerät.
+- **Reagiert das Gerät wirklich:** Kemper abwechselnd lauter/leiser Patch, das Mikrofon misst den Pegelsprung; Licht mit Fotodiode (#491), sobald es DMX/OSC-Cues gibt (#484).
 
 ## 8. Reihenfolge
 
@@ -97,11 +121,12 @@ Auf dem Gerät, das den Lauf startet, läuft danach die Analyse des Timeline-Edi
 2. Song-Generator mit Grundwahrheit (`lib/rigCheckSong.ts`): Abschnitte, Raster, Text, Cues, Beeps, Schlagzeug, WAV - mit Tests gegen `clickTimeline`.
 3. System → Rig-Check: Einrichtung (Geräte-Cues), Vorbereiten, Geräte-Liste, Start/Ende, Urteil je Gerät; verborgene Dokumente; Ergebnis im Show-Log und im Nachbericht.
 4. Analyse-Prüfung.
-5. Gemessene Teile (§7).
+5. Gemessene Teile (§7): **5a** Messeingänge im Backend wählbar (Gerät + Kanal, Pegel, Testklick) - **5b** Messrunde vor dem Lauf - **5c** Ergebnis im Nachbericht, „Latenz neu speichern“, vorbelegte Antwort - **später** MIDI-Rückweg und Reaktions-Sensoren (§7.4).
 
 ## 9. Offen
 
-- Mehrere Geräte gleichzeitig über das Server-Mikrofon unterscheiden (§7).
+- Ui24R als Messeingang: gibt es einen USB-Audioweg zum Rechner (§7.2)?
+- Messen während des Laufs (eigene Tonhöhe je Gerät) - später, wenn die Messrunde steht.
 - Ob der Rig-Check später auch als Widget auf ein Dashboard darf (Soundcheck-Dashboard) - vorerst nur System.
 
 ## Verwandt

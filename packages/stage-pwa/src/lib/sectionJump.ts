@@ -36,7 +36,7 @@ interface JumpHost {
   now: () => number
   transport: TransportState
   loop: Loop | null
-  write: (patch: { startedAt?: number | null; accumulatedMs?: number; jump?: SectionJump | null; loop?: Loop | null }) => Promise<void>
+  write: (patch: { startedAt?: number | null; accumulatedMs?: number; skippedMs?: number; jump?: SectionJump | null; loop?: Loop | null }) => Promise<void>
 }
 
 function gigHost(): JumpHost {
@@ -50,6 +50,7 @@ function gigHost(): JumpHost {
       await applyPatch({
         ...(patch.startedAt !== undefined ? { playbackStartedAt: patch.startedAt } : {}),
         ...(patch.accumulatedMs !== undefined ? { playbackAccumulatedMs: patch.accumulatedMs } : {}),
+        ...(patch.skippedMs !== undefined ? { playbackSkippedMs: patch.skippedMs } : {}),
         ...(patch.jump !== undefined ? { playbackJump: patch.jump } : {}),
         ...(patch.loop !== undefined ? { playbackLoop: patch.loop } : {}),
       })
@@ -96,6 +97,7 @@ export async function queueSectionJump(target: ShowSection, when: JumpWhen, sect
   await h.write({
     startedAt: transport.startedAt,
     accumulatedMs: transport.accumulatedMs,
+    skippedMs: transport.skippedMs ?? 0,
     jump: { at: transport.startedAt + (boundary - transport.accumulatedMs), toMs: target.startMs, label: target.label },
     loop: null,
   })
@@ -134,7 +136,7 @@ function driveJump(h: JumpHost): void {
   const now = h.now()
   if (transport.jump && now >= transport.jump.at) {
     const folded = foldJump(transport, now)
-    void h.write({ startedAt: folded.startedAt, accumulatedMs: folded.accumulatedMs, jump: null })
+    void h.write({ startedAt: folded.startedAt, accumulatedMs: folded.accumulatedMs, skippedMs: folded.skippedMs ?? 0, jump: null })
     return
   }
   if (!loop || transport.jump) return

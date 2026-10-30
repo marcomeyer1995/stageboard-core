@@ -60,6 +60,10 @@ let lastTickElapsedMs: number | null = null
  * (boundary - target) converts between them; once the clock has jumped it is 0. Kept (by `id`)
  * until the jump is gone, so it is crossed only once. */
 let crossedJump: { id: number; offsetMs: number } | null = null
+/** The timeline the schedule was built on. A new one while playing (the grid edited, Tempo ×2/÷2
+ * in the timeline) moves `nextBeat` to the same moment in it - on a grid the beat number alone
+ * points somewhere else then: after ÷2 beat 739 lay past the song's end and the click stopped. */
+let scheduledTimeline: ClickTimeline | null = null
 /** The AudioContext time `nextBeatOnsetMs` is scheduled at. Converted from song time only when
  * the schedule (re)anchors; every following beat is placed exactly one beat length later in
  * audio time. Converting each beat on its own - `currentTime + (onset - elapsed)` sampled per
@@ -134,6 +138,7 @@ function tick(getState: () => ClickEngineState): void {
     nextBeatAudioTime = null
     lastTickElapsedMs = null
     crossedJump = null
+    scheduledTimeline = null
     return
   }
   if (crossedJump && (!jump || jump.id !== crossedJump.id)) crossedJump = null
@@ -148,6 +153,19 @@ function tick(getState: () => ClickEngineState): void {
   }
   const stalled = lastTickElapsedMs !== null && elapsedMs - lastTickElapsedMs > RESYNC_GAP_MS
   const wrapped = lastTickElapsedMs !== null && elapsedMs < lastTickElapsedMs
+  // The grid changed under a running schedule: the next beat is the first one of the new grid at or
+  // after the moment the old schedule would have played next - nothing doubled, nothing skipped.
+  // Not for a nudged tempo without a grid (both timelines unaligned): there the beat count runs on
+  // and only the spacing changes from here (see `nextBeat` above).
+  if (nextBeat !== null && scheduledTimeline !== null && timeline !== scheduledTimeline && !crossedJump && (timeline.rigid || scheduledTimeline.rigid)) {
+    const onsetMs = nextBeatOnsetMs
+    let beat = timeline.beatAtOrBefore(onsetMs + 1)
+    if (timeline.timeOfBeat(beat) < onsetMs - 1) beat++
+    nextBeat = Math.max(timeline.firstBeat, beat)
+    nextBeatOnsetMs = timeline.timeOfBeat(nextBeat)
+    if (Math.abs(nextBeatOnsetMs - onsetMs) > 1) nextBeatAudioTime = null
+  }
+  scheduledTimeline = timeline
   if (nextBeat === null || stalled || wrapped) {
     if (wrapped && loop) anchorSchedule(timeline, Math.max(timeline.timeOfBeat(timeline.firstBeat), loop.startMs), true)
     else anchorSchedule(timeline, elapsedMs, false)
@@ -214,6 +232,7 @@ export function stopClick(): void {
   audioClock.reset()
   lastTickElapsedMs = null
   crossedJump = null
+  scheduledTimeline = null
 }
 
 /** Test-only escape hatch - vitest's jsdom environment has no real AudioContext, and the module
