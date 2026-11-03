@@ -35,6 +35,27 @@ export function pluginName(plugin: { id: string; name: string }): string {
   return TRANSLATED_NAMES.has(plugin.id) ? i18n.t(`addons:names.${plugin.id}` as 'addons:names.osc', { defaultValue: plugin.name }) : plugin.name
 }
 
+/** The catalog's own texts (transport names, field labels, discovery instructions) as stored with
+ * each installation - in German, the language they were written in - shown in this device's
+ * language (#456). A text not listed here (a newer plugin's) shows as it is. */
+const CATALOG_TEXT: Record<string, string> = {
+  'Netzwerk (OSC)': 'networkOsc',
+  'Netzwerk (WebSocket)': 'networkWs',
+  'Netzwerk (OSC an den Stage-Server)': 'networkOscIn',
+  'MIDI-Ausgang': 'midiOut',
+  'MIDI-Eingang': 'midiIn',
+  'MIDI-Kanal (1-16)': 'midiChannel',
+  'IP-Adresse': 'ip',
+  'Host (IP oder Name)': 'hostOrName',
+  'Tuner am Kemper kurz an- und wieder ausschalten.': 'discoverKemper',
+  'Master-Mute am Pult kurz an- und wieder ausschalten.': 'discoverCq18t',
+}
+
+export function catalogText(text: string): string {
+  const key = CATALOG_TEXT[text]
+  return key ? i18n.t(`plugins:catalog.${key}` as 'plugins:catalog.ip') : text
+}
+
 export function capabilitiesLabel(capabilities: readonly string[]): string {
   return capabilities
     .map((capability) =>

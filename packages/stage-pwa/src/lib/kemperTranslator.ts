@@ -1,3 +1,4 @@
+import i18n from '../i18n'
 import type { ShowControlResult } from 'shared-types'
 import { getDeviceId } from './deviceId'
 import type { Translator } from './clientTranslator'
@@ -49,10 +50,10 @@ function selectRig(kemper: KemperOutput, payload: Record<string, unknown> | unde
   const performance = Number(payload?.performance)
   const slot = Number(payload?.slot)
   if (!Number.isInteger(performance) || performance < 0 || performance > 124) {
-    return { status: 'error', message: 'kemper.selectRig: performance muss 0-124 sein.' }
+    return { status: 'error', message: i18n.t('plugins:msg.range', { what: 'kemper.selectRig', field: 'performance', range: '0-124' }) }
   }
   if (!Number.isInteger(slot) || slot < 1 || slot > 5) {
-    return { status: 'error', message: 'kemper.selectRig: slot muss 1-5 sein.' }
+    return { status: 'error', message: i18n.t('plugins:msg.range', { what: 'kemper.selectRig', field: 'slot', range: '1-5' }) }
   }
   sendControlChange(kemper.output, kemper.channel, KEMPER_CC.performancePreselect, performance)
   sendControlChange(kemper.output, kemper.channel, KEMPER_CC.slot[slot - 1], 127)
@@ -63,7 +64,7 @@ function stomp(kemper: KemperOutput, payload: Record<string, unknown> | undefine
   const name = String(payload?.stomp ?? '').toUpperCase()
   const withTail = payload?.tail === true
   const cc = (withTail && STOMP_CC_WITH_TAIL[name]) || STOMP_CC[name]
-  if (!cc) return { status: 'error', message: `kemper.stomp: unbekanntes Stomp-Slot "${name}".` }
+  if (!cc) return { status: 'error', message: i18n.t('plugins:msg.unknownStomp', { what: 'kemper.stomp', name }) }
   const off = payload?.off === true
   sendControlChange(kemper.output, kemper.channel, cc, off ? 0 : 127)
   return { status: 'ok', data: { stomp: name, tail: withTail, on: !off } }
@@ -86,7 +87,7 @@ async function test(kemper: KemperOutput): Promise<ShowControlResult> {
 
 export const kemperTranslator: Translator = async (event) => {
   const kemper = await resolveKemperOutput(event.logicalDeviceId, midiSendTime(event))
-  if (!kemper) return { status: 'error', message: 'Kemper: kein MIDI-Ausgang konfiguriert.' }
+  if (!kemper) return { status: 'error', message: i18n.t('plugins:msg.noMidiOut', { device: 'Kemper' }) }
 
   switch (event.type) {
     case 'kemper.selectRig':

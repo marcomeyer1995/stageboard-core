@@ -1,3 +1,4 @@
+import i18n from '../i18n'
 import type { ShowControlResult } from 'shared-types'
 import { getDeviceId } from './deviceId'
 import type { Translator } from './clientTranslator'
@@ -64,7 +65,7 @@ async function resolveMg30Output(logicalDeviceId?: string, sendAt?: number): Pro
 function selectPatch(mg30: Mg30Output, payload: Record<string, unknown> | undefined): ShowControlResult {
   const program = Number(payload?.program)
   if (!Number.isInteger(program) || program < 0 || program > 127) {
-    return { status: 'error', message: 'mg30.selectPatch: program muss 0-127 sein.' }
+    return { status: 'error', message: i18n.t('plugins:msg.range', { what: 'mg30.selectPatch', field: 'program', range: '0-127' }) }
   }
   mg30.output.send([0xc0 | (mg30.channel & 0x0f), program])
   const bank = Math.floor(program / 4) + 1
@@ -76,10 +77,10 @@ function setKnob(mg30: Mg30Output, payload: Record<string, unknown> | undefined)
   const cc = Number(payload?.cc)
   const value = Number(payload?.value)
   if (!MG30_KNOBS.has(cc)) {
-    return { status: 'error', message: `mg30.setKnob: cc ${String(payload?.cc)} ist kein Regler des MG-30.` }
+    return { status: 'error', message: i18n.t('plugins:msg.notAKnob', { what: 'mg30.setKnob', cc: String(payload?.cc) }) }
   }
   if (!Number.isInteger(value) || value < 0 || value > 127) {
-    return { status: 'error', message: 'mg30.setKnob: value muss 0-127 sein.' }
+    return { status: 'error', message: i18n.t('plugins:msg.range', { what: 'mg30.setKnob', field: 'value', range: '0-127' }) }
   }
   mg30.output.send([0xb0 | (mg30.channel & 0x0f), cc, value])
   return { status: 'ok', data: { cc, value } }
@@ -157,16 +158,16 @@ async function test(mg30: Mg30Output): Promise<ShowControlResult> {
   const reply = await waitForSysExReply('MG-30', [0xf0, ...DEVICE_SIGNATURE, FN_IDENTITY_RESPONSE], 1000, () =>
     sendSysEx(mg30.output, [...DEVICE_SIGNATURE, FN_IDENTITY_REQUEST]),
   )
-  if (!reply) return { status: 'error', message: 'MG-30: keine Antwort auf die Identitätsabfrage.' }
+  if (!reply) return { status: 'error', message: i18n.t('plugins:msg.noIdentity', { device: 'MG-30' }) }
   const versionBytes = Array.from(reply.slice(4, 10)).filter((byte) => byte !== 0)
   const version = String.fromCharCode(...versionBytes)
   return { status: 'ok', message: `Firmware ${version}` }
 }
 
 export const mg30Translator: Translator = async (event) => {
-  if (!isWebMidiSupported()) return { status: 'error', message: 'MG-30: WebMIDI nicht unterstützt.' }
+  if (!isWebMidiSupported()) return { status: 'error', message: i18n.t('plugins:msg.noWebMidi', { device: 'MG-30' }) }
   const mg30 = await resolveMg30Output(event.logicalDeviceId, midiSendTime(event))
-  if (!mg30) return { status: 'error', message: 'MG-30: kein MIDI-Ausgang konfiguriert.' }
+  if (!mg30) return { status: 'error', message: i18n.t('plugins:msg.noMidiOut', { device: 'MG-30' }) }
 
   switch (event.type) {
     case 'mg30.selectPatch':

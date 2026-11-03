@@ -1,11 +1,14 @@
-import { MG30_KNOBS } from '../midiDeviceProtocols'
+import i18n from '../../i18n'
+import { MG30_KNOBS, mg30KnobName } from '../midiDeviceProtocols'
 import type { DeviceCommand } from './types'
 
 /** BOSS RC-500 cue commands - see rc500Translator.ts. */
 export const RC500_COMMANDS: DeviceCommand[] = [
   {
     type: 'rc500.selectMemory',
-    label: 'Memory wählen',
+    get label() {
+      return i18n.t('plugins:cmd.selectMemory')
+    },
     fields: [{ key: 'memory', label: 'Memory', kind: 'int', min: 1, max: 99 }],
     describe: (p) => `Memory ${String(p.memory)}`,
     stateKey: () => 'memory',
@@ -19,19 +22,40 @@ export const mg30PatchName = (program: number) => `${String(Math.floor(program /
 export const MG30_COMMANDS: DeviceCommand[] = [
   {
     type: 'mg30.selectPatch',
-    label: 'Patch wählen',
+    get label() {
+      return i18n.t('plugins:cmd.selectPatch')
+    },
     fields: [{ key: 'program', label: 'Patch', kind: 'choice', options: Array.from({ length: 128 }, (_, program) => ({ value: program, label: mg30PatchName(program) })) }],
     describe: (p) => `Patch ${mg30PatchName(Number(p.program))}`,
     stateKey: () => 'patch',
   },
   {
     type: 'mg30.setKnob',
-    label: 'Regler setzen',
+    get label() {
+      return i18n.t('plugins:cmd.setKnob')
+    },
     fields: [
-      { key: 'cc', label: 'Regler', kind: 'choice', options: [...MG30_KNOBS].sort((a, b) => a[0] - b[0]).map(([cc, name]) => ({ value: cc, label: name })) },
-      { key: 'value', label: 'Wert', kind: 'int', min: 0, max: 100 },
+      {
+        key: 'cc',
+        get label() {
+          return i18n.t('plugins:field.knob')
+        },
+        kind: 'choice',
+        get options() {
+          return [...MG30_KNOBS.keys()].sort((a, b) => a - b).map((cc) => ({ value: cc, label: mg30KnobName(cc) ?? `CC ${cc}` }))
+        },
+      },
+      {
+        key: 'value',
+        get label() {
+          return i18n.t('plugins:field.value')
+        },
+        kind: 'int',
+        min: 0,
+        max: 100,
+      },
     ],
-    describe: (p) => `${MG30_KNOBS.get(Number(p.cc)) ?? `CC ${String(p.cc)}`} = ${String(p.value)}`,
+    describe: (p) => `${mg30KnobName(Number(p.cc)) ?? `CC ${String(p.cc)}`} = ${String(p.value)}`,
     stateKey: (p) => `knob:${String(p.cc)}`,
   },
 ]
