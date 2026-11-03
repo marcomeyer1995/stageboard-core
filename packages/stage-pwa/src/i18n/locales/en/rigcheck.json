@@ -102,5 +102,31 @@
     "question": "Did click and beeps sound like one, did the prompter change on the beat, did the jump come everywhere at once, and did your device react to its cue?"
   },
   "masterOnly": "Only the master prepares the rig check.",
-  "thisDevice": "This device"
+  "thisDevice": "This device",
+  "inputs": {
+    "title": "Measuring inputs",
+    "info": "Where the Stage-Server listens when it measures how late a device’s click arrives: a microphone for speakers, a cable from the headphone output for headphones, in-ear and Bluetooth receivers. Any audio device the server sees, with its channel - laptop microphone, audio interface or a mixer with interface function.",
+    "mic": "Microphone (speakers)",
+    "cable": "Cable (headphones, in-ear, Bluetooth)",
+    "device": "Device",
+    "channel": "Channel",
+    "channelN": "Channel {{n}}",
+    "micDefault": "Server default ({{device}})",
+    "cableDefault": "None - like the microphone",
+    "missing": "{{device}} (not connected)",
+    "level": "Check level",
+    "testClick": "Test click",
+    "listening": "Listening …",
+    "levelResult": "Level {{db}} dB",
+    "silent": "Nothing heard",
+    "clicks_one": "{{count}} click heard",
+    "clicks_other": "{{count}} clicks heard",
+    "clicksOf": "{{count}} of {{of}} clicks heard",
+    "failed": "Failed: {{message}}",
+    "loading": "Loading the Stage-Server’s inputs …",
+    "adminOnly": "Only band admins can change the measuring inputs.",
+    "noAdmin": "Only an admin of the active band.",
+    "http": "Error {{status}}",
+    "none": "The Stage-Server sees no audio input."
+  }
 }

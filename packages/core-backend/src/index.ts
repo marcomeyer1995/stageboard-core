@@ -1,6 +1,8 @@
 import { createSocket } from 'node:dgram'
 import { existsSync, readFileSync } from 'node:fs'
 import { CalibrationRuns } from './calibration/calibrationRuns.js'
+import { listAudioInputs, MeasureInputStore, measureLevel } from './calibration/measureInputs.js'
+import { fallbackMicDevice, startMicCapture } from './calibration/micCapture.js'
 import { PIPER_SPEECH_PLUGIN_ID, serverSpeech, serverVoices } from './plugins/piperSpeechPlugin.js'
 import { PiperSpeech } from './speech/piperSpeech.js'
 import { createServer } from 'node:http'
@@ -45,7 +47,7 @@ import {
   WorkspaceProvisionRequestSchema,
   type Device,
 } from 'shared-types'
-import { BackupAdminRequestSchema, BackupSaveRequestSchema, BackupTargetRequestSchema, FlashReportSchema, ShowStatePushAckSchema, ShowStatePushSchema, SwitchStateEventSchema, SpeechSpeedSchema, SpeechVoiceKeySchema, YOUTUBE_VIDEO_ID_RE } from 'shared-types'
+import { BackupAdminRequestSchema, BackupSaveRequestSchema, MeasureInputsSaveRequestSchema, MeasureLevelRequestSchema, type MeasureInputsOverview, BackupTargetRequestSchema, FlashReportSchema, ShowStatePushAckSchema, ShowStatePushSchema, SwitchStateEventSchema, SpeechSpeedSchema, SpeechVoiceKeySchema, YOUTUBE_VIDEO_ID_RE } from 'shared-types'
 import { createBackupService, realBackupDeps, type BackupService } from './backup.js'
 import { deleteAudioFile, isSafeAudioId, readAudioFile, writeAudioFile } from './audioStore.js'
 import { readPersistedActiveWorkspace } from './activeWorkspaceStateStore.js'
@@ -436,13 +438,18 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
   // address.
   // Latency calibration with the Stage-Server's microphone (docs/21 §4, #491): a device asks for a
   // run, plays its click at the irregular times returned, and polls for the delay the server heard.
-  const calibrationRuns = new CalibrationRuns()
+  // Which input listens (#662): the microphone for speakers, the cable for everything plugged in.
+  const measureInputs = new MeasureInputStore()
+  const calibrationRuns = new CalibrationRuns((kind) => {
+    const input = measureInputs.resolve(kind)
+    return startMicCapture(input.device, input.channel)
+  })
   app.post('/calibration/runs', async (request, reply) => {
     const parsed = CalibrationRunRequestSchema.safeParse(request.body ?? {})
     if (!parsed.success) return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
-    const run = calibrationRuns.start(parsed.data.count)
+    const run = calibrationRuns.start(parsed.data.count, parsed.data.input ?? 'mic')
     if (!run) return reply.status(409).send({ status: 'error', message: 'Gerade läuft schon eine Messung - bitte kurz warten.' })
-    app.log.info({ runId: run.id, deviceId: parsed.data.deviceId, clicks: run.times.length, recordUntil: run.recordUntil }, 'Calibration run started')
+    app.log.info({ runId: run.id, deviceId: parsed.data.deviceId, input: parsed.data.input ?? 'mic', listensOn: measureInputs.resolve(parsed.data.input ?? 'mic'), clicks: run.times.length, recordUntil: run.recordUntil }, 'Calibration run started')
     return run
   })
   app.get('/calibration/runs/:id', async (request, reply) => {
@@ -1638,14 +1645,14 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
         return state?.playbackStatus === 'playing'
       }, app.log),
     )
-  async function backupAdmin(request: FastifyRequest, reply: FastifyReply, body: { adminUsername: string; adminPassword: string }): Promise<boolean> {
+  async function activeBandAdmin(request: FastifyRequest, reply: FastifyReply, body: { adminUsername: string; adminPassword: string }): Promise<boolean> {
     const workspaceId = workspaceHardware.getActiveWorkspaceId()
     if (!workspaceId) {
       void reply.status(409).send({ status: 'error', message: 'Auf diesem Stage-Server ist keine Band aktiv.' })
       return false
     }
     if (!(await isWorkspaceAdmin(request, workspaceId, body.adminUsername, body.adminPassword))) {
-      app.log.warn({ workspaceId, remoteAddress: request.ip }, 'Backup settings refused: not this band\'s admin')
+      app.log.warn({ workspaceId, remoteAddress: request.ip }, 'Server setting refused: not this band\'s admin')
       void reply.status(403).send({ status: 'error', message: 'Nur ein Admin der aktiven Band.' })
       return false
     }
@@ -1654,27 +1661,27 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
   app.post('/server/backup/overview', async (request, reply) => {
     const parsed = BackupAdminRequestSchema.safeParse(request.body)
     if (!parsed.success) return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
-    if (!(await backupAdmin(request, reply, parsed.data))) return reply
+    if (!(await activeBandAdmin(request, reply, parsed.data))) return reply
     return reply.status(200).send(await backups.overview())
   })
   app.post('/server/backup/save', async (request, reply) => {
     const parsed = BackupSaveRequestSchema.safeParse(request.body)
     if (!parsed.success) return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
-    if (!(await backupAdmin(request, reply, parsed.data))) return reply
+    if (!(await activeBandAdmin(request, reply, parsed.data))) return reply
     backups.save(parsed.data.target)
     return reply.status(200).send(await backups.overview())
   })
   app.post('/server/backup/delete', async (request, reply) => {
     const parsed = BackupTargetRequestSchema.safeParse(request.body)
     if (!parsed.success) return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
-    if (!(await backupAdmin(request, reply, parsed.data))) return reply
+    if (!(await activeBandAdmin(request, reply, parsed.data))) return reply
     backups.remove(parsed.data.targetId)
     return reply.status(200).send(await backups.overview())
   })
   app.post('/server/backup/run', async (request, reply) => {
     const parsed = BackupTargetRequestSchema.safeParse(request.body)
     if (!parsed.success) return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
-    if (!(await backupAdmin(request, reply, parsed.data))) return reply
+    if (!(await activeBandAdmin(request, reply, parsed.data))) return reply
     // Runs in the background (minutes with backing tracks); the app follows it via overview.
     void backups.run(parsed.data.targetId, 'manual').catch((err) => app.log.error({ err }, 'Backup run failed'))
     return reply.status(202).send({ status: 'started' })
@@ -1682,8 +1689,36 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
   app.post('/server/backup/test', async (request, reply) => {
     const parsed = BackupTargetRequestSchema.safeParse(request.body)
     if (!parsed.success) return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
-    if (!(await backupAdmin(request, reply, parsed.data))) return reply
+    if (!(await activeBandAdmin(request, reply, parsed.data))) return reply
     return reply.status(200).send(await backups.test(parsed.data.targetId))
+  })
+
+  // Measuring inputs (docs/24 §7.2, #662): which of the server's audio inputs listens to speakers
+  // (microphone) and to headphones / in-ear / Bluetooth (cable) - System → Rig-Check, admins only.
+  app.post('/server/measure-inputs/overview', async (request, reply) => {
+    const parsed = BackupAdminRequestSchema.safeParse(request.body)
+    if (!parsed.success) return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
+    if (!(await activeBandAdmin(request, reply, parsed.data))) return reply
+    const overview: MeasureInputsOverview = { inputs: await listAudioInputs(), selected: measureInputs.get(), fallbackMic: fallbackMicDevice() }
+    return reply.status(200).send(overview)
+  })
+  app.post('/server/measure-inputs/save', async (request, reply) => {
+    const parsed = MeasureInputsSaveRequestSchema.safeParse(request.body)
+    if (!parsed.success) return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
+    if (!(await activeBandAdmin(request, reply, parsed.data))) return reply
+    measureInputs.save(parsed.data.selected)
+    app.log.info({ selected: parsed.data.selected }, 'Measuring inputs saved')
+    return reply.status(200).send({ status: 'ok' })
+  })
+  app.post('/server/measure-inputs/level', async (request, reply) => {
+    const parsed = MeasureLevelRequestSchema.safeParse(request.body)
+    if (!parsed.success) return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
+    if (!(await activeBandAdmin(request, reply, parsed.data))) return reply
+    // The device is in use while a calibration run records - one at a time.
+    if (calibrationRuns.busy()) return reply.status(409).send({ status: 'error', message: 'Gerade läuft eine Messung - bitte kurz warten.' })
+    const level = await measureLevel(parsed.data.input, parsed.data.durationMs ?? 2000)
+    if (level.error) app.log.warn({ input: parsed.data.input, error: level.error }, 'Measuring input level failed')
+    return reply.status(200).send(level)
   })
 
   // The status line in the app (Geräte → Stage-Server): the configured targets' summary; before

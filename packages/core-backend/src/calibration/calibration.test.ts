@@ -81,7 +81,7 @@ describe('CalibrationRuns (#491)', () => {
     let finish: (() => void) | null = null
     let heard: number[] = []
     const runs = new CalibrationRuns(
-      () => ({ stop: () => {}, onsetsMs: () => heard, error: () => null }),
+      () => ({ stop: () => {}, onsetsMs: () => heard, error: () => null, peak: () => 0 }),
       () => now,
       (fn) => (finish = fn),
     )
@@ -103,7 +103,7 @@ describe('CalibrationRuns (#491)', () => {
   it('reports a missing microphone as a failure, not as "no clicks"', async () => {
     const { CalibrationRuns } = await import('./calibrationRuns.js')
     let finish: (() => void) | null = null
-    const runs = new CalibrationRuns(() => ({ stop: () => {}, onsetsMs: () => [], error: () => 'Mikrofon am Stage-Server nicht verfügbar' }), () => 0, (fn) => (finish = fn))
+    const runs = new CalibrationRuns(() => ({ stop: () => {}, onsetsMs: () => [], error: () => 'Mikrofon am Stage-Server nicht verfügbar', peak: () => 0 }), () => 0, (fn) => (finish = fn))
     const run = runs.start()!
     finish!()
     expect(runs.get(run.id)).toEqual({ state: 'failed', error: 'Mikrofon am Stage-Server nicht verfügbar' })

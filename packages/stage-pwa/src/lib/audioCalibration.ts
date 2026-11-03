@@ -1,14 +1,21 @@
 import i18n from '../i18n'
-import type { CalibrationRunStart, CalibrationRunStatus } from 'shared-types'
+import type { AudioRoute, CalibrationRunStart, CalibrationRunStatus, MeasureInputKind } from 'shared-types'
 import { createAudioClock } from './audioClock'
 import { playClickAt } from './clickEngine'
 import { getServerTime } from './clockSync'
 import { getDeviceId } from './deviceId'
 import { getSharedAudioContext, holdAudioOutputAwake } from './sharedAudioContext'
 import { getStageServerUrl } from './stageServer'
+import { useAudioRouteStore } from '../store/useAudioRouteStore'
 
 const AHEAD_MS = 500
 const TICK_MS = 50
+
+/** Which measuring input hears this route (#662): the speaker through the air - also when the
+ * route is unknown (a browser) - everything plugged in or paired through the cable. */
+export function measureInputFor(route: AudioRoute): MeasureInputKind {
+  return route === 'speaker' || route === 'unknown' ? 'mic' : 'cable'
+}
 
 export type AudioCalibrationOutcome = { ok: true; status: CalibrationRunStatus } | { ok: false; message: string }
 
@@ -27,7 +34,7 @@ export async function runAudioCalibration(earlierByMs = 0, onProgress?: (msLeft:
     const response = await fetch(`${base}/calibration/runs`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ deviceId: getDeviceId() }),
+      body: JSON.stringify({ deviceId: getDeviceId(), input: measureInputFor(useAudioRouteStore.getState().route) }),
     })
     if (!response.ok) return { ok: false, message: ((await response.json().catch(() => ({}))) as { message?: string }).message ?? `HTTP ${response.status}` }
     run = (await response.json()) as CalibrationRunStart

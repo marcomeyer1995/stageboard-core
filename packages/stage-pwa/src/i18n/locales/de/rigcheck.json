@@ -102,5 +102,31 @@
     "question": "Klangen Klick und Beeps wie ein Ton, wechselte der Prompter auf dem Schlag, kam der Sprung überall gleichzeitig, und hat dein Gerät auf seinen Cue reagiert?"
   },
   "masterOnly": "Nur der Master bereitet den Rig-Check vor.",
-  "thisDevice": "Dieses Gerät"
+  "thisDevice": "Dieses Gerät",
+  "inputs": {
+    "title": "Messeingänge",
+    "info": "Wo der Stage-Server zuhört, wenn er misst, wie spät der Klick eines Geräts ankommt: ein Mikrofon für Lautsprecher, ein Kabel vom Kopfhörer-Ausgang für Kopfhörer, In-Ear und Bluetooth-Empfänger. Jedes Audio-Gerät, das der Server sieht, mit Kanal - Laptop-Mikrofon, Audio-Interface oder ein Mischpult mit Interface-Funktion.",
+    "mic": "Mikrofon (Lautsprecher)",
+    "cable": "Kabel (Kopfhörer, In-Ear, Bluetooth)",
+    "device": "Gerät",
+    "channel": "Kanal",
+    "channelN": "Kanal {{n}}",
+    "micDefault": "Standard des Servers ({{device}})",
+    "cableDefault": "Keins - wie das Mikrofon",
+    "missing": "{{device}} (nicht angeschlossen)",
+    "level": "Pegel prüfen",
+    "testClick": "Testklick",
+    "listening": "Hört zu …",
+    "levelResult": "Pegel {{db}} dB",
+    "silent": "Nichts gehört",
+    "clicks_one": "{{count}} Klick gehört",
+    "clicks_other": "{{count}} Klicks gehört",
+    "clicksOf": "{{count}} von {{of}} Klicks gehört",
+    "failed": "Fehlgeschlagen: {{message}}",
+    "loading": "Lade die Eingänge des Stage-Servers …",
+    "adminOnly": "Nur Band-Admins können die Messeingänge ändern.",
+    "noAdmin": "Nur ein Admin der aktiven Band.",
+    "http": "Fehler {{status}}",
+    "none": "Der Stage-Server sieht keinen Audio-Eingang."
+  }
 }

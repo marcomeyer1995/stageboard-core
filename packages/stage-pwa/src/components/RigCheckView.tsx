@@ -18,6 +18,7 @@ import { useSongVariantsStore } from '../store/useSongVariantsStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { RigCheckAnalysis } from './RigCheckAnalysis'
 import { Group, Page } from './SystemSettings'
+import { RigCheckInputs } from './RigCheckInputs'
 import { CueDialog } from './timeline/CueDialog'
 import { Badge, Button, Section, Segmented } from './ui'
 
@@ -211,6 +212,8 @@ export function RigCheckView() {
           <DeviceCues editable={isAdmin} />
         </Section>
       </Group>
+
+      <RigCheckInputs />
 
       <Group title={t('flow.title')} info={t('flow.info')}>
         {!isMaster && <p className="text-base text-ink-soft">{t('flow.notMaster')}</p>}

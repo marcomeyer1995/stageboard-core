@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import type { CalibrationRunStatus } from 'shared-types'
+import type { CalibrationRunStatus, MeasureInputKind } from 'shared-types'
 import { matchLatency } from './matchLatency.js'
 import { startMicCapture, type MicCapture } from './micCapture.js'
 import { irregularSchedule } from './schedule.js'
@@ -28,21 +28,27 @@ export class CalibrationRuns {
   private readonly finished = new Map<string, Run>()
 
   constructor(
-    private readonly capture: () => MicCapture = () => startMicCapture(),
+    private readonly capture: (input: MeasureInputKind) => MicCapture = () => startMicCapture(),
     private readonly now: () => number = () => Date.now(),
     private readonly schedule: (fn: () => void, ms: number) => void = (fn, ms) => void setTimeout(fn, ms),
   ) {}
 
-  /** Starts a run of `count` clicks; null while another run is still recording. */
-  start(count = 12): { id: string; times: number[]; recordUntil: number } | null {
+  /** Starts a run of `count` clicks, recorded on the microphone or the cable input (#662); null
+   * while another run is still recording. */
+  start(count = 12, input: MeasureInputKind = 'mic'): { id: string; times: number[]; recordUntil: number } | null {
     if (this.current) return null
     const times = irregularSchedule(this.now() + START_LEAD_MS, count)
     const recordUntil = times[times.length - 1]! + MAX_LATENCY_MS
     const run: Run = { id: randomUUID(), times, status: { state: 'recording', recordUntil } }
     this.current = run
-    const mic = this.capture()
+    const mic = this.capture(input)
     this.schedule(() => this.finish(run, mic), recordUntil - this.now())
     return { id: run.id, times, recordUntil }
+  }
+
+  /** Whether a run is recording right now (the input is in use). */
+  busy(): boolean {
+    return this.current !== null
   }
 
   get(id: string): CalibrationRunState | null {
