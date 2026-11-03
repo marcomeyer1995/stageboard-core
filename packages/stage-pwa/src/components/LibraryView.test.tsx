@@ -413,6 +413,31 @@ describe('LibraryView - "+" vs. swipe-to-add, gated by input capability', () => 
     useSetlistsStore.setState({ setlists: before.setlists, saveSetlist: before.saveSetlist })
   })
 
+  it('in Solo Üben the practised setlist counts, not the band\'s Gig setlist (#449)', async () => {
+    const { useAppModeStore } = await import('../store/useAppModeStore')
+    const { usePracticeStateStore } = await import('../store/usePracticeStateStore')
+    const { useWorkspaceStore } = await import('../store/useWorkspaceStore')
+    const before = useSetlistsStore.getState()
+    const saveSetlist = vi.fn()
+    const gig = { ...setlist('gig', 'Gig', 2000), entries: [{ id: 'g1', songId: 'b', variantId: null, trackId: null }] }
+    const practised = { ...setlist('prac', 'Üben', 1000), entries: [{ id: 'p1', songId: 'c', variantId: null, trackId: null }] }
+    useSetlistsStore.setState({ setlists: [gig, practised], saveSetlist })
+    useShowStateStore.setState({ state: { ...DEFAULT_SHOW_STATE, activeSetlistId: 'gig' } })
+    const workspaceId = useWorkspaceStore.getState().activeWorkspaceId
+    usePracticeStateStore.setState({ byWorkspace: { ...usePracticeStateStore.getState().byWorkspace, [workspaceId]: { ...usePracticeStateStore.getState().get(workspaceId), activeSetlistId: 'prac', activeEntryId: null } } })
+    useAppModeStore.setState({ mode: 'practice' })
+
+    stubTouchLane()
+    render(<LibraryView />)
+    // Charlie is in the practised setlist, Bravo only in the Gig one.
+    expect(within(screen.getByText('Charlie').closest('li')!).getByText('− Aus aktiver Setlist')).toBeInTheDocument()
+    expect(within(screen.getByText('Bravo').closest('li')!).getByText('+ Zur aktiven Setlist')).toBeInTheDocument()
+
+    useAppModeStore.setState({ mode: 'gig' })
+    useShowStateStore.setState({ state: DEFAULT_SHOW_STATE })
+    useSetlistsStore.setState({ setlists: before.setlists, saveSetlist: before.saveSetlist })
+  })
+
   it('pointer lane (happy-dom default): "+" button present, no swipe reveal', () => {
     render(<LibraryView />)
 
