@@ -1,3 +1,4 @@
+import i18n from '../i18n'
 import { CAPABILITIES, type CapabilityId, type PluginInstallation, type ShowControlEvent, type ShowControlResult } from 'shared-types'
 import { CQ18T_CAPABILITY, cq18tTranslator } from './cq18tTranslator'
 import { KEMPER_CAPABILITY, kemperTranslator } from './kemperTranslator'
@@ -40,7 +41,7 @@ async function applyClickTrackEvent(event: ShowControlEvent): Promise<ShowContro
   if (event.payload?.active === false) return { status: 'ok' }
   const bars = Number(event.payload?.bars)
   if (!Number.isInteger(bars) || bars <= 0) {
-    return { status: 'error', message: 'click.extend: bars muss eine positive Ganzzahl sein.' }
+    return { status: 'error', message: i18n.t('plugins:msg.range', { what: 'click.extend', field: 'bars', range: i18n.t('plugins:positiveInt') }) }
   }
   const { useAppModeStore } = await import('../store/useAppModeStore')
   if (useAppModeStore.getState().mode === 'practice') {

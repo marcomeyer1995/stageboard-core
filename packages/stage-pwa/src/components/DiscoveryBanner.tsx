@@ -1,5 +1,7 @@
+import { catalogText } from '../lib/pluginCatalog'
 import { getDeviceId } from '../lib/deviceId'
 import { useDiscoverySessionStore } from '../store/useDiscoverySessionStore'
+import { useTranslation } from 'react-i18next'
 
 /**
  * The visible half of Discovery Mode's trigger-based disambiguation (useDiscoveryTrigger.ts owns
@@ -9,6 +11,7 @@ import { useDiscoverySessionStore } from '../store/useDiscoverySessionStore'
  * the rest of the UI while the musician goes and touches their gear).
  */
 export function DiscoveryBanner() {
+  const { t } = useTranslation('plugins')
   const identifying = useDiscoverySessionStore((state) => state.session.identifying)
   const isOwnContender = useDiscoverySessionStore((state) =>
     identifying
@@ -22,9 +25,7 @@ export function DiscoveryBanner() {
 
   return (
     <div className="fixed inset-x-0 top-0 z-menu flex items-center justify-center gap-2 bg-accent px-4 py-3 sb-pad-safe-x sb-pad-safe-top text-center text-sm font-semibold text-accent-ink shadow-sb">
-      <span>
-        Geräte-Erkennung — „{identifying.logicalDeviceName}": {identifying.instruction}
-      </span>
+      <span>{t('discovery.banner', { device: identifying.logicalDeviceName, instruction: catalogText(identifying.instruction) })}</span>
     </div>
   )
 }

@@ -1,0 +1,95 @@
+{
+  "cmd": {
+    "selectRig": "Rig wählen",
+    "stomp": "Stomp an/aus",
+    "tuner": "Tuner an/aus",
+    "selectMemory": "Memory wählen",
+    "selectPatch": "Patch wählen",
+    "setKnob": "Regler setzen",
+    "setLevel": "Pegel setzen",
+    "setMute": "Stummschalten",
+    "oscSend": "OSC senden",
+    "clickExtend": "Klick verlängern"
+  },
+  "field": {
+    "switchOff": "Ausschalten",
+    "tail": "Mit Nachklang (nur {{list}})",
+    "knob": "Regler",
+    "value": "Wert",
+    "channel": "Kanal",
+    "level": "Pegel",
+    "muted": "Stumm",
+    "channelType": "Kanaltyp",
+    "address": "Adresse",
+    "args": "Werte (mit Leerzeichen getrennt, optional)",
+    "bars": "Takte"
+  },
+  "word": {
+    "on": "an",
+    "off": "aus",
+    "muted": "stumm",
+    "yes": "Ja",
+    "no": "Nein"
+  },
+  "desc": {
+    "stomp": "Stomp {{stomp}} {{state}}",
+    "tuner": "Tuner {{state}}",
+    "channel": "Kanal {{channel}}",
+    "clickBars_one": "+{{count}} Takt",
+    "clickBars_other": "+{{count}} Takte"
+  },
+  "oscAddressInvalid": "beginnt mit „/“, ohne Leerzeichen.",
+  "ui24r": {
+    "i": "Eingang (1-24)",
+    "s": "Subgruppe (1-6)"
+  },
+  "mg30": {
+    "knob": "{{block}} – Regler {{n}}",
+    "switch": "{{block}} – Schalter (0/1)",
+    "select": "{{block}} – Auswahl (0–6)",
+    "block": {
+      "Kompressor": "Kompressor",
+      "Effekt": "Effekt"
+    },
+    "special": {
+      "70": "Send-Pegel",
+      "71": "Return-Pegel",
+      "72": "Patch-Lautstärke",
+      "73": "Aktiver Block",
+      "74": "Pedal"
+    }
+  },
+  "msg": {
+    "range": "{{what}}: {{field}} muss {{range}} sein.",
+    "missing": "{{what}}: {{field}} fehlt.",
+    "notNumber": "{{what}}: {{field}} muss eine Zahl sein.",
+    "unknownStomp": "{{what}}: unbekannter Stomp-Slot „{{name}}“.",
+    "unknownChannel": "{{what}}: unbekannter Kanal „{{channel}}“.",
+    "notAKnob": "{{what}}: CC {{cc}} ist kein Regler des MG-30.",
+    "noMidiOut": "{{device}}: kein MIDI-Ausgang konfiguriert.",
+    "noWebMidi": "{{device}}: WebMIDI nicht unterstützt.",
+    "noConnection": "{{device}}: keine Verbindung konfiguriert.",
+    "noAutoTest": "{{device}}: kein automatischer Test möglich - das Gerät hat keine Rückmeldung.",
+    "noIdentity": "{{device}}: keine Antwort auf die Identitätsabfrage.",
+    "noStatusDump": "{{device}}: verbunden, aber kein initialer Status-Dump empfangen.",
+    "connectedModel": "Verbunden (Modell: {{model}})",
+    "muteQuerySent": "Get-Anfrage für Ip1-Mute gesendet."
+  },
+  "or": "{{a}} oder {{b}}",
+  "positiveInt": "eine positive Ganzzahl",
+  "catalog": {
+    "networkOsc": "Netzwerk (OSC)",
+    "networkWs": "Netzwerk (WebSocket)",
+    "networkOscIn": "Netzwerk (OSC an den Stage-Server)",
+    "midiOut": "MIDI-Ausgang",
+    "midiIn": "MIDI-Eingang",
+    "midiChannel": "MIDI-Kanal (1-16)",
+    "ip": "IP-Adresse",
+    "hostOrName": "Host (IP oder Name)",
+    "discoverKemper": "Tuner am Kemper kurz an- und wieder ausschalten.",
+    "discoverCq18t": "Master-Mute am Pult kurz an- und wieder ausschalten."
+  },
+  "discovery": {
+    "banner": "Geräte-Erkennung — „{{device}}“: {{instruction}}"
+  }
+}

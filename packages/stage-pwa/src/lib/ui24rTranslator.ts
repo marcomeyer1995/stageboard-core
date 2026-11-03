@@ -1,3 +1,4 @@
+import i18n from '../i18n'
 import type { ShowControlResult } from 'shared-types'
 import { getDeviceId } from './deviceId'
 import type { Translator } from './clientTranslator'
@@ -69,8 +70,8 @@ function setLevel(ui24r: Ui24rTarget, payload: Record<string, unknown> | undefin
   const channel = Number(payload?.channel)
   const db = Number(payload?.db)
   const path = channelPath(channelType, channel, 'mix')
-  if (!path) return { status: 'error', message: `ui24r.setLevel: unbekannter Kanal "${channelType}.${channel}".` }
-  if (Number.isNaN(db)) return { status: 'error', message: 'ui24r.setLevel: db muss eine Zahl sein.' }
+  if (!path) return { status: 'error', message: i18n.t('plugins:msg.unknownChannel', { what: 'ui24r.setLevel', channel: `${channelType}.${channel}` }) }
+  if (Number.isNaN(db)) return { status: 'error', message: i18n.t('plugins:msg.notNumber', { what: 'ui24r.setLevel', field: 'db' }) }
   sendUi24r(ui24r.connection, path, dbToFaderValue(db))
   return { status: 'ok', data: { channelType, channel, db } }
 }
@@ -80,7 +81,7 @@ function setMute(ui24r: Ui24rTarget, payload: Record<string, unknown> | undefine
   const channel = Number(payload?.channel)
   const mute = payload?.mute === true
   const path = channelPath(channelType, channel, 'mute')
-  if (!path) return { status: 'error', message: `ui24r.setMute: unbekannter Kanal "${channelType}.${channel}".` }
+  if (!path) return { status: 'error', message: i18n.t('plugins:msg.unknownChannel', { what: 'ui24r.setMute', channel: `${channelType}.${channel}` }) }
   sendUi24r(ui24r.connection, path, mute ? 1 : 0)
   return { status: 'ok', data: { channelType, channel, mute } }
 }
@@ -98,14 +99,14 @@ async function test(ui24r: Ui24rTarget): Promise<ShowControlResult> {
   }
   const model = ui24r.connection.state.get('model')
   if (model === undefined) {
-    return { status: 'error', message: 'Ui24R: verbunden, aber kein initialer Status-Dump empfangen.' }
+    return { status: 'error', message: i18n.t('plugins:msg.noStatusDump', { device: 'Ui24R' }) }
   }
-  return { status: 'ok', message: `Verbunden (Modell: ${model})` }
+  return { status: 'ok', message: i18n.t('plugins:msg.connectedModel', { model }) }
 }
 
 export const ui24rTranslator: Translator = async (event) => {
   const ui24r = await resolveUi24r(event.logicalDeviceId)
-  if (!ui24r) return { status: 'error', message: 'Ui24R: keine Verbindung konfiguriert.' }
+  if (!ui24r) return { status: 'error', message: i18n.t('plugins:msg.noConnection', { device: 'Ui24R' }) }
 
   switch (event.type) {
     case 'ui24r.setLevel':

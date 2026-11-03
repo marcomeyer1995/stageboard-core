@@ -8,7 +8,7 @@ import { assignDiscoveryCandidate, startDiscovery, stopDiscovery } from '../lib/
 import { getTranslator, hasClientTranslator } from '../lib/clientTranslator'
 import { randomId } from '../lib/id'
 import { findLogicalDeviceUsage } from '../lib/logicalDeviceUsage'
-import { capabilitiesLabel, installableCatalog, PLUGIN_CATALOG, pluginKind, pluginName } from '../lib/pluginCatalog'
+import { capabilitiesLabel, catalogText, installableCatalog, PLUGIN_CATALOG, pluginKind, pluginName } from '../lib/pluginCatalog'
 import { listenToPortByHardwareKey } from '../lib/webMidi'
 import { listMidiInputs, listMidiOutputs, sendCcSequence } from '../lib/webMidiOutput'
 import { useDevicesStore } from '../store/useDevicesStore'
@@ -295,7 +295,7 @@ function ConnectionStep({
 
       {identifyingHere && (
         <div className="flex flex-col gap-2 rounded-container border border-accent/40 bg-control px-3 py-3">
-          <p className="text-sm font-semibold text-ink">{identifyingHere.instruction}</p>
+          <p className="text-sm font-semibold text-ink">{catalogText(identifyingHere.instruction)}</p>
           {candidates
             .filter((c) => c.status === 'identifying')
             .map((c) => (
@@ -365,9 +365,9 @@ function ConnectionStep({
               className={`min-h-form px-3 text-base ${INPUT}`}
             >
               <option value="">{t('wiz.chooseTransport')}</option>
-              {plugin.transports.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.label}
+              {plugin.transports.map((option) => (
+                <option key={option.id} value={option.id}>
+                  {catalogText(option.label)}
                 </option>
               ))}
             </select>
@@ -378,13 +378,13 @@ function ConnectionStep({
                     <MidiOutputPicker
                       inputs={field.type === 'midi-input'}
                       key={field.key}
-                      label={field.label}
+                      label={catalogText(field.label)}
                       value={manualValues[field.key] ?? ''}
                       onChange={(id, name) => setManualValues({ ...manualValues, [field.key]: id, [`${field.key}Name`]: name })}
                     />
                   ) : (
                     <label key={field.key} className="flex flex-col gap-1 text-xs text-ink-muted">
-                      {field.label}
+                      {catalogText(field.label)}
                       <input
                         type={field.type}
                         value={manualValues[field.key] ?? ''}
