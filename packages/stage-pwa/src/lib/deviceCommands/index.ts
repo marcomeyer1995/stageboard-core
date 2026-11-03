@@ -13,9 +13,21 @@ export type { CommandField, DeviceCommand } from './types'
 const CLICK_COMMANDS: DeviceCommand[] = [
   {
     type: 'click.extend',
-    label: 'Klick verlängern',
-    fields: [{ key: 'bars', label: 'Takte', kind: 'int', min: 1, max: 64 }],
-    describe: (p) => `+${String(p.bars)} Takte`,
+    get label() {
+      return i18n.t('plugins:cmd.clickExtend')
+    },
+    fields: [
+      {
+        key: 'bars',
+        get label() {
+          return i18n.t('plugins:field.bars')
+        },
+        kind: 'int',
+        min: 1,
+        max: 64,
+      },
+    ],
+    describe: (p) => i18n.t('plugins:desc.clickBars', { count: Number(p.bars) }),
   },
 ]
 
@@ -61,8 +73,8 @@ export function fieldOptions(field: CommandField): { value: string; label: strin
       return field.options.map((o) => ({ value: String(o.value), label: o.label }))
     case 'bool':
       return [
-        { value: 'true', label: 'Ja' },
-        { value: 'false', label: 'Nein' },
+        { value: 'true', label: i18n.t('plugins:word.yes') },
+        { value: 'false', label: i18n.t('plugins:word.no') },
       ]
     case 'text':
       return []

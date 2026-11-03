@@ -1,3 +1,4 @@
+import i18n from '../i18n'
 import type { ShowControlResult } from 'shared-types'
 import { getDeviceId } from './deviceId'
 import type { Translator } from './clientTranslator'
@@ -54,7 +55,7 @@ async function resolveRc500Output(logicalDeviceId?: string, sendAt?: number): Pr
 function selectMemory(rc500: Rc500Output, payload: Record<string, unknown> | undefined): ShowControlResult {
   const memory = Number(payload?.memory)
   if (!Number.isInteger(memory) || memory < 1 || memory > 99) {
-    return { status: 'error', message: 'rc500.selectMemory: memory muss 1-99 sein.' }
+    return { status: 'error', message: i18n.t('plugins:msg.range', { what: 'rc500.selectMemory', field: 'memory', range: '1-99' }) }
   }
   rc500.output.send([0xc0 | (rc500.channel & 0x0f), memory - 1])
   return { status: 'ok', data: { memory } }
@@ -70,12 +71,12 @@ function selectMemory(rc500: Rc500Output, payload: Record<string, unknown> | und
  * it. So this honestly reports that no automatic test exists, rather than faking a result.
  */
 function test(): ShowControlResult {
-  return { status: 'error', message: 'RC-500: kein automatischer Test möglich - das Gerät hat keine Rückmeldung.' }
+  return { status: 'error', message: i18n.t('plugins:msg.noAutoTest', { device: 'RC-500' }) }
 }
 
 export const rc500Translator: Translator = async (event) => {
   const rc500 = await resolveRc500Output(event.logicalDeviceId, midiSendTime(event))
-  if (!rc500) return { status: 'error', message: 'RC-500: kein MIDI-Ausgang konfiguriert.' }
+  if (!rc500) return { status: 'error', message: i18n.t('plugins:msg.noMidiOut', { device: 'RC-500' }) }
 
   switch (event.type) {
     case 'rc500.selectMemory':

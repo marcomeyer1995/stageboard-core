@@ -1,3 +1,4 @@
+import i18n from '../i18n'
 import type { ShowControlResult } from 'shared-types'
 import { getDeviceId } from './deviceId'
 import type { Translator } from './clientTranslator'
@@ -101,9 +102,9 @@ function setLevel(cq18t: Cq18tOutput, payload: Record<string, unknown> | undefin
   const channel = Number(payload?.channel)
   const db = Number(payload?.db)
   if (!Number.isInteger(channel) || channel < 1 || channel > 16) {
-    return { status: 'error', message: 'cq18t.setLevel: channel muss 1-16 sein.' }
+    return { status: 'error', message: i18n.t('plugins:msg.range', { what: 'cq18t.setLevel', field: 'channel', range: '1-16' }) }
   }
-  if (!Number.isFinite(db)) return { status: 'error', message: 'cq18t.setLevel: db fehlt.' }
+  if (!Number.isFinite(db)) return { status: 'error', message: i18n.t('plugins:msg.missing', { what: 'cq18t.setLevel', field: 'db' }) }
   const [addrMsb, addrLsb] = inputLevelToMainAddress(channel)
   const [dataMsb, dataLsb] = rawToNrpnData(dbToRaw(db))
   sendNrpn(cq18t.output, cq18t.channel, addrMsb, addrLsb, dataMsb, dataLsb)
@@ -115,7 +116,7 @@ function setMute(cq18t: Cq18tOutput, payload: Record<string, unknown> | undefine
   const muted = payload?.muted === true
   const [addrMsb, addrLsb] = target === 'main' ? MAIN_LR_MUTE_ADDRESS : inputMuteAddress(Number(target))
   if (target !== 'main' && (!Number.isInteger(Number(target)) || Number(target) < 1 || Number(target) > 16)) {
-    return { status: 'error', message: 'cq18t.setMute: channel muss 1-16 oder "main" sein.' }
+    return { status: 'error', message: i18n.t('plugins:msg.range', { what: 'cq18t.setMute', field: 'channel', range: i18n.t('plugins:or', { a: '1-16', b: '"main"' }) }) }
   }
   sendNrpn(cq18t.output, cq18t.channel, addrMsb, addrLsb, 0x00, muted ? 0x01 : 0x00)
   return { status: 'ok', data: { channel: target, muted } }
@@ -134,13 +135,13 @@ function test(cq18t: Cq18tOutput): ShowControlResult {
   // CC96=0x7F is the documented "Get" - not a 4-controller NRPN message, so sent directly rather
   // than via sendNrpn (which always sends CC6/CC38 data bytes, meaningless for a Get).
   cq18t.output.send([0xb0 | (cq18t.channel & 0x0f), 96, 0x7f])
-  return { status: 'ok', message: 'Get-Anfrage für Ip1-Mute gesendet.' }
+  return { status: 'ok', message: i18n.t('plugins:msg.muteQuerySent') }
 }
 
 export const cq18tTranslator: Translator = async (event) => {
-  if (!isWebMidiSupported()) return { status: 'error', message: 'CQ-18T: WebMIDI nicht unterstützt.' }
+  if (!isWebMidiSupported()) return { status: 'error', message: i18n.t('plugins:msg.noWebMidi', { device: 'CQ-18T' }) }
   const cq18t = await resolveCq18tOutput(event.logicalDeviceId, midiSendTime(event))
-  if (!cq18t) return { status: 'error', message: 'CQ-18T: kein MIDI-Ausgang konfiguriert.' }
+  if (!cq18t) return { status: 'error', message: i18n.t('plugins:msg.noMidiOut', { device: 'CQ-18T' }) }
 
   switch (event.type) {
     case 'cq18t.setLevel':

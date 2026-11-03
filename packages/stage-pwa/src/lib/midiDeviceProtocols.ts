@@ -1,3 +1,4 @@
+import i18n from '../i18n'
 /**
  * The MIDI vocabulary of the devices StageBoard talks to over WebMIDI, in one store-free module:
  * the translators (kemperTranslator.ts, mg30Translator.ts, rc500Translator.ts) SEND with it, and
@@ -32,27 +33,41 @@ export const KEMPER_STOMP_CC_WITH_TAIL: Record<string, number> = { DELAY: 27, RE
  * selectors with a smaller range. Not the whole 11-74 span: CC 16 is unused, and compressor knob 4
  * is CC 90. `mg30.setKnob`'s `cc` payload field is the raw CC number.
  */
+/** A knob's place: block and position, a switch or selector of a block, or one of the patch-wide
+ * controls (named by its CC). Translated when shown (`mg30KnobName`). */
+export type Mg30Knob = { block: string; kind: 'knob'; n: number } | { block: string; kind: 'switch' | 'select' } | { kind: 'special' }
 const knobs = (block: string, first: number, count: number, from = 1) =>
-  Array.from({ length: count }, (_, i) => [first + i, `${block} – Regler ${from + i}`] as const)
-export const MG30_KNOBS: ReadonlyMap<number, string> = new Map<number, string>([
-  [11, 'Wah – Regler 1'],
-  [12, 'Wah – Schalter (0/1)'],
+  Array.from({ length: count }, (_, i) => [first + i, { block, kind: 'knob', n: from + i }] as const)
+export const MG30_KNOBS: ReadonlyMap<number, Mg30Knob> = new Map<number, Mg30Knob>([
+  [11, { block: 'Wah', kind: 'knob', n: 1 }],
+  [12, { block: 'Wah', kind: 'switch' }],
   ...knobs('Kompressor', 13, 3),
-  [90, 'Kompressor – Regler 4'],
+  [90, { block: 'Kompressor', kind: 'knob', n: 4 }],
   ...knobs('Effekt', 17, 5),
   ...knobs('Amp', 22, 8),
   ...knobs('EQ', 30, 12),
   ...knobs('Noise Gate', 42, 3),
-  [45, 'Noise Gate – Auswahl (0–6)'],
+  [45, { block: 'Noise Gate', kind: 'select' }],
   ...knobs('Modulation', 46, 6),
   ...knobs('Delay', 52, 3),
-  [55, 'Delay – Auswahl (0–6)'],
+  [55, { block: 'Delay', kind: 'select' }],
   ...knobs('Delay', 56, 4, 5),
   ...knobs('Reverb', 60, 4),
   ...knobs('IR', 64, 6),
-  [70, 'Send-Pegel'],
-  [71, 'Return-Pegel'],
-  [72, 'Patch-Lautstärke'],
-  [73, 'Aktiver Block'],
-  [74, 'Pedal'],
+  [70, { kind: 'special' }],
+  [71, { kind: 'special' }],
+  [72, { kind: 'special' }],
+  [73, { kind: 'special' }],
+  [74, { kind: 'special' }],
 ])
+
+/** A knob's name in this device's language ("Delay – Regler 2"), undefined for an unknown CC. */
+export function mg30KnobName(cc: number): string | undefined {
+  const knob = MG30_KNOBS.get(cc)
+  if (!knob) return undefined
+  if (knob.kind === 'special') return i18n.t(`plugins:mg30.special.${cc}` as 'plugins:mg30.special.70')
+  // Block names are the pedal's own English words, except two the German manual translates.
+  const block = i18n.t(`plugins:mg30.block.${knob.block}` as 'plugins:mg30.block.Effekt', { defaultValue: knob.block })
+  if (knob.kind === 'knob') return i18n.t('plugins:mg30.knob', { block, n: knob.n })
+  return i18n.t(knob.kind === 'switch' ? 'plugins:mg30.switch' : 'plugins:mg30.select', { block })
+}

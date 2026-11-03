@@ -1,0 +1,95 @@
+{
+  "cmd": {
+    "selectRig": "Select rig",
+    "stomp": "Stomp on/off",
+    "tuner": "Tuner on/off",
+    "selectMemory": "Select memory",
+    "selectPatch": "Select patch",
+    "setKnob": "Set knob",
+    "setLevel": "Set level",
+    "setMute": "Mute",
+    "oscSend": "Send OSC",
+    "clickExtend": "Extend click"
+  },
+  "field": {
+    "switchOff": "Switch off",
+    "tail": "With tail (only {{list}})",
+    "knob": "Knob",
+    "value": "Value",
+    "channel": "Channel",
+    "level": "Level",
+    "muted": "Muted",
+    "channelType": "Channel type",
+    "address": "Address",
+    "args": "Values (separated by spaces, optional)",
+    "bars": "Bars"
+  },
+  "word": {
+    "on": "on",
+    "off": "off",
+    "muted": "muted",
+    "yes": "Yes",
+    "no": "No"
+  },
+  "desc": {
+    "stomp": "Stomp {{stomp}} {{state}}",
+    "tuner": "Tuner {{state}}",
+    "channel": "Channel {{channel}}",
+    "clickBars_one": "+{{count}} bar",
+    "clickBars_other": "+{{count}} bars"
+  },
+  "oscAddressInvalid": "starts with “/”, no spaces.",
+  "ui24r": {
+    "i": "Input (1-24)",
+    "s": "Subgroup (1-6)"
+  },
+  "mg30": {
+    "knob": "{{block}} – knob {{n}}",
+    "switch": "{{block}} – switch (0/1)",
+    "select": "{{block}} – select (0–6)",
+    "block": {
+      "Kompressor": "Compressor",
+      "Effekt": "Effect"
+    },
+    "special": {
+      "70": "Send level",
+      "71": "Return level",
+      "72": "Patch volume",
+      "73": "Active block",
+      "74": "Pedal"
+    }
+  },
+  "msg": {
+    "range": "{{what}}: {{field}} must be {{range}}.",
+    "missing": "{{what}}: {{field}} is missing.",
+    "notNumber": "{{what}}: {{field}} must be a number.",
+    "unknownStomp": "{{what}}: unknown stomp slot “{{name}}”.",
+    "unknownChannel": "{{what}}: unknown channel “{{channel}}”.",
+    "notAKnob": "{{what}}: CC {{cc}} is not an MG-30 knob.",
+    "noMidiOut": "{{device}}: no MIDI output configured.",
+    "noWebMidi": "{{device}}: WebMIDI not supported.",
+    "noConnection": "{{device}}: no connection configured.",
+    "noAutoTest": "{{device}}: no automatic test possible - the device sends no reply.",
+    "noIdentity": "{{device}}: no answer to the identity request.",
+    "noStatusDump": "{{device}}: connected, but no initial status dump received.",
+    "connectedModel": "Connected (model: {{model}})",
+    "muteQuerySent": "Get request for Ip1 mute sent."
+  },
+  "or": "{{a}} or {{b}}",
+  "positiveInt": "a positive whole number",
+  "catalog": {
+    "networkOsc": "Network (OSC)",
+    "networkWs": "Network (WebSocket)",
+    "networkOscIn": "Network (OSC to the Stage-Server)",
+    "midiOut": "MIDI output",
+    "midiIn": "MIDI input",
+    "midiChannel": "MIDI channel (1-16)",
+    "ip": "IP address",
+    "hostOrName": "Host (IP or name)",
+    "discoverKemper": "Switch the Kemper’s tuner on and off again.",
+    "discoverCq18t": "Switch the console’s master mute on and off again."
+  },
+  "discovery": {
+    "banner": "Device detection — “{{device}}”: {{instruction}}"
+  }
+}

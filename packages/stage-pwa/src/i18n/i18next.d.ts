@@ -1,4 +1,5 @@
 import 'i18next'
+import type plugins from './locales/de/plugins.json'
 import type messages from './locales/de/messages.json'
 import type dashboard from './locales/de/dashboard.json'
 import type editor from './locales/de/editor.json'
@@ -25,6 +26,7 @@ declare module 'i18next' {
   interface CustomTypeOptions {
     defaultNS: 'common'
     resources: {
+      plugins: typeof plugins
       messages: typeof messages
       dashboard: typeof dashboard
       editor: typeof editor

@@ -1,11 +1,17 @@
+import i18n from '../../i18n'
 import { KEMPER_STOMP_CC, KEMPER_STOMP_CC_WITH_TAIL } from '../midiDeviceProtocols'
 import type { DeviceCommand } from './types'
 
-/** Kemper Profiler cue commands - see kemperTranslator.ts for what each sends. */
+const onOff = (off: unknown) => i18n.t(off === true ? 'plugins:word.off' : 'plugins:word.on')
+
+/** Kemper Profiler cue commands - see kemperTranslator.ts for what each sends. Texts are getters:
+ * the language can change while the app runs (#456). */
 export const KEMPER_COMMANDS: DeviceCommand[] = [
   {
     type: 'kemper.selectRig',
-    label: 'Rig wählen',
+    get label() {
+      return i18n.t('plugins:cmd.selectRig')
+    },
     fields: [
       // Numbered 1-125 on the Kemper's display; the MIDI value is one less.
       { key: 'performance', label: 'Performance', kind: 'choice', options: Array.from({ length: 125 }, (_, i) => ({ value: i, label: String(i + 1) })) },
@@ -16,21 +22,45 @@ export const KEMPER_COMMANDS: DeviceCommand[] = [
   },
   {
     type: 'kemper.stomp',
-    label: 'Stomp an/aus',
+    get label() {
+      return i18n.t('plugins:cmd.stomp')
+    },
     fields: [
       { key: 'stomp', label: 'Stomp', kind: 'choice', options: Object.keys(KEMPER_STOMP_CC).map((name) => ({ value: name, label: name })) },
       // "aus" next to "an" (Marco, 2026-10-18): a pedal that switches an effect on must switch it off again.
-      { key: 'off', label: 'Ausschalten', kind: 'bool' },
-      { key: 'tail', label: `Mit Nachklang (nur ${Object.keys(KEMPER_STOMP_CC_WITH_TAIL).join('/')})`, kind: 'bool' },
+      {
+        key: 'off',
+        get label() {
+          return i18n.t('plugins:field.switchOff')
+        },
+        kind: 'bool',
+      },
+      {
+        key: 'tail',
+        get label() {
+          return i18n.t('plugins:field.tail', { list: Object.keys(KEMPER_STOMP_CC_WITH_TAIL).join('/') })
+        },
+        kind: 'bool',
+      },
     ],
-    describe: (p) => `Stomp ${String(p.stomp)} ${p.off === true ? 'aus' : 'an'}${p.tail === true ? ' (Tail)' : ''}`,
+    describe: (p) => `${i18n.t('plugins:desc.stomp', { stomp: String(p.stomp), state: onOff(p.off) })}${p.tail === true ? ' (Tail)' : ''}`,
     stateKey: (p) => `stomp:${String(p.stomp)}`,
   },
   {
     type: 'kemper.tuner',
-    label: 'Tuner an/aus',
-    fields: [{ key: 'off', label: 'Ausschalten', kind: 'bool' }],
-    describe: (p) => `Tuner ${p.off === true ? 'aus' : 'an'}`,
+    get label() {
+      return i18n.t('plugins:cmd.tuner')
+    },
+    fields: [
+      {
+        key: 'off',
+        get label() {
+          return i18n.t('plugins:field.switchOff')
+        },
+        kind: 'bool',
+      },
+    ],
+    describe: (p) => i18n.t('plugins:desc.tuner', { state: onOff(p.off) }),
     stateKey: () => 'tuner',
   },
 ]
