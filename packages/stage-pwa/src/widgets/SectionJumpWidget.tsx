@@ -7,7 +7,8 @@ import { clickTimeline } from '../lib/beatGrid'
 import { songDurationMs } from '../lib/entryDuration'
 import { adjustedBpm } from '../lib/metronome'
 import { cancelSectionJump, queueSectionJump, setSectionLoop } from '../lib/sectionJump'
-import { useShowMode } from '../lib/showMode'
+import { useShowModeCore } from '../lib/showMode'
+import { useFrameValue } from '../lib/useFrameValue'
 import { sectionIndexAt, showSections, type JumpWhen, type ShowSection } from '../lib/showSections'
 import { useShowPart } from '../lib/widgetParts'
 import { JumpCrossfadeSetting } from '../components/JumpCrossfadeSetting'
@@ -33,7 +34,7 @@ const BUTTON = 'min-h-touch rounded-control px-4 font-bold transition-colors dis
  */
 export function SectionJumpWidget() {
   const { t } = useTranslation('widgets')
-  const { mode, queue, elapsedMs, playbackStatus, canControl: isMaster, transport, sectionLoop: loop, trackOverride, liveTempoAdjustPercent } = useShowMode()
+  const { mode, queue, elapsedNow, playbackStatus, canControl: isMaster, transport, sectionLoop: loop, trackOverride, liveTempoAdjustPercent } = useShowModeCore()
   const jump = transport.jump ?? null
   const [when, setWhen] = useState<JumpWhen>(storedWhen)
   const showWhen = useShowPart('when')
@@ -58,12 +59,17 @@ export function SectionJumpWidget() {
   const content = song?.chordProContent ?? ''
   const sections = useMemo(() => (timeline ? showSections(content, timeline, durationMs) : []), [content, timeline, durationMs])
 
+  const playing = playbackStatus === 'playing' && elapsedNow() !== null
+  // Re-renders when the song enters another section, not every frame (#457). Before the early
+  // return below - a hook after it crashed the app when a song without sections came first.
+  const currentIndex = useFrameValue(() => {
+    const elapsedMs = playing ? elapsedNow() : null
+    return elapsedMs === null ? -1 : sectionIndexAt(sections, elapsedMs)
+  }, playing)
+
   if (!currentSong || sections.length === 0) {
     return <p className="flex h-full items-center justify-center text-center text-ink-faint">{t('sj.none')}</p>
   }
-
-  const playing = playbackStatus === 'playing' && elapsedMs !== null
-  const currentIndex = playing ? sectionIndexAt(sections, elapsedMs) : -1
   const current: ShowSection | undefined = sections[currentIndex]
   const canJump = isMaster && playing
 

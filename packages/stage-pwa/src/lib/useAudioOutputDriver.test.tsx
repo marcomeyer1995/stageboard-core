@@ -1,4 +1,4 @@
-import { render, waitFor } from '@testing-library/react'
+import { act, render, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { CAPABILITIES } from 'shared-types'
 import type { SetlistEntry, Song, SongVariant, TrackMeta } from 'shared-types'
@@ -181,6 +181,21 @@ beforeEach(() => {
   useLocalAudioOutputStore.setState({ error: null, audioBlocked: false })
 })
 
+
+/** Animation frames step by hand: the driver follows the clock on its own frame loop (#457), so a
+ * test shows the next frame instead of re-rendering. */
+let frames: FrameRequestCallback[] = []
+beforeEach(() => {
+  frames = []
+  vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => frames.push(cb))
+  vi.stubGlobal('cancelAnimationFrame', () => {})
+})
+function nextFrame() {
+  const due = frames
+  frames = []
+  act(() => due.forEach((cb) => cb(0)))
+}
+
 describe('useAudioOutputDriver - claimed audio-output device, not the master', () => {
   it('unloads a stale local track when the synced song changes to one with no track at all', () => {
     mockShowMode({
@@ -250,6 +265,7 @@ describe('continuous drift correction (#13 found live, 2026-09-10: the backing t
       elapsedMs: 1050, // the next animation-frame tick
     })
     rerender(<DriverHost />)
+    nextFrame()
     expect(syncLocalTrackPosition).toHaveBeenLastCalledWith(1050)
   })
 
@@ -311,6 +327,7 @@ describe('deferred audio start during a count-in (#25 follow-up: negative-clock 
       elapsedMs: 0,
     })
     rerender(<DriverHost />)
+    nextFrame()
     expect(playLocalTrack).toHaveBeenCalledTimes(1)
     expect(playLocalTrack).toHaveBeenCalledWith(0)
 
@@ -324,6 +341,7 @@ describe('deferred audio start during a count-in (#25 follow-up: negative-clock 
       elapsedMs: 50,
     })
     rerender(<DriverHost />)
+    nextFrame()
     expect(playLocalTrack).toHaveBeenCalledTimes(1)
   })
 
@@ -346,6 +364,7 @@ describe('deferred audio start during a count-in (#25 follow-up: negative-clock 
       elapsedMs: -1500,
     })
     rerender(<DriverHost />)
+    nextFrame()
     expect(playLocalTrack).not.toHaveBeenCalled()
     expect(pauseLocalTrack).toHaveBeenCalled()
   })

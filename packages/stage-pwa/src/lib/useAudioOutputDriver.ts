@@ -25,7 +25,8 @@ import {
 } from './webAudioTrackEngine'
 import { useCapabilityRouting } from './useCapabilityRouting'
 import { holdAudioOutputAwake } from './sharedAudioContext'
-import { useShowMode } from './showMode'
+import { useShowModeCore } from './showMode'
+import { useFrameLoop } from './useFrameLoop'
 import { getServerTime } from './clockSync'
 import { computeActiveMs, jumpBoundaryMs, transportOf } from './playbackTransport'
 import { useAudioOutputLatencyMs } from './latencyCompensation'
@@ -52,20 +53,15 @@ import { useShowStateStore } from '../store/useShowStateStore'
  * actual playLocalTrack/loadLocalTrack/triggerShowControl calls live here, exactly once.
  */
 export function useAudioOutputDriver(): void {
-  const { mode, queue, elapsedMs, playbackStatus, trackOverride, drivesAutomation: canControl } = useShowMode()
+  // Not useShowMode(): what follows the clock frame by frame runs on its own loop below, so this
+  // hook re-renders on song and state changes only (#457).
+  const { mode, queue, elapsedNow, playbackStatus, trackOverride, drivesAutomation: canControl } = useShowModeCore()
   const { currentEntry, currentSong, currentVariant, nextEntry, nextVariant } = queue
 
   // Track level, fades and mute by cue (#485), played by the Web Audio engine.
   const levelCurve = useTrackLevelCurve(queue)
   useEffect(() => setWebAudioTrackLevelCurve(levelCurve), [levelCurve])
 
-  // Kept fresh every render without being a dependency of the load/play effects below (same
-  // reasoning as useClickOutputDriver.ts's stateRef) - those must fire only on a genuine
-  // song/track change or play/pause/stop transition, never merely because elapsedMs ticked.
-  const elapsedMsRef = useRef<number | null>(elapsedMs)
-  useEffect(() => {
-    elapsedMsRef.current = elapsedMs
-  })
   // The same routing the transport widget shows (incl. "no tablet chosen: the device running the
   // show plays it").
   const { engine, pluginId } = useCapabilityRouting(CAPABILITIES.audioPlayback, mode)
@@ -107,7 +103,7 @@ export function useAudioOutputDriver(): void {
       useLocalAudioOutputStore.setState({ error: null })
       return
     }
-    void loadLocalTrack(currentVariant.id, track.id, elapsedMsRef.current ?? 0).then((result) => {
+    void loadLocalTrack(currentVariant.id, track.id, elapsedNow() ?? 0).then((result) => {
       useLocalAudioOutputStore.setState({ error: result.status === 'error' ? (result.message ?? i18n.t('messages:error')) : null })
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -146,21 +142,22 @@ export function useAudioOutputDriver(): void {
   // playing - without this, resuming just continued from wherever the element happened to be
   // cued rather than the actual synced position (found live, 2026-09-10).
   //
-  // Waits for elapsedMs to actually reach 0 before calling playLocalTrack (#25 follow-up,
+  // Waits for the song time to actually reach 0 before calling playLocalTrack (#25 follow-up,
   // count-in) - queue.ts's playSong seeds a negative accumulatedMs when the current variant's
-  // count-in doesn't fit inside its own lead-in silence, so elapsedMs counts up from a genuine
+  // count-in doesn't fit inside its own lead-in silence, so the song time counts up from a genuine
   // negative time; the backing track's real audio must not start until it crosses 0, the same
-  // moment its own file position 0 should play. `elapsedMs` is deliberately a dependency here
-  // (unlike the pause/stop branches, which only ever need to fire once per status transition) so
-  // this re-checks every tick while still counting in - `audioStartedForRunRef` then ensures
-  // playLocalTrack itself still only ever fires once per run (syncLocalTrackPosition, below,
-  // takes over from there).
+  // moment its own file position 0 should play. So the start is checked on every frame while
+  // playing (the frame loop below) - `audioStartedForRunRef` then ensures playLocalTrack itself
+  // still only ever fires once per run (syncLocalTrackPosition, below, takes over from there).
   // Output latency compensation (#491): the track runs that much ahead of the song time, so it is
   // heard on it - same shift for the <audio> element and the Web Audio engine.
   const outputLatencyMs = useAudioOutputLatencyMs()
   const latencyRef = useRef(outputLatencyMs)
   latencyRef.current = outputLatencyMs
-  const audioElapsedMs = elapsedMs === null ? null : elapsedMs + outputLatencyMs
+  const audioElapsedNow = () => {
+    const elapsed = elapsedNow()
+    return elapsed === null ? null : elapsed + outputLatencyMs
+  }
   const lastAppliedStatusRef = useRef<PlaybackStatus | null>(null)
   const audioStartedForRunRef = useRef(false)
   useEffect(() => {
@@ -179,9 +176,24 @@ export function useAudioOutputDriver(): void {
       lastAppliedStatusRef.current = 'playing'
       audioStartedForRunRef.current = false
     }
+  }, [isMyDeviceAudioOutput, webAudio, playbackStatus])
+  const elementPlaying = isMyDeviceAudioOutput && !webAudio && playbackStatus === 'playing'
+  // Every frame while the <audio> element plays: start it once the count-in is over, then keep
+  // re-locking it to the synced master clock - the backing-track equivalent of clickEngine.ts's
+  // scheduler re-anchoring to the song time every tick. A native <audio> element isn't guaranteed
+  // sample-accurate/clock-locked, and nothing else ever re-checks it once started, so the backing
+  // track and the click (or another tablet's own copy of the same file) had no ongoing
+  // synchronization with each other at all (found live, 2026-09-10).
+  useFrameLoop(() => {
+    const audioElapsedMs = audioElapsedNow()
+    if (audioElapsedMs === null) return
+    startElementOnce(audioElapsedMs)
+    syncLocalTrackPosition(audioElapsedMs)
+  }, elementPlaying)
+  function startElementOnce(audioElapsedMs: number) {
     if (audioStartedForRunRef.current) return // already started this run
     if (!currentSong) return // a transition item (#29) plays silently - there is no audio to start
-    if (audioElapsedMs === null || audioElapsedMs < 0) return // still counting in, or not ready yet
+    if (audioElapsedMs < 0) return // still counting in
     audioStartedForRunRef.current = true
     // Gestureless - this can run on a bare reload while ShowState already says "playing", the
     // exact case the browser's autoplay policy exists to block. Unlike a load failure, the
@@ -191,7 +203,7 @@ export function useAudioOutputDriver(): void {
     void playLocalTrack(audioElapsedMs).then((result) => {
       useLocalAudioOutputStore.setState({ audioBlocked: result.status === 'error' })
     })
-  }, [isMyDeviceAudioOutput, webAudio, playbackStatus, audioElapsedMs, currentSong])
+  }
 
   // Web Audio track (#468): started, kept on the clock and stopped from here, every frame.
   const webAudioBlockedRef = useRef(false)
@@ -211,7 +223,7 @@ export function useAudioOutputDriver(): void {
     const boundary = jumpBoundaryMs(transport)
     return transport.jump && boundary !== null ? { id: transport.jump.at, boundaryMs: boundary, toMs: transport.jump.toMs } : null
   }).current
-  useEffect(() => {
+  const syncWebAudio = () => {
     if (!webAudio) return
     // The engine reads the song time itself, at the moment it reads the audio clock.
     const { blocked } = syncWebAudioTrack(compensatedElapsedNow, playbackStatus === 'playing' && currentSong !== null, jumpNow)
@@ -219,19 +231,10 @@ export function useAudioOutputDriver(): void {
       webAudioBlockedRef.current = blocked
       useLocalAudioOutputStore.setState({ audioBlocked: blocked })
     }
-  }, [webAudio, playbackStatus, elapsedMs, currentSong, compensatedElapsedNow, jumpNow])
-
-  // Continuously re-locks the local engine to the synced master clock while playing - the
-  // backing-track equivalent of clickEngine.ts's scheduler re-anchoring to elapsedMs every tick.
-  // A native <audio> element isn't guaranteed sample-accurate/clock-locked, and nothing else
-  // ever re-checks it once started, so the backing track and the click (or another tablet's own
-  // copy of the same file) had no ongoing synchronization with each other at all (found live,
-  // 2026-09-10). `elapsedMs` itself (not the ref) is the dependency here - unlike the load/play
-  // effects above, this one is *meant* to re-run on every tick while playing.
-  useEffect(() => {
-    if (!isMyDeviceAudioOutput || webAudio || playbackStatus !== 'playing' || audioElapsedMs === null) return
-    syncLocalTrackPosition(audioElapsedMs)
-  }, [isMyDeviceAudioOutput, webAudio, playbackStatus, audioElapsedMs])
+  }
+  // Once on every change (start, pause, stop, song), and every frame while playing (#457).
+  useEffect(syncWebAudio, [webAudio, playbackStatus, currentSong, compensatedElapsedNow, jumpNow])
+  useFrameLoop(syncWebAudio, webAudio && playbackStatus === 'playing')
 
   // Bluetooth/wireless outputs fall asleep after a few seconds of silence and lose the beginning
   // of the next song while waking up - keep the output awake while this device is the Gig audio

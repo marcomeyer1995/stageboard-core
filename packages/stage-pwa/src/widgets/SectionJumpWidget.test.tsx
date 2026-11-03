@@ -56,6 +56,16 @@ describe('SectionJumpWidget (#479)', () => {
     expect(actions.queueSectionJump).toHaveBeenCalledWith(expect.objectContaining({ label: 'Chorus', startMs: 16000 }), 'section', expect.any(Array), expect.anything())
   })
 
+  it('a song without sections, then one with them - no crash (#457: a hook after the early return took the whole app down)', () => {
+    const content = show.queue.currentVariant.chordProContent
+    show.queue.currentVariant.chordProContent = 'no sections here'
+    const { rerender } = render(<SectionJumpWidget />)
+    expect(screen.getByText(/Keine Abschnitte/)).toBeInTheDocument()
+    show.queue.currentVariant.chordProContent = content
+    rerender(<SectionJumpWidget />)
+    expect(screen.getByRole('button', { name: /Verse 1/ })).toBeInTheDocument()
+  })
+
   it('tapping the queued section again calls the jump off', () => {
     state.state.playbackJump = { at: 1, toMs: 16000, label: 'Chorus' }
     render(<SectionJumpWidget />)

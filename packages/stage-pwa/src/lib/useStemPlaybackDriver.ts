@@ -3,7 +3,8 @@ import { cacheKey } from './audioCache'
 import { resolveTrackForEntry } from './computeQueue'
 import { useAudioOutputLatencyMs } from './latencyCompensation'
 import { setLocalTrackSilenced } from './localAudioEngine'
-import { useShowMode } from './showMode'
+import { useShowModeCore } from './showMode'
+import { useFrameLoop } from './useFrameLoop'
 import { loadStems, setStemGains, setStemLevelCurve, syncStems, unloadStems } from './stemEngine'
 import { useTrackLevelCurve } from './trackLevel'
 import { stemGains, stemMixFor, useStemMixStore } from './stemMix'
@@ -46,7 +47,7 @@ function queuedJump(workspaceId: string): TrackJump | null {
 }
 
 export function useStemPlaybackDriver(): void {
-  const { mode, queue, elapsedMs, playbackStatus, trackOverride } = useShowMode()
+  const { mode, queue, playbackStatus, trackOverride } = useShowModeCore()
   const workspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
   const { currentEntry, currentVariant } = queue
   const loopActive = useLoopTrainerStore((state) => state.active)
@@ -93,18 +94,20 @@ export function useStemPlaybackDriver(): void {
   const levelCurve = useTrackLevelCurve(queue)
   useEffect(() => setStemLevelCurve(levelCurve), [levelCurve])
 
-  // Every frame while playing (`elapsedMs` re-renders this). The engine reads the song time itself,
-  // right when it reads the audio clock, shifted like the click and the Gig's Web Audio track so it
-  // is heard on the song time.
+  // Every frame while playing, on its own loop (#457), once on every change otherwise (start, pause,
+  // stop). The engine reads the song time itself, right when it reads the audio clock, shifted like
+  // the click and the Gig's Web Audio track so it is heard on the song time.
   const latencyMs = useAudioOutputLatencyMs()
-  useEffect(() => {
+  const sync = () => {
     if (status !== 'ready') return
     syncStems(
       () => playedAheadNow(workspaceId, latencyMs),
       playbackStatus === 'playing',
       () => queuedJump(workspaceId),
     )
-  }, [status, elapsedMs, latencyMs, playbackStatus, workspaceId])
+  }
+  useEffect(sync, [status, latencyMs, playbackStatus, workspaceId])
+  useFrameLoop(sync, status === 'ready' && playbackStatus === 'playing')
 
   useEffect(
     () => () => {

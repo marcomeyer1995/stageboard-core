@@ -7,7 +7,11 @@ import { loadStems, setStemGains, unloadStems } from './stemEngine'
 import { setLocalTrackSilenced } from './localAudioEngine'
 import { useStemPlaybackDriver } from './useStemPlaybackDriver'
 
-vi.mock('./showMode', () => ({ useShowMode: vi.fn() }))
+vi.mock('./showMode', () => {
+  const show = vi.fn()
+  // The driver re-renders on state changes only (#457) - the same mocked show.
+  return { useShowMode: show, useShowModeCore: () => ({ ...show(), elapsedNow: () => show()?.elapsedMs ?? null }) }
+})
 vi.mock('pouchdb-browser', () => ({
   default: class FakePouchDB {
     sync() {
