@@ -6,7 +6,7 @@ import { holdAudioOutputAwake } from './sharedAudioContext'
 import { getLoopPlaybackState } from './loopTrainerEngine'
 import { adjustedBpm, effectiveClickEnabled } from './metronome'
 import { useCapabilityRouting } from './useCapabilityRouting'
-import { useShowMode } from './showMode'
+import { useShowModeCore } from './showMode'
 import { useLoopTrainerStore } from '../store/useLoopTrainerStore'
 import { clickTimeline } from './beatGrid'
 import { useAudioOutputLatencyMs } from './latencyCompensation'
@@ -75,7 +75,9 @@ function loopClickState(loopActive: boolean): Pick<ClickEngineState, 'playbackRa
  * way to get true silence during the gap instead of occasional stray hits.
  */
 export function useClickOutputDriver(): void {
-  const { mode, queue, elapsedMs, playbackStatus, liveTempoAdjustPercent, clickTrackOverride, transport } = useShowMode()
+  // Not useShowMode(): the engine reads the song time itself on each of its ticks, so this hook
+  // re-renders on song and state changes only, not every frame (#457).
+  const { mode, queue, elapsedNow, playbackStatus, liveTempoAdjustPercent, clickTrackOverride, transport } = useShowModeCore()
   const { engine } = useCapabilityRouting(CAPABILITIES.clickTrack, mode)
   const loopActive = useLoopTrainerStore((state) => state.active)
   const isPageVisible = useSyncExternalStore(subscribeToVisibility, isPageVisibleSnapshot, () => true)
@@ -85,10 +87,10 @@ export function useClickOutputDriver(): void {
   const song = queue.currentArrangement
   const isMyDeviceClickOutput = engine === 'local-mine'
   const enabled = song ? effectiveClickEnabled(song.clickTrackEnabled, clickTrackOverride) : false
-  const shouldPlay = isMyDeviceClickOutput && enabled && playbackStatus === 'playing' && elapsedMs !== null && isPageVisible
+  const shouldPlay = isMyDeviceClickOutput && enabled && playbackStatus === 'playing' && elapsedNow() !== null && isPageVisible
 
-  // Kept fresh every render (elapsedMs ticks every animation frame while playing) rather than
-  // closed over once - clickEngine.ts's scheduler polls this on every tick.
+  // Kept fresh every render rather than closed over once - clickEngine.ts's scheduler polls this on
+  // every tick; the song time and the loop state are read at that moment.
   const bpm = song ? adjustedBpm(song.bpm, liveTempoAdjustPercent) : 120
   const timeSignature = song?.timeSignature ?? '4/4'
   // countInEnabled gates countInBars - unchecked means no count-in regardless of the authored bar
@@ -114,14 +116,23 @@ export function useClickOutputDriver(): void {
     const boundaryMs = jumpBoundaryMs({ status: 'playing', startedAt, accumulatedMs, jump: playbackJump })
     return boundaryMs === null ? null : { id: playbackJump.at, boundaryMs, toMs: playbackJump.toMs }
   }, [playbackJump, startedAt, accumulatedMs])
-  const stateRef = useRef<ClickEngineState>({ elapsedMs, timeline })
+  const elapsedNowRef = useRef(elapsedNow)
+  elapsedNowRef.current = elapsedNow
+  const stateRef = useRef<ClickEngineState>({ elapsedMs: null, timeline })
   useEffect(() => {
     stateRef.current = {
-      elapsedMs,
+      get elapsedMs() {
+        return elapsedNowRef.current()
+      },
       timeline,
       // Rehearsal Looper (#61): the click follows the trainer's current pass speed and stays inside
-      // the looped section. Read at render time - elapsedMs re-renders this every animation frame.
-      ...loopClickState(loopActive),
+      // the looped section - read at each tick, the pass speed changes from pass to pass.
+      get playbackRate() {
+        return loopClickState(loopActive).playbackRate
+      },
+      get loop() {
+        return loopClickState(loopActive).loop
+      },
       outputLatencyMs,
       clickOnAt,
       jump,

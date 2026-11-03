@@ -15,7 +15,11 @@ import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
 // stop the click mid-show). Mock clickEngine.ts since happy-dom (vitest.config.ts) has no real
 // AudioContext.
 vi.mock('./sharedAudioContext', () => ({ holdAudioOutputAwake: vi.fn(), getSharedAudioContext: vi.fn() }))
-vi.mock('./showMode', () => ({ useShowMode: vi.fn() }))
+vi.mock('./showMode', () => {
+  const show = vi.fn()
+  // The driver reads the clock when the engine asks (#457) - the same mocked show.
+  return { useShowMode: show, useShowModeCore: () => ({ ...show(), elapsedNow: () => show()?.elapsedMs ?? null }) }
+})
 vi.mock('../store/useShowStateStore', () => ({ useShowStateStore: vi.fn(), drivesAutomation: (s: { isMaster?: boolean }) => s.isMaster === true }))
 vi.mock('../store/usePluginsStore', () => ({ usePluginsStore: vi.fn() }))
 vi.mock('../store/useLogicalDevicesStore', () => ({ useLogicalDevicesStore: vi.fn() }))
