@@ -4,6 +4,7 @@ import { getServerTime } from '../lib/clockSync'
 import { getDeviceId } from '../lib/deviceId'
 import { deviceReportId, verdictRun, writeOwnReport, type RigCheckDeviceReport } from '../lib/rigCheck'
 import { useNow } from '../lib/useNow'
+import { measuredNote, measuredVerdict } from '../lib/rigCheckMeasure'
 import { useShowLogStore } from '../store/useShowLogStore'
 import { Button, Dialog, TextArea } from './ui'
 
@@ -19,8 +20,9 @@ export function RigCheckVerdict() {
   const { t } = useTranslation('rigcheck')
   const events = useShowLogStore((state) => state.events)
   useNow()
-  const [problem, setProblem] = useState(false)
-  const [note, setNote] = useState('')
+  // null: not chosen yet - a red measurement (#662) opens at "Problem" with its note filled in.
+  const [choice, setChoice] = useState<'question' | 'problem' | null>(null)
+  const [typed, setTyped] = useState<string | null>(null)
   const [, setTick] = useState(0)
   const run = verdictRun(events, getServerTime())
   if (!run || run.cancelled || later.has(run.showId)) return null
@@ -28,12 +30,17 @@ export function RigCheckVerdict() {
   const own = events.find((e): e is RigCheckDeviceReport => e.id === id && e.type === 'rig-check-device')
   // Only a device that took part - and only once.
   if (!own || own.verdict !== null) return null
+  const measuredRed = measuredVerdict(own.measured) === 'problem'
+  const problem = choice === 'problem' || (choice === null && measuredRed)
+  const note = typed ?? (measuredRed && own.measured ? measuredNote(own.measured) : '')
+  const setProblem = (value: boolean) => setChoice(value ? 'problem' : 'question')
+  const setNote = (value: string) => setTyped(value)
 
   const answer = async (verdict: 'ok' | 'problem') => {
     // The track state as last reported - the verdict only adds the answer.
-    await writeOwnReport(run, own.trackReady, { verdict, note })
-    setProblem(false)
-    setNote('')
+    await writeOwnReport(run, own.trackReady, { verdict, note: verdict === 'problem' ? note : '' })
+    setChoice(null)
+    setTyped(null)
   }
   const close = () => {
     later.add(run.showId)

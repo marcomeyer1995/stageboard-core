@@ -56,7 +56,7 @@ describe('audio calibration on the device (#491)', () => {
 
   it('reports a busy server instead of playing', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ message: 'Gerade läuft schon eine Messung' }), { status: 409 })))
-    expect(await runAudioCalibration()).toEqual({ ok: false, message: 'Gerade läuft schon eine Messung' })
+    expect(await runAudioCalibration()).toEqual({ ok: false, message: 'Gerade läuft schon eine Messung', busy: true })
     expect(clicks).toEqual([])
   })
 })

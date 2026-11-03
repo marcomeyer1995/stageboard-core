@@ -37,7 +37,14 @@
     "prepareFailed": "Vorbereiten fehlgeschlagen: {{message}}",
     "notMasterStart": "Nur der Master startet den Rig-Check.",
     "noRun": "Erst vorbereiten.",
-    "notReady": "Song oder Track sind auf diesem Gerät noch nicht angekommen - einen Moment."
+    "notReady": "Song oder Track sind auf diesem Gerät noch nicht angekommen - einen Moment.",
+    "measure": "Messen",
+    "measureInfo": "Vor dem Start, überspringbar: Jedes Gerät spielt nacheinander 12 Klicks mit seiner gespeicherten Latenz, der Stage-Server hört über den passenden Messeingang zu (~18 s je Gerät).",
+    "measuring": "Misst {{device}} ({{n}} von {{count}}) …",
+    "measureWaiting": "Messung beginnt …",
+    "measureDone": "Messung fertig - Ergebnis je Gerät unten.",
+    "measureNone": "Kein Gerät im Gig-Modus gemeldet - nichts zu messen.",
+    "measuringStart": "Erst die Messung zu Ende laufen lassen."
   },
   "devices": {
     "title": "Geräte",
@@ -59,7 +66,18 @@
     "summary_one": "{{count}} Gerät · {{ok}} OK",
     "summary_other": "{{count}} Geräte · {{ok}} OK",
     "withProblem": "{{count}} mit Problem",
-    "version": "Test-Song Version {{version}}"
+    "version": "Test-Song Version {{version}}",
+    "measured": "Klick gemessen: {{offset}} ms (± {{jitter}} ms), {{matched}}/{{total}}",
+    "measuredUnclear": "Klick nicht eindeutig gehört ({{matched}}/{{total}})",
+    "measuredFailed": "Nicht gemessen: {{message}}",
+    "notMeasured": "nicht gemessen",
+    "measuredVia": "über {{input}}",
+    "input": {
+      "mic": "Mikrofon",
+      "cable": "Kabel"
+    },
+    "saveLatency": "Latenz neu speichern ({{ms}} ms)",
+    "latencySaved": "Gespeichert: {{ms}} ms für {{route}}"
   },
   "analysis": {
     "title": "Analyse-Prüfung",
@@ -99,7 +117,12 @@
     "ok": "Alles in Ordnung",
     "whatWrong": "Was war falsch?",
     "placeholder": "z. B. Klick und Beeps klangen doppelt, Prompter zu spät",
-    "question": "Klangen Klick und Beeps wie ein Ton, wechselte der Prompter auf dem Schlag, kam der Sprung überall gleichzeitig, und hat dein Gerät auf seinen Cue reagiert?"
+    "question": "Klangen Klick und Beeps wie ein Ton, wechselte der Prompter auf dem Schlag, kam der Sprung überall gleichzeitig, und hat dein Gerät auf seinen Cue reagiert?",
+    "measuredLate": "Klick {{ms}} ms zu spät (gemessen)",
+    "measuredEarly": "Klick {{ms}} ms zu früh (gemessen)",
+    "measuredJitter": "Klick schwankt um ± {{ms}} ms (gemessen)",
+    "measuredMissing": "Nur {{matched}} von {{total}} Klicks gehört (gemessen)",
+    "measuredFailed": "Klick nicht gemessen: {{message}}"
   },
   "masterOnly": "Nur der Master bereitet den Rig-Check vor.",
   "thisDevice": "Dieses Gerät",

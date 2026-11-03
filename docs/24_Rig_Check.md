@@ -95,6 +95,7 @@ Entscheidungen Marco, 2026-10-29. Baut auf „Messen/Prüfen“ auf (docs/21 §4
 - **Wann:** nach „Vorbereiten“, vor „Start“, als eigene Stufe „Messen“ (überspringbar). Die Geräte spielen **nacheinander** je 12 Klicks (~15 s je Gerät) - dasselbe Verfahren wie „Prüfen“, nur für alle Geräte der Band automatisch. Ein Gerät, das nicht antwortet oder dessen Klicks der Server nicht eindeutig findet, steht als „nicht gemessen“ da - der Lauf geht trotzdem.
 - **Was:** je Gerät und **aktuellem Ausgabeweg** der Versatz gegen den Schlag mit der gespeicherten Latenz eingerechnet, die Streuung und wie viele der 12 Klicks ankamen.
 - **Grenzwerte:** Versatz höchstens ±15 ms, Streuung höchstens ±5 ms, alle Klicks da. Sonst rot.
+- **Gebaut (2026-10-30, #662 Schritt 5b):** Knopf „Messen“ beim Master nach „Vorbereiten“. Jedes Gerät, das sich im Gig-Modus meldet, bekommt einen festen Zeitschlitz von 18 s (`lib/rigCheckMeasure.ts`); ohne Übergabe von Gerät zu Gerät, wer nicht da ist, verpasst seinen Schlitz. Ist der Server vom Schlitz davor noch belegt, fragt das Gerät bis zu 3 s lang erneut. „Start“ wartet, bis die Runde vorbei ist.
 - Nicht gewählt (vorerst): Messen während des Laufs mit eigener Tonhöhe je Gerät - mehr Aussage (Drift, Aussetzer an Sprung und Pause), aber aufwendiger; später möglich.
 
 ### 7.2 Eingänge: Mikrofon und Kabel
@@ -111,6 +112,8 @@ Entscheidungen Marco, 2026-10-29. Baut auf „Messen/Prüfen“ auf (docs/21 §4
 - Im Nachbericht je Gerät: „Klick gemessen: +3 ms (± 1 ms), 12/12“ grün - oder rot mit dem Wert.
 - Bei Rot ein Knopf **„Latenz neu speichern“**: übernimmt den gemessenen Wert für diesen Ausgabeweg (wie „Übernehmen“ bei „Messen“).
 - Rot **belegt die Antwort vor**: die Frage „Alles in Ordnung?“ öffnet auf diesem Gerät gleich bei „Problem“ mit der Notiz „Klick 40 ms zu spät (gemessen)“ - änderbar, das Urteil bleibt beim Musiker.
+
+- **Gebaut (2026-10-30, #662 Schritt 5c):** Ergebnis in der Geräte-Zeile (Rig-Check und Nachbericht), grün/rot nach den Grenzwerten. Bei Rot mit eindeutigem Wert „Latenz neu speichern (… ms)“ = gespielte Latenz + gemessener Rest, für Gerät und Ausgabeweg. Die Abschlussfrage öffnet auf dem Gerät bei „Problem“ mit vorbelegter Notiz.
 
 ### 7.4 Später
 

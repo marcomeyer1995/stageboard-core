@@ -106,6 +106,38 @@ describe('RigCheckView (#464)', () => {
   })
 })
 
+describe('measured click (#662)', () => {
+  const measured = (extra: object = {}) => ({ at: 1, input: 'cable' as const, audioRoute: 'bluetooth', storedMs: 230, offsetMs: 42, jitterMs: 2, matched: 12, total: 12, reliable: true, ...extra })
+
+  it('the master starts the measuring round; Start waits until it is over', async () => {
+    useShowLogStore.setState({ events: [{ id: 'rig-check-run-r1', showId: 'r1', type: 'rig-check-run', at: Math.round(getServerTime()), kind: 'quick', version: 1 }, report()] })
+    render(<RigCheckView />)
+    fireEvent.click(screen.getByRole('button', { name: 'Messen' }))
+    await vi.waitFor(() => expect(append).toHaveBeenCalled())
+    expect(append.mock.calls[0]![0]).toMatchObject({ type: 'rig-check-run', measure: { slots: [{ deviceId: 'fire' }] } })
+    expect(await screen.findByText(/Messung beginnt|Misst Fire \(1 von 1\)/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Start' })).toBeDisabled()
+  })
+
+  it('red with its value; "Latenz neu speichern" takes over what was played plus what was off', async () => {
+    const saveProfile = vi.fn(async () => {})
+    const { useLatencyProfilesStore } = await import('../store/useLatencyProfilesStore')
+    useLatencyProfilesStore.setState({ save: saveProfile } as never)
+    const { RigCheckDeviceRow } = await import('./RigCheckView')
+    render(<ul><RigCheckDeviceRow report={report({ measured: measured() }) as never} showVerdict /></ul>)
+    expect(screen.getByText('Klick gemessen: +42 ms (± 2 ms), 12/12 · über Kabel')).toHaveClass('text-danger')
+    fireEvent.click(screen.getByRole('button', { name: 'Latenz neu speichern (272 ms)' }))
+    await vi.waitFor(() => expect(saveProfile).toHaveBeenCalledWith(expect.objectContaining({ deviceId: 'fire', route: 'bluetooth', latencyMs: 272, source: 'measured' })))
+  })
+
+  it('green needs no button', async () => {
+    const { RigCheckDeviceRow } = await import('./RigCheckView')
+    render(<ul><RigCheckDeviceRow report={report({ measured: measured({ offsetMs: 3 }) }) as never} showVerdict /></ul>)
+    expect(screen.getByText(/Klick gemessen: \+3 ms/)).toHaveClass('text-ok')
+    expect(screen.queryByRole('button', { name: /Latenz neu speichern/ })).toBeNull()
+  })
+})
+
 describe('RigCheckVerdict', () => {
   const ended = () => {
     const now = Math.round(getServerTime())
@@ -130,6 +162,16 @@ describe('RigCheckVerdict', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Problem melden' }))
     await vi.waitFor(() => expect(append).toHaveBeenCalled())
     expect(append.mock.calls[0]![0]).toMatchObject({ verdict: 'problem', note: 'Klick doppelt' })
+  })
+
+  it('a red measurement opens at "Problem" with the measured note, which the musician may change (#662)', async () => {
+    const red = { at: 1, input: 'mic' as const, audioRoute: 'speaker', storedMs: 80, offsetMs: 40, jitterMs: 1, matched: 12, total: 12, reliable: true }
+    useShowLogStore.setState({ events: [ended(), report({ id: `rig-check-device-r1-${getDeviceId()}`, deviceId: getDeviceId(), measured: red })] })
+    render(<RigCheckVerdict />)
+    expect(screen.getByLabelText('Was war falsch?')).toHaveValue('Klick 40 ms zu spät (gemessen)')
+    fireEvent.click(screen.getByRole('button', { name: 'Problem melden' }))
+    await vi.waitFor(() => expect(append).toHaveBeenCalled())
+    expect(append.mock.calls[0]![0]).toMatchObject({ verdict: 'problem', note: 'Klick 40 ms zu spät (gemessen)', measured: red })
   })
 
   it('stays away from devices that did not take part and from cancelled runs', () => {
