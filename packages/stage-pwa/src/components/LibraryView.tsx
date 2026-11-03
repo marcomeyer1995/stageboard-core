@@ -39,7 +39,6 @@ import { NewSetlistDialog } from './NewSetlistDialog'
 import { NewSongWizard } from './NewSongWizard'
 import { putVariant } from '../lib/songVariantsDb'
 import { useShowModeCore } from '../lib/showMode'
-import { useShowStateStore } from '../store/useShowStateStore'
 import { practiceStats, rehearsalStats, sortLabel, type PlayCount, SETLIST_SORT_LABEL, SONG_SORT_LABEL, sortSetlists, sortSongs, type SetlistSort, type SongSort } from '../lib/librarySort'
 import { usePracticeLogStore } from '../store/usePracticeLogStore'
 import { useShowLogStore } from '../store/useShowLogStore'
@@ -314,10 +313,15 @@ export function LibraryView() {
   const removeSong = useSongsStore((state) => state.remove)
   const setlists = useVisibleSetlists()
   const saveSetlist = useSetlistsStore((state) => state.saveSetlist)
+  // "Aktiv" (badge, outline) is the band's Gig setlist - what the master activates.
   const { activeSetlist } = useQueue()
+  const modeQueue = useShowModeCore().queue
   // The song loaded in the show right now (Gig: the shared queue, Solo: this device's own).
-  const currentSongId = useShowModeCore().queue.currentSong?.id ?? null
-  const setlistSongIds = useMemo(() => new Set(activeSetlist?.entries.filter(isSongEntry).map((entry) => entry.songId) ?? []), [activeSetlist])
+  const currentSongId = modeQueue.currentSong?.id ?? null
+  // Swiping, the setlist icon on songs and the "Setlist" sort follow the setlist this device
+  // plays: in Solo Üben the practised one, not the band's Gig setlist (#449, Marco 2026-11-03).
+  const workingSetlist = modeQueue.activeSetlist
+  const setlistSongIds = useMemo(() => new Set(workingSetlist?.entries.filter(isSongEntry).map((entry) => entry.songId) ?? []), [workingSetlist])
   const workspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
   const pinnedSongIds = useAudioPinsStore((state) => state.pinsFor(workspaceId))
   const togglePin = useAudioPinsStore((state) => state.togglePin)
@@ -409,8 +413,8 @@ export function LibraryView() {
           (s) => s.title.toLowerCase().includes(term) || s.artist?.toLowerCase().includes(term),
         )
       : songs
-    return sortSongs(matches, sort.songs.by, { activeSetlist: activeSetlist ?? null, practice, rehearsal }, sort.songs.reversed)
-  }, [songs, term, sort.songs, activeSetlist, practice, rehearsal])
+    return sortSongs(matches, sort.songs.by, { activeSetlist: workingSetlist ?? null, practice, rehearsal }, sort.songs.reversed)
+  }, [songs, term, sort.songs, workingSetlist, practice, rehearsal])
 
   // Flat, on-screen-order list of what ↑/↓ actually moves through - setlists (if the current
   // filter shows them) then songs (if it shows those), matching the two <ul>s below exactly.
@@ -567,32 +571,32 @@ export function LibraryView() {
   }
 
   /** Shared by the swipe gesture and the "+" button (Marco: dragging is natural on touch,
-   * awkward with a mouse) - both land on whichever setlist is currently active. */
+   * awkward with a mouse) - both land on the setlist this device plays (Gig: the active one, Solo Üben: the practised one). */
   function addToActiveSetlist(songId: string) {
-    if (!activeSetlist) {
+    if (!workingSetlist) {
       showTransientMessage(t('row.noActive'))
       return
     }
-    const intoDraft = addSongToSetlist(activeSetlist.id, songId)
-    showTransientMessage(t('added', { name: activeSetlist.name }) + (intoDraft ? t('notSaved') : ''))
+    const intoDraft = addSongToSetlist(workingSetlist.id, songId)
+    showTransientMessage(t('added', { name: workingSetlist.name }) + (intoDraft ? t('notSaved') : ''))
   }
 
   /** The way back (Marco, 2026-10-07): swiping a song that is already in the active setlist takes
    * it out again - its last entry there. Never the entry that is loaded right now: that would
-   * move the show on under the band's feet. */
+   * move the show on under the band's feet (or this device's own practice). */
   function removeFromActiveSetlist(songId: string) {
-    if (!activeSetlist) return
-    const loadedEntryId = useShowStateStore.getState().state.activeEntryId
+    if (!workingSetlist) return
+    const loadedEntryId = modeQueue.currentEntry?.id ?? null
     const lastRemovable = (setlist: Setlist) => [...setlist.entries].reverse().find((e) => isSongEntry(e) && e.songId === songId && e.id !== loadedEntryId)
-    if (!lastRemovable(activeSetlist)) {
+    if (!lastRemovable(workingSetlist)) {
       showTransientMessage(t('loadedNow'))
       return
     }
-    const intoDraft = changeSetlist(activeSetlist, (setlist) => {
+    const intoDraft = changeSetlist(workingSetlist, (setlist) => {
       const entry = lastRemovable(setlist)
       return entry ? { ...setlist, entries: setlist.entries.filter((e) => e.id !== entry.id) } : setlist
     })
-    showTransientMessage(t('removed', { name: activeSetlist.name }) + (intoDraft ? t('notSaved') : ''))
+    showTransientMessage(t('removed', { name: workingSetlist.name }) + (intoDraft ? t('notSaved') : ''))
   }
 
   function handleDragEnd(event: DragEndEvent) {
@@ -784,7 +788,7 @@ export function LibraryView() {
                     onClick={() => selectSong(song.id, null)}
                     selected={selection?.type === 'song' && selection.songId === song.id}
                     current={song.id === currentSongId}
-                    inActiveSetlist={!!activeSetlist && setlistSongIds.has(song.id)}
+                    inActiveSetlist={!!workingSetlist && setlistSongIds.has(song.id)}
                     note={
                       sort.songs.by === 'practiced'
                         ? playNote(practice.get(song.id), t('window.days', { count: practiceDays }), 'practiced')
@@ -793,7 +797,7 @@ export function LibraryView() {
                           : undefined
                     }
                     onRemoveFromActiveSetlist={() => removeFromActiveSetlist(song.id)}
-                    onAddToActiveSetlist={activeSetlist ? () => addToActiveSetlist(song.id) : null}
+                    onAddToActiveSetlist={workingSetlist ? () => addToActiveSetlist(song.id) : null}
                     showAddButton={inputCapability === 'pointer'}
                     showSwipeReveal={inputCapability === 'touch'}
                     pinned={pinnedSongIds.includes(song.id)}
