@@ -328,6 +328,8 @@ Damit jede Stufe gegen dieselbe Messung verglichen wird: **ein festes Protokoll*
 | Redmi | **vorher** (main) | 5 / 5 ms | 2,7 ms | 0,3 ms | **+15,7 ms/min** |
 | Redmi | #689 | 22 / 23 ms (Drift trägt über Pausen weiter, dann Sprung) | 2,1 ms | 0 ms | +14,8 ms/min |
 | Redmi | **Schritt 1** | **1,2 / 1,3 ms** | **0,8 ms** | 0,1 ms | +14,8 ms/min |
+| Fire | **Schritt 2** (Drift nachgeführt) | **0,8 / 0,9 ms** | **0,6 ms** | 0,1 ms | keine |
+| Redmi | **Schritt 2** | **0,8 / 1,0 ms** | **0,4 ms** | 0,0 ms | **0,0 ms/min** (Streuung über den Song 0,1 ms, vorher 9,8) |
 
 Gelesen:
 
@@ -336,5 +338,7 @@ Gelesen:
 - **Drift ist unverändert** (Redmi +15 ms pro Minute gegen die Songzeit, Klick und Track gemeinsam): die Engines laufen nach dem Anker in reiner Audio-Zeit weiter. Das ist Schritt 2. Der Zeitdienst misst die Rate der Audio-Uhr inzwischen live - in der App auf dem Redmi −247 ppm, auf dem Fire −5 ppm (in frischen Test-Kontexten bei der Bestandsaufnahme waren es andere Werte: die Rate gehört zum jeweiligen AudioContext und muss gemessen, nicht angenommen werden).
 - #689 allein verbessert Klick ↔ Track, verschlechtert aber die Lage gegen die Songzeit von Start zu Start (gehaltene Schätzung, Drift trägt weiter) - als Zwischenstand ohne Schritt 1 nicht empfehlenswert.
 
-Nach Schritt 2 (Drift) und 3 (Latenz je Weg) wird dieselbe Messung wiederholt und hier angehängt.
+- **Schritt 2** (Drift weich nachgeführt: gemessene Rate vorwärts eingespeist, Rest über 8 s gezogen, Klick folgt je Schlag um ≤ 1 ms) **beseitigt die Drift** - Redmi 0,0 ms/min statt 15,7, über einen ganzen Song 0,1 ms Streuung. Damit hält Solo auf beiden Geräten bei jedem Start und über den ganzen Song **≤ 1 ms**, Klick ↔ Track ≤ 0,6 ms. Der 13-ms-Ausreißer des Fire aus Schritt 1 kam in diesem Lauf nicht vor (12 Starts sind eine kleine Stichprobe - weiter beobachten).
+
+Noch nicht gemessen: Gig (der Web-Audio-Track hat dieselbe Regel, eine Gig-Messung bewegt aber den Show-Zustand der ganzen Band), MIDI-Clock (kein MIDI-Gerät angeschlossen), Gerät gegen Gerät (Schritt 4). Nach Schritt 3 (Latenz je Weg) wird dieselbe Messung wiederholt und hier angehängt.
 
