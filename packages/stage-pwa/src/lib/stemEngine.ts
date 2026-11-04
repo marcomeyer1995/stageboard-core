@@ -30,6 +30,12 @@ const CHUNK_S = 0.5
  * right position - confirmed by two readings in a row, as in webAudioTrackEngine.ts. */
 const RESCHEDULE_ERROR_S = 0.08
 const RESCHEDULE_CONFIRMATIONS = 2
+/** Before a run is heard its start can still move without a sound: the audio clock's smoother is
+ * fresh at every Play (audioClock.ts) and on the Fire reads up to one 64 ms step behind at first,
+ * so the stems started up to ~55 ms early and stayed there - below RESCHEDULE_ERROR_S (measured
+ * against the click with the reference song, 2026-11-04). In the lead before the first note the
+ * clock has caught up; a start this far off is placed again, once. */
+const PRE_START_ERROR_S = 0.015
 /** Short fades so a start mid-file, a stop or a gain change never cracks. */
 const FADE_S = 0.02
 const MIN_SYNC_INTERVAL_MS = 40
@@ -75,6 +81,8 @@ interface Run {
   layers: Layer[]
   /** Set when this run is a section jump's target (#479): it comes in at the boundary, crossfaded. */
   jump: { id: number; startsAt: number; crossfadeS: number } | null
+  /** Placed again before it was heard (PRE_START_ERROR_S) - only once per start. */
+  settled: boolean
 }
 
 let loaded: Loaded | null = null
@@ -86,6 +94,7 @@ let gainsWanted = new Map<string, number>()
 let levelCurve: readonly LevelPoint[] = []
 let lastSyncAt = -Infinity
 let suspect = 0
+let preStartSuspect = 0
 const clock = createAudioClock()
 
 /** What the engine did, for measuring over USB (window.__sbStems). */
@@ -95,6 +104,8 @@ const stats = {
   starts: 0,
   late: 0,
   reschedules: 0,
+  /** Starts placed again before they were heard (PRE_START_ERROR_S). */
+  startFixes: 0,
   /** Section jumps (#479) taken over seamlessly. */
   jumps: 0,
   lastErrorMs: 0,
@@ -334,7 +345,7 @@ function startRun(ctx: AudioContext, l: Loaded, when: number, pos: number, cross
   const anchorPos = Math.max(0, pos)
   const anchorTime = when + Math.max(0, -pos) / rate
   if (anchorPos >= l.durationS) return
-  const r: Run = { key: l.key, anchorTime, anchorPos, rate, fades: [], layers: [], jump: null }
+  const r: Run = { key: l.key, anchorTime, anchorPos, rate, fades: [], layers: [], jump: null, settled: false }
   if (l.stretched) setStretchRate(rate, when)
   run = r
   stats.starts++
@@ -388,6 +399,7 @@ export function syncStems(
     clock.reset()
     lastSyncAt = -Infinity
     suspect = 0
+    preStartSuspect = 0
     return { blocked: false }
   }
   if (ctx.state !== 'running') {
@@ -409,8 +421,7 @@ export function syncStems(
   if (run && run.key !== loaded.key) stopRun()
   if (!run) {
     if (songNow < -LEAD_S * 4) return { blocked: false }
-    if (songNow < 0) startRun(ctx, loaded, now, songNow, undefined, rate)
-    else startRun(ctx, loaded, now + LEAD_S, songNow + LEAD_S * rate, undefined, rate)
+    startFresh(ctx, loaded, now, songNow, rate)
     return { blocked: false }
   }
   // A section jump (#479), as in the Gig's track engine: the target comes in at the boundary, the
@@ -455,6 +466,18 @@ export function syncStems(
   rateMismatchSince = null
   const errorS = run.anchorPos + (now - run.anchorTime) * run.rate - songNow
   stats.lastErrorMs = Math.round(errorS * 1000)
+  if (!run.settled && !run.jump && now < run.anchorTime - MIN_SYNC_INTERVAL_MS / 1000) {
+    preStartSuspect = Math.abs(errorS) > PRE_START_ERROR_S ? preStartSuspect + 1 : 0
+    if (preStartSuspect >= RESCHEDULE_CONFIRMATIONS) {
+      preStartSuspect = 0
+      stats.startFixes++
+      stopRun()
+      startFresh(ctx, loaded, now, songNow, rate)
+      if (run) (run as Run).settled = true
+    }
+    return { blocked: false }
+  }
+  preStartSuspect = 0
   suspect = Math.abs(errorS) > RESCHEDULE_ERROR_S ? suspect + 1 : 0
   if (suspect >= RESCHEDULE_CONFIRMATIONS) {
     suspect = 0
@@ -464,6 +487,13 @@ export function syncStems(
     startRun(ctx, loaded, at, songNow + LEAD_S * rate, undefined, rate)
   }
   return { blocked: false }
+}
+
+/** A run from the song as it stands: in the count-in its audio is anchored at song time 0 still
+ * ahead, otherwise it comes in after the lead. */
+function startFresh(ctx: AudioContext, l: Loaded, now: number, songNow: number, rate: number): void {
+  if (songNow < 0) startRun(ctx, l, now, songNow, undefined, rate)
+  else startRun(ctx, l, now + LEAD_S, songNow + LEAD_S * rate, undefined, rate)
 }
 
 /** Test-only. */
@@ -481,5 +511,6 @@ export function __resetStemsForTests(): void {
   clock.reset()
   stats.starts = 0
   stats.reschedules = 0
+  stats.startFixes = 0
   stats.late = 0
 }
