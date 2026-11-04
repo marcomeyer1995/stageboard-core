@@ -26,6 +26,15 @@ const REFIT_MS = 500
  * row - one bad window must not move every output at once. */
 const CONFIRM_JUMP_MS = 3
 const CONFIRMATIONS = 3
+/** Now and then the Fire's output timestamps read ~24 ms off for a few seconds, drifting ~1000 ppm
+ * meanwhile, and snap back (sync-bench Gig, 2026-11-04). A plain first fit through them tilted the
+ * line to ±1500 ppm and bent the click by up to 35 ms. With a line, a pair further off it than this
+ * (or 4 × the residual) stays out of the fit... */
+const GATE_MS = 3
+/** ...unless this share of the pairs of the last MOVED_MS are off: then the clock really moved, and
+ * the line is fitted through those (and still confirmed, see CONFIRM_JUMP_MS). */
+const MOVED_MS = 10_000
+const MOVED_SHARE = 0.8
 /** A pair this far off the line: the clock lost time (suspended, resumed) - start over. */
 const RESTART_MS = 250
 /** Without a new pair for this long, the line is stale. */
@@ -133,7 +142,9 @@ export class TimeBase {
     this.lastPairAt = now
     while (this.pairs.length > 0 && this.pairs[0]!.perfMs < now - WINDOW_MS) this.pairs.shift()
     if (now - this.lastRefit >= REFIT_MS) this.refit(now)
-    if (this.line) this.sampleGap(ctx, now)
+    // While the newest pair is off the line - a glitch, or a move not yet confirmed - the gap would
+    // measure the line's error, not the buffer.
+    if (this.line && Math.abs(pair.ctxMs - at(this.line, pair.perfMs)) <= this.gate()) this.sampleGap(ctx, now)
   }
 
   /** The audio clock now, in `currentTime`'s sense (s) - null while not ready. */
@@ -167,7 +178,7 @@ export class TimeBase {
   private refit(now: number): void {
     this.lastRefit = now
     if (this.pairs.length < MIN_PAIRS || this.pairs[this.pairs.length - 1]!.perfMs - this.pairs[0]!.perfMs < MIN_SPAN_MS) return
-    const fitted = robustLine(this.pairs)
+    const fitted = robustLine(this.gated(now))
     if (!fitted) return
     this.residualMs = fitted.residualMs
     if (!this.line || Math.abs(at(fitted.line, now) - at(this.line, now)) <= CONFIRM_JUMP_MS) {
@@ -181,6 +192,22 @@ export class TimeBase {
       this.line = this.pending.line
       this.pending = null
     }
+  }
+
+  /** The pairs to fit: all of them before there is a line; then those near it - or, once the clock
+   * has really moved, those off it. */
+  private gated(now: number): readonly Pair[] {
+    const line = this.line
+    if (!line) return this.pairs
+    const gate = this.gate()
+    const off = (p: Pair) => Math.abs(p.ctxMs - at(line, p.perfMs)) > gate
+    const recent = this.pairs.filter((p) => p.perfMs >= now - MOVED_MS)
+    const moved = recent.length >= MIN_PAIRS && recent.filter(off).length >= MOVED_SHARE * recent.length
+    return this.pairs.filter((p) => off(p) === moved)
+  }
+
+  private gate(): number {
+    return Math.max(GATE_MS, 4 * (this.residualMs ?? 0))
   }
 
   private sampleGap(ctx: AudioContext, now: number): void {
