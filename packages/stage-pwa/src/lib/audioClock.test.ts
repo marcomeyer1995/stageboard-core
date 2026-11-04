@@ -57,4 +57,17 @@ describe('audioClock (shared smoother, 2026-11-04)', () => {
     // Resumed: it runs on from where it stopped - the readings from before would put it ahead.
     expect(Math.abs(readFor(clock, 400))).toBeLessThan(6)
   })
+
+  it('holds its estimate while the edge only wobbles, so engines anchoring apart agree', () => {
+    const clock = createAudioClock(200, 0.02)
+    readFor(clock, 400)
+    const values = new Set<number>()
+    for (let t = 0; t < 1000; t += 7) {
+      wallMs += 7
+      values.add(Math.round((clock.now(ctx) * 1000 - wallMs) * 1000))
+    }
+    // One offset from the wall clock for the whole second (within the wall clock's 1 ms), not one
+    // per reading interval.
+    expect(Math.max(...values) - Math.min(...values)).toBeLessThanOrEqual(1000)
+  })
 })

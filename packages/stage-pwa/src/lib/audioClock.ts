@@ -18,9 +18,12 @@ const STILL_S = 0.5
  * resumed): the old readings no longer describe it. Larger than any step (192 ms). */
 const STALE_S = 0.25
 
-/** A smoother over its own window of readings. Playback uses the one shared below. */
-export function createAudioClock(window = CLOCK_WINDOW): AudioClock {
+/** A smoother over its own window of readings. Playback uses the one shared below. With `holdS`
+ * the estimate stays put until the upper edge has moved by more than that: the edge wobbles by a
+ * reading interval, and two engines anchoring a few frames apart then got different estimates. */
+export function createAudioClock(window = CLOCK_WINDOW, holdS = 0): AudioClock {
   const offsets: number[] = []
+  let held: number | null = null
   let context: AudioContext | null = null
   let lastReading: number | null = null
   let movedAt = -Infinity
@@ -38,16 +41,23 @@ export function createAudioClock(window = CLOCK_WINDOW): AudioClock {
       lastReading = now
       if (wall - movedAt > STILL_S) {
         offsets.length = 0
+        held = null
         return now
       }
       const offset = now - wall
-      if (offsets.length > 0 && offset < Math.max(...offsets) - STALE_S) offsets.length = 0
+      if (offsets.length > 0 && offset < Math.max(...offsets) - STALE_S) {
+        offsets.length = 0
+        held = null
+      }
       offsets.push(offset)
       if (offsets.length > window) offsets.shift()
-      return Math.max(now, wall + Math.max(...offsets))
+      const edge = Math.max(...offsets)
+      if (held === null || Math.abs(edge - held) > holdS) held = edge
+      return Math.max(now, wall + held)
     },
     reset() {
       offsets.length = 0
+      held = null
       context = null
       lastReading = null
       movedAt = -Infinity
@@ -62,6 +72,25 @@ export function createAudioClock(window = CLOCK_WINDOW): AudioClock {
  * step behind and only climbs to the upper edge over a few seconds, so their audio sat 0-55 ms off
  * the click for the whole run (measured with the reference song, 2026-11-04). Never reset by a
  * caller: the readings stay true across Pause, and the window renews itself (STILL_S, STALE_S).
- * More callers read it, so the window is longer than one caller's.
+ * More callers read it, so the window is longer than one caller's; it holds its estimate within
+ * 20 ms, so engines anchoring a few frames apart (click and stems at Play) get the same one.
  */
-export const sharedAudioClock: AudioClock = createAudioClock(CLOCK_WINDOW * 5)
+const shared = createAudioClock(CLOCK_WINDOW * 5, 0.02)
+/** Read every this often while the context runs, so the first Play after the app starts (or after
+ * a long pause) finds the clock already on its edge. */
+const WARM_INTERVAL_MS = 50
+let warmFor: AudioContext | null = null
+
+export const sharedAudioClock: AudioClock = {
+  now(ctx) {
+    if (warmFor !== ctx && import.meta.env.MODE !== 'test') {
+      warmFor = ctx
+      const timer = setInterval(() => {
+        if (warmFor !== ctx || ctx.state === 'closed') clearInterval(timer)
+        else if (ctx.state === 'running') shared.now(ctx)
+      }, WARM_INTERVAL_MS)
+    }
+    return shared.now(ctx)
+  },
+  reset: () => shared.reset(),
+}
