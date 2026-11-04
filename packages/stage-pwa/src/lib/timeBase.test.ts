@@ -159,7 +159,7 @@ describe('timeBase (docs/29 step 1)', () => {
     expect(worstPpm).toBeLessThan(60)
   })
 
-  it('ignores a glitch that lasts longer than the move window but drifts like one (the Fire, 10 s)', () => {
+  it('ignores a glitch of 12 s that drifts (the Fire: -17 → -32 ms over 10 s)', () => {
     const dev = fakeFire({ outlierEvery: 37 })
     const tb = new TimeBase(dev.perf)
     run(tb, dev, 30_000)
@@ -174,24 +174,40 @@ describe('timeBase (docs/29 step 1)', () => {
       run(tb, dev, 50)
       worst = Math.max(worst, Math.abs(error() - before))
     }
-    expect(worst).toBeLessThan(0.5)
+    // The edge of what is left sits a little lower in this fake's 3.2 ms sawtooth (the Fire's
+    // spread is 0.27 ms).
+    expect(worst).toBeLessThan(1)
   })
 
-  it('follows off pairs with another rate once they stayed 30 s (a move with a new rate)', () => {
+  it("isn't tilted by a glitch that creeps in under the gate (the Fire: 0 → -22 ms over 16 s, then back)", () => {
+    const dev = fakeFire({ outlierEvery: 37 })
+    const tb = new TimeBase(dev.perf)
+    run(tb, dev, 40_000)
+    const error = () => (tb.now(dev.ctx)! - dev.truth()) * 1000
+    const before = error()
+    const from = dev.perf()
+    dev.setGlitch((stamp) => (-1.4 * (stamp - from)) / 1000)
+    let worst = 0
+    let worstPpm = 0
+    for (let t = 0; t < 60_000; t += 50) {
+      if (t === 16_000) dev.setGlitch(null)
+      run(tb, dev, 50)
+      worst = Math.max(worst, Math.abs(error() - before))
+      worstPpm = Math.max(worstPpm, Math.abs(tb.quality().ppm! - 260))
+    }
+    expect(worst).toBeLessThan(1.5)
+    expect(worstPpm).toBeLessThan(100)
+  })
+
+  it('follows a real move down too, once it filled the window', () => {
     const dev = fakeFire()
     const tb = new TimeBase(dev.perf)
     run(tb, dev, 30_000)
-    const read = () => tb.now(dev.ctx)! * 1000
-    const before = read() - dev.truth() * 1000
-    const from = dev.perf()
-    const off = (stamp: number) => -17 - (1.5 * (stamp - from)) / 1000
-    dev.setGlitch(off)
-    run(tb, dev, 20_000)
-    // Not yet: still on the old line.
-    expect(Math.abs(read() - dev.truth() * 1000 - before)).toBeLessThan(0.5)
+    const error = () => (tb.now(dev.ctx)! - dev.truth()) * 1000
+    const before = error()
+    dev.shift(-20)
     run(tb, dev, 25_000)
-    // Now on the new one (the time service reads what the timestamps say).
-    expect(Math.abs(read() - dev.truth() * 1000 - before - off(dev.perf()))).toBeLessThan(2)
+    expect(Math.abs(error() - before)).toBeLessThan(0.5)
   })
 
   it('still follows the clock when it really moved', () => {
