@@ -100,7 +100,7 @@ describe('timeBase (docs/29 step 1)', () => {
     expect(Math.abs(tb.quality().gapMs! - gap)).toBeLessThan(3)
   })
 
-  it('raises a buffer gap that turns out too small by at most 1 ms a second, never at once', () => {
+  it('moves a buffer gap that turns out off by at most 1 ms a second, never at once', () => {
     const dev = fakeFire()
     const tb = new TimeBase(dev.perf)
     run(tb, dev, 25_000)
@@ -108,8 +108,13 @@ describe('timeBase (docs/29 step 1)', () => {
     dev.setBuffer(364 + 16)
     run(tb, dev, 5_000)
     expect(tb.quality().gapMs! - gap).toBeLessThanOrEqual(5.5)
-    run(tb, dev, 20_000)
+    run(tb, dev, 40_000)
     expect(tb.quality().gapMs! - gap).toBeGreaterThan(14)
+    // And back down, just as gently.
+    dev.setBuffer(364)
+    const high = tb.quality().gapMs!
+    run(tb, dev, 5_000)
+    expect(high - tb.quality().gapMs!).toBeLessThanOrEqual(5.5)
   })
 
   it('is not ready while the context is suspended, and starts over after it lost time', () => {

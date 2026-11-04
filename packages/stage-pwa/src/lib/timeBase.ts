@@ -36,12 +36,13 @@ const GAP_WINDOW_MS = 30_000
 /** On the Fire (64-192 ms steps) 5 s were too short for the edge: the gap came out ~30 ms low and
  * was corrected a minute later in one go (sync-bench, 2026-11-04) - ready only after this long. */
 const GAP_MIN_SPAN_MS = 20_000
-/** A gap that turns out too small (the edge rises) is raised at most this much per reading -
- * 0.05 ms every 50 ms, 1 ms a second - so all outputs move together and never jump. */
-const GAP_RAISE_PER_SAMPLE_MS = 0.05
-/** It moves down only when the edge stayed this far below for this long (a new output path). */
-const GAP_HOLD_MS = 30
-const GAP_CONFIRM_MS = 10_000
+/** The edge is this percentile, not the maximum: now and then `currentTime` reads ahead of the real
+ * clock (Fire up to +58 ms) - a maximum took that and set the gap ~33 ms too high (sync-bench).
+ * The 98th: lower ones sit below the edge by their share of a step (90th: ~6 ms at 64 ms). */
+const GAP_PERCENTILE = 0.98
+/** The gap moves towards the edge at most this much per reading - 0.05 ms every 50 ms, 1 ms a
+ * second, up or down - so all outputs move together and never jump. */
+const GAP_STEP_PER_SAMPLE_MS = 0.05
 
 interface Pair {
   perfMs: number
@@ -108,7 +109,6 @@ export class TimeBase {
   private lastPairAt = -Infinity
   private gaps: { perfMs: number; gapMs: number }[] = []
   private gapMs: number | null = null
-  private gapCandidateSince: number | null = null
 
   constructor(private readonly perfNow: () => number = () => performance.now()) {}
 
@@ -155,7 +155,6 @@ export class TimeBase {
     this.pending = null
     this.gaps = []
     this.gapMs = null
-    this.gapCandidateSince = null
   }
 
   private refit(now: number): void {
@@ -181,25 +180,10 @@ export class TimeBase {
     this.gaps.push({ perfMs: now, gapMs: ctx.currentTime * 1000 - at(this.line!, now) })
     while (this.gaps.length > 0 && this.gaps[0]!.perfMs < now - GAP_WINDOW_MS) this.gaps.shift()
     if (now - this.gaps[0]!.perfMs < GAP_MIN_SPAN_MS) return
-    const edge = Math.max(...this.gaps.map((g) => g.gapMs))
-    if (this.gapMs === null) {
-      this.gapMs = edge
-      return
-    }
-    if (edge > this.gapMs) {
-      this.gapMs = Math.min(edge, this.gapMs + GAP_RAISE_PER_SAMPLE_MS)
-      this.gapCandidateSince = null
-      return
-    }
-    if (this.gapMs - edge <= GAP_HOLD_MS) {
-      this.gapCandidateSince = null
-      return
-    }
-    this.gapCandidateSince ??= now
-    if (now - this.gapCandidateSince >= GAP_CONFIRM_MS) {
-      this.gapMs = edge
-      this.gapCandidateSince = null
-    }
+    const sorted = this.gaps.map((g) => g.gapMs).sort((a, b) => a - b)
+    const edge = sorted[Math.floor(GAP_PERCENTILE * (sorted.length - 1))]!
+    if (this.gapMs === null) this.gapMs = edge
+    else this.gapMs += Math.max(-GAP_STEP_PER_SAMPLE_MS, Math.min(GAP_STEP_PER_SAMPLE_MS, edge - this.gapMs))
   }
 }
 
