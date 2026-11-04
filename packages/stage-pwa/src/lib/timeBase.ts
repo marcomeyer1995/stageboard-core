@@ -28,13 +28,14 @@ const CONFIRM_JUMP_MS = 3
 const CONFIRMATIONS = 3
 /** The Fire's output timestamps read *early* now and then - for 0.1-13 s, ~17-32 ms, often
  * creeping in and drifting ~1500 ppm, then snapping back; one or two pairs up to 251 ms at a Stop
- * (sync-bench Gig, 2026-11-04) - never late. A fit through the middle of the pairs followed them:
- * the click bent by up to 35 ms; gating pairs by their distance from the line let a glitch that
- * creeps in under the gate tilt it to -1300 ppm, 68 ms off. So the line runs along the upper edge
- * of the window's pairs, this percentile: early pairs don't move it until they fill nearly the
- * whole window. A constant offset of the line doesn't matter - the buffer gap is measured
+ * (sync-bench Gig, 2026-11-04); the Redmi's read 5 ms late, every tenth pair. A fit through the
+ * middle of the pairs followed the Fire's: the click bent by up to 35 ms; gating pairs by their
+ * distance from the line let a glitch that creeps in under the gate tilt it to -1300 ppm, 68 ms
+ * off; the upper edge (90th percentile) flipped by 5 ms on the Redmi's. So the line runs through
+ * the densest band of this width (the mode): a glitch spreads its pairs over many ms, the good
+ * ones sit within ~1 ms. A constant offset of the line doesn't matter - the buffer gap is measured
  * against the same line and takes it out (`now`). */
-const EDGE_PERCENTILE = 0.9
+const MODE_WIDTH_MS = 4
 /** The audio clock's rate against performance.now() is steady to a few ppm: once the window is
  * this full, a refit changes the line's rate by at most MAX_RATE_STEP (1 ppm a second). */
 const STEADY_SPAN_MS = 15_000
@@ -126,13 +127,23 @@ function robustLine(pairs: readonly Pair[]): { line: Line; residualMs: number } 
 }
 
 /** The line through the window: its rate from a robust fit through `ratePairs` (limited to
- * MAX_RATE_STEP from `rate` once steady), its place the EDGE_PERCENTILE of all pairs at that rate. */
+ * MAX_RATE_STEP from `rate` once steady), its place the median of the densest MODE_WIDTH_MS band
+ * of all pairs at that rate. */
 function edgeLine(pairs: readonly Pair[], ratePairs: readonly Pair[], rate: number | null): { line: Line; residualMs: number } | null {
   const free = robustLine(ratePairs)
   if (!free) return null
   const b = rate === null ? free.line.b : rate + Math.max(-MAX_RATE_STEP, Math.min(MAX_RATE_STEP, free.line.b - rate))
   const offsets = pairs.map((p) => p.ctxMs - b * p.perfMs).sort((x, y) => x - y)
-  return { line: { a: offsets[Math.floor(EDGE_PERCENTILE * (offsets.length - 1))]!, b }, residualMs: free.residualMs }
+  let best = 0
+  let bestEnd = 0
+  for (let i = 0, j = 0; i < offsets.length; i++) {
+    while (j < offsets.length && offsets[j]! - offsets[i]! <= MODE_WIDTH_MS) j++
+    if (j - i > bestEnd - best) {
+      best = i
+      bestEnd = j
+    }
+  }
+  return { line: { a: offsets[Math.floor((best + bestEnd - 1) / 2)]!, b }, residualMs: free.residualMs }
 }
 
 export class TimeBase {
