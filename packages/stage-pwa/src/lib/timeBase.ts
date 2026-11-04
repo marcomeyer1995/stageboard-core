@@ -20,30 +20,28 @@
 const WINDOW_MS = 20_000
 /** Before this much span, the slope means nothing yet. */
 const MIN_SPAN_MS = 2_000
-/** With a line, a refit needs this much span of usable pairs - a few seconds of them left over
- * (the rest gated out) give a slope that is off by hundreds of ppm; then the line stays. */
-const REFIT_MIN_SPAN_MS = 6_000
 const MIN_PAIRS = 20
 const REFIT_MS = 500
 /** A new line that moves "now" by more than this is taken only once it was seen this often in a
  * row - one bad window must not move every output at once. */
 const CONFIRM_JUMP_MS = 3
 const CONFIRMATIONS = 3
-/** Now and then the Fire's output timestamps read ~24 ms off for a few seconds, drifting ~1000 ppm
- * meanwhile, and snap back (sync-bench Gig, 2026-11-04). A plain first fit through them tilted the
- * line to ±1500 ppm and bent the click by up to 35 ms. With a line, a pair further off it than this
- * (or 4 × the residual) stays out of the fit... */
+/** The Fire's output timestamps read *early* now and then - for 0.1-13 s, ~17-32 ms, often
+ * creeping in and drifting ~1500 ppm, then snapping back; one or two pairs up to 251 ms at a Stop
+ * (sync-bench Gig, 2026-11-04) - never late. A fit through the middle of the pairs followed them:
+ * the click bent by up to 35 ms; gating pairs by their distance from the line let a glitch that
+ * creeps in under the gate tilt it to -1300 ppm, 68 ms off. So the line runs along the upper edge
+ * of the window's pairs, this percentile: early pairs don't move it until they fill nearly the
+ * whole window. A constant offset of the line doesn't matter - the buffer gap is measured
+ * against the same line and takes it out (`now`). */
+const EDGE_PERCENTILE = 0.9
+/** The audio clock's rate against performance.now() is steady to a few ppm: once the window is
+ * this full, a refit changes the line's rate by at most MAX_RATE_STEP (1 ppm a second). */
+const STEADY_SPAN_MS = 15_000
+const MAX_RATE_STEP = 0.5e-6
+/** The gap is measured, and the rate fitted, only from pairs this close to the line (or 4 × the
+ * residual) - not inside a glitch. */
 const GATE_MS = 3
-/** ...unless this share of the pairs of the last MOVED_MS are off: then the clock really moved, and
- * the line is fitted through those (and still confirmed, see CONFIRM_JUMP_MS). */
-const MOVED_MS = 10_000
-const MOVED_SHARE = 0.8
-/** ...and those off pairs keep the line's rate: inside a glitch the Fire's timestamps drift by
- * ~1500 ppm, a real move keeps the clock's rate. A glitch of 10 s (-17 → -32 ms) was taken as a
- * move and back again, the click chased it both ways (~40 ms, sync-bench Gig, 2026-11-04)... */
-const MOVED_RATE_PPM = 200
-/** ...or they stay off this long anyway (a move with a new rate). */
-const MOVED_ANYWAY_MS = 30_000
 /** Pairs this far off the line for this long: the clock lost time (suspended, resumed) - start
  * over. A single one is not enough: at a Stop the Fire gives one or two pairs up to 251 ms off,
  * and starting over on one left the click on the fallback clock for 20 s and moved it by 5 ms
@@ -127,6 +125,16 @@ function robustLine(pairs: readonly Pair[]): { line: Line; residualMs: number } 
   return line ? { line, residualMs } : null
 }
 
+/** The line through the window: its rate from a robust fit through `ratePairs` (limited to
+ * MAX_RATE_STEP from `rate` once steady), its place the EDGE_PERCENTILE of all pairs at that rate. */
+function edgeLine(pairs: readonly Pair[], ratePairs: readonly Pair[], rate: number | null): { line: Line; residualMs: number } | null {
+  const free = robustLine(ratePairs)
+  if (!free) return null
+  const b = rate === null ? free.line.b : rate + Math.max(-MAX_RATE_STEP, Math.min(MAX_RATE_STEP, free.line.b - rate))
+  const offsets = pairs.map((p) => p.ctxMs - b * p.perfMs).sort((x, y) => x - y)
+  return { line: { a: offsets[Math.floor(EDGE_PERCENTILE * (offsets.length - 1))]!, b }, residualMs: free.residualMs }
+}
+
 export class TimeBase {
   private context: AudioContext | null = null
   private pairs: Pair[] = []
@@ -138,7 +146,6 @@ export class TimeBase {
   private gaps: { perfMs: number; gapMs: number }[] = []
   private gapMs: number | null = null
   private gapMoving = false
-  private offSince: number | null = null
   private farSince: number | null = null
   private farPairs = 0
 
@@ -211,15 +218,17 @@ export class TimeBase {
     this.gapMoving = false
     this.farSince = null
     this.farPairs = 0
-    this.offSince = null
   }
 
   private refit(now: number): void {
     this.lastRefit = now
     if (this.pairs.length < MIN_PAIRS || this.pairs[this.pairs.length - 1]!.perfMs - this.pairs[0]!.perfMs < MIN_SPAN_MS) return
-    const use = this.gated(now)
-    if (this.line && (use.length < MIN_PAIRS || use[use.length - 1]!.perfMs - use[0]!.perfMs < REFIT_MIN_SPAN_MS)) return
-    const fitted = robustLine(use)
+    const steady = this.line !== null && this.pairs[this.pairs.length - 1]!.perfMs - this.pairs[0]!.perfMs >= STEADY_SPAN_MS
+    // The rate from the pairs near the line only (not a glitch); too few of them - keep the rate.
+    const line = this.line
+    const near = line ? this.pairs.filter((p) => Math.abs(p.ctxMs - at(line, p.perfMs)) <= this.gate()) : this.pairs
+    const enough = near.length >= MIN_PAIRS && near[near.length - 1]!.perfMs - near[0]!.perfMs >= STEADY_SPAN_MS / 2
+    const fitted = edgeLine(this.pairs, enough ? near : this.pairs, steady ? line!.b : null)
     if (!fitted) return
     this.residualMs = fitted.residualMs
     if (!this.line || Math.abs(at(fitted.line, now) - at(this.line, now)) <= CONFIRM_JUMP_MS) {
@@ -233,26 +242,6 @@ export class TimeBase {
       this.line = this.pending.line
       this.pending = null
     }
-  }
-
-  /** The pairs to fit: all of them before there is a line; then those near it - or, once the clock
-   * has really moved, those off it. */
-  private gated(now: number): readonly Pair[] {
-    const line = this.line
-    if (!line) return this.pairs
-    const gate = this.gate()
-    const off = (p: Pair) => Math.abs(p.ctxMs - at(line, p.perfMs)) > gate
-    const recent = this.pairs.filter((p) => p.perfMs >= now - MOVED_MS)
-    const recentOff = recent.filter(off)
-    const mostlyOff = recent.length >= MIN_PAIRS && recentOff.length >= MOVED_SHARE * recent.length
-    if (!mostlyOff) this.offSince = null
-    else this.offSince ??= now
-    const sameRate = () => {
-      const fitted = robustLine(recentOff)
-      return fitted !== null && Math.abs(fitted.line.b - line.b) * 1e6 <= MOVED_RATE_PPM
-    }
-    const moved = mostlyOff && (now - this.offSince! >= MOVED_ANYWAY_MS || sameRate())
-    return this.pairs.filter((p) => off(p) === moved)
   }
 
   private gate(): number {
