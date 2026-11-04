@@ -169,6 +169,8 @@ export interface TrackJump {
   id: number
   boundaryMs: number
   toMs: number
+  /** The speed from the boundary on (#683, Solo's loop trainer) - absent: unchanged. */
+  rate?: number
 }
 
 /** Prepared tracks by key (variant:track) - audio is only ever played under its own key, never

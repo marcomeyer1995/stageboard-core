@@ -2,6 +2,7 @@ import { createAudioClock } from './audioClock'
 import { sourceOutput } from './audioMix'
 import type { LevelPoint } from './playbackCues'
 import { scheduleTrackLevel } from './trackLevel'
+import { setStretchRate, stretchChain } from './mixStretch'
 import { getSharedAudioContext } from './sharedAudioContext'
 import { getTrack } from './songVariantsDb'
 import { openTrackStream, type TrackStream } from './trackStream'
@@ -51,6 +52,8 @@ interface Loaded {
   durationS: number
   gains: Map<string, GainNode>
   bus: GainNode
+  /** Whether the bus goes through the mix stretch (#683) or straight out. */
+  stretched: boolean
 }
 
 interface Layer {
@@ -66,6 +69,8 @@ interface Run {
   key: string
   anchorTime: number
   anchorPos: number
+  /** Song seconds per audio second (#683) - every source plays at it. */
+  rate: number
   fades: GainNode[]
   layers: Layer[]
   /** Set when this run is a section jump's target (#479): it comes in at the boundary, crossfaded. */
@@ -152,7 +157,6 @@ export async function loadStems(variantId: string, trackIds: readonly string[]):
   stopRun()
   if (loaded) dispose(loaded)
   const bus = ctx.createGain()
-  bus.connect(sourceOutput('track', ctx))
   const gains = new Map<string, GainNode>()
   for (const trackId of trackIds) {
     const gain = ctx.createGain()
@@ -161,11 +165,37 @@ export async function loadStems(variantId: string, trackIds: readonly string[]):
     gains.set(trackId, gain)
   }
   const durations = [...stems.values()].map((s) => (s.kind === 'stream' ? s.stream.durationS : s.buffer.duration))
-  loaded = { key, stems, durationS: Math.max(0, ...durations), gains, bus }
+  loaded = { key, stems, durationS: Math.max(0, ...durations), gains, bus, stretched: false }
+  routeBus(ctx, loaded, stretchWanted)
   stats.loadMs = Math.round(performance.now() - started)
   stats.kinds = [...stems.values()].map((s) => s.kind)
   if (loading === job) loading = null
   return true
+}
+
+/** Whether the mix should go through the stretch (#683) - set by the Solo driver while a slowed
+ * trainer session runs. Off, or without a loaded stretcher, the bus goes straight out. */
+let stretchWanted = false
+
+function routeBus(ctx: AudioContext, l: Loaded, wanted: boolean): void {
+  const chain = wanted ? stretchChain() : null
+  l.bus.disconnect()
+  if (chain) {
+    l.bus.connect(chain.input)
+    chain.output.disconnect()
+    chain.output.connect(sourceOutput('track', ctx))
+  } else l.bus.connect(sourceOutput('track', ctx))
+  l.stretched = chain !== null
+}
+
+export function setStemsStretched(on: boolean): void {
+  stretchWanted = on
+  if (loaded && (on && stretchChain() !== null) !== loaded.stretched) routeBus(getSharedAudioContext(), loaded, on)
+}
+
+/** Whether the mix plays through the stretch right now - its latency then counts. */
+export function stemsStretched(): boolean {
+  return loaded?.stretched ?? false
 }
 
 export function unloadStems(): void {
@@ -228,11 +258,11 @@ function schedule(ctx: AudioContext, r: Run, layer: Layer, out: AudioNode, piece
   const { buffer, timestamp } = piece
   let offset = Math.max(0, layer.scheduledUntil - timestamp)
   if (offset >= buffer.duration) return
-  let when = r.anchorTime + (timestamp + offset - r.anchorPos)
+  let when = r.anchorTime + (timestamp + offset - r.anchorPos) / r.rate
   const earliest = ctx.currentTime + 0.01
   if (when < earliest) {
     stats.late++
-    offset += earliest - when
+    offset += (earliest - when) * r.rate
     when = earliest
     if (offset >= buffer.duration) {
       layer.scheduledUntil = timestamp + buffer.duration
@@ -241,6 +271,7 @@ function schedule(ctx: AudioContext, r: Run, layer: Layer, out: AudioNode, piece
   }
   const node = ctx.createBufferSource()
   node.buffer = buffer
+  node.playbackRate.value = r.rate
   node.connect(out)
   node.onended = () => layer.nodes.delete(node)
   node.start(when, offset)
@@ -285,7 +316,7 @@ async function feed(ctx: AudioContext, r: Run, layer: Layer, out: AudioNode, str
       pendingLength += piece.buffer.duration
       if (pendingLength < CHUNK_S) continue
       flush()
-      const playing = () => r.anchorPos + (ctx.currentTime - r.anchorTime)
+      const playing = () => r.anchorPos + (ctx.currentTime - r.anchorTime) * r.rate
       while (!layer.feeder.cancelled && layer.scheduledUntil - playing() > AHEAD_S) await new Promise((resolve) => setTimeout(resolve, 200))
       if (layer.feeder.cancelled) return
     }
@@ -295,13 +326,14 @@ async function feed(ctx: AudioContext, r: Run, layer: Layer, out: AudioNode, str
   }
 }
 
-/** Starts every stem so that song position `pos` plays at audio time `when` - with `crossfadeS` up
- * the equal-power curve while the run before goes down it (a section jump, #479). */
-function startRun(ctx: AudioContext, l: Loaded, when: number, pos: number, crossfadeS?: number): void {
+/** Starts every stem so that song position `pos` plays at audio time `when`, at `rate` (#683) -
+ * with `crossfadeS` up the equal-power curve while the run before goes down it (a section jump, #479). */
+function startRun(ctx: AudioContext, l: Loaded, when: number, pos: number, crossfadeS?: number, rate = 1): void {
   const anchorPos = Math.max(0, pos)
-  const anchorTime = when + Math.max(0, -pos)
+  const anchorTime = when + Math.max(0, -pos) / rate
   if (anchorPos >= l.durationS) return
-  const r: Run = { key: l.key, anchorTime, anchorPos, fades: [], layers: [], jump: null }
+  const r: Run = { key: l.key, anchorTime, anchorPos, rate, fades: [], layers: [], jump: null }
+  if (l.stretched) setStretchRate(rate, when)
   run = r
   stats.starts++
   for (const [trackId, source] of l.stems) {
@@ -332,11 +364,22 @@ function startRun(ctx: AudioContext, l: Loaded, when: number, pos: number, cross
   }
 }
 
+/** A speed that differs from the run's this long is a real change (the trainer started or
+ * stopped), not the moment between a speed-changing jump and the clock folding it (#683). */
+const RATE_CHANGE_CONFIRM_MS = 300
+let rateMismatchSince: number | null = null
+
 /**
  * Called every frame while stems should play. `elapsedNow` reads the song time (null = stopped),
- * `jumpNow` a queued section jump (#479). Returns whether the browser still blocks audio (needs a tap).
+ * `jumpNow` a queued section jump (#479), `rateNow` the song's speed (#683, Solo's loop trainer).
+ * Returns whether the browser still blocks audio (needs a tap).
  */
-export function syncStems(elapsedNow: () => number | null, shouldPlay: boolean, jumpNow: () => TrackJump | null = () => null): { blocked: boolean } {
+export function syncStems(
+  elapsedNow: () => number | null,
+  shouldPlay: boolean,
+  jumpNow: () => TrackJump | null = () => null,
+  rateNow: () => number = () => 1,
+): { blocked: boolean } {
   const ctx = getSharedAudioContext()
   if (!shouldPlay || !loaded) {
     stopRun()
@@ -359,12 +402,13 @@ export function syncStems(elapsedNow: () => number | null, shouldPlay: boolean, 
     return { blocked: false }
   }
   const songNow = elapsedMs / 1000
+  const rate = rateNow()
   scheduleTrackLevel(loaded.bus.gain, ctx, now, songNow, levelCurve)
   if (run && run.key !== loaded.key) stopRun()
   if (!run) {
     if (songNow < -LEAD_S * 4) return { blocked: false }
-    if (songNow < 0) startRun(ctx, loaded, now, songNow)
-    else startRun(ctx, loaded, now + LEAD_S, songNow + LEAD_S)
+    if (songNow < 0) startRun(ctx, loaded, now, songNow, undefined, rate)
+    else startRun(ctx, loaded, now + LEAD_S, songNow + LEAD_S * rate, undefined, rate)
     return { blocked: false }
   }
   // A section jump (#479), as in the Gig's track engine: the target comes in at the boundary, the
@@ -377,12 +421,14 @@ export function syncStems(elapsedNow: () => number | null, shouldPlay: boolean, 
     return { blocked: false }
   }
   if (jump && run.jump?.id !== jump.id && (run.jump === null || now >= run.jump.startsAt)) {
-    const boundaryAt = run.anchorTime + (jump.boundaryMs / 1000 - run.anchorPos)
+    const boundaryAt = run.anchorTime + (jump.boundaryMs / 1000 - run.anchorPos) / run.rate
     if (boundaryAt - now > LEAD_S && boundaryAt - now <= JUMP_COMMIT_S) {
       const fadeAt = boundaryAt - JUMP_PREROLL_S
       const crossfadeS = jumpCrossfadeMs() / 1000
+      // The loop trainer's next pass may run at another speed (#683).
+      const nextRate = jump.rate ?? run.rate
       stopRun(fadeAt, crossfadeS)
-      startRun(ctx, loaded, fadeAt, jump.toMs / 1000 - JUMP_PREROLL_S, crossfadeS)
+      startRun(ctx, loaded, fadeAt, jump.toMs / 1000 - JUMP_PREROLL_S * nextRate, crossfadeS, nextRate)
       const started = run as Run | null
       if (started) started.jump = { id: jump.id, startsAt: fadeAt, crossfadeS }
       stats.jumps++
@@ -392,7 +438,20 @@ export function syncStems(elapsedNow: () => number | null, shouldPlay: boolean, 
   // Until a jump's target has come in and the song clock reads the target too, the two disagree.
   if (run.jump && now < run.jump.startsAt + JUMP_PREROLL_S + run.jump.crossfadeS) return { blocked: false }
 
-  const errorS = now < run.anchorTime ? run.anchorPos - (songNow + (run.anchorTime - now)) : run.anchorPos + (now - run.anchorTime) - songNow
+  // Another speed (#683): restart at it - once it held for a moment.
+  if (Math.abs(rate - run.rate) > 1e-6) {
+    rateMismatchSince ??= wall
+    if (wall - rateMismatchSince >= RATE_CHANGE_CONFIRM_MS) {
+      rateMismatchSince = null
+      stats.reschedules++
+      const at = now + LEAD_S
+      stopRun(at)
+      startRun(ctx, loaded, at, songNow + LEAD_S * rate, undefined, rate)
+    }
+    return { blocked: false }
+  }
+  rateMismatchSince = null
+  const errorS = run.anchorPos + (now - run.anchorTime) * run.rate - songNow
   stats.lastErrorMs = Math.round(errorS * 1000)
   suspect = Math.abs(errorS) > RESCHEDULE_ERROR_S ? suspect + 1 : 0
   if (suspect >= RESCHEDULE_CONFIRMATIONS) {
@@ -400,7 +459,7 @@ export function syncStems(elapsedNow: () => number | null, shouldPlay: boolean, 
     stats.reschedules++
     const at = now + LEAD_S
     stopRun(at)
-    startRun(ctx, loaded, at, songNow + LEAD_S)
+    startRun(ctx, loaded, at, songNow + LEAD_S * rate, undefined, rate)
   }
   return { blocked: false }
 }

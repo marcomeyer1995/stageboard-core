@@ -1,10 +1,10 @@
 import { useEffect } from 'react'
 import { getServerTime } from './clockSync'
-import { computeActiveMs, foldJump, transportOf, type SectionJump, type TransportState } from './playbackTransport'
+import { clockTimeAt, computeActiveMs, foldJump, rateOf, transportOf, type SectionJump, type TransportState } from './playbackTransport'
 import { jumpBoundary, type JumpWhen, type ShowSection } from './showSections'
 import type { ClickTimeline } from './beatGrid'
 import { useAppModeStore } from '../store/useAppModeStore'
-import { practiceTransportOf, usePracticeStateStore } from '../store/usePracticeStateStore'
+import { practiceTransportOf, usePracticeStateStore, type PracticeLoop } from '../store/usePracticeStateStore'
 import { drivesAutomation, useShowStateStore } from '../store/useShowStateStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 
@@ -27,7 +27,7 @@ const DRIVER_TICK_MS = 100
 
 export type JumpResult = 'queued' | 'not-master' | 'not-playing' | 'no-boundary'
 
-type Loop = { startMs: number; endMs: number; label?: string }
+type Loop = PracticeLoop
 
 /** Where a jump lives: the band's show state (Gig, the master acts, server time) or this device's
  * practice state (Solo, always allowed, its own clock). */
@@ -36,7 +36,7 @@ interface JumpHost {
   now: () => number
   transport: TransportState
   loop: Loop | null
-  write: (patch: { startedAt?: number | null; accumulatedMs?: number; skippedMs?: number; jump?: SectionJump | null; loop?: Loop | null }) => Promise<void>
+  write: (patch: { startedAt?: number | null; accumulatedMs?: number; skippedMs?: number; jump?: SectionJump | null; loop?: Loop | null; rate?: number }) => Promise<void>
 }
 
 function gigHost(): JumpHost {
@@ -73,6 +73,7 @@ function practiceHost(): JumpHost {
         ...(patch.accumulatedMs !== undefined ? { playbackAccumulatedMs: patch.accumulatedMs } : {}),
         ...(patch.jump !== undefined ? { playbackJump: patch.jump } : {}),
         ...(patch.loop !== undefined ? { playbackLoop: patch.loop } : {}),
+        ...(patch.rate !== undefined ? { playbackRate: patch.rate } : {}),
       })
     },
   }
@@ -118,7 +119,7 @@ export async function queueSectionJump(target: ShowSection, when: JumpWhen, sect
   if (transport.startedAt === null) return 'not-playing'
   const boundary = jumpBoundary(when, computeActiveMs(transport, now) + JUMP_NOTICE_MS, sections, timeline)
   if (boundary === null) return 'no-boundary'
-  const at = transport.startedAt + (boundary - transport.accumulatedMs)
+  const at = clockTimeAt(transport, boundary)!
   await h.write({
     startedAt: transport.startedAt,
     accumulatedMs: transport.accumulatedMs,
@@ -147,32 +148,58 @@ export async function setSectionLoop(section: ShowSection | null): Promise<void>
   if (!h.allowed) return
   if (section) {
     if (section.endMs === null) return
-    await h.write({ loop: { startMs: section.startMs, endMs: section.endMs, label: section.label } })
+    await h.write({ loop: { startMs: section.startMs, endMs: section.endMs, label: section.label }, ...rateReset(h) })
     recordSection({ action: 'repeat', fromLabel: section.label, fromMs: section.startMs, toMs: section.endMs })
     return
   }
   const jump = h.transport.jump
   const loop = h.loop
   const dropJump = jump && loop && jump.toMs === loop.startMs && jump.at - h.now() >= CANCEL_MIN_MS
-  await h.write(dropJump ? { loop: null, jump: null } : { loop: null })
+  // A trainer loop's speed (#683) ends with it: the song runs on at its own tempo from now.
+  await h.write(dropJump ? { loop: null, jump: null, ...rateReset(h) } : { loop: null, ...rateReset(h) })
   if (loop) recordSection({ action: 'repeat-end', fromLabel: loop.label })
 }
 
+/** Back to the song's own tempo (#683), re-anchored at this moment so the position doesn't move. */
+function rateReset(h: JumpHost): { startedAt?: number; accumulatedMs?: number; rate?: number } {
+  if (rateOf(h.transport) === 1) return {}
+  const now = h.now()
+  const folded = foldJump(h.transport, now)
+  if (folded.status !== 'playing' || folded.startedAt === null) return { rate: 1 }
+  return { startedAt: now, accumulatedMs: computeActiveMs(folded, now), rate: 1 }
+}
+
+/** The speed of the pass after `pass` (#683) - the last rate holds. */
+function nextPassRate(loop: Loop): number | undefined {
+  if (!loop.rates?.length) return undefined
+  return loop.rates[Math.min((loop.pass ?? 0) + 1, loop.rates.length - 1)]
+}
+
 /** One look at jump and loop: folds a passed jump into the clock's anchor, and while a section
- * loops, queues the way back before the pass ends. */
+ * loops, queues the way back before the pass ends - with the loop trainer's next speed (#683). */
 function driveJump(h: JumpHost): void {
   const { transport, loop } = h
   if (transport.status !== 'playing' || transport.startedAt === null) return
   const now = h.now()
   if (transport.jump && now >= transport.jump.at) {
     const folded = foldJump(transport, now)
-    void h.write({ startedAt: folded.startedAt, accumulatedMs: folded.accumulatedMs, skippedMs: folded.skippedMs ?? 0, jump: null })
+    const wrapped = loop && transport.jump.toMs === loop.startMs
+    void h.write({
+      startedAt: folded.startedAt,
+      accumulatedMs: folded.accumulatedMs,
+      skippedMs: folded.skippedMs ?? 0,
+      jump: null,
+      rate: rateOf(folded),
+      ...(wrapped && loop.rates ? { loop: { ...loop, pass: (loop.pass ?? 0) + 1 } } : {}),
+    })
     return
   }
   if (!loop || transport.jump) return
   const untilEnd = loop.endMs - computeActiveMs(transport, now)
-  if (untilEnd <= 0 || untilEnd > LOOP_NOTICE_MS) return
-  void h.write({ jump: { at: transport.startedAt + (loop.endMs - transport.accumulatedMs), toMs: loop.startMs, label: loop.label } })
+  // Song time: a slowed pass covers less of it in the notice time.
+  if (untilEnd <= 0 || untilEnd > LOOP_NOTICE_MS * rateOf(transport)) return
+  const rate = nextPassRate(loop)
+  void h.write({ jump: { at: clockTimeAt(transport, loop.endMs)!, toMs: loop.startMs, label: loop.label, ...(rate !== undefined ? { rate } : {}) } })
 }
 
 /**
