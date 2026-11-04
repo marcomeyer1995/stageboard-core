@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs'
 import puppeteer, { type Browser, type Page } from 'puppeteer-core'
-import { convertUltimateGuitarContent, type ILookupPlugin, type LookupResult, type PluginContext } from 'shared-types'
+import { convertUltimateGuitarContent, serverMessage, type ILookupPlugin, type LookupResult, type PluginContext } from 'shared-types'
 import { LookupError } from './lookupError.js'
 
 const SEARCH_USER_AGENT =
@@ -19,14 +19,11 @@ export function resolveChromeExecutable(): string {
   const configured = process.env.CHROME_EXECUTABLE_PATH
   if (configured) {
     if (existsSync(configured)) return configured
-    throw new LookupError('no-browser', `CHROME_EXECUTABLE_PATH zeigt auf „${configured}“ - dort ist kein Chrome/Chromium. Pfad korrigieren oder die Variable entfernen.`)
+    throw new LookupError('no-browser', serverMessage('ug.chromePathWrong', { path: configured }))
   }
   const found = CHROME_CANDIDATES.find((path) => existsSync(path))
   if (!found) {
-    throw new LookupError(
-      'no-browser',
-      `Für Ultimate Guitar braucht der Stage-Server Chrome oder Chromium - keins gefunden. Installieren (z. B. „sudo apt install chromium“) oder CHROME_EXECUTABLE_PATH setzen. Gesucht in: ${CHROME_CANDIDATES.join(', ')}`,
-    )
+    throw new LookupError('no-browser', serverMessage('ug.chromeMissing', { paths: CHROME_CANDIDATES.join(', ') }))
   }
   return found
 }
@@ -39,10 +36,10 @@ export async function openUgPage(page: Pick<Page, 'goto'>, url: string): Promise
     await page.goto(url, { waitUntil: 'networkidle2', timeout: PAGE_TIMEOUT_MS })
   } catch (err) {
     if (err instanceof Error && err.name === 'TimeoutError') {
-      throw new LookupError('timeout', `Ultimate Guitar antwortet nicht (${PAGE_TIMEOUT_MS / 1000} s). Internetverbindung des Stage-Servers prüfen und noch einmal versuchen.`, err)
+      throw new LookupError('timeout', serverMessage('ug.timeout', { seconds: PAGE_TIMEOUT_MS / 1000 }), err)
     }
     if (err instanceof Error && /net::ERR_/.test(err.message)) {
-      throw new LookupError('unavailable', 'Ultimate Guitar ist nicht erreichbar - hat der Stage-Server gerade Internet?', err)
+      throw new LookupError('unavailable', serverMessage('ug.unavailable'), err)
     }
     throw err
   }
@@ -53,12 +50,9 @@ export async function openUgPage(page: Pick<Page, 'goto'>, url: string): Promise
  * site and the plugin needs an update - previously both just looked like "no results". */
 export function missingDataError(pageTitle: string): LookupError {
   if (/just a moment|attention required|cloudflare|access denied/i.test(pageTitle)) {
-    return new LookupError('blocked', 'Ultimate Guitar hat die Anfrage als Bot blockiert. In ein paar Minuten noch einmal versuchen.')
+    return new LookupError('blocked', serverMessage('ug.blocked'))
   }
-  return new LookupError(
-    'source-changed',
-    `Ultimate Guitar hat seine Seite umgebaut - der Import (Plugin „ultimate-guitar-scraper“) muss angepasst werden. Seitentitel: „${pageTitle || 'leer'}“`,
-  )
+  return new LookupError('source-changed', serverMessage('ug.sourceChanged', { title: pageTitle || '-' }))
 }
 
 interface UgSearchResult {
@@ -266,7 +260,7 @@ export function createUltimateGuitarPlugin(): ILookupPlugin {
         })
         if (!raw.hasData) throw missingDataError(raw.pageTitle)
         if (!raw.content) {
-          throw new LookupError('not-importable', 'Diese Version hat keinen Text zum Übernehmen (z. B. eine Pro- oder Video-Version). Bitte eine andere Version wählen.')
+          throw new LookupError('not-importable', serverMessage('ug.notImportable'))
         }
         return {
           title: raw.title,

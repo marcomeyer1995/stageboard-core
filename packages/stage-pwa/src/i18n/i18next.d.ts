@@ -16,6 +16,7 @@ import type menu from './locales/de/menu.json'
 import type widgets from './locales/de/widgets.json'
 import type shows from './locales/de/shows.json'
 import type rigcheck from './locales/de/rigcheck.json'
+import type server from './locales/de/server.json'
 
 /**
  * Typed keys (#456): German is the reference - a key that isn't in de/*.json is a compile error.
@@ -43,6 +44,7 @@ declare module 'i18next' {
       widgets: typeof widgets
       shows: typeof shows
       rigcheck: typeof rigcheck
+      server: typeof server
     }
   }
 }
