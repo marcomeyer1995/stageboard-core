@@ -384,3 +384,21 @@ Ziel ±2 ms je Gerät: erreicht (95 %). Grenze der Aussage: die Referenz nutzt d
 
 Offen: das Einschwingen des Fire nach dem App-Start (welcher Wert ist richtig, und warum ändert er sich die ersten Minuten?) - klärt die akustische Messung (Schritt 3); die Gig-Messung über die Geräte mit der neuen Synchronisation; das Handy mit 1.704.
 
+### Gig nach Schritt 4: Band-Uhr über die Geräte (2026-11-04)
+
+Wie die Gig-Messung nach Schritt 2: Redmi ist Master und spielt den Track, der Fire den Klick (so bindet die Band die Ausgänge; Handy und Laptop haben im Gig keinen Ausgang und hören nichts). 3 Starts, 6 × Pause → Play, danach 6 weitere Starts und der ganze Song. Jedes Gerät gegen die Band-Uhr über seine eigenen `/time`-Proben, unabhängig von der App.
+
+**Erster Lauf mit Dev 1.704 - der Redmi viel besser, der Fire schlechter:** Der Fire-Klick bog sich innerhalb eines Takes um bis zu 35 ms (Schlagabstand 501,9 statt 500 ms). Ursache: die Ausgabe-Zeitstempel des Fire liegen etwa alle 25 s für 0,1-5 s ~24 ms daneben (dabei ~1000 ppm Drift) und springen zurück - die erste, ungefilterte Ausgleichsgerade des Zeitdienstes kippte dadurch auf ±1500 ppm. Uhrsync, Wanduhr und Puffer-Abstand standen dabei still (je ±1 ms gemessen). Zweitens: bei jedem Stop liefert der Fire ein, zwei Paare bis 251 ms daneben; eines über 250 ms startete den Zeitdienst neu - 20 s Ersatz-Uhr, danach 5 ms anderer Puffer-Abstand. Beides behoben (#692): mit einer Geraden zählen nur Paare nahe an ihr, erst wenn 80 % der letzten 10 s daneben liegen, hat sich die Uhr wirklich bewegt; Neustart erst, wenn die Uhr 0,5 s lang daneben liegt; der Puffer-Abstand misst nicht, solange das neueste Paar daneben liegt.
+
+| Gig | Fire-Klick: Streuung über Starts | Fire-Klick: Schwankung im Take (sd) | Redmi-Track: Streuung über Starts | Klick ↔ Track: Streuung | Redmi ganzer Song (sd) |
+|---|---|---|---|---|---|
+| nach Schritt 2 (1.700) | 16,9 ms | bis 3,1 ms | 12,3 ms | 27,5 ms | 5,7 ms |
+| Schritt 4, 1.704 | 23,7 ms | bis 9,0 ms | 3,2 ms | 25,1 ms | 1,1 ms |
+| **Schritt 4, 1.706** | **4,7 ms** (die 6 Starts am Ende: 2,1 ms) | **0,2-0,5 ms** | **4,4 ms** | **6,9 ms** | **0,7 ms** |
+
+Ohne t09 (Tempo-Sprung des Referenz-Songs, in allen Läufen gleich) und ohne den Redmi-Take t04 von 1.706: dessen eigene Zeitproben kamen alle langsam zurück (≥ 88 ms statt 12 ms) und lagen 33 ms daneben - ein Messfehler der 10-s-Auswertung, nicht der App. Im Fire-Wert von 4,7 ms stecken noch die letzten 2,8 ms Einschwingen nach dem App-Start (bei ~1 min des Laufs, 3,5 min nach dem Start). Der Zeitdienst des Fire war in 6 min Messung nie ausgefallen, seine Rate blieb zwischen −32 und +37 ppm.
+
+- **Ziel „zwischen Geräten ≤ 10 ms“:** erreicht (6,9 ms Streuung Klick ↔ Track, schlechtester Take).
+- **Der konstante Abstand Fire-Klick ↔ Redmi-Track (~200 ms)** ist weiter der nicht ausgeglichene Ausgabepuffer des Fire (Dev-App ohne gespeicherte Latenz) - Schritt 3.
+- Einzelbefund: in 1 von 20 Pause → Play kam der erste Klick des Fire 16 ms zu spät, danach stimmte er. Ein Fortsetzen hat anders als ein Start keinen Vorlauf (`playbackAccumulatedMs` ohne −400) - der erste Schlag kann schon fällig sein, wenn die Nachricht ankommt. Beobachten.
+- Offen: das Einschwingen des Fire in den ersten Minuten (Schritt 3), Handy und Laptop mit hörbarem Ausgang im Gig.
