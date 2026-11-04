@@ -1,6 +1,6 @@
 # 29 · Synchronität: eine Zeitbasis für alle Ausgänge und alle Geräte
 
-Stand 2026-11-04. Konzept, noch kein Beschluss. Anlass: Messung mit dem Referenz-Song (#464) auf dem Fire - Klick und Track lagen nach jedem Play 0-55 ms auseinander (§3). Marco: „Die Synchronität aller Teile der App und über die Geräte hinweg ist der wichtigste Punkt der ganzen App. Alles soll an einer Zeitbasis hängen, nicht an verschiedenen."
+Stand 2026-11-04. Konzept; die Zielzahlen (§1) sind beschlossen (Marco, 2026-11-04), der Rest ist noch kein Beschluss. Anlass: Messung mit dem Referenz-Song (#464) auf dem Fire - Klick und Track lagen nach jedem Play 0-55 ms auseinander (§3). Marco: „Die Synchronität aller Teile der App und über die Geräte hinweg ist der wichtigste Punkt der ganzen App. Alles soll an einer Zeitbasis hängen, nicht an verschiedenen."
 
 Dieses Dokument beschreibt die ganze Signalkette, jede bekannte Abweichung mit gemessener oder abgeschätzter Größe, eine Worst-Case-Rechnung für heute und für das Ziel, das Konzept einer einzigen Zeitbasis, wie es auf der Bühne ohne ständige Kalibrierung zuverlässig bleibt, und wie wir es prüfen - nicht per Auge oder Gehör, sondern gemessen.
 
@@ -15,7 +15,9 @@ Verwandt: docs/09 (Uhr-Synchronisation zwischen Geräten), docs/13 §7 (Ausgabel
 | Ein Gerät, Ausgänge auf demselben Audio-Ausgang (Klick, Track, Stems, Ansagen) | **≤ 1 ms**, bei jedem Play gleich | Sie hängen am selben Hardware-Takt - jede Abweichung ist ein Fehler der Software. Hörbar wird ein Flam zwischen Klick und Drums ab etwa 5-10 ms. |
 | Ein Gerät, Audio gegen MIDI (Clock, Cues) | **≤ 10 ms**, typisch ≤ 3 ms | Klasse `realtime` (docs/21 §2). Zum Vergleich: 1 ms ≈ 34 cm Schallweg; zwei Musiker 3 m auseinander hören sich ~9 ms versetzt. |
 | Zwischen Geräten, gleiche Ausgabeart | **≤ 10 ms**, typisch ≤ 5 ms | WLAN-Uhrsynchronisation schafft heute ~±4 ms je Gerät (§3.1). |
-| Bild (Prompter, Visueller Metronom) | ≤ 1 Bild (17 ms) zum Ton | Klasse `soft`. |
+| Bild (Prompter, Visueller Metronom) | kein eigenes Ziel, Klasse `soft` (≤ 100 ms, docs/21) | Marco, 2026-11-04: ein Bild genau ist nicht nötig. Das Bild rechnet trotzdem aus derselben Bandzeit. |
+
+**Beschlossen (Marco, 2026-11-04):** die Zahlen für Ton und MIDI wie oben; für das Bild kein enges Ziel.
 
 Und, ebenso wichtig wie die Zahlen: **es bleibt so** - über einen ganzen Gig, nach Pause/Play, nach einem App-Neustart, ohne dass jemand nachkalibriert. Wo das System eine Grenze nicht halten kann, sagt es das (Statusleiste), statt still daneben zu liegen.
 
@@ -271,7 +273,7 @@ PR #689 (gemeinsame Audio-Uhr) ist eine Zwischenlösung: er macht die heutige Sc
 
 ## 9. Offene Fragen
 
-1. **Zielzahlen** aus §1 so übernehmen?
+1. ~~Zielzahlen~~ - beschlossen (§1): Ton/MIDI wie vorgeschlagen, Bild ohne enges Ziel.
 2. **Fire als Audio-Gerät:** 364 ms Puffer + ~80 ms Rest - zulässig, solange eingemessen, oder nur als Anzeige-Gerät?
 3. **Bluetooth:** für Klick/Track sperren oder nur warnen?
 4. **Verhalten bei schlechter Qualität** (§5.7): nur anzeigen, oder ein Gerät, das die Grenze nicht hält, automatisch vom Audio-Taktgeben ausnehmen?
