@@ -402,3 +402,30 @@ Ohne t09 (Tempo-Sprung des Referenz-Songs, in allen Läufen gleich) und ohne den
 - **Der konstante Abstand Fire-Klick ↔ Redmi-Track (~200 ms)** ist weiter der nicht ausgeglichene Ausgabepuffer des Fire (Dev-App ohne gespeicherte Latenz) - Schritt 3.
 - Einzelbefund: in 1 von 20 Pause → Play kam der erste Klick des Fire 16 ms zu spät, danach stimmte er. Ein Fortsetzen hat anders als ein Start keinen Vorlauf (`playbackAccumulatedMs` ohne −400) - der erste Schlag kann schon fällig sein, wenn die Nachricht ankommt. Beobachten.
 - Offen: das Einschwingen des Fire in den ersten Minuten (Schritt 3), Handy und Laptop mit hörbarem Ausgang im Gig.
+
+### Klick und Track auf mehreren Geräten gleichzeitig (2026-11-04/05)
+
+Mit #695 spielt jeder angehakte Ausgang auf allen gewählten Tablets. Gemessen mit Fire, Redmi und Laptop-Browser, alle drei mit Klick und Track (Handy noch auf 1.700, stumm). Jede Messung: 3 Starts, 6 × Pause → Play, 9 weitere Starts, ganzer Song; jedes Gerät über seine eigenen Ausgabe-Zeitstempel und `/time`-Proben gegen die Band-Uhr (`scripts/sync-bench`, `gig-multi.mjs`).
+
+**Unter der zusätzlichen Last zeigten die Zeitstempel weitere Fehler** – jeder führte zu einer Änderung des Zeitdienstes (#692) und zu einem Test; nachgerechnet wurde jede Version mit den aufgezeichneten Zeitstempeln aller Geräte (`tb-replay.mts`):
+
+| Dev | Befund | Änderung |
+|---|---|---|
+| 1.707 | Fire: Ausreißer-Strecke 10 s (−17 → −32 ms), länger als die 8 s für „wirklich bewegt“ – übernommen und zurück, Klick und Track ~40 ms hin und her | Verschiebung nur bei gleicher Rate |
+| 1.708 | Fire: Ausreißer kroch langsam herein (0 → −22 ms über 16 s), unter der 3-ms-Schranke kippte die Gerade auf −1300 ppm, Zeit 68 ms daneben | Gerade an der Oberkante, Rate langsam |
+| 1.709 | Fire gut; Redmi: jedes zehnte Paar 5 ms spät, die Oberkante sprang um 5 ms | Gerade durch das dichteste 4-ms-Band |
+| 1.710 | Fire: Rate aus den ersten Sekunden bei −1200 ppm, durfte nur 1 ppm/s nachgeben – Lesung sägte ±5 ms | Rate = Median der Fenster-Raten über 2 min |
+| **1.711** | **Fire-Zeitdienst −4…+3 ms, Rate −1…+2 ppm, nie ausgefallen** | – |
+
+**Ergebnis 1.711 (ohne t09 = Tempo-Sprung des Referenz-Songs, ohne Takes mit langsamen eigenen Zeitproben):**
+
+| | Streuung über Starts | Schwankung im Take (sd) |
+|---|---|---|
+| Fire Klick / Track | 6,5 / 6,2 ms | 0,1–0,7 ms (zwei Takes 2,9) |
+| Redmi Klick / Track | 5,4 / 5,0 ms | 0,1–0,5 ms (einzelne 2,5–5,3) |
+| Laptop Klick / Track | 2,0 / 2,8 ms | 0,1–0,7 ms |
+| Gerät gegen Gerät (gleicher Schlag) | 4,4–7,2 ms | max 0,4–6,0 ms |
+
+Ziel „zwischen Geräten ≤ 10 ms“: nach den Zeitstempeln erreicht.
+
+**Aber: was zu hören ist (Laptop-Mikrofon, 2026-11-05).** Marco hat alle Geräte zusammen angehört: Redmi, Laptop und Handy passen, der Fire liegt hörbar daneben. Messung: UMC vom Redmi abgezogen (sonst spielt der Redmi über das Interface, nicht den Lautsprecher), Klick auf Fire und Redmi, Laptop-Mikrofon, nach ~18 s der Redmi abgehakt (so ist klar, welcher Klick welcher ist). Beide Geräte stehen im Take auf ±1,5 ms, aber **der Fire ist 360 ms nach dem Redmi zu hören** – nach den Zeitstempeln wären es ~180 ms. Die Ausgabe-Zeitstempel der Fire-WebView geben also ~180 ms zu wenig an (dazu die Ausreißer oben). Auf dem Fire ist der Browser-Weg damit nicht über seine eigene Zeitangabe zu retten; weiter in docs/30 (andere Ausgabewege, Geräteprüfung per Mikrofon). Eine Messung, ~35 s, Laptop-Mikrofon – mit einem echten Mikrofon wiederholen.
