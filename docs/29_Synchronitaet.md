@@ -330,6 +330,7 @@ Damit jede Stufe gegen dieselbe Messung verglichen wird: **ein festes Protokoll*
 | Redmi | **Schritt 1** | **1,2 / 1,3 ms** | **0,8 ms** | 0,1 ms | +14,8 ms/min |
 | Fire | **Schritt 2** (Drift nachgeführt) | **0,8 / 0,9 ms** | **0,6 ms** | 0,1 ms | keine |
 | Redmi | **Schritt 2** | **0,8 / 1,0 ms** | **0,4 ms** | 0,0 ms | **0,0 ms/min** (Streuung über den Song 0,1 ms, vorher 9,8) |
+| Xiaomi 14T Pro (Handy) | **Schritt 2** (nur nachher gemessen) | **1,0 / 0,9 ms** | **0,7 ms** | 0,0 ms | keine (Streuung über den Song 0,1 ms) |
 
 Gelesen:
 
