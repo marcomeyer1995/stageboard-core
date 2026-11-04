@@ -307,3 +307,34 @@ Folgerungen:
 5. Systemuhr und `performance.now()` laufen gleich (0 ppm, keine Sprünge) - `performance.now()` als gemeinsame Mittelachse im Gerät ist richtig.
 
 Noch offen für Schritt 0: Xiaomi 14T Pro und Laptop-Chrome (nicht angeschlossen), längere Läufe (eine Stunde), Ausgabewege Kopfhörer/USB-Interface, und wie konstant der Rest hinter dem Zeitstempel über App-Neustarts ist (braucht die akustische Messung, Schritt 3).
+
+---
+
+## 11. Vorher/Nachher-Messung
+
+Damit jede Stufe gegen dieselbe Messung verglichen wird: **ein festes Protokoll**, `scripts/sync-bench/` (README dort), Rohdaten unter `~/stageboard-data/sync-bench/<Datum>-<Stand>/`, die verwendeten Apps daneben.
+
+**Protokoll:** Fire und Redmi gleichzeitig, Solo üben, Referenz-Song (#464), Klick an. Je Gerät 3 Starts aus Stopp, 9 Starts aus Pause, je 8 s, danach der ganze Song (2:11) ohne Pause. Gemessen wird digital in der App (jede Quelle vor dem Mischer abgegriffen, Einsätze mit exakter Audio-Uhr-Position), umgerechnet über die Ausgabe-Zeitstempel auf den Zeitpunkt, an dem der Ton hörbar wird, und mit der Songzeit am Referenz-Schlag verglichen.
+
+**Kennzahlen:** wie weit die Lage gegen die Songzeit **von Start zu Start** schwankt (das ist, was MIDI, Bild und die anderen Geräte trifft), der größte Abstand **Klick ↔ Track**, die **Drift** über einen ganzen Song. Absolutwerte nicht vergleichen (enthalten weder den Rest nach dem Zeitstempel noch eine Latenz - die Dev-App hat eine eigene Geräte-ID).
+
+### Ergebnisse 2026-11-04
+
+| Gerät | Stand | gegen Songzeit, Schwankung über 12 Starts (Klick / Track) | Klick ↔ Track, größter je Start | im ganzen Song: Klick ↔ Track | Drift über den Song |
+|---|---|---|---|---|---|
+| Fire | **vorher** (main) | 64 / 74 ms | 59 ms | 50 ms (Klick sprang nach 12 s um +51 ms) | keine |
+| Fire | #689 (eine geglättete Uhr) | 26 / 68 ms | 42 ms (erster Start nach App-Start) | 0 ms | keine |
+| Fire | **Schritt 1** (Zeitdienst) | 14 / 14 ms - **11 von 12 Starts innerhalb ±0,5 ms**, einer 13 ms daneben | **1,0 ms** | 0,2 ms | keine |
+| Redmi | **vorher** (main) | 5 / 5 ms | 2,7 ms | 0,3 ms | **+15,7 ms/min** |
+| Redmi | #689 | 22 / 23 ms (Drift trägt über Pausen weiter, dann Sprung) | 2,1 ms | 0 ms | +14,8 ms/min |
+| Redmi | **Schritt 1** | **1,2 / 1,3 ms** | **0,8 ms** | 0,1 ms | +14,8 ms/min |
+
+Gelesen:
+
+- **Schritt 1 erreicht das Ziel „gleicher Ausgang ≤ 1 ms" für Klick ↔ Track auf beiden Geräten**, bei jedem Start. Die Schwankung gegen die Songzeit ist beim Redmi von 5 auf 1,2 ms, beim Fire von 74 ms auf ±0,5 ms (11 von 12) gefallen.
+- **Offen in Schritt 1:** ein Start auf dem Fire lag 13 ms neben den anderen - vermutlich eine bestätigte Neuberechnung der Geraden in einer Phase mit vielen Fire-Ausreißern. Nachschärfen: längeres Fenster für die Steigung, mehr Bestätigungen.
+- **Drift ist unverändert** (Redmi +15 ms pro Minute gegen die Songzeit, Klick und Track gemeinsam): die Engines laufen nach dem Anker in reiner Audio-Zeit weiter. Das ist Schritt 2. Der Zeitdienst misst die Rate der Audio-Uhr inzwischen live - in der App auf dem Redmi −247 ppm, auf dem Fire −5 ppm (in frischen Test-Kontexten bei der Bestandsaufnahme waren es andere Werte: die Rate gehört zum jeweiligen AudioContext und muss gemessen, nicht angenommen werden).
+- #689 allein verbessert Klick ↔ Track, verschlechtert aber die Lage gegen die Songzeit von Start zu Start (gehaltene Schätzung, Drift trägt weiter) - als Zwischenstand ohne Schritt 1 nicht empfehlenswert.
+
+Nach Schritt 2 (Drift) und 3 (Latenz je Weg) wird dieselbe Messung wiederholt und hier angehängt.
+
