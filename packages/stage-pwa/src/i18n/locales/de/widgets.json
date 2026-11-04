@@ -67,7 +67,7 @@
   },
   "loop-trainer": {
     "title": "Loop-Trainer",
-    "description": "Solo Üben: wiederholt einen Abschnitt des Backing-Tracks lückenlos, optional mit steigendem Tempo pro Durchgang (Tonhöhe bleibt).",
+    "description": "Solo Üben: wiederholt einen Bereich des Songs lückenlos - Track oder Stems mit Mein Mix, und der Klick -, A und B auf Takten, Schlägen oder frei, optional mit steigendem Tempo pro Durchgang (Tonhöhe bleibt).",
     "parts": {
       "caption": "Überschrift"
     }
@@ -281,7 +281,14 @@
     "step": "Pro Durchgang +",
     "passDisplay": "Durchgang-Anzeige",
     "decrease": "{{label}} verringern",
-    "increase": "{{label}} erhöhen"
+    "increase": "{{label}} erhöhen",
+    "snap": "Raster",
+    "snapModes": {
+      "bars": "Takte",
+      "beats": "Schläge",
+      "free": "Frei"
+    },
+    "barAt": "Takt {{at}}"
   },
   "active": {
     "caption": "Aktive Setlist",

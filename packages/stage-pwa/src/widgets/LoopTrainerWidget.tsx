@@ -1,9 +1,11 @@
 import { useTranslation } from 'react-i18next'
 import { useState } from 'react'
 import { useShowPart } from '../lib/widgetParts'
-import { Button, Dialog, Select, Switch } from '../components/ui'
+import { Button, Dialog, Segmented, Select, Switch } from '../components/ui'
 import { parseChordPro } from '../lib/chordpro'
-import { formatLoopTime, loopSections } from '../lib/loopSections'
+import { clickTimeline, type ClickTimeline } from '../lib/beatGrid'
+import { loopSections } from '../lib/loopSections'
+import { formatLoopPoint, snapLoopPoint, stepLoopPoint, type LoopSnap } from '../lib/loopSnap'
 import { startLoopTrainer, stopLoopTrainer, useTrainerLoop } from '../lib/loopTrainer'
 import { resolveTrackForEntry } from '../lib/computeQueue'
 import { useShowMode } from '../lib/showMode'
@@ -48,6 +50,66 @@ function Stepper({
           +
         </button>
       </div>
+    </div>
+  )
+}
+
+/** One loop point: set it from the playhead, then move it by one bar, beat or time step. */
+function LoopPoint({
+  setLabel,
+  name,
+  ms,
+  snap,
+  timeline,
+  canSet,
+  disabled,
+  min,
+  max,
+  onSet,
+  onChange,
+}: {
+  setLabel: string
+  name: string
+  ms: number | null
+  snap: LoopSnap
+  timeline: ClickTimeline | null
+  canSet: boolean
+  disabled: boolean
+  min: number
+  max: number
+  onSet: () => void
+  onChange: (next: number) => void
+}) {
+  const { t } = useTranslation('widgets')
+  const step = (direction: 1 | -1) => (ms === null ? null : stepLoopPoint(timeline, ms, snap, direction))
+  const down = step(-1)
+  const up = step(1)
+  const readout =
+    ms === null ? '–' : snap === 'free' || !timeline ? formatLoopPoint(timeline, ms, snap) : t('loop.barAt', { at: formatLoopPoint(timeline, ms, snap) })
+  return (
+    <div className="flex items-center gap-2">
+      <Button disabled={!canSet} onClick={onSet} className="min-w-0 flex-1">
+        {setLabel}
+      </Button>
+      <button
+        type="button"
+        aria-label={t('loop.decrease', { label: name })}
+        disabled={disabled || down === null || down < min || down === ms}
+        onClick={() => down !== null && onChange(down)}
+        className={stepperButton}
+      >
+        −
+      </button>
+      <span className="min-w-16 text-center font-bold tabular-nums text-ink">{readout}</span>
+      <button
+        type="button"
+        aria-label={t('loop.increase', { label: name })}
+        disabled={disabled || up === null || up > max}
+        onClick={() => up !== null && onChange(up)}
+        className={stepperButton}
+      >
+        +
+      </button>
     </div>
   )
 }
@@ -97,21 +159,56 @@ export function LoopTrainerWidget({ config }: { config: LoopTrainerWidgetConfig 
   const playing = running
   const canSetPoint = elapsedMs !== null && !active
   const hasLoop = settings.startMs !== null && settings.endMs !== null && settings.endMs > settings.startMs
+  // The variant's grid, as the click plays it - A and B land on its lines (#683).
+  const timeline = currentVariant.bpm > 0 ? clickTimeline({ beatGrid: currentVariant.beatGrid, bpm: currentVariant.bpm, timeSignature: currentVariant.timeSignature }) : null
+  // Without a tempo there is no grid to snap to.
+  const snap: LoopSnap = timeline ? settings.snap : 'free'
+  const trackEndMs = track.durationMs ?? Number.POSITIVE_INFINITY
+  const snapped = (ms: number) => Math.min(trackEndMs, snapLoopPoint(timeline, ms, settings.snap))
+  // A new mode moves both points onto its lines at once, so what is shown is what loops.
+  const changeSnap = (snap: LoopSnap) =>
+    update({
+      snap,
+      startMs: settings.startMs === null ? null : Math.min(trackEndMs, snapLoopPoint(timeline, settings.startMs, snap)),
+      endMs: settings.endMs === null ? null : Math.min(trackEndMs, snapLoopPoint(timeline, settings.endMs, snap)),
+    })
 
   return (
     <div className="flex h-full flex-col gap-2 overflow-y-auto text-sm text-ink-soft">
       {showCaption && <span className="text-xs uppercase tracking-widest text-ink-faint">{t('loop.caption')}</span>}
 
-      <div className="flex items-center gap-2">
-        <Button disabled={!canSetPoint} onClick={() => update({ startMs: Math.round(elapsedMs ?? 0) })}>
-          {t('loop.setA')}
-        </Button>
-        <span className="font-bold tabular-nums text-ink">{settings.startMs === null ? '–' : formatLoopTime(settings.startMs)}</span>
-        <Button disabled={!canSetPoint} onClick={() => update({ endMs: Math.round(elapsedMs ?? 0) })} className="ml-auto">
-          {t('loop.setB')}
-        </Button>
-        <span className="font-bold tabular-nums text-ink">{settings.endMs === null ? '–' : formatLoopTime(settings.endMs)}</span>
-      </div>
+      <Segmented
+        label={t('loop.snap')}
+        value={snap}
+        onChange={changeSnap}
+        options={(['bars', 'beats', 'free'] as const).map((value) => ({ value, label: t(`loop.snapModes.${value}`), disabled: active || (value !== 'free' && !timeline) }))}
+      />
+      <LoopPoint
+        setLabel={t('loop.setA')}
+        name="A"
+        ms={settings.startMs}
+        snap={snap}
+        timeline={timeline}
+        canSet={canSetPoint}
+        disabled={active}
+        min={0}
+        max={(settings.endMs ?? trackEndMs) - 1}
+        onSet={() => update({ startMs: snapped(elapsedMs ?? 0) })}
+        onChange={(startMs) => update({ startMs })}
+      />
+      <LoopPoint
+        setLabel={t('loop.setB')}
+        name="B"
+        ms={settings.endMs}
+        snap={snap}
+        timeline={timeline}
+        canSet={canSetPoint}
+        disabled={active}
+        min={(settings.startMs ?? 0) + 1}
+        max={trackEndMs}
+        onSet={() => update({ endMs: snapped(elapsedMs ?? 0) })}
+        onChange={(endMs) => update({ endMs })}
+      />
 
       {sections.length > 0 && (
         <div className="grid grid-cols-2 gap-2">
@@ -120,7 +217,7 @@ export function LoopTrainerWidget({ config }: { config: LoopTrainerWidgetConfig 
             disabled={active}
             className="min-w-0"
             value=""
-            onChange={(e) => e.target.value !== '' && update({ startMs: Number(e.target.value) })}
+            onChange={(e) => e.target.value !== '' && update({ startMs: snapped(Number(e.target.value)) })}
             options={[{ value: '', label: t('w.choose') }, ...sections.map((section) => ({ value: String(section.startMs), label: section.label }))]}
           />
           <Select
@@ -128,7 +225,7 @@ export function LoopTrainerWidget({ config }: { config: LoopTrainerWidgetConfig 
             disabled={active}
             className="min-w-0"
             value=""
-            onChange={(e) => e.target.value !== '' && update({ endMs: Number(e.target.value) })}
+            onChange={(e) => e.target.value !== '' && update({ endMs: snapped(Number(e.target.value)) })}
             options={[
               { value: '', label: t('w.choose') },
               ...sections.filter((section) => section.endMs !== null).map((section) => ({ value: String(section.endMs ?? 0), label: section.label })),

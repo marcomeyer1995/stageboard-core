@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Dashboard as DashboardDoc } from 'shared-types'
 import { useDashboardsStore } from '../store/useDashboardsStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
+import { useAppModeStore } from '../store/useAppModeStore'
 
 vi.mock('../lib/useElementSize', () => ({
   useElementSize: () => [(() => {}) as unknown as (el: HTMLElement | null) => void, { width: 1200, height: 800 }],
@@ -132,6 +133,27 @@ describe('Dashboard', () => {
 
     expect(sizeOf(reference)).toBeDefined()
     expect(sizeOf(oversized)).toEqual(sizeOf(reference))
+  })
+
+  it('leaves the Loop-Trainer out in Gig mode - Solo Üben only (#683)', () => {
+    const dashboard: DashboardDoc = {
+      ...makeDashboard(),
+      widgets: [
+        { i: 'a', type: 'active-setlist', frameless: false },
+        { i: 'b', type: 'loop-trainer', frameless: false },
+      ],
+      layouts: { lg: [{ i: 'a', x: 0, y: 0, w: 3, h: 3 }, { i: 'b', x: 3, y: 0, w: 5, h: 8 }] },
+    }
+    useDashboardsStore.setState({ dashboards: [dashboard], loaded: true, resetNonce: 0 })
+
+    act(() => useAppModeStore.setState({ mode: 'gig' }))
+    const { container, unmount } = render(<Dashboard />)
+    expect(container.querySelectorAll('.react-grid-item')).toHaveLength(1)
+    unmount()
+
+    act(() => useAppModeStore.setState({ mode: 'practice' }))
+    const shown = render(<Dashboard />)
+    expect(shown.container.querySelectorAll('.react-grid-item')).toHaveLength(2)
   })
 })
 
