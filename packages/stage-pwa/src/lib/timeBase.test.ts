@@ -8,7 +8,7 @@ import { TimeBase } from './timeBase'
  */
 function fakeFire(opts: { ppm?: number; bufferMs?: number; outlierEvery?: number } = {}) {
   const ppm = opts.ppm ?? 260
-  const bufferMs = opts.bufferMs ?? 364
+  let bufferMs = opts.bufferMs ?? 364
   let perf = 1_000_000
   let audioOffset = 5_000 // heard audio time (ms) at perf = 1_000_000
   let suspendedAt: number | null = null
@@ -42,6 +42,9 @@ function fakeFire(opts: { ppm?: number; bufferMs?: number; outlierEvery?: number
     suspend() {
       suspendedAt = heard(perf)
     },
+    setBuffer(ms: number) {
+      bufferMs = ms
+    },
     resume(lostMs: number) {
       audioOffset -= lostMs
       suspendedAt = null
@@ -62,15 +65,15 @@ describe('timeBase (docs/29 step 1)', () => {
     const tb = new TimeBase(dev.perf)
     run(tb, dev, 1_000)
     expect(tb.now(dev.ctx)).toBeNull()
-    // A line after ~2 s, the buffer gap after 5 s more.
-    run(tb, dev, 7_000)
+    // A line after ~2 s, the buffer gap after 20 s more.
+    run(tb, dev, 22_500)
     expect(tb.now(dev.ctx)).not.toBeNull()
   })
 
   it('reads the audio clock within 1 ms despite 64 ms steps, sawtooth and drift', () => {
     const dev = fakeFire({ outlierEvery: 37 })
     const tb = new TimeBase(dev.perf)
-    run(tb, dev, 10_000)
+    run(tb, dev, 25_000)
     const errors: number[] = []
     for (let i = 0; i < 400; i++) {
       run(tb, dev, 50)
@@ -89,24 +92,37 @@ describe('timeBase (docs/29 step 1)', () => {
   it('keeps the buffer gap put while currentTime jumps around', () => {
     const dev = fakeFire()
     const tb = new TimeBase(dev.perf)
-    run(tb, dev, 8_000)
+    run(tb, dev, 25_000)
     const gap = tb.quality().gapMs!
     expect(gap).toBeGreaterThan(300)
     run(tb, dev, 60_000)
-    expect(tb.quality().gapMs).toBe(gap)
+    // At most the edge's last few ms - never a jump.
+    expect(Math.abs(tb.quality().gapMs! - gap)).toBeLessThan(3)
+  })
+
+  it('raises a buffer gap that turns out too small by at most 1 ms a second, never at once', () => {
+    const dev = fakeFire()
+    const tb = new TimeBase(dev.perf)
+    run(tb, dev, 25_000)
+    const gap = tb.quality().gapMs!
+    dev.setBuffer(364 + 16)
+    run(tb, dev, 5_000)
+    expect(tb.quality().gapMs! - gap).toBeLessThanOrEqual(5.5)
+    run(tb, dev, 20_000)
+    expect(tb.quality().gapMs! - gap).toBeGreaterThan(14)
   })
 
   it('is not ready while the context is suspended, and starts over after it lost time', () => {
     const dev = fakeFire()
     const tb = new TimeBase(dev.perf)
-    run(tb, dev, 8_000)
+    run(tb, dev, 25_000)
     dev.suspend()
     run(tb, dev, 3_000)
     expect(tb.now(dev.ctx)).toBeNull() // stale
     dev.resume(3_000)
     run(tb, dev, 500)
     expect(tb.now(dev.ctx)).toBeNull() // starting over, not extrapolating the old line
-    run(tb, dev, 8_000)
+    run(tb, dev, 25_000)
     expect(Math.abs(tb.now(dev.ctx)! - dev.truth()) * 1000).toBeLessThan(4)
   })
 })
