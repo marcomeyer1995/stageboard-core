@@ -20,6 +20,9 @@
 const WINDOW_MS = 20_000
 /** Before this much span, the slope means nothing yet. */
 const MIN_SPAN_MS = 2_000
+/** With a line, a refit needs this much span of usable pairs - a few seconds of them left over
+ * (the rest gated out) give a slope that is off by hundreds of ppm; then the line stays. */
+const REFIT_MIN_SPAN_MS = 6_000
 const MIN_PAIRS = 20
 const REFIT_MS = 500
 /** A new line that moves "now" by more than this is taken only once it was seen this often in a
@@ -35,6 +38,12 @@ const GATE_MS = 3
  * the line is fitted through those (and still confirmed, see CONFIRM_JUMP_MS). */
 const MOVED_MS = 10_000
 const MOVED_SHARE = 0.8
+/** ...and those off pairs keep the line's rate: inside a glitch the Fire's timestamps drift by
+ * ~1500 ppm, a real move keeps the clock's rate. A glitch of 10 s (-17 → -32 ms) was taken as a
+ * move and back again, the click chased it both ways (~40 ms, sync-bench Gig, 2026-11-04)... */
+const MOVED_RATE_PPM = 200
+/** ...or they stay off this long anyway (a move with a new rate). */
+const MOVED_ANYWAY_MS = 30_000
 /** Pairs this far off the line for this long: the clock lost time (suspended, resumed) - start
  * over. A single one is not enough: at a Stop the Fire gives one or two pairs up to 251 ms off,
  * and starting over on one left the click on the fallback clock for 20 s and moved it by 5 ms
@@ -129,6 +138,7 @@ export class TimeBase {
   private gaps: { perfMs: number; gapMs: number }[] = []
   private gapMs: number | null = null
   private gapMoving = false
+  private offSince: number | null = null
   private farSince: number | null = null
   private farPairs = 0
 
@@ -190,12 +200,15 @@ export class TimeBase {
     this.gapMoving = false
     this.farSince = null
     this.farPairs = 0
+    this.offSince = null
   }
 
   private refit(now: number): void {
     this.lastRefit = now
     if (this.pairs.length < MIN_PAIRS || this.pairs[this.pairs.length - 1]!.perfMs - this.pairs[0]!.perfMs < MIN_SPAN_MS) return
-    const fitted = robustLine(this.gated(now))
+    const use = this.gated(now)
+    if (this.line && (use.length < MIN_PAIRS || use[use.length - 1]!.perfMs - use[0]!.perfMs < REFIT_MIN_SPAN_MS)) return
+    const fitted = robustLine(use)
     if (!fitted) return
     this.residualMs = fitted.residualMs
     if (!this.line || Math.abs(at(fitted.line, now) - at(this.line, now)) <= CONFIRM_JUMP_MS) {
@@ -219,7 +232,15 @@ export class TimeBase {
     const gate = this.gate()
     const off = (p: Pair) => Math.abs(p.ctxMs - at(line, p.perfMs)) > gate
     const recent = this.pairs.filter((p) => p.perfMs >= now - MOVED_MS)
-    const moved = recent.length >= MIN_PAIRS && recent.filter(off).length >= MOVED_SHARE * recent.length
+    const recentOff = recent.filter(off)
+    const mostlyOff = recent.length >= MIN_PAIRS && recentOff.length >= MOVED_SHARE * recent.length
+    if (!mostlyOff) this.offSince = null
+    else this.offSince ??= now
+    const sameRate = () => {
+      const fitted = robustLine(recentOff)
+      return fitted !== null && Math.abs(fitted.line.b - line.b) * 1e6 <= MOVED_RATE_PPM
+    }
+    const moved = mostlyOff && (now - this.offSince! >= MOVED_ANYWAY_MS || sameRate())
     return this.pairs.filter((p) => off(p) === moved)
   }
 
