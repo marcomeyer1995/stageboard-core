@@ -36,6 +36,24 @@ export function resolveHardwareBinding(logicalDevices: LogicalDevice[], capabili
 }
 
 /**
+ * Every Logical Device with a capability. Klick, Backing-Track and Ansagen may name several
+ * tablets - one role each - and every one of them plays (Marco, 2026-11-04: each musician their
+ * own click from their own tablet; the shared band clock keeps them within a few ms, docs/29 §11).
+ */
+export function resolveHardwareBindings(logicalDevices: LogicalDevice[], capability: string): LogicalDevice[] {
+  return logicalDevices.filter((device) => device.capability === capability)
+}
+
+/**
+ * The role routing reads for a built-in output on `deviceId`: the one naming this tablet if there
+ * is one, else the first (which then says "another tablet" or "nobody chosen").
+ */
+export function resolveBuiltInBinding(logicalDevices: LogicalDevice[], capability: string, deviceId: string): LogicalDevice | null {
+  const roles = resolveHardwareBindings(logicalDevices, capability)
+  return roles.find((device) => device.executionTarget === deviceId) ?? roles[0] ?? null
+}
+
+/**
  * The device a translator should drive (#149): the one an event names - two Kempers on one tablet
  * each get their own cues - or, for events that name none, the first one with the capability, as
  * before. A named device that isn't here (not replicated yet, just deleted) is null, never another

@@ -1,8 +1,8 @@
 import { SERVER_EXECUTION_TARGET, type CapabilityId } from 'shared-types'
 import { supportsLocalExecution } from './clientTranslator'
 import { pluginProviding } from './capabilities'
-import { masterPlays, resolveExecutionEngine, STAND_IN_PLUGIN_IDS, type HardwareRoutingEngine } from './hardwareRouting'
-import { useHardwareBindingFor } from './useHardwareBindingFor'
+import { masterPlays, resolveBuiltInBinding, resolveExecutionEngine, resolveHardwareBinding, STAND_IN_PLUGIN_IDS, type HardwareRoutingEngine } from './hardwareRouting'
+import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
 import { usePluginsStore } from '../store/usePluginsStore'
 import { drivesAutomation, useShowStateStore } from '../store/useShowStateStore'
 
@@ -31,9 +31,11 @@ export interface CapabilityRouting {
 export function useCapabilityRouting(capability: CapabilityId, mode: 'gig' | 'practice'): CapabilityRouting {
   const deviceId = useShowStateStore((state) => state.deviceId)
   const installed = usePluginsStore((state) => state.installed)
-  const binding = useHardwareBindingFor(capability)
+  const logicalDevices = useLogicalDevicesStore((state) => state.devices)
   const drives = useShowStateStore(drivesAutomation)
   const builtIn = masterPlays(capability)
+  // Klick / Backing-Track can play on several tablets at once: the role naming this one counts here.
+  const binding = builtIn ? resolveBuiltInBinding(logicalDevices, capability, deviceId) : resolveHardwareBinding(logicalDevices, capability)
 
   const target = binding?.executionTarget ?? null
   const usesDeviceOutput = mode === 'gig' && target !== null && target !== SERVER_EXECUTION_TARGET

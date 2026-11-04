@@ -128,6 +128,7 @@
     }
   },
   "builtIn": {
-    "playsOn": "{{label}} - plays on"
+    "playsOn": "{{label}} - plays on",
+    "noneChosen": "None chosen: {{fallback}}"
   }
 }
