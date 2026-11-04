@@ -100,6 +100,18 @@ describe('timeBase (docs/29 step 1)', () => {
     expect(Math.abs(tb.quality().gapMs! - gap)).toBeLessThan(3)
   })
 
+  it('holds the buffer gap still while the edge only wobbles within a few ms', () => {
+    const dev = fakeFire()
+    const tb = new TimeBase(dev.perf)
+    run(tb, dev, 25_000)
+    const gap = tb.quality().gapMs!
+    for (let i = 0; i < 20; i++) {
+      dev.setBuffer(364 + (i % 2 ? 2 : -2))
+      run(tb, dev, 3_000)
+    }
+    expect(tb.quality().gapMs).toBe(gap)
+  })
+
   it('moves a buffer gap that turns out off by at most 1 ms a second, never at once', () => {
     const dev = fakeFire()
     const tb = new TimeBase(dev.perf)
