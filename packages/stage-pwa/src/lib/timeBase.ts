@@ -32,9 +32,14 @@ const RESTART_MS = 250
 const STALE_MS = 1_000
 /** The buffer gap is the upper edge of `currentTime` − heard over this window (`currentTime`
  * lags in steps, so its upper edge is the truth). */
-const GAP_WINDOW_MS = 10_000
-const GAP_MIN_SPAN_MS = 5_000
-/** It changes only when the edge stayed this far away for this long. */
+const GAP_WINDOW_MS = 30_000
+/** On the Fire (64-192 ms steps) 5 s were too short for the edge: the gap came out ~30 ms low and
+ * was corrected a minute later in one go (sync-bench, 2026-11-04) - ready only after this long. */
+const GAP_MIN_SPAN_MS = 20_000
+/** A gap that turns out too small (the edge rises) is raised at most this much per reading -
+ * 0.05 ms every 50 ms, 1 ms a second - so all outputs move together and never jump. */
+const GAP_RAISE_PER_SAMPLE_MS = 0.05
+/** It moves down only when the edge stayed this far below for this long (a new output path). */
 const GAP_HOLD_MS = 30
 const GAP_CONFIRM_MS = 10_000
 
@@ -181,7 +186,12 @@ export class TimeBase {
       this.gapMs = edge
       return
     }
-    if (Math.abs(edge - this.gapMs) <= GAP_HOLD_MS) {
+    if (edge > this.gapMs) {
+      this.gapMs = Math.min(edge, this.gapMs + GAP_RAISE_PER_SAMPLE_MS)
+      this.gapCandidateSince = null
+      return
+    }
+    if (this.gapMs - edge <= GAP_HOLD_MS) {
       this.gapCandidateSince = null
       return
     }
