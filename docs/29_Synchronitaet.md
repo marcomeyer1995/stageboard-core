@@ -342,3 +342,22 @@ Gelesen:
 
 Noch nicht gemessen: Gig (der Web-Audio-Track hat dieselbe Regel, eine Gig-Messung bewegt aber den Show-Zustand der ganzen Band), MIDI-Clock (kein MIDI-Gerät angeschlossen), Gerät gegen Gerät (Schritt 4). Nach Schritt 3 (Latenz je Weg) wird dieselbe Messung wiederholt und hier angehängt.
 
+### Gig über zwei Geräte, nach Schritt 2 (2026-11-04)
+
+Test-Band, Redmi ist Master. Die Band leitet den **Klick auf den Fire und den Track auf das Redmi** - genau der Bühnenfall „Klick und Track auf verschiedenen Geräten". Jedes Gerät nimmt auf, misst seinen eigenen Abstand zur Serverzeit (`/time` je Sekunde, unabhängig von `clockSync`), die Pushes des Masters liefern den Transport in Serverzeit; `scripts/sync-bench/gig-analyze.mjs`. 3 Starts aus Stopp, 6 aus Pause, dann der ganze Song.
+
+| | je Take (Streuung im Take) | über die Starts | ganzer Song |
+|---|---|---|---|
+| Fire-Klick gegen Band-Uhr | 0,2-3 ms | 233-240 ms, einmal 250 | **228-229 ms über 2 min (±0,7)** |
+| Redmi-Track gegen Band-Uhr | 0,1-0,7 ms | 30-37 ms, dann 42-43 | wandert zweimal weich um 12-15 ms (44 → 28 → 42) |
+| Klick (Fire) − Track (Redmi) | 0,3-3 ms | 190-218 ms | folgt dem Redmi |
+
+Gelesen:
+
+- **Die Audio-Seite hält auch im Gig:** innerhalb eines Takts und über den ganzen Song steht der Fire-Klick auf ±0,7 ms zur Band-Uhr.
+- **Der Rest ist die Uhrsynchronisation (Schritt 4):** die eigene Messung des Abstands zur Serverzeit war je Take auf ±3 ms stabil, der Redmi-Track sprang aber zweimal um 12-15 ms - jedes Mal, als `clockSync` seinen Offset neu setzte; der Track folgte weich über die Rate (kein Knacken), die Band-Zeit selbst stand aber nicht still. Ebenso der Fire bei einem Take (+17 ms, danach zurück). Mit 142 Proben über denselben Song streute die unabhängige Schätzung nur 2 ms - die Synchronisation kann also viel genauer sein, als sie heute ist (ein Burst von 7 Proben alle 60 s, kleinste Laufzeit gewinnt).
+- **Der konstante Abstand Fire-Klick ↔ Redmi-Track (~200 ms)** ist der nicht ausgeglichene Ausgabepuffer des Fire: die Dev-App hat eine eigene Geräte-ID ohne gespeicherte Latenz. Das ist Schritt 3, nicht die Zeitbasis.
+- Nebenbefund: beide Tablets zeigten gleichzeitig „Dieses Gerät hat das Master-Token" - prüfen.
+
+**Damit ist Schritt 4 (Uhrsynchronisation) der nächste große Hebel:** Ziel ±2 ms je Gerät; Offset nicht springen lassen, sondern einblenden; mehr Proben, Qualität messen, Ausreißer bei schlechtem WLAN verwerfen (§5.6).
+
