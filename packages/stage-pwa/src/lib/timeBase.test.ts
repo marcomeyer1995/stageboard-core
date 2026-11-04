@@ -159,6 +159,41 @@ describe('timeBase (docs/29 step 1)', () => {
     expect(worstPpm).toBeLessThan(60)
   })
 
+  it('ignores a glitch that lasts longer than the move window but drifts like one (the Fire, 10 s)', () => {
+    const dev = fakeFire({ outlierEvery: 37 })
+    const tb = new TimeBase(dev.perf)
+    run(tb, dev, 30_000)
+    const error = () => (tb.now(dev.ctx)! - dev.truth()) * 1000
+    const before = error()
+    // -17 ms, drifting another 1.5 ms a second, for 12 s - then back.
+    const from = dev.perf()
+    dev.setGlitch((stamp) => -17 - (1.5 * (stamp - from)) / 1000)
+    let worst = 0
+    for (let t = 0; t < 25_000; t += 50) {
+      if (t === 12_000) dev.setGlitch(null)
+      run(tb, dev, 50)
+      worst = Math.max(worst, Math.abs(error() - before))
+    }
+    expect(worst).toBeLessThan(0.5)
+  })
+
+  it('follows off pairs with another rate once they stayed 30 s (a move with a new rate)', () => {
+    const dev = fakeFire()
+    const tb = new TimeBase(dev.perf)
+    run(tb, dev, 30_000)
+    const read = () => tb.now(dev.ctx)! * 1000
+    const before = read() - dev.truth() * 1000
+    const from = dev.perf()
+    const off = (stamp: number) => -17 - (1.5 * (stamp - from)) / 1000
+    dev.setGlitch(off)
+    run(tb, dev, 20_000)
+    // Not yet: still on the old line.
+    expect(Math.abs(read() - dev.truth() * 1000 - before)).toBeLessThan(0.5)
+    run(tb, dev, 25_000)
+    // Now on the new one (the time service reads what the timestamps say).
+    expect(Math.abs(read() - dev.truth() * 1000 - before - off(dev.perf()))).toBeLessThan(2)
+  })
+
   it('still follows the clock when it really moved', () => {
     const dev = fakeFire()
     const tb = new TimeBase(dev.perf)
