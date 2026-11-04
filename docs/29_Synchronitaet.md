@@ -362,3 +362,25 @@ Gelesen:
 
 **Damit ist Schritt 4 (Uhrsynchronisation) der nächste große Hebel:** Ziel ±2 ms je Gerät; Offset nicht springen lassen, sondern einblenden; mehr Proben, Qualität messen, Ausreißer bei schlechtem WLAN verwerfen (§5.6).
 
+### Schritt 4: Uhrsynchronisation (2026-11-04)
+
+**Wiederholung auf denselben Daten:** 10 min Rohproben auf Fire, Redmi und Xiaomi-Handy gleichzeitig (eine `/time`-Probe je Sekunde plus der Burst von 7 jede Minute), beide Verfahren nachgerechnet, verglichen mit einer Geraden durch die schnellsten 10 % der ganzen Aufnahme (`scripts/sync-bench/clock-replay.mjs`):
+
+| Fehler der Band-Zeit | alt (Burst je Minute, sofort übernommen) | neu (laufend, Gerade über 2 min, weich nachgeführt) |
+|---|---|---|
+| Fire | Median 5,6 · 95 % 16,9 · max 18,3 ms, Sprünge bis 21 ms | **Median 0,5 · 95 % 1,4 · max 2,3 ms** |
+| Redmi | 7,3 · 16,7 · 16,7 ms, Sprünge bis 22 ms | **0,6 · 1,9 · 2,4 ms** |
+| Handy | 6,2 · 7,0 · 11,1 ms, Sprünge bis 9 ms | **1,0 · 1,8 · 2,2 ms** |
+
+Ziel ±2 ms je Gerät: erreicht (95 %). Grenze der Aussage: die Referenz nutzt dasselbe Prinzip (kürzeste Laufzeiten) - eine dauerhaft einseitige WLAN-Strecke sähe auch sie nicht; das zeigt erst die Messung Gerät gegen Gerät mit dem Interface.
+
+**Solo nach Schritt 4 (Dev 1.704, mit Laptop-Browser als viertem Gerät):** Beim Messen kam eine Schwäche aus Schritt 1 heraus: der Puffer-Abstand wurde nach 5 s geschätzt und dann gehalten - auf dem Fire je App-Start bis ~30 ms daneben (einmal 230, einmal 262 ms), und eine spätere Korrektur kam auf einmal. Behoben (98. Perzentil über 30 s, bereit nach 20 s, Totband 3 ms, sonst höchstens 1 ms pro Sekunde in beide Richtungen):
+
+| Gerät | vorher (main) | nach Schritt 4 |
+|---|---|---|
+| Fire | Schwankung 64 / 74 ms, Klick ↔ Track 59 ms | in den ersten ~2 min nach App-Start gleitet die Lage weich um ~30 ms ein, danach **±0,5 ms** (Takes 6-10, ganzer Song 238-241 ms) |
+| Redmi | 5 / 5 ms, 2,7 ms, Drift 15,7 ms/min | **0,5 / 0,8 ms, 0,5 ms, Drift 0** |
+| Laptop (Chrome, ist selbst der Stage-Server) | 9,4 / 9,9 ms, Klick ↔ Track 6,8 ms | **2,5 / 3,8 ms, 2,6 ms** |
+
+Offen: das Einschwingen des Fire nach dem App-Start (welcher Wert ist richtig, und warum ändert er sich die ersten Minuten?) - klärt die akustische Messung (Schritt 3); die Gig-Messung über die Geräte mit der neuen Synchronisation; das Handy mit 1.704.
+
