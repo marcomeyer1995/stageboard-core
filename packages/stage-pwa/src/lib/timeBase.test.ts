@@ -171,6 +171,23 @@ describe('timeBase (docs/29 step 1)', () => {
     expect(Math.abs(error() - before)).toBeLessThan(0.5)
   })
 
+  it("doesn't start over for one pair far off (the Fire's at a Stop)", () => {
+    const dev = fakeFire()
+    const tb = new TimeBase(dev.perf)
+    run(tb, dev, 30_000)
+    const error = () => (tb.now(dev.ctx)! - dev.truth()) * 1000
+    const before = error()
+    const at = Math.floor(dev.perf() / 60) * 60 + 60
+    dev.setGlitch((stamp) => (stamp === at ? -251 : 0))
+    let worst = 0
+    for (let t = 0; t < 5_000; t += 50) {
+      run(tb, dev, 50)
+      expect(tb.now(dev.ctx)).not.toBeNull()
+      worst = Math.max(worst, Math.abs(error() - before))
+    }
+    expect(worst).toBeLessThan(0.5)
+  })
+
   it('is not ready while the context is suspended, and starts over after it lost time', () => {
     const dev = fakeFire()
     const tb = new TimeBase(dev.perf)
