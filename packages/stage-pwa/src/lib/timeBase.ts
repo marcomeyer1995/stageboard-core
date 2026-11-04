@@ -35,8 +35,13 @@ const GATE_MS = 3
  * the line is fitted through those (and still confirmed, see CONFIRM_JUMP_MS). */
 const MOVED_MS = 10_000
 const MOVED_SHARE = 0.8
-/** A pair this far off the line: the clock lost time (suspended, resumed) - start over. */
+/** Pairs this far off the line for this long: the clock lost time (suspended, resumed) - start
+ * over. A single one is not enough: at a Stop the Fire gives one or two pairs up to 251 ms off,
+ * and starting over on one left the click on the fallback clock for 20 s and moved it by 5 ms
+ * (sync-bench Gig, 2026-11-04). */
 const RESTART_MS = 250
+const RESTART_CONFIRM_MS = 500
+const RESTART_CONFIRM_PAIRS = 3
 /** Without a new pair for this long, the line is stale. */
 const STALE_MS = 1_000
 /** The buffer gap is the upper edge of `currentTime` − heard over this window (`currentTime`
@@ -124,6 +129,8 @@ export class TimeBase {
   private gaps: { perfMs: number; gapMs: number }[] = []
   private gapMs: number | null = null
   private gapMoving = false
+  private farSince: number | null = null
+  private farPairs = 0
 
   constructor(private readonly perfNow: () => number = () => performance.now()) {}
 
@@ -137,7 +144,15 @@ export class TimeBase {
     const pair = { perfMs: ts.performanceTime, ctxMs: ts.contextTime * 1000 }
     const last = this.pairs[this.pairs.length - 1]
     if (last && last.perfMs === pair.perfMs) return
-    if (this.line && Math.abs(pair.ctxMs - at(this.line, pair.perfMs)) > RESTART_MS) this.restart(ctx)
+    if (this.line && Math.abs(pair.ctxMs - at(this.line, pair.perfMs)) > RESTART_MS) {
+      this.farSince ??= now
+      this.farPairs++
+      if (now - this.farSince < RESTART_CONFIRM_MS || this.farPairs < RESTART_CONFIRM_PAIRS) return
+      this.restart(ctx)
+    } else {
+      this.farSince = null
+      this.farPairs = 0
+    }
     this.pairs.push(pair)
     this.lastPairAt = now
     while (this.pairs.length > 0 && this.pairs[0]!.perfMs < now - WINDOW_MS) this.pairs.shift()
@@ -173,6 +188,8 @@ export class TimeBase {
     this.gaps = []
     this.gapMs = null
     this.gapMoving = false
+    this.farSince = null
+    this.farPairs = 0
   }
 
   private refit(now: number): void {
