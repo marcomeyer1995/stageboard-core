@@ -1,5 +1,5 @@
 import type { ClickTimeline } from './beatGrid'
-import { createAudioClock } from './audioClock'
+import { sharedAudioClock } from './audioClock'
 import { __resetSharedAudioContextForTests, getSharedAudioContext } from './sharedAudioContext'
 import { sourceOutput } from './audioMix'
 
@@ -79,7 +79,7 @@ const AUDIO_TIME_TOLERANCE_S = 0.05
 /** The audio clock, smoothed over its step size (audioClock.ts) - converting with a single raw
  * reading tripped AUDIO_TIME_TOLERANCE_S every few beats on the Fire, each re-derivation an
  * audible jump (2026-09-27). */
-const audioClock = createAudioClock()
+const audioClock = sharedAudioClock
 
 /** How large a jump in `elapsedMs` between two consecutive ticks counts as "the browser stalled
  * this tab's timers," not just normal scheduling - comfortably above the ~TICK_INTERVAL_MS gap a
@@ -229,7 +229,6 @@ export function stopClick(): void {
   intervalId = null
   nextBeat = null
   nextBeatAudioTime = null
-  audioClock.reset()
   lastTickElapsedMs = null
   crossedJump = null
   scheduledTimeline = null
@@ -239,5 +238,6 @@ export function stopClick(): void {
  * otherwise has no way to reset its module-level scheduler state between tests. */
 export function __resetClickEngineForTests(): void {
   stopClick()
+  audioClock.reset()
   __resetSharedAudioContextForTests()
 }

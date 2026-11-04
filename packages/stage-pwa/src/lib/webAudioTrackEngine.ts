@@ -1,4 +1,4 @@
-import { createAudioClock } from './audioClock'
+import { sharedAudioClock } from './audioClock'
 import type { LocalAudioResult } from './localAudioEngine'
 import { getSharedAudioContext } from './sharedAudioContext'
 import { getTrack } from './songVariantsDb'
@@ -185,7 +185,7 @@ const waiters = new Map<string, (() => void)[]>()
 let voice: Voice | null = null
 let lastSyncAt = -Infinity
 let suspect = 0
-const clock = createAudioClock()
+const clock = sharedAudioClock
 
 /** The track's level over the song from its playback cues (#485, playbackCues.ts) - empty: as
  * uploaded. Applied on its own gain node after the voices, so crossfades and level never fight. */
@@ -514,7 +514,6 @@ export function syncWebAudioTrack(elapsedNow: () => number | null, shouldPlay: b
   const prepared = wantedPrepared()
   if (!shouldPlay || !prepared || !wanted) {
     stopVoice()
-    clock.reset()
     lastSyncAt = -Infinity
     suspect = 0
     return { blocked: false }

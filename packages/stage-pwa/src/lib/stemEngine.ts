@@ -1,4 +1,4 @@
-import { createAudioClock } from './audioClock'
+import { sharedAudioClock } from './audioClock'
 import { sourceOutput } from './audioMix'
 import type { LevelPoint } from './playbackCues'
 import { scheduleTrackLevel } from './trackLevel'
@@ -81,7 +81,7 @@ let gainsWanted = new Map<string, number>()
 let levelCurve: readonly LevelPoint[] = []
 let lastSyncAt = -Infinity
 let suspect = 0
-const clock = createAudioClock()
+const clock = sharedAudioClock
 
 /** What the engine did, for measuring over USB (window.__sbStems). */
 const stats = {
@@ -340,7 +340,6 @@ export function syncStems(elapsedNow: () => number | null, shouldPlay: boolean, 
   const ctx = getSharedAudioContext()
   if (!shouldPlay || !loaded) {
     stopRun()
-    clock.reset()
     lastSyncAt = -Infinity
     suspect = 0
     return { blocked: false }
