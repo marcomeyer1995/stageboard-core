@@ -132,6 +132,17 @@ export class TimeBase {
     return (at(this.line, now) + this.gapMs) / 1000
   }
 
+  /** Whether `now` reads the output timestamps (precise) rather than nothing (the caller falls back). */
+  ready(ctx: AudioContext): boolean {
+    return this.now(ctx) !== null
+  }
+
+  /** Audio seconds per wall-clock second (the line's slope) - 1 while not ready. The song clock runs
+   * on the wall clock, so audio that should follow it plays at the inverse (docs/29 §5.5). */
+  audioPerWall(ctx: AudioContext): number {
+    return ctx === this.context && this.line ? this.line.b : 1
+  }
+
   quality(): TimeBaseQuality {
     return {
       pairs: this.pairs.length,

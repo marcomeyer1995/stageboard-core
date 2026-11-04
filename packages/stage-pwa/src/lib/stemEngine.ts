@@ -1,4 +1,5 @@
 import { sharedAudioClock } from './audioClock'
+import { driftRate, RATE_STEP } from './driftCorrection'
 import { sourceOutput } from './audioMix'
 import type { LevelPoint } from './playbackCues'
 import { scheduleTrackLevel } from './trackLevel'
@@ -59,13 +60,22 @@ interface Layer {
   feeder: { cancelled: boolean }
 }
 
-/** One start of all stems: song position `anchorPos` plays at audio time `anchorTime`. Each stem
- * plays through its own fade (sources → fade → the stem's gain → bus), so a restart crossfades
- * while the stem gains stay put. */
-interface Run {
-  key: string
+/** song position → audio time from `anchorPos` on, at `rate` song seconds per audio second. */
+interface Segment {
   anchorTime: number
   anchorPos: number
+  rate: number
+}
+
+/** One start of all stems: song position `startPos` plays at audio time `startTime`, and from there
+ * on through `segs` - a new rate (drift, docs/29 §5.5) applies from where no stem has scheduled yet,
+ * so what is scheduled keeps its rate and stays gapless. Each stem plays through its own fade
+ * (sources → fade → the stem's gain → bus), so a restart crossfades while the stem gains stay put. */
+interface Run {
+  key: string
+  startTime: number
+  startPos: number
+  segs: Segment[]
   fades: GainNode[]
   layers: Layer[]
   /** Set when this run is a section jump's target (#479): it comes in at the boundary, crossfaded. */
@@ -92,6 +102,8 @@ const stats = {
   reschedules: 0,
   /** Section jumps (#479) taken over seamlessly. */
   jumps: 0,
+  /** The rate the stems play at (drift, docs/29 §5.5). */
+  rate: 1,
   lastErrorMs: 0,
 }
 if (typeof window !== 'undefined') (window as unknown as { __sbStems: typeof stats }).__sbStems = stats
@@ -224,15 +236,35 @@ function join(ctx: AudioContext, pieces: Piece[]): Piece {
   return { buffer: joined, timestamp: pieces[0].timestamp }
 }
 
+function segAtPos(r: Run, pos: number): Segment {
+  let seg = r.segs[0]!
+  for (const s of r.segs) if (s.anchorPos <= pos) seg = s
+  return seg
+}
+
+/** Audio time at which song position `pos` plays. */
+function timeOf(r: Run, pos: number): number {
+  const seg = segAtPos(r, pos)
+  return seg.anchorTime + (pos - seg.anchorPos) / seg.rate
+}
+
+/** Song position playing at audio time `t`. */
+function posAt(r: Run, t: number): number {
+  let seg = r.segs[0]!
+  for (const s of r.segs) if (s.anchorTime <= t) seg = s
+  return seg.anchorPos + (t - seg.anchorTime) * seg.rate
+}
+
 function schedule(ctx: AudioContext, r: Run, layer: Layer, out: AudioNode, piece: Piece): void {
   const { buffer, timestamp } = piece
   let offset = Math.max(0, layer.scheduledUntil - timestamp)
   if (offset >= buffer.duration) return
-  let when = r.anchorTime + (timestamp + offset - r.anchorPos)
+  const rate = segAtPos(r, timestamp + offset).rate
+  let when = timeOf(r, timestamp + offset)
   const earliest = ctx.currentTime + 0.01
   if (when < earliest) {
     stats.late++
-    offset += earliest - when
+    offset += (earliest - when) * rate
     when = earliest
     if (offset >= buffer.duration) {
       layer.scheduledUntil = timestamp + buffer.duration
@@ -241,6 +273,7 @@ function schedule(ctx: AudioContext, r: Run, layer: Layer, out: AudioNode, piece
   }
   const node = ctx.createBufferSource()
   node.buffer = buffer
+  node.playbackRate.value = rate
   node.connect(out)
   node.onended = () => layer.nodes.delete(node)
   node.start(when, offset)
@@ -285,7 +318,7 @@ async function feed(ctx: AudioContext, r: Run, layer: Layer, out: AudioNode, str
       pendingLength += piece.buffer.duration
       if (pendingLength < CHUNK_S) continue
       flush()
-      const playing = () => r.anchorPos + (ctx.currentTime - r.anchorTime)
+      const playing = () => posAt(r, ctx.currentTime)
       while (!layer.feeder.cancelled && layer.scheduledUntil - playing() > AHEAD_S) await new Promise((resolve) => setTimeout(resolve, 200))
       if (layer.feeder.cancelled) return
     }
@@ -301,7 +334,7 @@ function startRun(ctx: AudioContext, l: Loaded, when: number, pos: number, cross
   const anchorPos = Math.max(0, pos)
   const anchorTime = when + Math.max(0, -pos)
   if (anchorPos >= l.durationS) return
-  const r: Run = { key: l.key, anchorTime, anchorPos, fades: [], layers: [], jump: null }
+  const r: Run = { key: l.key, startTime: anchorTime, startPos: anchorPos, segs: [{ anchorTime, anchorPos, rate: driftRate(ctx, 0) }], fades: [], layers: [], jump: null }
   run = r
   stats.starts++
   for (const [trackId, source] of l.stems) {
@@ -376,7 +409,7 @@ export function syncStems(elapsedNow: () => number | null, shouldPlay: boolean, 
     return { blocked: false }
   }
   if (jump && run.jump?.id !== jump.id && (run.jump === null || now >= run.jump.startsAt)) {
-    const boundaryAt = run.anchorTime + (jump.boundaryMs / 1000 - run.anchorPos)
+    const boundaryAt = timeOf(run, jump.boundaryMs / 1000)
     if (boundaryAt - now > LEAD_S && boundaryAt - now <= JUMP_COMMIT_S) {
       const fadeAt = boundaryAt - JUMP_PREROLL_S
       const crossfadeS = jumpCrossfadeMs() / 1000
@@ -391,7 +424,7 @@ export function syncStems(elapsedNow: () => number | null, shouldPlay: boolean, 
   // Until a jump's target has come in and the song clock reads the target too, the two disagree.
   if (run.jump && now < run.jump.startsAt + JUMP_PREROLL_S + run.jump.crossfadeS) return { blocked: false }
 
-  const errorS = now < run.anchorTime ? run.anchorPos - (songNow + (run.anchorTime - now)) : run.anchorPos + (now - run.anchorTime) - songNow
+  const errorS = now < run.startTime ? run.startPos - (songNow + (run.startTime - now)) : posAt(run, now) - songNow
   stats.lastErrorMs = Math.round(errorS * 1000)
   suspect = Math.abs(errorS) > RESCHEDULE_ERROR_S ? suspect + 1 : 0
   if (suspect >= RESCHEDULE_CONFIRMATIONS) {
@@ -400,6 +433,19 @@ export function syncStems(elapsedNow: () => number | null, shouldPlay: boolean, 
     const at = now + LEAD_S
     stopRun(at)
     startRun(ctx, loaded, at, songNow + LEAD_S)
+    return { blocked: false }
+  }
+  if (suspect > 0 || now < run.startTime) return { blocked: false }
+  // Drift (docs/29 §5.5): the audio clock's own rate fed forward, the rest pulled in gently - from
+  // where no stem has scheduled yet on.
+  const rate = driftRate(ctx, errorS)
+  const last = run.segs[run.segs.length - 1]!
+  if (Math.abs(rate - last.rate) >= RATE_STEP) {
+    const from = Math.max(...run.layers.map((layer) => layer.scheduledUntil), last.anchorPos)
+    run.segs.push({ anchorTime: timeOf(run, from), anchorPos: from, rate })
+    // Segments everything has played past are no longer needed.
+    while (run.segs.length > 2 && run.segs[1]!.anchorTime < now - 1) run.segs.shift()
+    stats.rate = rate
   }
   return { blocked: false }
 }
