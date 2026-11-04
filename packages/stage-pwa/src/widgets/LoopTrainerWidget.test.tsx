@@ -4,6 +4,9 @@ import type { Song, SongVariant } from 'shared-types'
 import { LoopTrainerWidget } from './LoopTrainerWidget'
 import { useShowMode } from '../lib/showMode'
 import { useLoopTrainerStore } from '../store/useLoopTrainerStore'
+import { useSavedLoopsStore } from '../store/useSavedLoopsStore'
+import { putSavedLoop, removeSavedLoop } from '../lib/savedLoopsDb'
+import type { SavedLoop } from '../lib/savedLoops'
 
 // Same mocking reasoning as PrompterWidget.test.tsx; the audio start/stop itself is the engine's job.
 vi.mock('../lib/showMode', () => {
@@ -12,6 +15,7 @@ vi.mock('../lib/showMode', () => {
   return { useShowMode: show, useShowModeCore: () => ({ ...show(), elapsedNow: () => show()?.elapsedMs ?? null }), useShowModeOnDemand: show }
 })
 vi.mock('../lib/loopTrainer', () => ({ startLoopTrainer: vi.fn(), stopLoopTrainer: vi.fn(), useTrainerLoop: () => null }))
+vi.mock('../lib/savedLoopsDb', () => ({ putSavedLoop: vi.fn(async () => {}), removeSavedLoop: vi.fn(async () => {}) }))
 vi.mock('../store/usePracticeStateStore', () => ({
   DEFAULT_PRACTICE_STATE: { trackOverride: null },
   usePracticeStateStore: (selector: (state: { byWorkspace: Record<string, unknown> }) => unknown) => selector({ byWorkspace: {} }),
@@ -52,6 +56,9 @@ function mockMode(mode: 'gig' | 'practice', elapsedMs: number | null = 12_500, v
 describe('LoopTrainerWidget (#61)', () => {
   beforeEach(() => {
     useLoopTrainerStore.setState({ entryId: null, error: null })
+    useSavedLoopsStore.setState({ loops: [] })
+    vi.mocked(putSavedLoop).mockClear()
+    vi.mocked(removeSavedLoop).mockClear()
   })
 
   it('explains itself away in Gig mode instead of offering a control that would desync the band', () => {
@@ -139,5 +146,60 @@ describe('LoopTrainerWidget (#61)', () => {
     fireEvent.click(screen.getByLabelText('Tempo verringern'))
     expect(useLoopTrainerStore.getState().config.startPercent).toBe(95)
     expect(screen.getByRole('button', { name: 'Tempo 95 → 100 %' })).toBeInTheDocument()
+  })
+
+  describe('saved loops (#683 step 3)', () => {
+    const GRID_VARIANT = { ...VARIANT, bpm: 120, timeSignature: '4/4' } as SongVariant
+    const SOLO: SavedLoop = { id: 'l1', variantId: 'v1', name: 'Solo', startMs: 20_000, endMs: 28_000, snap: 'bars', startPercent: 80, trainerEnabled: true, targetPercent: 100, stepPercent: 5 }
+
+    it('saves the current setting under a name, for this variant', () => {
+      mockMode('practice', 12_500, GRID_VARIANT)
+      useLoopTrainerStore.getState().setConfig('e1', { startMs: 12_000, endMs: 16_000 })
+      render(<LoopTrainerWidget config={{}} />)
+      fireEvent.click(screen.getByRole('button', { name: 'Gespeicherte Loops' }))
+      expect(screen.getByText('Für diese Variante ist noch kein Loop gespeichert.')).toBeInTheDocument()
+
+      fireEvent.change(screen.getByLabelText('Name'), { target: { value: ' Intro ' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Als neuen Loop speichern' }))
+      expect(vi.mocked(putSavedLoop)).toHaveBeenCalledWith(expect.objectContaining({ variantId: 'v1', name: 'Intro', startMs: 12_000, endMs: 16_000, snap: 'bars', startPercent: 100 }))
+      expect(useLoopTrainerStore.getState().config.savedLoopId).toBe(vi.mocked(putSavedLoop).mock.calls[0]![0].id)
+    })
+
+    it('recalls a saved loop with its range, grid and speed', () => {
+      mockMode('practice', 12_500, GRID_VARIANT)
+      useSavedLoopsStore.setState({ loops: [SOLO, { ...SOLO, id: 'other', variantId: 'v2', name: 'Andere Variante' }] })
+      render(<LoopTrainerWidget config={{}} />)
+      fireEvent.click(screen.getByRole('button', { name: '1 gespeicherter Loop' }))
+      expect(screen.queryByText('Andere Variante')).not.toBeInTheDocument()
+      expect(screen.getByText('Takt 11–15 · Tempo 80 → 100 %')).toBeInTheDocument()
+
+      fireEvent.click(screen.getByText('Solo'))
+      expect(useLoopTrainerStore.getState().config).toMatchObject({ startMs: 20_000, endMs: 28_000, startPercent: 80, trainerEnabled: true, savedLoopId: 'l1' })
+      expect(screen.getByRole('button', { name: 'Solo' })).toBeInTheDocument()
+    })
+
+    it('saves changes to the recalled loop for everyone', () => {
+      mockMode('practice', 12_500, GRID_VARIANT)
+      useSavedLoopsStore.setState({ loops: [SOLO] })
+      useLoopTrainerStore.getState().setConfig('e1', { ...SOLO, savedLoopId: 'l1' })
+      render(<LoopTrainerWidget config={{}} />)
+      fireEvent.click(screen.getByLabelText('B erhöhen'))
+      fireEvent.click(screen.getByRole('button', { name: 'Solo · geändert' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Änderungen an „Solo“ speichern' }))
+      expect(vi.mocked(putSavedLoop)).toHaveBeenCalledWith({ ...SOLO, endMs: 30_000 })
+    })
+
+    it('asks before deleting a loop', () => {
+      mockMode('practice', 12_500, GRID_VARIANT)
+      useSavedLoopsStore.setState({ loops: [SOLO] })
+      render(<LoopTrainerWidget config={{}} />)
+      fireEvent.click(screen.getByRole('button', { name: '1 gespeicherter Loop' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Menü: Solo' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Löschen' }))
+      expect(vi.mocked(removeSavedLoop)).not.toHaveBeenCalled()
+      expect(screen.getByText('Der Loop verschwindet für die ganze Band.')).toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button', { name: 'Löschen' }))
+      expect(vi.mocked(removeSavedLoop)).toHaveBeenCalledWith('l1')
+    })
   })
 })

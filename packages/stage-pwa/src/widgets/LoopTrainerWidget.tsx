@@ -15,6 +15,9 @@ import { usePracticeStateStore, DEFAULT_PRACTICE_STATE } from '../store/usePract
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { DEFAULT_SIZE_RATIO, type LoopTrainerWidgetConfig } from './loopTrainerConfig'
 import { SizeRatioSlider } from './SizeRatioSlider'
+import { SavedLoopsDialog } from './SavedLoopsDialog'
+import { loopChanged, loopSettingsOf } from '../lib/savedLoops'
+import { useSavedLoopsStore } from '../store/useSavedLoopsStore'
 import { stageFontSize } from '../lib/stageSize'
 
 const stepperButton =
@@ -135,6 +138,8 @@ export function LoopTrainerWidget({ config }: { config: LoopTrainerWidgetConfig 
   // obvious thing to do.
   const [starting, setStarting] = useState(false)
   const [tempoOpen, setTempoOpen] = useState(false)
+  const [savedOpen, setSavedOpen] = useState(false)
+  const savedLoops = useSavedLoopsStore((state) => state.loops)
   const fontSize = stageFontSize(baseFontSize * (config.sizeRatio ?? DEFAULT_SIZE_RATIO))
 
   if (mode !== 'practice') {
@@ -159,6 +164,9 @@ export function LoopTrainerWidget({ config }: { config: LoopTrainerWidgetConfig 
   const playing = running
   const canSetPoint = elapsedMs !== null && !active
   const hasLoop = settings.startMs !== null && settings.endMs !== null && settings.endMs > settings.startMs
+  const variantLoops = savedLoops.filter((loop) => loop.variantId === currentVariant.id)
+  // Deleted on another tablet: the setting stays, it is just not a saved one any more.
+  const loadedLoop = variantLoops.find((loop) => loop.id === settings.savedLoopId) ?? null
   // The variant's grid, as the click plays it - A and B land on its lines (#683).
   const timeline = currentVariant.bpm > 0 ? clickTimeline({ beatGrid: currentVariant.beatGrid, bpm: currentVariant.bpm, timeSignature: currentVariant.timeSignature }) : null
   // Without a tempo there is no grid to snap to.
@@ -176,6 +184,14 @@ export function LoopTrainerWidget({ config }: { config: LoopTrainerWidgetConfig 
   return (
     <div className="flex h-full flex-col gap-2 overflow-y-auto text-sm text-ink-soft">
       {showCaption && <span className="text-xs uppercase tracking-widest text-ink-faint">{t('loop.caption')}</span>}
+
+      {/* Saved loops of this variant, band-wide (#683 step 3): the recalled one by name, marked
+          while it has changes not saved yet. */}
+      <Button disabled={active} icon="repeat" onClick={() => setSavedOpen(true)}>
+        <span className="truncate">
+          {loadedLoop ? (loopChanged(settings, loadedLoop) ? t('loop.loadedChanged', { name: loadedLoop.name }) : loadedLoop.name) : t('loop.savedButton', { count: variantLoops.length })}
+        </span>
+      </Button>
 
       <Segmented
         label={t('loop.snap')}
@@ -267,6 +283,16 @@ export function LoopTrainerWidget({ config }: { config: LoopTrainerWidgetConfig 
       </div>
 
       {stored.error && <p className="text-xs text-danger">{stored.error}</p>}
+
+      {savedOpen && (
+        <SavedLoopsDialog
+          variantId={currentVariant.id}
+          settings={settings}
+          timeline={timeline}
+          onLoad={(loop) => update({ ...loopSettingsOf(loop), savedLoopId: loop.id })}
+          onClose={() => setSavedOpen(false)}
+        />
+      )}
 
       {tempoOpen && (
         <Dialog title={t('loop.tempoTitle')} onClose={() => setTempoOpen(false)}>
