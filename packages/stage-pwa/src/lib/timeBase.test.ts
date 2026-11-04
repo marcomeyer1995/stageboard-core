@@ -199,6 +199,22 @@ describe('timeBase (docs/29 step 1)', () => {
     expect(worstPpm).toBeLessThan(100)
   })
 
+  it("doesn't flip with pairs that read 5 ms late every tenth time (the Redmi's)", () => {
+    const dev = fakeFire()
+    const tb = new TimeBase(dev.perf)
+    let n = 0
+    dev.setGlitch(() => (++n % 10 === 0 ? 5 : 0))
+    run(tb, dev, 30_000)
+    const error = () => (tb.now(dev.ctx)! - dev.truth()) * 1000
+    const before = error()
+    let worst = 0
+    for (let t = 0; t < 30_000; t += 50) {
+      run(tb, dev, 50)
+      worst = Math.max(worst, Math.abs(error() - before))
+    }
+    expect(worst).toBeLessThan(0.5)
+  })
+
   it('follows a real move down too, once it filled the window', () => {
     const dev = fakeFire()
     const tb = new TimeBase(dev.perf)
