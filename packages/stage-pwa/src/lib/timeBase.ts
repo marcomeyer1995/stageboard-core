@@ -43,6 +43,11 @@ const GAP_PERCENTILE = 0.98
 /** The gap moves towards the edge at most this much per reading - 0.05 ms every 50 ms, 1 ms a
  * second, up or down - so all outputs move together and never jump. */
 const GAP_STEP_PER_SAMPLE_MS = 0.05
+/** The percentile itself wobbles by a few ms; following that all the time made the click wobble
+ * by ~1 ms (sync-bench, Fire). The gap moves only once it is this far off, then until it is within
+ * GAP_SETTLED_MS, and stays put again. */
+const GAP_DEADBAND_MS = 3
+const GAP_SETTLED_MS = 0.5
 
 interface Pair {
   perfMs: number
@@ -109,6 +114,7 @@ export class TimeBase {
   private lastPairAt = -Infinity
   private gaps: { perfMs: number; gapMs: number }[] = []
   private gapMs: number | null = null
+  private gapMoving = false
 
   constructor(private readonly perfNow: () => number = () => performance.now()) {}
 
@@ -155,6 +161,7 @@ export class TimeBase {
     this.pending = null
     this.gaps = []
     this.gapMs = null
+    this.gapMoving = false
   }
 
   private refit(now: number): void {
@@ -182,8 +189,14 @@ export class TimeBase {
     if (now - this.gaps[0]!.perfMs < GAP_MIN_SPAN_MS) return
     const sorted = this.gaps.map((g) => g.gapMs).sort((a, b) => a - b)
     const edge = sorted[Math.floor(GAP_PERCENTILE * (sorted.length - 1))]!
-    if (this.gapMs === null) this.gapMs = edge
-    else this.gapMs += Math.max(-GAP_STEP_PER_SAMPLE_MS, Math.min(GAP_STEP_PER_SAMPLE_MS, edge - this.gapMs))
+    if (this.gapMs === null) {
+      this.gapMs = edge
+      return
+    }
+    const off = edge - this.gapMs
+    if (Math.abs(off) > GAP_DEADBAND_MS) this.gapMoving = true
+    else if (Math.abs(off) < GAP_SETTLED_MS) this.gapMoving = false
+    if (this.gapMoving) this.gapMs += Math.max(-GAP_STEP_PER_SAMPLE_MS, Math.min(GAP_STEP_PER_SAMPLE_MS, off))
   }
 }
 
