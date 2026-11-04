@@ -128,8 +128,8 @@ Jede Abweichung hat eine **Art**, und die Art entscheidet, wie man sie behandelt
 ### 3.7 Drift
 
 - Die Audio-Hardware hat ihren eigenen Quarz; er läuft gegen die Systemuhr um einige ppm anders. Gemessen über 4 s: Fire −1,6 … −3,2 ms Wanderung der Zeitstempel-Abbildung in den ersten Sekunden eines Kontexts (Einschwingen), danach klein - **über einen ganzen Song noch nicht gemessen**.
-- Typische Größenordnung (Erfahrungswert, nicht gemessen): 10-100 ppm = 0,6-6 ms pro Minute.
-- Heute: Klick korrigiert ab 50 ms, Track/Stems ab 80 ms Abweichung durch Neustart (hörbarer Sprung). Dazwischen läuft der Fehler auf.
+- Gemessen über je 2 × 3 min (§10): Audio-Uhr gegen Systemuhr **Fire +256 / +263 ppm = ~15,5 ms pro Minute**, Redmi −115 / −40 ppm (2,4-7 ms pro Minute). Systemuhr gegen Serverzeit: Fire −44 / −60 ppm, Redmi −29 / −10 ppm (0,6-3,6 ms pro Minute).
+- Heute: Klick und Track laufen auf der Audio-Uhr weiter; der Klick korrigiert ab 50 ms, Track/Stems ab 80 ms durch Neustart (hörbarer Sprung). Auf dem Fire wandern Klick und Track also gegen MIDI, Bild und die anderen Geräte um ~15 ms pro Minute, bis nach ~3 Minuten ein Sprung kommt. Die Uhrsynchronisation korrigiert nur den Offset alle 60 s - dazwischen bis ~3,6 ms Sägezahn.
 - Art: **Drift**. Größe: bis an die Schwellen, also **bis 50-80 ms** vor einer Korrektur.
 
 ### 3.8 Bildschirm
@@ -151,7 +151,7 @@ Für ein Ereignis zur Bandzeit T hört man auf Gerät *d* über Ausgang *o*:
 | e_abb | Abbildung auf die Uhr des Ausgangs | Audio: 0 … −192 ms je Engine und Start (bis 55 gemessen); MIDI: ~0 | ≤ 1 ms, für alle Audio-Ausgänge **dieselbe** |
 | e_lat | Restfehler der Latenz-Kalibrierung | Fire ±18 ms, Redmi ±1 ms | ±5 ms Fire, ±1 ms Redmi (Ziel; zu messen) |
 | e_send | Senden | Audio 0 (sample-genau), MIDI 0,3 / 5 ms | gleich |
-| e_drift | Drift bis zur nächsten Korrektur | bis 50 (Klick) / 80 ms (Track) | ≤ 1 ms (laufend nachgeführt) |
+| e_drift | Drift bis zur nächsten Korrektur | bis 50 (Klick) / 80 ms (Track); Fire ~15 ms/min gemessen | ≤ 1 ms (laufend nachgeführt) |
 
 **Schlechtester Fall, heute (main), Fire:**
 
@@ -278,3 +278,32 @@ PR #689 (gemeinsame Audio-Uhr) ist eine Zwischenlösung: er macht die heutige Sc
 3. **Bluetooth:** für Klick/Track sperren oder nur warnen?
 4. **Verhalten bei schlechter Qualität** (§5.7): nur anzeigen, oder ein Gerät, das die Grenze nicht hält, automatisch vom Audio-Taktgeben ausnehmen?
 5. **Fortsetzen nach Pause** (docs/19 §6.2): mit Vorlauf wie beim Start, damit auch dort alle Geräte gemeinsam einsetzen?
+
+---
+
+## 10. Bestandsaufnahme (Schritt 0), 2026-11-04
+
+Dev-App 1.694 auf beiden Tablets, eigener AudioContext mit stummem Oszillator, je zwei Läufe à 3 min parallel auf beiden Geräten: alle 10 ms `getOutputTimestamp()`, `currentTime`, `performance.now()`, `Date.now()`; alle 2 s `GET /time` am Stage-Server (wie `clockSync`). Skript im Scratchpad der Sitzung (`survey.js`), Auswertung im Gerät.
+
+| | Fire HD 10 (Android 9, WebView 138) | Redmi Pad SE (Android 16, WebView 156) |
+|---|---|---|
+| Zeitstempel-Paare je Sekunde | 16,5 (alle ~60 ms) | 88-91 (alle ~11 ms) |
+| Rest um eine 2-s-Gerade (Median / 95 % / 99 % / max) | 0,3 / 6,2 / 10,9 / **68** ms (in beiden Läufen gleich) | 0,25 / 0,6-0,8 / 1,7-4,7 / 5-11 ms |
+| Drift Audio-Uhr gegen `performance.now()` | **+256 / +263 ppm** | −115 / −40 ppm |
+| `currentTime`-Schritte | meist 64 ms, oft 128, bis 232 | meist 8 ms, selten 16-152 |
+| `currentTime` Streuung (5.-95. %) | −97 … +34 / −36 … +31 ms | −32 … +3 / −4 … +7 ms |
+| Puffer-Abstand (`currentTime`-Kante − hörbar), je 2-s-Fenster | 310-379 / 276-332 ms - **wandert** | 15-46 / 32-38 ms |
+| `Date.now()` gegen `performance.now()` | 0 ppm, Sprünge < 1 ms | 0 ppm, Sprünge < 1 ms |
+| `/time` Laufzeit (min / Median / 95 % / max) | 13 / 28 / 44 / 50 und 22 / 35 / 59 / 158 ms | 13 / **106** / 135 / 370 und 24 / 32 / 49 / 107 ms |
+| bester Offset je 30 s (Wanderung im Lauf) | −6321 … −6328 / −6330 … −6336 ms | 337,5 … 336,5, dann **294** / 338,5 … 341 ms |
+| Drift Systemuhr gegen Serverzeit | −44 / −60 ppm | −29 / −10 ppm |
+
+Folgerungen:
+
+1. **`getOutputTimestamp()` trägt auf beiden Geräten** - beim Redmi sehr gut, beim Fire mit weniger und verrauschteren Paaren und gelegentlichen 68-ms-Ausreißern. Der Zeitdienst braucht deshalb eine **robuste** Gerade (Ausreißer verwerfen, mehrere Sekunden Fenster). Ob der Median-Rest von 0,3 ms der echten Genauigkeit entspricht, zeigt erst die akustische Messung (Schritt 3).
+2. **`currentTime` ist auf dem Fire als Grundlage unbrauchbar:** selbst die Oberkante wandert gegen das Hörbare um ~50-70 ms innerhalb eines Laufs. Die heutige Glättung (auch #689) hat damit eine Grenze, die keine Feineinstellung überwindet.
+3. **Drift ist groß und muss laufend nachgeführt werden:** Fire-Audio ~15,5 ms pro Minute gegen die Systemuhr - über einen 4-min-Song über 60 ms. Die Steigung ist je Gerät stabil (zweimal gemessen), also messbar und ausgleichbar.
+4. **Die Uhrsynchronisation braucht eine Steigung und ein Qualitätsmaß:** die Systemuhren laufen 10-60 ppm gegen den Server (bis 3,6 ms pro Minute). Bei schlechtem WLAN (Redmi, erster Lauf: Median-Laufzeit 106 ms) wählte das Verfahren „kürzeste Laufzeit je 30 s" einmal einen um 43 ms falschen Offset - genau so ein Sprung darf nicht übernommen werden (§5.6, §5.7).
+5. Systemuhr und `performance.now()` laufen gleich (0 ppm, keine Sprünge) - `performance.now()` als gemeinsame Mittelachse im Gerät ist richtig.
+
+Noch offen für Schritt 0: Xiaomi 14T Pro und Laptop-Chrome (nicht angeschlossen), längere Läufe (eine Stunde), Ausgabewege Kopfhörer/USB-Interface, und wie konstant der Rest hinter dem Zeitstempel über App-Neustarts ist (braucht die akustische Messung, Schritt 3).
