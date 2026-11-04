@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { defineConfig } from 'vite'
+import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 
 const certFile = fileURLToPath(new URL('../../certs/dev-cert.pem', import.meta.url))
@@ -17,9 +17,42 @@ const https =
     ? { cert: readFileSync(certFile), key: readFileSync(keyFile) }
     : undefined
 
+// Signalsmith Stretch (#683) keeps running a full stretch on silence while inactive - "Should
+// detect silent input and skip processing" says its own comment - and its worklet never ends, so
+// once loaded it cost ~70 % of a Fire core for good, even paused (measured 2026-11-04). Inactive
+// now means: silence, no processing, and a reset on the way in so no old audio comes out when it
+// starts again. Fails the build when an update changes the code, rather than shipping it unpatched.
+const SIGNALSMITH_INACTIVE = `if (!currentMapSegment.active) {
+				outputList[0].forEach((_, c) => {
+					let channelBuffer = inputs[c%inputs.length];
+					let buffer = new Float32Array(memory, this.buffersIn[c], outputBlockSize);
+					buffer.fill(0);
+				});
+				// Should detect silent input and skip processing
+				wasmModule._process(outputBlockSize, outputBlockSize);
+			} else if (inputs?.length) {`
+const SIGNALSMITH_IDLE = `if (!currentMapSegment.active) {
+				if (!this.stageboardIdle) { this.stageboardIdle = true; wasmModule._reset(); }
+				return true;
+			}
+			this.stageboardIdle = false;
+			if (inputs?.length) {`
+
+function signalsmithIdle(): Plugin {
+  return {
+    name: 'signalsmith-idle',
+    enforce: 'pre',
+    transform(code, id) {
+      if (!/signalsmith-stretch[\\/]SignalsmithStretch\.m?js$/.test(id)) return null
+      if (!code.includes(SIGNALSMITH_INACTIVE)) throw new Error('signalsmith-idle: SignalsmithStretch changed - check the patch in vite.config.ts')
+      return code.replace(SIGNALSMITH_INACTIVE, SIGNALSMITH_IDLE)
+    },
+  }
+}
+
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), signalsmithIdle()],
   server: { https },
   build: {
     rolldownOptions: {
