@@ -6,7 +6,7 @@ import { setLocalTrackSilenced } from './localAudioEngine'
 import { useShowModeCore } from './showMode'
 import { useFrameLoop } from './useFrameLoop'
 import { loadStems, setStemGains, setStemLevelCurve, setStemsStretched, stemsStretched, syncStems, unloadStems } from './stemEngine'
-import { prepareStretch, stretchLatencyMs } from './mixStretch'
+import { prepareStretch, stretchChain, stretchLatencyMs } from './mixStretch'
 import { getSharedAudioContext } from './sharedAudioContext'
 import { useTrackLevelCurve } from './trackLevel'
 import { stemGains, stemMixFor, useStemMixStore } from './stemMix'
@@ -114,6 +114,13 @@ export function useStemPlaybackDriver(): void {
   useEffect(() => {
     if (!stretch) {
       setStemsStretched(false)
+      return
+    }
+    // Loaded already (the trainer loads it before it starts): routed in right now, before the sync
+    // below starts the stems - one frame later their timing jumped by the stretch's delay and the
+    // engine restarted them at the loop's start (seen on the Fire, 2026-11-04).
+    if (stretchChain()) {
+      setStemsStretched(true)
       return
     }
     let cancelled = false

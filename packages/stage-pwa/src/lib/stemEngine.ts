@@ -2,7 +2,7 @@ import { createAudioClock } from './audioClock'
 import { sourceOutput } from './audioMix'
 import type { LevelPoint } from './playbackCues'
 import { scheduleTrackLevel } from './trackLevel'
-import { setStretchRate, stretchChain } from './mixStretch'
+import { setStretchActive, setStretchRate, stretchChain } from './mixStretch'
 import { getSharedAudioContext } from './sharedAudioContext'
 import { getTrack } from './songVariantsDb'
 import { openTrackStream, type TrackStream } from './trackStream'
@@ -186,6 +186,7 @@ function routeBus(ctx: AudioContext, l: Loaded, wanted: boolean): void {
     chain.output.connect(sourceOutput('track', ctx))
   } else l.bus.connect(sourceOutput('track', ctx))
   l.stretched = chain !== null
+  setStretchActive(l.stretched)
 }
 
 export function setStemsStretched(on: boolean): void {
@@ -202,6 +203,7 @@ export function unloadStems(): void {
   if (loading) loading.cancelled = true
   loading = null
   stopRun()
+  if (loaded?.stretched) setStretchActive(false)
   if (loaded) dispose(loaded)
   loaded = null
 }

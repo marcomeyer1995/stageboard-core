@@ -29,7 +29,8 @@ export function prepareStretch(ctx: AudioContext): Promise<StretchNode | null> {
     .then(async ({ default: SignalsmithStretch }) => {
       const created = await SignalsmithStretch(ctx)
       latencyS = await created.latency()
-      await created.schedule({ active: true, semitones: 0 })
+      // Idle until a mix is routed through it (`setStretchActive`) - see vite.config.ts.
+      await created.schedule({ active: false, semitones: 0 })
       trim = ctx.createGain()
       trim.gain.value = HEADROOM
       created.connect(trim)
@@ -52,6 +53,11 @@ export function stretchChain(): { input: AudioNode; output: AudioNode } | null {
 /** How much later than its input the stretched mix is heard. 0 without the stretcher. */
 export function stretchLatencyMs(): number {
   return node ? latencyS * 1000 : 0
+}
+
+/** Runs the stretch while the mix goes through it - inactive it costs nothing (vite.config.ts). */
+export function setStretchActive(active: boolean): void {
+  void node?.schedule({ active })
 }
 
 /** Undoes the pitch of sources played at `rate`, from audio time `at` on. */
