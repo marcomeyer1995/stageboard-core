@@ -1,3 +1,4 @@
+import { keepAudioClockWarm } from './audioClock'
 /**
  * The one AudioContext of this device - the click (clickEngine.ts) and, with the Web Audio track
  * engine (#468), the backing track play on it. Same context = same audio clock and same output
@@ -6,7 +7,10 @@
 let context: AudioContext | null = null
 
 export function getSharedAudioContext(): AudioContext {
-  if (!context) context = new AudioContext()
+  if (!context) {
+    context = new AudioContext()
+    keepAudioClockWarm(context)
+  }
   return context
 }
 
