@@ -199,6 +199,25 @@ describe('timeBase (docs/29 step 1)', () => {
     expect(worstPpm).toBeLessThan(100)
   })
 
+  it('gets over a wrong rate from the first seconds (a glitch right at the start)', () => {
+    const dev = fakeFire()
+    const tb = new TimeBase(dev.perf)
+    const from = dev.perf()
+    dev.setGlitch((stamp) => (-1.2 * (stamp - from)) / 1000)
+    run(tb, dev, 6_000)
+    dev.setGlitch(null)
+    run(tb, dev, 80_000)
+    expect(Math.abs(tb.quality().ppm! - 260)).toBeLessThan(30)
+    const error = () => (tb.now(dev.ctx)! - dev.truth()) * 1000
+    const at = error()
+    let worst = 0
+    for (let t = 0; t < 20_000; t += 50) {
+      run(tb, dev, 50)
+      worst = Math.max(worst, Math.abs(error() - at))
+    }
+    expect(worst).toBeLessThan(0.5)
+  })
+
   it("doesn't flip with pairs that read 5 ms late every tenth time (the Redmi's)", () => {
     const dev = fakeFire()
     const tb = new TimeBase(dev.perf)

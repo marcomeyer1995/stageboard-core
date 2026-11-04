@@ -36,12 +36,17 @@ const CONFIRMATIONS = 3
  * ones sit within ~1 ms. A constant offset of the line doesn't matter - the buffer gap is measured
  * against the same line and takes it out (`now`). */
 const MODE_WIDTH_MS = 4
-/** The audio clock's rate against performance.now() is steady to a few ppm: once the window is
- * this full, a refit changes the line's rate by at most MAX_RATE_STEP (1 ppm a second). */
-const STEADY_SPAN_MS = 15_000
-const MAX_RATE_STEP = 0.5e-6
-/** The gap is measured, and the rate fitted, only from pairs this close to the line (or 4 × the
- * residual) - not inside a glitch. */
+/** The audio clock's rate against performance.now() is steady to a few ppm: each refit fits it
+ * through the window's pairs near the line, and the line uses the median of those over the last
+ * RATE_WINDOW_MS - a glitch that tilts some of them (13 s on the Fire) is a minority, a wrong rate
+ * from the first seconds ages out. A limit on how fast the rate may change instead held such a
+ * wrong start (-1200 ppm, the Fire, sync-bench 2026-11-04) for minutes, the reading sawtoothed
+ * by ±5 ms. */
+const RATE_WINDOW_MS = 120_000
+/** Before this many estimates the median doesn't decide yet. */
+const RATE_MIN_ESTIMATES = 20
+/** The gap is measured only from pairs this close to the line (or 4 × the residual) - not inside
+ * a glitch. */
 const GATE_MS = 3
 /** Pairs this far off the line for this long: the clock lost time (suspended, resumed) - start
  * over. A single one is not enough: at a Stop the Fire gives one or two pairs up to 251 ms off,
@@ -126,13 +131,13 @@ function robustLine(pairs: readonly Pair[]): { line: Line; residualMs: number } 
   return line ? { line, residualMs } : null
 }
 
-/** The line through the window: its rate from a robust fit through `ratePairs` (limited to
- * MAX_RATE_STEP from `rate` once steady), its place the median of the densest MODE_WIDTH_MS band
- * of all pairs at that rate. */
+/** The line through the window: its rate `rate` (the two-minute median), else from a robust fit
+ * through `ratePairs`; its place the median of the densest MODE_WIDTH_MS band of all pairs at
+ * that rate. */
 function edgeLine(pairs: readonly Pair[], ratePairs: readonly Pair[], rate: number | null): { line: Line; residualMs: number } | null {
   const free = robustLine(ratePairs)
   if (!free) return null
-  const b = rate === null ? free.line.b : rate + Math.max(-MAX_RATE_STEP, Math.min(MAX_RATE_STEP, free.line.b - rate))
+  const b = rate ?? free.line.b
   const offsets = pairs.map((p) => p.ctxMs - b * p.perfMs).sort((x, y) => x - y)
   let best = 0
   let bestEnd = 0
@@ -149,6 +154,8 @@ function edgeLine(pairs: readonly Pair[], ratePairs: readonly Pair[], rate: numb
 export class TimeBase {
   private context: AudioContext | null = null
   private pairs: Pair[] = []
+  /** The rate of each refit (RATE_WINDOW_MS). */
+  private rates: { perfMs: number; b: number }[] = []
   private line: Line | null = null
   private residualMs: number | null = null
   private pending: { line: Line; count: number } | null = null
@@ -210,6 +217,7 @@ export class TimeBase {
   private restart(ctx: AudioContext): void {
     this.context = ctx
     this.pairs = []
+    this.rates = []
     this.line = null
     this.residualMs = null
     this.pending = null
@@ -223,12 +231,13 @@ export class TimeBase {
   private refit(now: number): void {
     this.lastRefit = now
     if (this.pairs.length < MIN_PAIRS || this.pairs[this.pairs.length - 1]!.perfMs - this.pairs[0]!.perfMs < MIN_SPAN_MS) return
-    const steady = this.line !== null && this.pairs[this.pairs.length - 1]!.perfMs - this.pairs[0]!.perfMs >= STEADY_SPAN_MS
-    // The rate from the pairs near the line only (not a glitch); too few of them - keep the rate.
-    const line = this.line
-    const near = line ? this.pairs.filter((p) => Math.abs(p.ctxMs - at(line, p.perfMs)) <= this.gate()) : this.pairs
-    const enough = near.length >= MIN_PAIRS && near[near.length - 1]!.perfMs - near[0]!.perfMs >= STEADY_SPAN_MS / 2
-    const fitted = edgeLine(this.pairs, enough ? near : this.pairs, steady ? line!.b : null)
+    // The rate of this window from all its pairs - choosing them by their distance from the line
+    // would keep a tilted line tilted - and the median of the last two minutes of those.
+    const fitted = edgeLine(this.pairs, this.pairs, null)
+    if (fitted) this.rates.push({ perfMs: now, b: fitted.line.b })
+    while (this.rates.length > 0 && this.rates[0]!.perfMs < now - RATE_WINDOW_MS) this.rates.shift()
+    const longRate = this.rates.length >= RATE_MIN_ESTIMATES ? [...this.rates.map((r) => r.b)].sort((x, y) => x - y)[Math.floor(this.rates.length / 2)]! : null
+    if (fitted && longRate !== null) Object.assign(fitted, edgeLine(this.pairs, this.pairs, longRate))
     if (!fitted) return
     this.residualMs = fitted.residualMs
     if (!this.line || Math.abs(at(fitted.line, now) - at(this.line, now)) <= CONFIRM_JUMP_MS) {
