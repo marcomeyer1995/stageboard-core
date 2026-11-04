@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { syncClock } from './clockSync'
+import { SAMPLE_INTERVAL_MS, sampleClock, syncClock } from './clockSync'
 
 /** How often to re-run the burst handshake - clocks drift slowly, so this doesn't need to be
  * frequent; frequent enough to correct for a tablet waking from sleep or a Stage-Server
@@ -15,8 +15,15 @@ const RESYNC_INTERVAL_MS = 60_000
  */
 export function useClockSync(): void {
   useEffect(() => {
+    // The burst locks on at once; then one sample every SAMPLE_INTERVAL_MS keeps the band time
+    // within a couple of ms and moves it smoothly (docs/29 §5.6). The burst every minute stays as a
+    // fallback - its result only counts while the continuous window is not full yet.
     void syncClock()
-    const interval = setInterval(() => void syncClock(), RESYNC_INTERVAL_MS)
-    return () => clearInterval(interval)
+    const burst = setInterval(() => void syncClock(), RESYNC_INTERVAL_MS)
+    const sample = setInterval(() => void sampleClock(), SAMPLE_INTERVAL_MS)
+    return () => {
+      clearInterval(burst)
+      clearInterval(sample)
+    }
   }, [])
 }

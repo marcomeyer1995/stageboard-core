@@ -7,6 +7,11 @@ interface ClockSample {
   offset: number
 }
 
+/** A sample with when it was taken (local Date.now(), midpoint of its round trip). */
+interface TimedSample extends ClockSample {
+  at: number
+}
+
 const BURST_SAMPLE_COUNT = 7
 
 /** Below this many samples, a linear fit has no real predictive power (2 points always fit a
@@ -38,6 +43,72 @@ const OFFSET_HISTORY_SIZE = 5
  * ever reads it (same pattern as e.g. useWorkspaceStore.ts's `nameChangesHandle`). */
 let offsetHistory: number[] = []
 
+/*
+ * Continuous sync (docs/29 §5.6, step 4 of #690). One burst a minute, its fastest sample applied
+ * at once, moved a tablet's band time by 12-15 ms twice in two minutes on the band's WLAN (Gig
+ * measurement 2026-11-04), while an estimate over the same minutes from many samples stayed within
+ * 2 ms. Now: one sample every SAMPLE_INTERVAL_MS, an estimate over the last WINDOW_MS from the
+ * fastest quarter of them - a line over time, because a tablet's clock runs 10-60 ppm against the
+ * server's (up to 3.6 ms a minute) - and the offset in use follows that estimate at SLEW_MS_PER_S
+ * at most instead of jumping. The first burst still locks on at once.
+ */
+export const SAMPLE_INTERVAL_MS = 2_000
+const WINDOW_MS = 120_000
+const BEST_FRACTION = 0.25
+const MIN_BEST = 5
+/** Before this many samples over this long, the window doesn't decide yet (the burst does). */
+const MIN_WINDOW_SAMPLES = 10
+const MIN_WINDOW_SPAN_MS = 20_000
+/** A drift line needs this much time between the samples it uses. */
+const MIN_SLOPE_SPAN_MS = 30_000
+/** The offset in use moves towards the estimate by at most this - 0.2 %, so band time never jumps. */
+const SLEW_MS_PER_S = 2
+/** Further away than this the estimate is taken at once (first lock, a Stage-Server clock change). */
+const JUMP_MS = 50
+
+let window_: TimedSample[] = []
+/** The offset in use: `target` (a line over local time) plus an error that shrinks at SLEW_MS_PER_S. */
+let applied: { target: { at: number; offsetMs: number; perMs: number }; errorMs: number; since: number } | null = null
+
+function targetAt(t: number): number {
+  return applied ? applied.target.offsetMs + applied.target.perMs * (t - applied.target.at) : 0
+}
+
+function appliedAt(t: number): number {
+  if (!applied) return 0
+  const left = Math.max(0, Math.abs(applied.errorMs) - (SLEW_MS_PER_S * (t - applied.since)) / 1000)
+  return targetAt(t) + Math.sign(applied.errorMs) * left
+}
+
+function aim(now: number, offsetMs: number, perMs: number): void {
+  const current = applied ? appliedAt(now) : null
+  const error = current === null ? 0 : current - offsetMs
+  applied = { target: { at: now, offsetMs, perMs }, errorMs: Math.abs(error) > JUMP_MS ? 0 : error, since: now }
+}
+
+/** The window's estimate at `now` - null while it doesn't hold enough yet. Exported for tests. */
+export function estimateFromWindow(samples: readonly TimedSample[], now: number): { offsetMs: number; perMs: number; uncertaintyMs: number; rttMs: number } | null {
+  const recent = samples.filter((s) => s.at >= now - WINDOW_MS)
+  if (recent.length < MIN_WINDOW_SAMPLES || now - Math.min(...recent.map((s) => s.at)) < MIN_WINDOW_SPAN_MS) return null
+  const best = [...recent].sort((a, b) => a.rtt - b.rtt).slice(0, Math.max(MIN_BEST, Math.ceil(recent.length * BEST_FRACTION)))
+  const span = Math.max(...best.map((s) => s.at)) - Math.min(...best.map((s) => s.at))
+  let offsetMs: number
+  let perMs = 0
+  let residuals: number[]
+  if (best.length >= 8 && span >= MIN_SLOPE_SPAN_MS) {
+    const fit = fitLine(best.map((s) => ({ x: s.at - now, y: s.offset })))
+    offsetMs = fit.intercept
+    perMs = fit.slope
+    residuals = best.map((s) => Math.abs(s.offset - (fit.intercept + fit.slope * (s.at - now))))
+  } else {
+    const sorted = best.map((s) => s.offset).sort((a, b) => a - b)
+    offsetMs = sorted[Math.floor(sorted.length / 2)]!
+    residuals = best.map((s) => Math.abs(s.offset - offsetMs))
+  }
+  residuals.sort((a, b) => a - b)
+  return { offsetMs, perMs, uncertaintyMs: residuals[Math.floor(residuals.length / 2)]!, rttMs: best[0]!.rtt }
+}
+
 /**
  * One GET /time round trip. The server timestamps its response at essentially the same
  * instant it receives the request (no processing in between), so it's treated as having been
@@ -53,6 +124,8 @@ async function takeSample(base: string): Promise<ClockSample | null> {
     const t1 = Date.now()
     const sample = { rtt: t1 - t0, offset: serverTime - (t0 + t1) / 2 }
     clockSyncLog('sample', sample)
+    window_.push({ ...sample, at: (t0 + t1) / 2 })
+    while (window_.length > 0 && window_[0]!.at < t1 - WINDOW_MS) window_.shift()
     return sample
   } catch {
     return null
@@ -162,8 +235,28 @@ export async function syncClock(sampleCount = BURST_SAMPLE_COUNT): Promise<numbe
   const driftMs = offsetHistory.length >= 2 ? Math.max(...offsetHistory) - Math.min(...offsetHistory) : null
 
   clockSyncLog('burst done', { samples, offsetMs, usedAsymmetryFit, jitterMs, driftMs, offsetHistory: [...offsetHistory] })
-  useClockSyncStore.getState().setSync({ offsetMs, rttMs: fastestRtt, jitterMs, driftMs })
+  // The burst locks on until the window holds enough samples; after that the window decides.
+  const now = Date.now()
+  if (!estimateFromWindow(window_, now)) aim(now, offsetMs, 0)
+  useClockSyncStore.getState().setSync({ offsetMs: appliedAt(now), rttMs: fastestRtt, jitterMs, driftMs })
   return offsetMs
+}
+
+/** One continuous sample (every SAMPLE_INTERVAL_MS, useClockSync.ts): adds it to the window and
+ * aims the offset in use at the window's estimate. Never throws. */
+export async function sampleClock(): Promise<void> {
+  const base = getStageServerUrl()
+  if (!base) return
+  const sample = await takeSample(base)
+  if (!sample) return
+  const now = Date.now()
+  const estimate = estimateFromWindow(window_, now)
+  if (!estimate) return
+  aim(now, estimate.offsetMs, estimate.perMs)
+  offsetHistory.push(estimate.offsetMs)
+  if (offsetHistory.length > OFFSET_HISTORY_SIZE * 30) offsetHistory.shift()
+  const driftMs = offsetHistory.length >= 2 ? Math.max(...offsetHistory) - Math.min(...offsetHistory) : null
+  useClockSyncStore.getState().setSync({ offsetMs: appliedAt(now), rttMs: estimate.rttMs, jitterMs: estimate.uncertaintyMs, driftMs })
 }
 
 /**
@@ -172,11 +265,16 @@ export async function syncClock(sampleCount = BURST_SAMPLE_COUNT): Promise<numbe
  * the Stage-Server has never been reachable, rather than throwing.
  */
 export function getServerTime(): number {
-  return Date.now() + useClockSyncStore.getState().offsetMs
+  const now = Date.now()
+  return now + (applied ? appliedAt(now) : useClockSyncStore.getState().offsetMs)
 }
+
+if (typeof window !== 'undefined') (window as unknown as { __sbClockSync: unknown }).__sbClockSync = { appliedAt: () => appliedAt(Date.now()), estimate: () => estimateFromWindow(window_, Date.now()), samples: () => window_.length }
 
 /** Test-only reset - production code never needs to clear the sync state explicitly. */
 export function __resetClockSyncForTests(): void {
   offsetHistory = []
+  window_ = []
+  applied = null
   useClockSyncStore.getState().reset()
 }
