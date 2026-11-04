@@ -12,6 +12,7 @@ function fakeFire(opts: { ppm?: number; bufferMs?: number; outlierEvery?: number
   let perf = 1_000_000
   let audioOffset = 5_000 // heard audio time (ms) at perf = 1_000_000
   let suspendedAt: number | null = null
+  let glitch: ((stampMs: number) => number) | null = null
   let n = 0
   const heard = (p: number) => audioOffset + (p - 1_000_000) * (1 + ppm * 1e-6)
   const ctx = {
@@ -28,7 +29,7 @@ function fakeFire(opts: { ppm?: number; bufferMs?: number; outlierEvery?: number
       n++
       const saw = ((stamp / 60) % 5) * 0.8
       const outlier = opts.outlierEvery && n % opts.outlierEvery === 0 ? 68 : 0
-      return { contextTime: (heard(stamp) + saw + outlier) / 1000, performanceTime: stamp }
+      return { contextTime: (heard(stamp) + saw + outlier + (glitch?.(stamp) ?? 0)) / 1000, performanceTime: stamp }
     },
   } as unknown as AudioContext
   return {
@@ -41,6 +42,14 @@ function fakeFire(opts: { ppm?: number; bufferMs?: number; outlierEvery?: number
     truth: () => (heard(perf) + bufferMs) / 1000,
     suspend() {
       suspendedAt = heard(perf)
+    },
+    /** Output timestamps only read off (what is heard stays put) - null ends it. */
+    setGlitch(fn: ((stampMs: number) => number) | null) {
+      glitch = fn
+    },
+    /** What is heard (and rendered) really moves by this much. */
+    shift(ms: number) {
+      audioOffset += ms
     },
     setBuffer(ms: number) {
       bufferMs = ms
@@ -127,6 +136,39 @@ describe('timeBase (docs/29 step 1)', () => {
     const high = tb.quality().gapMs!
     run(tb, dev, 5_000)
     expect(high - tb.quality().gapMs!).toBeLessThanOrEqual(5.5)
+  })
+
+  it("ignores a few seconds of output timestamps that read off and snap back (the Fire's, Gig 2026-11-04)", () => {
+    const dev = fakeFire({ outlierEvery: 37 })
+    const tb = new TimeBase(dev.perf)
+    run(tb, dev, 30_000)
+    const error = () => (tb.now(dev.ctx)! - dev.truth()) * 1000
+    const before = error()
+    // -24 ms, drifting another 1 ms a second, for 5 s.
+    const from = dev.perf()
+    dev.setGlitch((stamp) => -24 - (stamp - from) / 1000)
+    let worst = 0
+    let worstPpm = 0
+    for (let t = 0; t < 15_000; t += 50) {
+      if (t === 5_000) dev.setGlitch(null)
+      run(tb, dev, 50)
+      worst = Math.max(worst, Math.abs(error() - before))
+      worstPpm = Math.max(worstPpm, Math.abs(tb.quality().ppm! - 260))
+    }
+    expect(worst).toBeLessThan(0.5)
+    expect(worstPpm).toBeLessThan(60)
+  })
+
+  it('still follows the clock when it really moved', () => {
+    const dev = fakeFire()
+    const tb = new TimeBase(dev.perf)
+    run(tb, dev, 30_000)
+    const error = () => (tb.now(dev.ctx)! - dev.truth()) * 1000
+    const before = error()
+    dev.shift(20)
+    // Held for MOVED_MS (a glitch looks the same at first), then taken whole - the gap unchanged.
+    run(tb, dev, 12_000)
+    expect(Math.abs(error() - before)).toBeLessThan(0.5)
   })
 
   it('is not ready while the context is suspended, and starts over after it lost time', () => {
