@@ -16,7 +16,8 @@ Berührt drei Ideen, die dieselben Daten zeigen: **#62** (räumliche Bühnenmatr
 | Wer bearbeitet | **jeder seinen eigenen Platz** (eigene Position, eigener Hörweg, die eigenen Geräte); alles andere der Admin |
 | Hörorte | **je Person ihr Hörweg + „Saal/FOH“** |
 | Maße | **nur schematisch** – keine Meter, keine Startwerte aus Abständen |
-| Varianten | **mehrere Aufbauten je Band** (Proberaum/Club/Festival), **je Show gewählt**; Messwerte gehören zum Weg und gelten in jeder Variante |
+| Varianten | **mehrere Aufbauten je Band** (Proberaum/Club/Festival), **im Gig von Hand gewählt** (der Master, wie die Setlist); Messwerte gehören zum Weg und gelten in jeder Variante |
+| Ohne Profil | **nur ansehen** – wer kein Profil gewählt hat, bearbeitet in „Bühne“ nichts |
 
 ## 1. Was der Bühnenplan ist
 
@@ -90,11 +91,10 @@ Heute: ein Gerät wählen → Wert. Im Plan: **ein Weg zu einem Hörort.**
 
 1. **Datenmodell + Wege-Liste** im Tab (heute „Bühnentechnik“): Personen mit Hörweg, Hörort „Saal“, Wege (Gerät-Ausgang → Ziel → Hörort) mit Wert und Zustand; „einmessen / abgleichen“ am Weg – ersetzt den verschachtelten Einstieg aus PR #700. Bestehende Latenzprofile werden zu Wegen.
 2. **Einmess-Runde** über die Wege eines Hörorts (Mikrofon am Hörort, automatisch, nachprüfen).
-3. **Varianten** je Band, Wahl je Show.
+3. **Varianten** je Band, im Gig von Hand gewählt.
 4. **Karte** (schematisch) mit Aufbau/Prüfen.
 5. Pult als Sensor, Licht per Kamera.
 
 ## 7. Offen
 
-- Wie werden die Varianten in der Show gewählt – an der Setlist, an der Show, oder von Hand im Gig?
-- Was ist der „eigene Platz“ ohne Profil (ein Gerät ohne angemeldete Person)?
+- (zurzeit nichts – neue Fragen beim Bauen von Schritt 1)
