@@ -1,4 +1,3 @@
-import { useLoopTrainerDriver } from '../lib/loopTrainer'
 import { useSectionJumpDriver } from '../lib/sectionJump'
 import { useAnnouncementDriver } from '../lib/useAnnouncementDriver'
 import { useAudioOutputDriver } from '../lib/useAudioOutputDriver'
@@ -48,7 +47,6 @@ export function PlaybackDrivers({ footswitchActive }: { footswitchActive: boolea
   useAutoStopDriver()
   // Section jump and loop in the show (#479): folds passed jumps, queues a loop's way back.
   useSectionJumpDriver()
-  useLoopTrainerDriver()
   useTrackDurationBackfill()
   useMasterSelfCheck()
   return <FrameDrivers />

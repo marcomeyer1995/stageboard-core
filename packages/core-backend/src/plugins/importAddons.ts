@@ -1,4 +1,4 @@
-import { CAPABILITIES, PluginInstallationSchema, type IShowControlPlugin, type PluginContext, type ShowControlEvent, type ShowControlResult } from 'shared-types'
+import { CAPABILITIES, serverMessage, PluginInstallationSchema, type IShowControlPlugin, type PluginContext, type ShowControlEvent, type ShowControlResult } from 'shared-types'
 import { allDocs, type CouchConfig } from '../couch.js'
 import { workspaceDbName } from '../workspaceProvisioning.js'
 
@@ -29,7 +29,7 @@ function addonPlugin(id: string, capability: string): () => IShowControlPlugin {
         ctx.log.info(`${id} ready`)
       },
       async trigger(event: ShowControlEvent): Promise<ShowControlResult> {
-        if (event.type !== 'test') return { status: 'error', message: `${id}: unbekannter Event-Typ "${event.type}".` }
+        if (event.type !== 'test') return { status: 'error', ...serverMessage('plugin.unknownEvent', { plugin: id, type: event.type }) }
         context?.log.info(`${id} test`)
         return { status: 'ok' }
       },

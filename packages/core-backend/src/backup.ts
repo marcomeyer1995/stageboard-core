@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { BackupTargetSchema, type BackupOverview, type BackupTarget, type BackupTargetStatus } from 'shared-types'
+import { BackupTargetSchema, serverMessage, type BackupOverview, type BackupTarget, type BackupTargetStatus, type ServerMessage } from 'shared-types'
 
 /**
  * The Stage-Server's own backups (#363, Marco 2026-10-08): targets chosen in the app (System →
@@ -236,34 +236,36 @@ export function createBackupService(deps: BackupDeps) {
     },
     run,
     /** "Verbindung testen": can the server write to the target? */
-    async test(id: string): Promise<{ ok: boolean; message: string }> {
+    async test(id: string): Promise<{ ok: boolean } & (ServerMessage | { message: string })> {
       const t = targets.find((x) => x.id === id)
-      if (!t) return { ok: false, message: 'Unbekanntes Ziel' }
+      if (!t) return { ok: false, ...serverMessage('backup.unknownTarget') }
       if (t.kind === 'folder') {
-        if (!deps.exists(t.path!)) return { ok: false, message: `Ordner nicht da (nicht eingesteckt oder nicht eingehängt): ${t.path}` }
+        if (!deps.exists(t.path!)) return { ok: false, ...serverMessage('backup.folderMissing', { path: t.path! }) }
         const w = await deps.exec('test', ['-w', t.path!])
-        if (w.code !== 0) return { ok: false, message: 'Der Stage-Server darf in diesen Ordner nicht schreiben.' }
+        if (w.code !== 0) return { ok: false, ...serverMessage('backup.folderNotWritable') }
         // Same check as scripts/backup.mjs: not on the data's own disk (an unmounted mount point).
         const dev = await deps.exec('stat', ['-c', '%d', t.path!, deps.dataDir])
         const [a, b] = dev.stdout.trim().split('\n')
-        if (dev.code === 0 && a && a === b) return { ok: false, message: 'Der Ordner liegt auf derselben Platte wie die Daten - Medium nicht eingehängt? Ein zweites Medium wählen.' }
-        return { ok: true, message: 'Ordner ist beschreibbar und liegt auf einem eigenen Medium.' }
+        if (dev.code === 0 && a && a === b) return { ok: false, ...serverMessage('backup.sameDisk') }
+        return { ok: true, ...serverMessage('backup.folderOk') }
       }
-      if (!(await ensureKey())) return { ok: false, message: 'SSH-Schlüssel des Servers fehlt.' }
+      if (!(await ensureKey())) return { ok: false, ...serverMessage('backup.sshKeyMissing') }
       const rp = t.remotePath!.replace(/\/+$/, '')
       const r = await deps.exec('ssh', [...sshArgs(t), remote(t), `mkdir -p ${q(rp)} && test -w ${q(rp)} && echo ok`])
-      if (r.code === 0 && r.stdout.includes('ok')) return { ok: true, message: `Verbunden - ${rp} ist beschreibbar.` }
-      return { ok: false, message: r.stderr.trim().split('\n').pop() || 'Keine Verbindung zur NAS.' }
+      if (r.code === 0 && r.stdout.includes('ok')) return { ok: true, ...serverMessage('backup.nasOk', { path: rp }) }
+      // ssh's own last line says most (host key, permission denied); only without one our text.
+      const sshSays = r.stderr.trim().split('\n').pop()
+      return sshSays ? { ok: false, message: sshSays } : { ok: false, ...serverMessage('backup.nasNoConnection') }
     },
     tick,
     /** Summary for the status line (Geräte → Stage-Server): null = nothing configured. */
-    summary(): { ok: boolean; at?: string; error?: string; target?: string } | null {
+    summary(): { ok: boolean; at?: string; error?: string; errorCode?: string; target?: string } | null {
       const enabled = targets.filter((t) => t.enabled)
       if (enabled.length === 0) return null
       const failing = enabled.find((t) => statusOf(t.id).lastError)
       if (failing) return { ok: false, at: statusOf(failing.id).lastRunAt ?? undefined, error: statusOf(failing.id).lastError!, target: failing.name }
       const last = enabled.map((t) => statusOf(t.id).lastSuccessAt).filter(Boolean).sort().pop()
-      return last ? { ok: true, at: last } : { ok: false, error: 'Noch keine Sicherung gelaufen' }
+      return last ? { ok: true, at: last } : { ok: false, error: serverMessage('backup.never').message, errorCode: 'backup.never' }
     },
     start(intervalMs = 30_000) {
       timer ??= setInterval(() => void tick().catch((err) => deps.log.error({ err }, 'Backup tick failed')), intervalMs)

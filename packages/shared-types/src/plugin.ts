@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import type { CapabilityId } from './capability.js'
+import { ServerMessageParamsSchema } from './serverMessage.js'
 
 export interface PluginContext {
   log: {
@@ -35,6 +36,9 @@ export type ShowControlEvent = z.infer<typeof ShowControlEventSchema>
 export const ShowControlResultSchema = z.object({
   status: z.enum(['ok', 'error']),
   message: z.string().optional(),
+  /** `message` as a code the device translates (#679, serverMessage.ts). */
+  messageCode: z.string().optional(),
+  messageParams: ServerMessageParamsSchema.optional(),
   data: z.record(z.string(), z.unknown()).optional(),
 })
 export type ShowControlResult = z.infer<typeof ShowControlResultSchema>

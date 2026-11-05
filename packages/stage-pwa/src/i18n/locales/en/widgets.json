@@ -67,7 +67,7 @@
   },
   "loop-trainer": {
     "title": "Loop trainer",
-    "description": "Solo practice: loops a part of the backing track seamlessly, optionally faster with every pass (pitch stays).",
+    "description": "Solo practice: repeats a range of the song seamlessly - track or stems with My mix, and the click -, A and B on bars, beats or free, optionally speeding up each pass (pitch stays).",
     "parts": {
       "caption": "Caption"
     }
@@ -281,7 +281,30 @@
     "step": "Per pass +",
     "passDisplay": "Pass display",
     "decrease": "Decrease {{label}}",
-    "increase": "Increase {{label}}"
+    "increase": "Increase {{label}}",
+    "snap": "Grid",
+    "snapModes": {
+      "bars": "Bars",
+      "beats": "Beats",
+      "free": "Free"
+    },
+    "barAt": "Bar {{at}}",
+    "barRange": "Bar {{from}}–{{to}}",
+    "savedButton_one": "{{count}} saved loop",
+    "savedButton_other": "{{count}} saved loops",
+    "savedButton_zero": "Saved loops",
+    "loadedChanged": "{{name}} · changed",
+    "savedTitle": "Saved loops",
+    "savedEmpty": "No loop saved for this variant yet.",
+    "rename": "Rename",
+    "delete": "Delete",
+    "saveChanges": "Save changes to “{{name}}”",
+    "forEveryone": "Applies to the whole band.",
+    "newName": "Name",
+    "namePlaceholder": "e.g. Solo",
+    "saveNew": "Save as new loop",
+    "deleteTitle": "Delete “{{name}}”?",
+    "deleteText": "The loop disappears for the whole band."
   },
   "active": {
     "caption": "Active setlist",
