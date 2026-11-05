@@ -72,6 +72,8 @@
     "measuredDetail": " ({{matched}} of {{total}} clicks, spread {{jitter}} ms)",
     "apply": "Apply",
     "soundOutput": "Sound (click and backing track)",
+    "soundNative": "Sound, native output",
+    "soundNativeOutput": "Sound through the native output (heard later than reported)",
     "title": "Latency - {{device}}",
     "info": "How much later than planned an output really sounds or switches. The device sends that much earlier, so that everything arrives on the beat. Sound applies per output route (speaker, headphones, Bluetooth, USB).",
     "remove": "Remove",
@@ -81,6 +83,14 @@
     "ms": "Latency in ms",
     "msPlaceholder": "e.g. 70",
     "save": "Save"
+  },
+  "native": {
+    "label": "Native sound output (Android)",
+    "on": "On: heard {{ms}} ms after rendering - exact, no stored latency needed.",
+    "starting": "Starting…",
+    "failed": "Not available ({{error}}) - the app plays as before.",
+    "off": "Off: sound through the WebView, with the stored latency below.",
+    "info": "Plays click, track and announcements through Android's own sound output instead of the WebView. Its timing report was right on every device measured; the WebView's is wrong on some (Fire), differently at every start. Then this device needs no stored latency value."
   },
   "comp": {
     "label": "Compensate sound latency",

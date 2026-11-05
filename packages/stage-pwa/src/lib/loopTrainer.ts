@@ -1,71 +1,64 @@
 import i18n from '../i18n'
-import { useEffect } from 'react'
-import { clampRate, type LoopSpeedConfig } from './loopSchedule'
-import { getLoopPlaybackState, startLoopEngine, stopLoopEngine } from './loopTrainerEngine'
-import { practiceBeginLoop, practiceEndLoop, practiceLoopContext, usePracticeQueue } from './practiceQueue'
-import { getTrack } from './songVariantsDb'
-import { useAppModeStore } from '../store/useAppModeStore'
-import { usePracticeStateStore, DEFAULT_PRACTICE_STATE } from '../store/usePracticeStateStore'
+import { clampRate, passRates, type LoopSpeedConfig } from './loopSchedule'
+import { prepareStretch } from './mixStretch'
+import { practiceBeginTrainerLoop, practiceEndTrainerLoop, practiceLoopContext } from './practiceQueue'
+import { getSharedAudioContext } from './sharedAudioContext'
+import { DEFAULT_PRACTICE_STATE, usePracticeStateStore, type PracticeState } from '../store/usePracticeStateStore'
 import { useLoopTrainerStore, loopConfigFor, type LoopTrainerConfig } from '../store/useLoopTrainerStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 
-/** The trainer's percentages as the engine's rate fractions. With the trainer off the loop just
- * runs at the start tempo. */
+/**
+ * The loop trainer (#61) on the one playback engine (#683): it is Solo Üben's section loop (#479)
+ * with its own range and a speed per pass. Track, stems, Mein Mix and click all play it - nothing
+ * of its own decodes or plays audio. The speed is the practice transport's `rate`; each pass back
+ * to A is a section jump carrying the next pass's speed (sectionJump.ts), and the mix goes through
+ * one pitch-keeping stretch while the session is slowed (mixStretch.ts).
+ */
+
+/** The trainer's percentages as rate fractions. With the trainer off the loop just runs at the
+ * start tempo. */
 export function speedFromConfig(config: LoopTrainerConfig): LoopSpeedConfig {
   const start = clampRate(config.startPercent / 100)
   if (!config.trainerEnabled) return { startRate: start, targetRate: start, step: 0 }
   return { startRate: start, targetRate: clampRate(config.targetPercent / 100), step: config.stepPercent / 100 }
 }
 
-/** Starts the rehearsal loop for the current practice entry (Solo Üben only). Needs a user
- * gesture - it is called straight from the Start button. */
-export async function startLoopTrainer(): Promise<void> {
-  const setActive = useLoopTrainerStore.getState().setActive
-  const context = practiceLoopContext()
-  if (!context) return setActive(false, i18n.t('messages:noTrackForSong'))
-  const config = loopConfigFor(context.entryId)
-  if (config.startMs === null || config.endMs === null) return setActive(false, i18n.t('messages:setLoop'))
-
-  const blob = await getTrack(context.variantId, context.trackId)
-  if (!blob) return setActive(false, i18n.t('messages:noTrackFound'))
-
-  const result = await startLoopEngine({ blob, startMs: config.startMs, endMs: config.endMs, speed: speedFromConfig(config) })
-  // Overtaken by a stop or a newer start while loading - that one owns the state now.
-  if (result.status === 'cancelled') return
-  if (result.status === 'error') return setActive(false, result.message ?? i18n.t('messages:error'))
-  practiceBeginLoop(config.startMs)
-  setActive(true)
+/** The trainer loop of a practice state - null when none runs (also while a plain section loops). */
+export function trainerLoopOf(state: PracticeState): { startMs: number; endMs: number; pass: number; rate: number } | null {
+  const loop = state.playbackLoop
+  if (!loop?.rates?.length) return null
+  return { startMs: loop.startMs, endMs: loop.endMs, pass: loop.pass ?? 0, rate: state.playbackRate ?? 1 }
 }
 
-/** Stops the loop and leaves practice paused where the loop was, so Play continues from there. */
-export function stopLoopTrainer(): void {
-  const state = getLoopPlaybackState()
-  stopLoopEngine()
-  useLoopTrainerStore.getState().setActive(false)
-  if (state) practiceEndLoop(state.positionMs)
-}
-
-/**
- * Keeps the loop from outliving what it was started for (mounted once in App.tsx, like the other
- * audio drivers): anything that ends practice playback - Pause/Stop/Next on the transport, another
- * song, switching to Gig mode - must also end the loop's audio, or it would keep sounding under a
- * transport that says it stopped. Those actions already own the transport state, so this only
- * stops the engine and never writes practice state itself.
- */
-export function useLoopTrainerDriver(): void {
-  const active = useLoopTrainerStore((state) => state.active)
-  const loopEntryId = useLoopTrainerStore((state) => state.entryId)
-  const mode = useAppModeStore((state) => state.mode)
+/** The running trainer loop of the active band's practice, re-rendering when it changes. */
+export function useTrainerLoop(): ReturnType<typeof trainerLoopOf> {
   const workspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
-  const playbackStatus = usePracticeStateStore((state) => (state.byWorkspace[workspaceId] ?? DEFAULT_PRACTICE_STATE).playbackStatus)
-  // The queue's current entry, not the raw state field: with no explicit selection the queue falls
-  // back to its first entry while `activeEntryId` is still null.
-  const currentEntryId = usePracticeQueue().currentEntry?.id ?? null
+  const loop = usePracticeStateStore((state) => (state.byWorkspace[workspaceId] ?? DEFAULT_PRACTICE_STATE).playbackLoop)
+  const rate = usePracticeStateStore((state) => (state.byWorkspace[workspaceId] ?? DEFAULT_PRACTICE_STATE).playbackRate)
+  return trainerLoopOf({ ...DEFAULT_PRACTICE_STATE, playbackLoop: loop ?? null, ...(rate !== undefined ? { playbackRate: rate } : {}) })
+}
 
-  const stillValid = mode === 'practice' && playbackStatus === 'playing' && currentEntryId === loopEntryId
-  useEffect(() => {
-    if (!active || stillValid) return
-    stopLoopEngine()
-    useLoopTrainerStore.getState().setActive(false)
-  }, [active, stillValid])
+/** Starts the loop for the current practice entry (Solo Üben only). Called straight from the Start
+ * button - the stretcher's audio needs that gesture. */
+export async function startLoopTrainer(): Promise<void> {
+  const setError = useLoopTrainerStore.getState().setError
+  const context = practiceLoopContext()
+  if (!context) return setError(i18n.t('messages:noTrackForSong'))
+  const config = loopConfigFor(context.entryId)
+  if (config.startMs === null || config.endMs === null || config.endMs <= config.startMs) return setError(i18n.t('messages:setLoop'))
+  const rates = passRates(speedFromConfig(config))
+  // Loaded before the first slowed note, so the first pass doesn't start unstretched.
+  if (rates.some((rate) => rate !== 1)) {
+    const ctx = getSharedAudioContext()
+    void ctx.resume()
+    if (!(await prepareStretch(ctx))) return setError(i18n.t('messages:error'))
+  }
+  setError(null)
+  practiceBeginTrainerLoop(config.startMs, config.endMs, rates)
+}
+
+/** Stops the loop and leaves practice paused where it was, so Play continues the song from there
+ * at its own tempo. */
+export function stopLoopTrainer(): void {
+  practiceEndTrainerLoop()
 }

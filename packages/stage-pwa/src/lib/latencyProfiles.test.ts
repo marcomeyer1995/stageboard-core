@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { AUDIO_OUTPUT, latencyProfileId, type LatencyProfileDoc } from 'shared-types'
-import { audioOutputLatencyMs, findLatencyProfile } from './latencyProfiles'
+import { AUDIO_OUTPUT, NATIVE_AUDIO_OUTPUT, latencyProfileId, type LatencyProfileDoc } from 'shared-types'
+import { audioOutputLatencyMs, findLatencyProfile, nativeOutputLatencyMs } from './latencyProfiles'
 
 function profile(deviceId: string, output: string, route: LatencyProfileDoc['route'], latencyMs: number): LatencyProfileDoc {
   return { id: latencyProfileId(deviceId, output, route), deviceId, output, route, latencyMs, source: 'manual' }
@@ -27,5 +27,12 @@ describe('latency profiles (#491)', () => {
   it('ids are unique per device, output and route', () => {
     expect(latencyProfileId('fire', AUDIO_OUTPUT, 'speaker')).not.toBe(latencyProfileId('fire', AUDIO_OUTPUT, 'bluetooth'))
     expect(latencyProfileId('server', 'light', null)).toBe('server:light:-')
+  })
+
+  it('native output: its own delay plus only what is heard later than reported, per route (docs/30)', () => {
+    const profiles = [profile('fire', AUDIO_OUTPUT, 'speaker', 430), profile('fire', NATIVE_AUDIO_OUTPUT, 'speaker', 15)]
+    expect(nativeOutputLatencyMs(454, profiles, 'fire', 'speaker', true)).toBe(469)
+    expect(nativeOutputLatencyMs(454, profiles, 'fire', 'wired', true)).toBe(454)
+    expect(nativeOutputLatencyMs(454, profiles, 'fire', 'speaker', false)).toBe(454)
   })
 })

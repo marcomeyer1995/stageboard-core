@@ -39,7 +39,19 @@ export interface PracticeState {
    * this device's own clock (Date.now). */
   playbackJump?: SectionJump | null
   /** The section repeating until released (#479) - Solo's twin of ShowState.playbackLoop. */
-  playbackLoop?: { startMs: number; endMs: number; label?: string } | null
+  playbackLoop?: PracticeLoop | null
+  /** How fast song time runs (#683, the loop trainer) - absent or 1: the song's own tempo. */
+  playbackRate?: number
+}
+
+/** A repeating range in Solo Üben: a section (#479) or the loop trainer's own range (#683). The
+ * trainer adds the speed of every pass (`rates`, the last one holds) and which pass is playing. */
+export interface PracticeLoop {
+  startMs: number
+  endMs: number
+  label?: string
+  rates?: number[]
+  pass?: number
 }
 
 export const DEFAULT_PRACTICE_STATE: PracticeState = {
@@ -58,7 +70,13 @@ export const DEFAULT_PRACTICE_STATE: PracticeState = {
 
 /** The transport slice of a practice state - Solo's twin of playbackTransport's `transportOf`. */
 export function practiceTransportOf(state: PracticeState): TransportState {
-  return { status: state.playbackStatus, startedAt: state.playbackStartedAt, accumulatedMs: state.playbackAccumulatedMs, jump: state.playbackJump ?? null }
+  return {
+    status: state.playbackStatus,
+    startedAt: state.playbackStartedAt,
+    accumulatedMs: state.playbackAccumulatedMs,
+    jump: state.playbackJump ?? null,
+    ...(state.playbackRate !== undefined && state.playbackRate !== 1 ? { rate: state.playbackRate } : {}),
+  }
 }
 
 interface PracticeStateStore {

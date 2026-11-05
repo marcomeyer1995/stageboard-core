@@ -1,5 +1,6 @@
 import { create } from 'zustand'
-import { audioOutputLatencyMs } from './latencyProfiles'
+import { audioOutputLatencyMs, nativeOutputLatencyMs } from './latencyProfiles'
+import { useNativeOutputStore } from './nativeOutput'
 import { getDeviceId } from './deviceId'
 import { useAudioRouteStore } from '../store/useAudioRouteStore'
 import { useLatencyProfilesStore } from '../store/useLatencyProfilesStore'
@@ -39,5 +40,9 @@ export function useAudioOutputLatencyMs(): number {
   const profiles = useLatencyProfilesStore((state) => state.profiles)
   const route = useAudioRouteStore((state) => state.route)
   const on = useAudioCompensationStore((state) => state.on)
+  // The native output (docs/30) plays at a delay of its own choosing - plus only what AAudio can't
+  // see (the Fire's speaker: ~15 ms, 2026-11-05), stored as its own profile.
+  const nativeDelayMs = useNativeOutputStore((state) => (state.state === 'on' ? state.delayMs : null))
+  if (nativeDelayMs !== null) return nativeOutputLatencyMs(nativeDelayMs, profiles, getDeviceId(), route, on)
   return audioOutputLatencyMs(profiles, getDeviceId(), route, on)
 }

@@ -119,6 +119,9 @@ export interface WidgetDefinition {
   defaultLayout: WidgetSize
   /** Information the widget can leave out - one "Anzeigen" chip each in its ⋯ menu (lib/widgetParts). */
   parts?: readonly WidgetPart[]
+  /** Solo Üben only (#683): never shown or offered in Gig mode - edit mode still shows it, so a
+   * dashboard offered in both modes can remove it. */
+  practiceOnly?: boolean
   Component: ComponentType<{ config: unknown }>
   ConfigPanel?: ComponentType<{
     config: unknown
@@ -142,6 +145,7 @@ interface WidgetSpec<C> {
   relevantRoles?: StageRole[]
   defaultLayout: WidgetSize
   parts?: readonly WidgetPart[]
+  practiceOnly?: boolean
   configSchema?: z.ZodType<C>
   Component: ComponentType<{ config: C }>
   ConfigPanel?: ComponentType<{ config: C; onChange: (next: C) => void }>
@@ -173,6 +177,7 @@ function defineWidget<C>(spec: WidgetSpec<C>): WidgetDefinition {
     relevantRoles: spec.relevantRoles,
     defaultLayout: spec.defaultLayout,
     parts: spec.parts,
+    practiceOnly: spec.practiceOnly,
     // `parse()` (Zod's safeParse) allocates a new object on every call, even for the exact
     // same raw input - without memoizing on the raw `config` prop's own reference, any parent
     // re-render (e.g. Dashboard.tsx's useCapabilities()/useNow() heartbeat, every 5s, with
@@ -313,11 +318,12 @@ const DEFINITIONS: WidgetDefinition[] = [
   defineWidget({
     type: 'loop-trainer',
     title: 'Loop-Trainer',
-    description: 'Solo Üben: wiederholt einen Abschnitt des Backing-Tracks lückenlos, optional mit steigendem Tempo pro Durchgang (Tonhöhe bleibt).',
+    description: 'Solo Üben: wiederholt einen Bereich des Songs lückenlos - Track oder Stems mit Mein Mix, und der Klick -, A und B auf Takten, Schlägen oder frei, optional mit steigendem Tempo pro Durchgang (Tonhöhe bleibt).',
     category: 'performance',
     stageTier: 'rehearsal',
     defaultLayout: { w: 5, h: 8, minW: 3, minH: 4, maxW: 8, maxH: 12 },
     parts: [{ id: 'caption', label: 'Überschrift' }],
+    practiceOnly: true,
     configSchema: LoopTrainerConfigSchema,
     Component: LoopTrainerWidget,
     ConfigPanel: LoopTrainerConfigPanel,

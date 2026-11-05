@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { extname, join } from 'node:path'
-import { AsyncJobSchema, isYoutubeUrl, type AsyncJob, type StemRole, type StemSeparationJob, type TrackMeta, type YoutubeExtractJob } from 'shared-types'
+import { AsyncJobSchema, isYoutubeUrl, messageFieldsOf, ServerMessageError, type ServerMessageCode, type AsyncJob, type StemRole, type StemSeparationJob, type TrackMeta, type YoutubeExtractJob } from 'shared-types'
 import { allDocs, getDoc, putDocWithRetry, waitForChange, type CouchConfig, type CouchDoc } from './couch.js'
 import { workspaceDbName } from './workspaceProvisioning.js'
 import { mimeTypeForExt, runYtDlpExtract } from './ytDlp.js'
@@ -105,7 +105,13 @@ export function createAsyncJobWatcher(options: AsyncJobWatcherOptions): AsyncJob
   let currentJobId: string | null = null
 
   /** What the server ever writes into a job - the fields every job type shares, plus its result. */
-  type JobPatch = Partial<Pick<AsyncJob, 'status' | 'progress' | 'error'>> & { trackId?: string; stemTrackIds?: string[] }
+  type JobPatch = Partial<Pick<AsyncJob, 'status' | 'progress' | 'error' | 'errorCode' | 'errorParams'>> & { trackId?: string; stemTrackIds?: string[] }
+
+  /** The `error` patch for a failure: the German text, plus its code when it has one (#679). */
+  function errorPatch(err: unknown): JobPatch {
+    const { message, messageCode, messageParams } = messageFieldsOf(err)
+    return { status: 'error', error: message, ...(messageCode ? { errorCode: messageCode } : {}), ...(messageParams ? { errorParams: messageParams } : {}) }
+  }
 
   async function patchJob(id: string, patch: JobPatch): Promise<void> {
     await putDocWithRetry<Record<string, unknown> & CouchDoc>(couch, workspaceDb, jobDocId(id), (existing) => {
@@ -121,7 +127,7 @@ export function createAsyncJobWatcher(options: AsyncJobWatcherOptions): AsyncJob
   async function appendTrack(variantId: string, meta: TrackMeta): Promise<void> {
     const docId = `${SONG_VARIANT_PREFIX}${variantId}`
     await putDocWithRetry<Record<string, unknown> & CouchDoc>(couch, workspaceDb, docId, (existing) => {
-      if (!existing) throw new Error('Die Song-Variante existiert nicht mehr.')
+      if (!existing) throw new ServerMessageError('job.variantGone')
       const tracks: unknown[] = Array.isArray(existing.tracks) ? existing.tracks : []
       return { ...existing, tracks: [...tracks, meta] }
     })
@@ -158,8 +164,8 @@ export function createAsyncJobWatcher(options: AsyncJobWatcherOptions): AsyncJob
     }
   }
 
-  async function failJob(job: AsyncJob, message: string): Promise<void> {
-    await patchJob(job.id, { status: 'error', error: message }).catch((err) => log.error('Failed to mark async job as failed', { jobId: job.id, error: String(err) }))
+  async function failJob(job: AsyncJob, err: unknown): Promise<void> {
+    await patchJob(job.id, errorPatch(err)).catch((err) => log.error('Failed to mark async job as failed', { jobId: job.id, error: String(err) }))
   }
 
   async function stemPluginInstalled(): Promise<boolean> {
@@ -172,7 +178,7 @@ export function createAsyncJobWatcher(options: AsyncJobWatcherOptions): AsyncJob
   async function replaceStems(variantId: string, sourceTrackId: string, stems: TrackMeta[]): Promise<string[]> {
     let replaced: string[] = []
     await putDocWithRetry<Record<string, unknown> & CouchDoc>(couch, workspaceDb, `${SONG_VARIANT_PREFIX}${variantId}`, (existing) => {
-      if (!existing) throw new Error('Die Song-Variante existiert nicht mehr.')
+      if (!existing) throw new ServerMessageError('job.variantGone')
       const tracks = (Array.isArray(existing.tracks) ? existing.tracks : []) as Record<string, unknown>[]
       const isOldStem = (t: Record<string, unknown>) => t.kind === 'stem' && t.parentTrackId === sourceTrackId
       replaced = tracks.filter(isOldStem).map((t) => String(t.id))
@@ -194,15 +200,15 @@ export function createAsyncJobWatcher(options: AsyncJobWatcherOptions): AsyncJob
     const written: string[] = []
     const progress = progressWriter(job.id)
     try {
-      if (!isSafeAudioId(job.variantId) || !isSafeAudioId(job.sourceTrackId)) throw new Error('Ungültige Song- oder Track-ID.')
-      if (!(await stemPluginInstalled())) throw new Error('Das Plugin „Spuren trennen“ ist nicht installiert.')
+      if (!isSafeAudioId(job.variantId) || !isSafeAudioId(job.sourceTrackId)) throw new ServerMessageError('job.invalidIds')
+      if (!(await stemPluginInstalled())) throw new ServerMessageError('job.stemPluginMissing')
       await patchJob(job.id, { status: 'running', progress: 0 })
       const variant = await getDoc<Record<string, unknown> & CouchDoc>(couch, workspaceDb, `${SONG_VARIANT_PREFIX}${job.variantId}`)
-      if (!variant) throw new Error('Die Song-Variante existiert nicht mehr.')
+      if (!variant) throw new ServerMessageError('job.variantGone')
       const source = ((Array.isArray(variant.tracks) ? variant.tracks : []) as Record<string, unknown>[]).find((t) => t.id === job.sourceTrackId)
-      if (!source) throw new Error('Der Track existiert nicht mehr.')
+      if (!source) throw new ServerMessageError('job.trackGone')
       const audio = await readAudioFile(job.variantId, job.sourceTrackId)
-      if (!audio) throw new Error('Die Audiodatei des Tracks liegt nicht auf dem Stage-Server.')
+      if (!audio) throw new ServerMessageError('job.audioMissing')
 
       workDir = await mkdtemp(join(tmpdir(), 'stageboard-stems-'))
       const input = join(workDir, 'input')
@@ -238,7 +244,7 @@ export function createAsyncJobWatcher(options: AsyncJobWatcherOptions): AsyncJob
       log.error('Stem separation failed', { jobId: job.id, error: message })
       for (const id of written) await deleteAudioFile(job.variantId, id).catch(() => {})
       await progress.settled()
-      await failJob(job, message)
+      await failJob(job, err)
     } finally {
       if (workDir) await rm(workDir, { recursive: true, force: true }).catch(() => {})
       currentJobId = null
@@ -255,16 +261,16 @@ export function createAsyncJobWatcher(options: AsyncJobWatcherOptions): AsyncJob
     // on isYoutubeUrl); the variant id becomes a path segment under the audio store, the same
     // check the upload route applies.
     // Only for a band with the YouTube-Download add-on (#546) - checked here, not only in the app.
-    const rejection = !(await bandHasAddon(couch, workspaceId, YOUTUBE_DOWNLOAD_PLUGIN_ID).catch(() => false))
-      ? 'Das Add-on „YouTube-Download“ ist für diese Band nicht installiert.'
+    const rejection: ServerMessageCode | null = !(await bandHasAddon(couch, workspaceId, YOUTUBE_DOWNLOAD_PLUGIN_ID).catch(() => false))
+      ? 'youtube.addonMissing'
       : !isYoutubeUrl(job.url)
-        ? 'Nur youtube.com/youtu.be-Links werden unterstützt.'
+        ? 'youtube.urlOnly'
         : !isSafeAudioId(job.variantId)
-          ? 'Ungültige Song-Varianten-ID.'
+          ? 'job.invalidVariantId'
           : null
     if (rejection) {
       log.error('Rejected async job', { jobId: job.id, reason: rejection })
-      await patchJob(job.id, { status: 'error', error: rejection }).catch((err) =>
+      await patchJob(job.id, errorPatch(new ServerMessageError(rejection))).catch((err) =>
         log.error('Failed to mark async job as failed', { jobId: job.id, error: String(err) }),
       )
       currentJobId = null
@@ -280,7 +286,7 @@ export function createAsyncJobWatcher(options: AsyncJobWatcherOptions): AsyncJob
     let progressWrites = Promise.resolve()
     try {
       await patchJob(job.id, { status: 'running', progress: 0 })
-      if (!(await variantExists(job.variantId))) throw new Error('Die Song-Variante existiert nicht mehr.')
+      if (!(await variantExists(job.variantId))) throw new ServerMessageError('job.variantGone')
       workDir = await mkdtemp(join(tmpdir(), 'stageboard-yt-'))
       let lastWriteAt = 0
       const { filePath } = await runYtDlpExtract(job.url, join(workDir, 'track.%(ext)s'), (progress) => {
@@ -318,7 +324,7 @@ export function createAsyncJobWatcher(options: AsyncJobWatcherOptions): AsyncJob
       // Audio written but never attached to the variant would be an orphan no UI can reach.
       if (writtenTrackId) await deleteAudioFile(job.variantId, writtenTrackId).catch(() => {})
       await progressWrites
-      await patchJob(job.id, { status: 'error', error: message }).catch((patchErr) =>
+      await patchJob(job.id, errorPatch(err)).catch((patchErr) =>
         log.error('Failed to mark async job as failed', { jobId: job.id, error: String(patchErr) }),
       )
     } finally {
@@ -348,7 +354,7 @@ export function createAsyncJobWatcher(options: AsyncJobWatcherOptions): AsyncJob
   async function failJobsLeftRunning(): Promise<void> {
     for (const stuck of stuckRunningJobs(await loadJobs(), currentJobId)) {
       log.error('Async job was left running by a previous process - marking it failed', { jobId: stuck.id })
-      await patchJob(stuck.id, { status: 'error', error: 'Durch einen Neustart des Stage-Servers unterbrochen.' })
+      await patchJob(stuck.id, errorPatch(new ServerMessageError('job.interrupted')))
     }
   }
 

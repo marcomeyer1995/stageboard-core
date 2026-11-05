@@ -1,0 +1,74 @@
+{
+  "backup": {
+    "unknownTarget": "Unknown target",
+    "folderMissing": "Folder not there (not plugged in or not mounted): {{path}}",
+    "folderNotWritable": "The Stage-Server may not write to this folder.",
+    "sameDisk": "The folder is on the same disk as the data - is the drive not mounted? Pick a second drive.",
+    "folderOk": "Folder is writable and on a drive of its own.",
+    "sshKeyMissing": "The server's SSH key is missing.",
+    "nasOk": "Connected - {{path}} is writable.",
+    "nasNoConnection": "No connection to the NAS.",
+    "never": "No backup has run yet",
+    "statusUnreadable": "Status file unreadable"
+  },
+  "calibration": {
+    "busy": "A measurement is already running - please wait a moment.",
+    "unknownRun": "Unknown measurement"
+  },
+  "band": {
+    "noneActive": "No band is active on this Stage-Server.",
+    "activeAdminOnly": "Only an admin of the active band."
+  },
+  "device": {
+    "notConnected": "Target device not connected"
+  },
+  "speech": {
+    "pluginMissing": "The piper-speech plugin is not installed.",
+    "textMissing": "Text missing",
+    "invalidVoice": "Invalid voice",
+    "invalidSpeed": "Invalid speed",
+    "downloadBusy": "A download is already running, or the voice is unknown.",
+    "notInstalled": "Piper or voice {{voice}} not installed"
+  },
+  "plugin": {
+    "unknownEvent": "{{plugin}}: unknown event type \"{{type}}\"."
+  },
+  "stems": {
+    "demucsMissing": "Demucs is not installed on the Stage-Server (docs/03).",
+    "notInstalled": "Stem separation is not installed on the Stage-Server (Demucs, see docs/03)."
+  },
+  "osc": {
+    "unknownCommand": "Unknown OSC command: {{type}}",
+    "invalidAddress": "Not a valid OSC address: \"{{address}}\"",
+    "noTarget": "This OSC device has no host and port (Stage tech).",
+    "sendFailed": "OSC to {{host}}:{{port}} failed: {{error}}"
+  },
+  "job": {
+    "interrupted": "Interrupted by a restart of the Stage-Server.",
+    "variantGone": "The song variant no longer exists.",
+    "trackGone": "The track no longer exists.",
+    "audioMissing": "The track's audio file is not on the Stage-Server.",
+    "stemPluginMissing": "The \"Separate tracks\" plugin is not installed.",
+    "invalidVariantId": "Invalid song variant id.",
+    "invalidIds": "Invalid song or track id."
+  },
+  "youtube": {
+    "addonMissing": "The \"YouTube download\" add-on is not installed for this band.",
+    "bandMissing": "The YouTube search is missing the band (add-on check).",
+    "urlOnly": "Only youtube.com/youtu.be links are supported.",
+    "downloadTimeout": "yt-dlp had not finished after {{minutes}} minutes and was stopped.",
+    "tooLarge": "The audio is larger than the limit of {{mb}} MB.",
+    "searchTimeout": "The YouTube search did not answer - is the Stage-Server online?"
+  },
+  "ug": {
+    "addonMissing": "The \"Ultimate Guitar Import\" add-on is not installed for this band.",
+    "bandMissing": "Ultimate Guitar is missing the band (add-on check).",
+    "chromePathWrong": "CHROME_EXECUTABLE_PATH points to \"{{path}}\" - there is no Chrome/Chromium there. Fix the path or remove the variable.",
+    "chromeMissing": "For Ultimate Guitar the Stage-Server needs Chrome or Chromium - none found. Install it (e.g. \"sudo apt install chromium\") or set CHROME_EXECUTABLE_PATH. Looked in: {{paths}}",
+    "timeout": "Ultimate Guitar does not answer ({{seconds}} s). Check the Stage-Server's internet connection and try again.",
+    "unavailable": "Ultimate Guitar is not reachable - does the Stage-Server have internet right now?",
+    "blocked": "Ultimate Guitar blocked the request as a bot. Try again in a few minutes.",
+    "sourceChanged": "Ultimate Guitar rebuilt its site - the import (plugin \"ultimate-guitar-scraper\") needs an update. Page title: \"{{title}}\"",
+    "notImportable": "This version has no text to take over (e.g. a Pro or video version). Please pick another version."
+  }
+}

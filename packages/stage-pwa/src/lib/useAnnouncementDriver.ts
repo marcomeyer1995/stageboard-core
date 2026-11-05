@@ -2,22 +2,24 @@ import { useEffect, useMemo, useRef } from 'react'
 import { CAPABILITIES, SERVER_EXECUTION_TARGET } from 'shared-types'
 import { create } from 'zustand'
 import { announcementsDue, sectionAnnouncements, type Announcement } from './announcements'
-import { createAudioClock } from './audioClock'
+import { sharedAudioClock } from './audioClock'
 import { clickTimeline } from './beatGrid'
 import { pluginProviding } from './capabilities'
 import { useAudioOutputLatencyMs } from './latencyCompensation'
-import { getLoopPlaybackState } from './loopTrainerEngine'
 import { adjustedBpm } from './metronome'
 import { getSharedAudioContext } from './sharedAudioContext'
 import { useShowModeSong } from './showMode'
 import { loadSpeechClip, speechClip, type ClipVoice } from './speechClips'
 import { bandAnnouncementSettings, bandSpeechVoice } from './speechVoices'
 import { useCapabilityRouting } from './useCapabilityRouting'
-import { useHardwareBindingFor } from './useHardwareBindingFor'
+import { resolveBuiltInBinding } from './hardwareRouting'
+import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
 import { usePluginsStore } from '../store/usePluginsStore'
 import { useShowStateStore } from '../store/useShowStateStore'
 import { sourceOutput } from './audioMix'
 import { playbackLookup } from './playbackCues'
+import { usePracticeStateStore } from '../store/usePracticeStateStore'
+import { useWorkspaceStore } from '../store/useWorkspaceStore'
 
 const SWITCH_KEY = 'sb:audio:announcements'
 
@@ -54,13 +56,19 @@ const LOOKAHEAD_MS = 150
  */
 export function useAnnouncementDriver(): void {
   const { mode, queue, playbackStatus, elapsedNow } = useShowModeSong()
+  // The loop trainer's speed (#683) - Solo only, 1 in the Gig.
+  const workspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
+  const practiceRate = usePracticeStateStore((state) => state.byWorkspace[workspaceId]?.playbackRate ?? 1)
+  const playbackRate = mode === 'practice' ? practiceRate : 1
   const installed = usePluginsStore((state) => state.installed)
   const enabledHere = useAnnouncementsSwitchStore((state) => state.on)
   const { engine: clickEngine } = useCapabilityRouting(CAPABILITIES.clickTrack, mode)
   // Bühnentechnik → Ansagen (Marco, 2026-10-16): a chosen tablet speaks them in Gig; without one
   // they come with the click, as before.
-  const announcementRole = useHardwareBindingFor(CAPABILITIES.sectionAnnouncements)
   const deviceId = useShowStateStore((state) => state.deviceId)
+  // Several tablets may speak them (one role each) - the role naming this one counts here.
+  const logicalDevices = useLogicalDevicesStore((state) => state.devices)
+  const announcementRole = resolveBuiltInBinding(logicalDevices, CAPABILITIES.sectionAnnouncements, deviceId)
   const ownTarget = mode === 'gig' && announcementRole?.executionTarget && announcementRole.executionTarget !== SERVER_EXECUTION_TARGET ? announcementRole.executionTarget : null
   const engine = ownTarget ? (ownTarget === deviceId ? 'local-mine' : 'local-other') : clickEngine
   const liveTempoAdjustPercent = useShowStateStore((state) => state.state.liveTempoAdjustPercent)
@@ -93,7 +101,7 @@ export function useAnnouncementDriver(): void {
     for (const text of wanted) void loadSpeechClip(text, voice)
   }, [active, items, nextVariant, voice, settings])
 
-  usePlayAnnouncements(items, voice, active && playbackStatus === 'playing', elapsedNow, outputLatencyMs, takeKey)
+  usePlayAnnouncements(items, voice, active && playbackStatus === 'playing', elapsedNow, outputLatencyMs, takeKey, playbackRate)
 }
 
 /**
@@ -108,7 +116,7 @@ export function usePlayAnnouncements(
   elapsedNow: () => number | null,
   outputLatencyMs: number,
   resetKey: unknown = null,
-  /** Song ms per wall ms when slowed down; unset: the loop trainer's rate (or 1). */
+  /** Song ms per wall ms when slowed down (the loop trainer, #683); unset: 1. */
   playbackRate?: number,
 ): void {
   const latest = useRef({ items, elapsedNow, outputLatencyMs, voice, playbackRate })
@@ -117,7 +125,7 @@ export function usePlayAnnouncements(
     // Nothing to say: no AudioContext needed (the Timeline plays its track on an <audio> element).
     if (!playing || items.length === 0) return
     const ctx = getSharedAudioContext()
-    const audioClock = createAudioClock()
+    const audioClock = sharedAudioClock
     let done = new Set<number>()
     let lastElapsed: number | null = null
     let pending: { node: AudioBufferSourceNode; when: number }[] = []
@@ -136,7 +144,7 @@ export function usePlayAnnouncements(
         done = new Set()
       }
       lastElapsed = elapsed
-      const rate = latest.current.playbackRate ?? getLoopPlaybackState()?.rate ?? 1
+      const rate = latest.current.playbackRate ?? 1
       const audioNow = audioClock.now(ctx)
       for (const { index, inMs } of announcementsDue(current, elapsed, (LOOKAHEAD_MS + latencyMs) * rate, done)) {
         const buffer = speechClip(current[index]!.text, currentVoice)

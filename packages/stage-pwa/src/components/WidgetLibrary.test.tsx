@@ -154,5 +154,14 @@ describe('WidgetLibrary', () => {
       render(<WidgetLibrary dashboard={{ ...dashboard(), modes: ['practice'] }} breakpoint="md" capabilities={new Map()} onAddToNewDashboard={vi.fn()} onAdd={vi.fn()} onClose={vi.fn()} />)
       expect(card('Quintenzirkel').textContent).not.toContain('auch im Gig verfügbar')
     })
+
+    it('offers the Loop-Trainer only where Solo Üben can show it (#683)', () => {
+      const { unmount } = render(<WidgetLibrary dashboard={{ ...dashboard(), modes: ['gig'] }} breakpoint="md" capabilities={new Map()} onAddToNewDashboard={vi.fn()} onAdd={vi.fn()} onClose={vi.fn()} />)
+      expect(card('Loop-Trainer')).toBeUndefined()
+      unmount()
+
+      render(<WidgetLibrary dashboard={dashboard()} breakpoint="md" capabilities={new Map()} onAddToNewDashboard={vi.fn()} onAdd={vi.fn()} onClose={vi.fn()} />)
+      expect(card('Loop-Trainer').textContent).toContain('im Gig bleibt sein Platz leer')
+    })
   })
 })

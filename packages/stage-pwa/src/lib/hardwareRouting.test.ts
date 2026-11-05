@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { CAPABILITIES, SERVER_EXECUTION_TARGET, type LogicalDevice } from 'shared-types'
-import { masterPlays, resolveExecutionEngine, resolveHardwareBinding, resolveHardwareBindingById, resolveHardwareEngine, resolveTargetDevice } from './hardwareRouting'
+import { masterPlays, resolveBuiltInBinding, resolveExecutionEngine, resolveHardwareBinding, resolveHardwareBindingById, resolveHardwareEngine, resolveTargetDevice } from './hardwareRouting'
 
 function kemper(overrides: Partial<LogicalDevice> & Pick<LogicalDevice, 'id' | 'name'>): LogicalDevice {
   return { capability: 'midi-input', pluginId: null, executionTarget: null, ...overrides }
@@ -34,6 +34,24 @@ describe('resolveHardwareBinding', () => {
   it('resolves the first Logical Device providing the capability', () => {
     const kemper1 = kemper({ id: 'kemper-1', name: "Marco's Kemper", executionTarget: 'tablet-1' })
     expect(resolveHardwareBinding([kemper1], 'midi-input')).toBe(kemper1)
+  })
+})
+
+describe('resolveBuiltInBinding (several tablets per output, 2026-11-04)', () => {
+  const role = (id: string, executionTarget: string | null): LogicalDevice => ({ id, name: 'Klick', capability: CAPABILITIES.clickTrack, pluginId: null, executionTarget })
+  const roles = [role('c1', 'fire'), role('c2', 'redmi'), kemper({ id: 'k', name: 'Kemper', executionTarget: 'phone' })]
+
+  it('every tablet a role names plays it; any other reads the first role', () => {
+    expect(resolveBuiltInBinding(roles, CAPABILITIES.clickTrack, 'redmi')?.id).toBe('c2')
+    expect(resolveBuiltInBinding(roles, CAPABILITIES.clickTrack, 'fire')?.id).toBe('c1')
+    expect(resolveBuiltInBinding(roles, CAPABILITIES.clickTrack, 'phone')?.id).toBe('c1')
+    for (const [device, engine] of [['fire', 'local-mine'], ['redmi', 'local-mine'], ['phone', 'local-other']] as const) {
+      expect(resolveExecutionEngine('gig', resolveBuiltInBinding(roles, CAPABILITIES.clickTrack, device), device, null, true, { drivesAutomation: false })).toBe(engine)
+    }
+  })
+
+  it('without a role nothing is bound - the device that runs the show plays it', () => {
+    expect(resolveBuiltInBinding([], CAPABILITIES.clickTrack, 'fire')).toBeNull()
   })
 })
 
