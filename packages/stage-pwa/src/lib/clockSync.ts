@@ -56,19 +56,40 @@ export const SAMPLE_INTERVAL_MS = 2_000
 const WINDOW_MS = 120_000
 const BEST_FRACTION = 0.25
 const MIN_BEST = 5
-/** Before this many samples over this long, the window doesn't decide yet (the burst does). */
+/** Only samples at most this much slower than the window's fastest count: a sample can be off by
+ * half its round trip. While the Redmi loaded audio after an app start (docs/11), its round trips
+ * were 0.3-3 s with offsets up to 1.5 s off, a few fast ones (13-42 ms) between them within 10 ms -
+ * the fastest quarter still held 300-700 ms ones and moved band time 66 ms (2026-11-05, over USB). */
+const RTT_SLACK_MS = 20
+/** Fewer usable samples than this: no estimate (the offset in use stays). */
+const MIN_USABLE = 3
+/** Before this many samples over this long, the window doesn't decide yet (the burst does). The
+ * app samples fast for its first seconds (FAST_SAMPLE_*), so the window decides after ~5 s instead
+ * of 20: the burst alone was 11-41 ms off on the Redmi and the phone (2026-11-05, against the
+ * device clock over USB). */
 const MIN_WINDOW_SAMPLES = 10
-const MIN_WINDOW_SPAN_MS = 20_000
-/** A drift line needs this much time between the samples it uses. */
-const MIN_SLOPE_SPAN_MS = 30_000
+const MIN_WINDOW_SPAN_MS = 5_000
+/** A drift line needs this much time between the samples it uses. With 30 s, a line through a
+ * handful of samples ~45 s after the start tilted by up to 2.7 ms/s and pulled the band time 33-68
+ * ms away for a minute (Redmi, 2026-11-05). */
+const MIN_SLOPE_SPAN_MS = 60_000
+/** A real crystal runs at most ~60 ppm against another (docs/29 §11) - a steeper line is noise. */
+const MAX_PER_MS = 100e-6
 /** The offset in use moves towards the estimate by at most this - 0.2 %, so band time never jumps. */
 const SLEW_MS_PER_S = 2
-/** Further away than this the estimate is taken at once (first lock, a Stage-Server clock change). */
+/** Further away than this the estimate is taken at once (first lock, a Stage-Server clock change) -
+ * after the first lock only once FAR_CONFIRMATIONS estimates in a row agree on it. */
 const JUMP_MS = 50
+const FAR_CONFIRMATIONS = 5
+/** The first FAST_SAMPLE_COUNT samples come every FAST_SAMPLE_INTERVAL_MS (useClockSync.ts). */
+export const FAST_SAMPLE_INTERVAL_MS = 500
+export const FAST_SAMPLE_COUNT = 20
 
 let window_: TimedSample[] = []
 /** The offset in use: `target` (a line over local time) plus an error that shrinks at SLEW_MS_PER_S. */
 let applied: { target: { at: number; offsetMs: number; perMs: number }; errorMs: number; since: number } | null = null
+/** Estimates far from the offset in use, not confirmed yet. */
+let far: { offsetMs: number; count: number } | null = null
 
 function targetAt(t: number): number {
   return applied ? applied.target.offsetMs + applied.target.perMs * (t - applied.target.at) : 0
@@ -83,6 +104,12 @@ function appliedAt(t: number): number {
 function aim(now: number, offsetMs: number, perMs: number): void {
   const current = applied ? appliedAt(now) : null
   const error = current === null ? 0 : current - offsetMs
+  if (current !== null && Math.abs(error) > JUMP_MS) {
+    // One far estimate is more likely a bad one than a moved clock: keep the band time until it repeats.
+    far = far && Math.abs(far.offsetMs - offsetMs) <= JUMP_MS ? { offsetMs, count: far.count + 1 } : { offsetMs, count: 1 }
+    if (far.count < FAR_CONFIRMATIONS) return
+  }
+  far = null
   applied = { target: { at: now, offsetMs, perMs }, errorMs: Math.abs(error) > JUMP_MS ? 0 : error, since: now }
 }
 
@@ -90,16 +117,22 @@ function aim(now: number, offsetMs: number, perMs: number): void {
 export function estimateFromWindow(samples: readonly TimedSample[], now: number): { offsetMs: number; perMs: number; uncertaintyMs: number; rttMs: number } | null {
   const recent = samples.filter((s) => s.at >= now - WINDOW_MS)
   if (recent.length < MIN_WINDOW_SAMPLES || now - Math.min(...recent.map((s) => s.at)) < MIN_WINDOW_SPAN_MS) return null
-  const best = [...recent].sort((a, b) => a.rtt - b.rtt).slice(0, Math.max(MIN_BEST, Math.ceil(recent.length * BEST_FRACTION)))
+  const fastest = Math.min(...recent.map((s) => s.rtt))
+  const usable = recent.filter((s) => s.rtt <= fastest + RTT_SLACK_MS)
+  if (usable.length < MIN_USABLE) return null
+  const best = [...usable].sort((a, b) => a.rtt - b.rtt).slice(0, Math.max(MIN_BEST, Math.ceil(recent.length * BEST_FRACTION)))
   const span = Math.max(...best.map((s) => s.at)) - Math.min(...best.map((s) => s.at))
   let offsetMs: number
   let perMs = 0
   let residuals: number[]
   if (best.length >= 8 && span >= MIN_SLOPE_SPAN_MS) {
     const fit = fitLine(best.map((s) => ({ x: s.at - now, y: s.offset })))
-    offsetMs = fit.intercept
-    perMs = fit.slope
-    residuals = best.map((s) => Math.abs(s.offset - (fit.intercept + fit.slope * (s.at - now))))
+    perMs = Math.max(-MAX_PER_MS, Math.min(MAX_PER_MS, fit.slope))
+    // Through the samples' centre at the clamped slope (the fit's own line passes through it too).
+    const meanX = best.reduce((sum, b) => sum + (b.at - now), 0) / best.length
+    const meanY = best.reduce((sum, b) => sum + b.offset, 0) / best.length
+    offsetMs = meanY - perMs * meanX
+    residuals = best.map((s) => Math.abs(s.offset - (offsetMs + perMs * (s.at - now))))
   } else {
     const sorted = best.map((s) => s.offset).sort((a, b) => a - b)
     offsetMs = sorted[Math.floor(sorted.length / 2)]!
@@ -115,7 +148,7 @@ export function estimateFromWindow(samples: readonly TimedSample[], now: number)
  * taken at the midpoint of the client's round trip - the standard NTP offset estimate for a
  * single sample.
  */
-async function takeSample(base: string): Promise<ClockSample | null> {
+async function takeSample(base: string, intoWindow: boolean): Promise<ClockSample | null> {
   const t0 = Date.now()
   try {
     const response = await fetch(`${base}/time`)
@@ -124,7 +157,7 @@ async function takeSample(base: string): Promise<ClockSample | null> {
     const t1 = Date.now()
     const sample = { rtt: t1 - t0, offset: serverTime - (t0 + t1) / 2 }
     clockSyncLog('sample', sample)
-    window_.push({ ...sample, at: (t0 + t1) / 2 })
+    if (intoWindow) window_.push({ ...sample, at: (t0 + t1) / 2 })
     while (window_.length > 0 && window_[0]!.at < t1 - WINDOW_MS) window_.shift()
     return sample
   } catch {
@@ -220,7 +253,9 @@ export async function syncClock(sampleCount = BURST_SAMPLE_COUNT): Promise<numbe
 
   const samples: ClockSample[] = []
   for (let i = 0; i < sampleCount; i++) {
-    const sample = await takeSample(base)
+    // Not into the window: back to back, the Redmi's samples were fast but 40 ms off (its WLAN just
+    // woken) and, being the fastest, outvoted the spaced ones once a minute (2026-11-05, over USB).
+    const sample = await takeSample(base, false)
     if (sample) samples.push(sample)
   }
   if (samples.length === 0) return useClockSyncStore.getState().offsetMs
@@ -247,7 +282,7 @@ export async function syncClock(sampleCount = BURST_SAMPLE_COUNT): Promise<numbe
 export async function sampleClock(): Promise<void> {
   const base = getStageServerUrl()
   if (!base) return
-  const sample = await takeSample(base)
+  const sample = await takeSample(base, true)
   if (!sample) return
   const now = Date.now()
   const estimate = estimateFromWindow(window_, now)
@@ -276,5 +311,6 @@ export function __resetClockSyncForTests(): void {
   offsetHistory = []
   window_ = []
   applied = null
+  far = null
   useClockSyncStore.getState().reset()
 }
