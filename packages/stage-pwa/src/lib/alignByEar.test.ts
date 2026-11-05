@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { alignmentBeatsDue, bracketMiddle, clampAlignValue, isAlignAccent, median, pairOffsets } from './alignByEar'
+import { alignmentBeatsDue, bracketMiddle, clampAlignValue, isAlignAccent, laneOffsets, median, pairOffsets } from './alignByEar'
 
 describe('Abgleich nach Gehör (docs/21 §4)', () => {
   it('lists the session beats after one point up to another, never before the first', () => {
@@ -33,3 +33,14 @@ describe('Abgleich: Takt, Bereich, Mikrofon', () => {
     expect(median([])).toBeNull()
   })
 })
+
+describe('Abgleich: zwei Spuren', () => {
+  it('places both devices against the reference grid - reference around 0, target at its offset', () => {
+    const ref = [10.0, 10.6012, 11.1995, 11.8]
+    const target = [10.012, 10.612, 11.212, 11.812]
+    const lanes = laneOffsets(ref, target, 600)
+    expect(lanes.reference.map((v) => Math.round(v) + 0)).toEqual([0, 1, 0, 0])
+    expect(lanes.target.map((v) => Math.round(v))).toEqual([12, 12, 12, 12])
+  })
+})
+

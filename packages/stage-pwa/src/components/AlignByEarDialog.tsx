@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { AUDIO_OUTPUT, latencyProfileId } from 'shared-types'
 import { getDeviceId } from '../lib/deviceId'
 import { findLatencyProfile, routeLabel } from '../lib/latencyProfiles'
-import { ALIGN_RANGE_MS, bracketMiddle, clampAlignValue, median, pairOffsets } from '../lib/alignByEar'
+import { ALIGN_RANGE_MS, ALIGN_SOUND, bracketMiddle, clampAlignValue, laneOffsets, median, pairOffsets } from '../lib/alignByEar'
 import { startAlignmentMic, type AlignmentMic } from '../lib/alignmentMic'
 import { useAlignmentStore } from '../store/useAlignmentStore'
 import { useDevicesStore } from '../store/useDevicesStore'
@@ -30,6 +30,7 @@ export function AlignByEarDialog({ targetDeviceId, onClose }: { targetDeviceId: 
   const [marks, setMarks] = useState<number[]>([])
   const [mic, setMic] = useState<'off' | 'starting' | 'on' | 'failed'>('off')
   const [offsets, setOffsets] = useState<number[]>([])
+  const [lanes, setLanes] = useState<{ reference: number[]; target: number[] }>({ reference: [], target: [] })
 
   const running = session !== null && session.targetDeviceId === targetDeviceId
   const output = running ? session.targetOutput : undefined
@@ -77,7 +78,10 @@ export function AlignByEarDialog({ targetDeviceId, onClose }: { targetDeviceId: 
       // The microphone's context runs on its own clock: keep what came after the last change.
       const last = Math.max(reference[reference.length - 1] ?? 0, target[target.length - 1] ?? 0)
       const from = last - Math.min(since, 6)
-      setOffsets(pairOffsets(reference.filter((x) => x >= from - 0.3), target.filter((x) => x >= from)).slice(-8))
+      const recentRef = reference.filter((x) => x >= from - 0.3)
+      const recentTarget = target.filter((x) => x >= from)
+      setOffsets(pairOffsets(recentRef, recentTarget).slice(-8))
+      setLanes(laneOffsets(recentRef, recentTarget, useAlignmentStore.getState().session?.periodMs ?? 600))
     }, 300)
     return () => clearInterval(timer)
   }, [mic])
@@ -93,6 +97,7 @@ export function AlignByEarDialog({ targetDeviceId, onClose }: { targetDeviceId: 
     // A change reaches the target's output after ~2 s (sync, then its delay): older clicks are stale.
     changedAt.current = performance.now() + 2500
     setOffsets([])
+    setLanes({ reference: [], target: [] })
     // The WebView's value is its whole latency (never below 0); the native output's is what is heard
     // later than AAudio reports, and may be negative when the reference itself is late.
     const latencyMs = output === AUDIO_OUTPUT ? Math.max(0, Math.round(next)) : Math.round(next)
@@ -146,15 +151,19 @@ export function AlignByEarDialog({ targetDeviceId, onClose }: { targetDeviceId: 
                   </div>
                 ) : (
                   <div className="flex flex-col gap-2">
-                    <OffsetStrip offsets={offsets} />
-                    <p className="text-base text-ink">
+                    <TwoLanes
+                      lanes={lanes}
+                      referenceLabel={t('align.laneReference', { device: nameOf(session.referenceDeviceId), hz: ALIGN_SOUND.reference.hz })}
+                      targetLabel={t('align.laneTarget', { device: nameOf(targetDeviceId), hz: ALIGN_SOUND.target.hz })}
+                    />
+                    <p className="text-lg text-ink">
                       {measured === null
                         ? t('align.micListening')
                         : Math.abs(measured) < 1
-                          ? t('align.micTogether')
+                          ? t('align.micTogether', { device: nameOf(targetDeviceId) })
                           : measured > 0
-                            ? t('align.micLate', { ms: Math.round(measured) })
-                            : t('align.micEarly', { ms: Math.round(-measured) })}
+                            ? t('align.micLate', { device: nameOf(targetDeviceId), ms: Math.round(measured) })
+                            : t('align.micEarly', { device: nameOf(targetDeviceId), ms: Math.round(-measured) })}
                     </p>
                     {measured !== null && Math.abs(measured) >= 1 && (
                       <Button variant="primary" onClick={() => void setValue(value + Math.round(measured))} className="self-start">
@@ -176,21 +185,32 @@ export function AlignByEarDialog({ targetDeviceId, onClose }: { targetDeviceId: 
   )
 }
 
-/** The last beats as heard by the microphone: the reference on the centre line, each target click
- * a dot left (early) or right (late) of it, ±100 ms across. */
-function OffsetStrip({ offsets }: { offsets: number[] }) {
+/** Both devices' last clicks as heard by the microphone, one lane each on the same time axis
+ * (±100 ms around the reference's beat): the reference's dots in the neutral colour around the
+ * middle, the target's in the accent colour - move them under the reference's (Marco, 2026-11-05). */
+function TwoLanes({ lanes, referenceLabel, targetLabel }: { lanes: { reference: number[]; target: number[] }; referenceLabel: string; targetLabel: string }) {
   const x = (ms: number) => Math.max(-100, Math.min(100, ms))
+  const lane = (values: number[], y: number, className: string) =>
+    values.map((v, i) => <circle key={i} cx={x(v)} cy={y} r={4} className={className} opacity={0.35 + (0.65 * (i + 1)) / values.length} />)
   return (
-    <svg viewBox="-110 0 220 40" className="h-16 w-full text-ink-soft" role="img" aria-label={offsets.map((o) => `${Math.round(o)} ms`).join(', ')}>
-      <line x1={-100} x2={100} y1={20} y2={20} stroke="currentColor" strokeWidth={0.5} />
-      {[-100, -50, 50, 100].map((ms) => (
-        <line key={ms} x1={ms} x2={ms} y1={16} y2={24} stroke="currentColor" strokeWidth={0.5} />
-      ))}
-      <line x1={0} x2={0} y1={4} y2={36} stroke="currentColor" strokeWidth={1.5} />
-      {offsets.map((o, i) => (
-        <circle key={i} cx={x(o)} cy={8 + (i % 4) * 8} r={3} className="fill-accent" opacity={0.4 + (0.6 * (i + 1)) / offsets.length} />
-      ))}
-    </svg>
+    <div className="flex flex-col gap-1">
+      <p className="text-sm text-ink-soft">{referenceLabel}</p>
+      <svg viewBox="-110 0 220 70" className="h-28 w-full text-ink-soft" role="img" aria-label={`${referenceLabel} / ${targetLabel}`}>
+        <line x1={-100} x2={100} y1={18} y2={18} stroke="currentColor" strokeWidth={0.4} />
+        <line x1={-100} x2={100} y1={48} y2={48} stroke="currentColor" strokeWidth={0.4} />
+        <line x1={0} x2={0} y1={4} y2={58} stroke="currentColor" strokeWidth={1} strokeDasharray="2 2" />
+        {[-100, -50, 50, 100].map((ms) => (
+          <g key={ms}>
+            <line x1={ms} x2={ms} y1={56} y2={60} stroke="currentColor" strokeWidth={0.5} />
+            <text x={ms} y={68} fontSize={6} textAnchor="middle" fill="currentColor">
+              {ms > 0 ? `+${ms}` : ms} ms
+            </text>
+          </g>
+        ))}
+        {lane(lanes.reference, 18, 'fill-ink-soft')}
+        {lane(lanes.target, 48, 'fill-accent')}
+      </svg>
+      <p className="text-sm text-accent">{targetLabel}</p>
+    </div>
   )
 }
-

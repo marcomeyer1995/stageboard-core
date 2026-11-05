@@ -101,11 +101,13 @@
     "micStart": "Live messen (Mikrofon dieses Geräts)",
     "micFailed": "Kein Mikrofon - Zugriff erlaubt?",
     "micListening": "Höre zu… (beide Klicks müssen hörbar sein)",
-    "micTogether": "Zusammen (unter 1 ms).",
-    "micLate": "Das Gerät klingt {{ms}} ms zu spät.",
-    "micEarly": "Das Gerät klingt {{ms}} ms zu früh.",
+    "micTogether": "{{device}} liegt auf der Referenz (unter 1 ms).",
+    "micLate": "{{device}} klingt {{ms}} ms zu spät → Wert erhöhen (+)",
+    "micEarly": "{{device}} klingt {{ms}} ms zu früh → Wert verringern (−)",
     "micApply": "Vorschlag übernehmen: {{ms}} ms",
-    "range": "Tiefer Klick = Referenz, hoher Klick = dieses Gerät, der erste Schlag im Takt lauter. Der Wert bleibt höchstens {{ms}} ms vom Startwert entfernt."
+    "range": "Tiefer Klick = Referenz, hoher Klick = dieses Gerät, der erste Schlag im Takt lauter. Der Wert bleibt höchstens {{ms}} ms vom Startwert entfernt.",
+    "laneReference": "Referenz: {{device}} (tiefer Klick, {{hz}} Hz)",
+    "laneTarget": "{{device}} (hoher Klick, {{hz}} Hz) - unter die Referenz schieben"
   },
   "native": {
     "label": "Native Tonausgabe (Android)",

@@ -101,11 +101,13 @@
     "micStart": "Measure live (this device's microphone)",
     "micFailed": "No microphone - access allowed?",
     "micListening": "Listening… (both clicks must be audible)",
-    "micTogether": "Together (below 1 ms).",
-    "micLate": "The device sounds {{ms}} ms late.",
-    "micEarly": "The device sounds {{ms}} ms early.",
+    "micTogether": "{{device}} is on the reference (below 1 ms).",
+    "micLate": "{{device}} sounds {{ms}} ms late → raise the value (+)",
+    "micEarly": "{{device}} sounds {{ms}} ms early → lower the value (−)",
     "micApply": "Take the suggestion: {{ms}} ms",
-    "range": "Low click = reference, high click = this device, the first beat of each bar louder. The value stays within {{ms}} ms of where it started."
+    "range": "Low click = reference, high click = this device, the first beat of each bar louder. The value stays within {{ms}} ms of where it started.",
+    "laneReference": "Reference: {{device}} (low click, {{hz}} Hz)",
+    "laneTarget": "{{device}} (high click, {{hz}} Hz) - move under the reference"
   },
   "native": {
     "label": "Native sound output (Android)",

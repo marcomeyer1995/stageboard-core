@@ -51,3 +51,18 @@ export function median(values: readonly number[]): number | null {
   const mid = Math.floor(sorted.length / 2)
   return sorted.length % 2 ? sorted[mid]! : (sorted[mid - 1]! + sorted[mid]!) / 2
 }
+
+/**
+ * Both devices' clicks as heard, each against the reference's own beat grid (ms; the grid fitted
+ * through the reference clicks at the session's period): the reference's dots sit around 0 by its
+ * jitter, the target's at its offset - one lane each in the dialog. The last `count` of each.
+ */
+export function laneOffsets(referenceS: readonly number[], targetS: readonly number[], periodMs: number, count = 8): { reference: number[]; target: number[] } {
+  if (referenceS.length === 0) return { reference: [], target: [] }
+  const period = periodMs / 1000
+  const first = referenceS[0]!
+  const phase = median(referenceS.map((r) => r - first - Math.round((r - first) / period) * period))!
+  const grid = (x: number) => first + phase + Math.round((x - first - phase) / period) * period
+  const near = (x: number) => (x - grid(x)) * 1000
+  return { reference: referenceS.slice(-count).map(near), target: targetS.slice(-count).map(near) }
+}
