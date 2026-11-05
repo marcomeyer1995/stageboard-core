@@ -16,10 +16,34 @@ Konzept, Stand 2026-11-05, kein Beschluss im Detail. Anlass: Marco hat Klick und
 |---|---|---|---|
 | Fire HD (Android 9) · WebView | ~240 ms laut Zeitstempel, **~420 ms gehört** | nein: ~180 ms zu wenig, dazu Ausreißer (bis 13 s, −17…−32 ms) und Spitzen bei Stop | docs/29 §11 |
 | Fire · AAudio (fester Ausgang) | ~114 ms | nicht gemessen | docs/28 §2 |
+| Fire · AAudio, Lautsprecher | ~210 ms (kein Low-Latency-Pfad, Burst 960) | **ja** – gehört wie Redmi/Handy (§2a) | §2a |
+| Redmi · AAudio, Lautsprecher | ~31 ms (Low-Latency, Burst 256) | ja | §2a |
+| Xiaomi-Handy · AAudio und WebView | ~30 ms | ja, beide Wege gleich (±2 ms) | §2a |
 | Redmi Pad SE · WebView, Lautsprecher | ~35–60 ms | ja (bis auf jedes zehnte Paar +5 ms) | docs/29 §11 |
 | Redmi · USB über Androids Treiber | – | stumm, meldet „läuft“ (MediaTek-HAL) | docs/28 §3 |
 | Redmi · eigener USB-Treiber | Rundlauf 3 ms | ja (wir zählen die Samples selbst) | docs/28 §5 |
 | Laptop · Chrome | ~48 ms | ja (±2 ms) | docs/29 §11 |
+
+### 2a. Messung nativer Klick (2026-11-05, Schritt 1 aus §6)
+
+Spike `spike/native-click` (App 1.712): ein Klick über AAudio, gelegt auf ein 1-s-Raster der Server-Zeit; die Lage jedes Puffers kommt aus AAudios eigenem Zeitstempel (`getTimestamp`: Bildposition + Abspielzeit), **ohne jeden Ausgleich**. Gleichzeitig spielt jedes Gerät denselben Klick über Web Audio (Lage aus `getOutputTimestamp`, wie die App heute). Jeder Klick hat eine eigene Tonhöhe, das Laptop-Mikrofon nimmt alles auf. 6 Runden, vor jeder die App auf allen Geräten neu gestartet. Werte in ms gegen den nativen Fire-Klick:
+
+| Runde | Fire WebView | Redmi nativ | Redmi WebView | Handy nativ | Handy WebView |
+|---|---|---|---|---|---|
+| 1 | +161 | −10 | −8 | −9 | −9 |
+| 2 | +159 | +15 | +16 | −11 | −11 |
+| 3 | +161 | −14 | −15 | −14 | −12 |
+| 4 | +159 | −10 | −11 | −12 | −11 |
+| 5 | +161 | −4 | −2 | −12 | −12 |
+| 6 | +160 | −9 | −9 | −12 | −11 |
+
+- **Nativ liegen alle drei Geräte ohne Ausgleich innerhalb ~10–15 ms**; ein Neustart nur des Audio-Streams ändert die Lage um ~2 ms (8 Neustarts Fire/Handy: −8,5…−10,6 ms), Schwankung von Schlag zu Schlag 1–2 ms.
+- **Fire-WebView** liegt je App-Start mal 24 ms, mal 160 ms daneben – nicht ausgleichbar. Fire nativ dagegen stimmt.
+- **Redmi und Handy:** WebView = nativ ±2 ms, die Browser-Zeitangabe stimmt dort.
+- **Der Rest ist die Uhr, nicht das Audio:** beim Redmi springen nativ und WebView gemeinsam (+15 / −4 / −14) – das ist der Versatz der Uhr-Synchronisation nach dem App-Start (der Spike nutzt nur die rohe Uhr-Synchronisation, nicht den Zeitdienst aus docs/29).
+- Die konstanten ~10 ms Fire gegen die anderen: Abstand zum Mikrofon oder nicht gemeldete Lautsprecher-Verzögerung – offen, der Abgleich von Hand deckt es ab.
+
+Daten und Skripte: `~/stageboard-data/sync-bench/2026-11-05-native/`.
 
 Daraus:
 
@@ -56,7 +80,7 @@ Wie heute (#491, docs/21 §9): ein Weg spielt um seinen gemessenen Rest früher.
 
 ## 6. Reihenfolge
 
-1. **AAudio-Spike (Oboe) als Ausgabeweg für den Klick** – auf allen Geräten im Haus (Fire, Redmi, Xiaomi-Handy), nicht nur dem Fire: Klick nativ, geplant auf der Band-Zeit, Zeitangabe über `getTimestamp`. Gemessen mit dem Laptop-Mikrofon wie heute: behauptet vs. gehört, Schwankung je Start, Abstand zu den anderen Geräten. Erst wenn das auf allen dreien hält, weiter.
+1. ✅ (2026-11-05, §2a) **AAudio-Spike als Ausgabeweg für den Klick** – auf allen Geräten im Haus (Fire, Redmi, Xiaomi-Handy), nicht nur dem Fire: Klick nativ, geplant auf der Band-Zeit, Zeitangabe über `getTimestamp`. Gemessen mit dem Laptop-Mikrofon wie heute: behauptet vs. gehört, Schwankung je Start, Abstand zu den anderen Geräten. Erst wenn das auf allen dreien hält, weiter.
 2. **Engine nativ:** Track und Stems (PCM über die Brücke oder nativ dekodiert), Drift-Anpassung, Stummschalten; Web Audio bleibt als Weg erhalten.
 3. **Eigener USB-Treiber als zweiter nativer Weg** in dieselbe Engine (docs/28 §6, Eingang zuerst stabil).
 4. **Geräteprüfung** (§4, docs/21 §4): Abgleich von Hand zuerst (keine Hardware), dann Mischpult und Loopback automatisch; Urteil je Weg, Ausgleich nur wo nötig; Anzeige in Bühnentechnik.
@@ -68,4 +92,5 @@ Wie heute (#491, docs/21 §9): ein Weg spielt um seinen gemessenen Rest früher.
 - Oboe als Fremdbibliothek (Apache 2.0) oder AAudio direkt? Oboe bringt Rückfall auf OpenSL ES für Android < 8.1 und viele Geräte-Umgehungen – Vorschlag: Oboe.
 - Track-Daten in die native Engine: dekodiert über die Brücke (einfach, Speicher) oder nativ dekodieren (MediaCodec)?
 - Welche Pulte geben ihre Eingänge per USB/Netz so heraus, dass StageBoard sie lesen kann (USB-Audio class compliant vs. eigene Treiber/Protokolle)? Zuerst die Pulte, für die es schon Plugins gibt (CQ-18T, Ui24R).
+- Warum weicht der Uhr-Versatz des Redmi je App-Start um bis zu 25 ms ab (§2a)? Mit nativem Audio ist das der größte verbleibende Fehler.
 - Was zeigt die App, wenn kein Weg auf einem Gerät stimmt (der Fire-WebView-Fall)? Vorschlag: rotes „Ausgang ungenau“ in Bühnentechnik mit der gemessenen Schwankung, Empfehlung eines anderen Wegs.
