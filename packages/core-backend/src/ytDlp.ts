@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs'
 import { spawn } from 'node:child_process'
-import { YOUTUBE_VIDEO_ID_RE, type YoutubeSearchResult } from 'shared-types'
+import { ServerMessageError, YOUTUBE_VIDEO_ID_RE, type YoutubeSearchResult } from 'shared-types'
 
 /** Same "find whichever binary is already on the host" pattern as ultimateGuitarPlugin.ts's
  * `resolveChromeExecutable` - yt-dlp is not bundled or auto-installed (fetching an executable
@@ -153,11 +153,11 @@ export function runYtDlpExtract(
       clearTimeout(timer)
       if (pendingLine) handleLine(pendingLine)
       if (timedOut) {
-        reject(new Error(`yt-dlp hat nach ${Math.round(timeoutMs / 60_000)} Minuten nicht fertig geladen und wurde abgebrochen.`))
+        reject(new ServerMessageError('youtube.downloadTimeout', { minutes: Math.round(timeoutMs / 60_000) }))
         return
       }
       if (tooLarge) {
-        reject(new Error(`Die Audiospur ist größer als das Limit von ${Math.round(maxExtractBytes() / (1024 * 1024))} MB.`))
+        reject(new ServerMessageError('youtube.tooLarge', { mb: Math.round(maxExtractBytes() / (1024 * 1024)) }))
         return
       }
       if (code !== 0) {
@@ -226,7 +226,7 @@ export function runYtDlpSearch(query: string, timeoutMs: number = YT_DLP_SEARCH_
     })
     child.on('close', (code) => {
       clearTimeout(timer)
-      if (timedOut) return reject(new Error('Die YouTube-Suche hat nicht geantwortet - ist der Stage-Server online?'))
+      if (timedOut) return reject(new ServerMessageError('youtube.searchTimeout'))
       if (code !== 0) return reject(new Error(`yt-dlp exited with code ${code}: ${ytDlpErrorSummary(stderrTail)}`))
       try {
         resolve(parseYtDlpSearch(stdout))

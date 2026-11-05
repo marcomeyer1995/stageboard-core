@@ -1,6 +1,7 @@
 import i18n from '../i18n'
 import { useEffect, useState } from 'react'
 import { getStageServerUrl } from '../lib/stageServer'
+import { serverErrorText } from '../lib/serverMessage'
 import { useTranslation } from 'react-i18next'
 
 interface BackupStatus {
@@ -8,6 +9,7 @@ interface BackupStatus {
   at?: string
   target?: string | null
   error?: string
+  errorCode?: string
   totalBytes?: number
 }
 
@@ -47,7 +49,7 @@ export function BackupStatusLine() {
   if (status === undefined) return null
   if (status === null) return <span className="text-warn">{t('backup.notSetUp')}</span>
   const stale = status.at ? Date.now() - new Date(status.at).getTime() > 48 * 3600_000 : true
-  if (!status.ok) return <span className="text-danger">{t('backup.failed', { when: status.at ? ` (${ago(status.at)})` : '', error: status.error })}</span>
+  if (!status.ok) return <span className="text-danger">{t('backup.failed', { when: status.at ? ` (${ago(status.at)})` : '', error: serverErrorText(status) })}</span>
   return (
     <span className={stale ? 'text-warn' : 'text-ok'}>
       {t('backup.last', { when: status.at ? ago(status.at) : '' })}
