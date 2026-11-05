@@ -5,14 +5,15 @@ import { useAudioOutputLatencyMs } from './latencyCompensation'
 import { setLocalTrackSilenced } from './localAudioEngine'
 import { useShowModeCore } from './showMode'
 import { useFrameLoop } from './useFrameLoop'
-import { loadStems, setStemGains, setStemLevelCurve, syncStems, unloadStems } from './stemEngine'
+import { loadStems, setStemGains, setStemLevelCurve, setStemsStretched, stemsStretched, syncStems, unloadStems } from './stemEngine'
+import { prepareStretch, stretchChain, stretchLatencyMs } from './mixStretch'
+import { getSharedAudioContext } from './sharedAudioContext'
 import { useTrackLevelCurve } from './trackLevel'
 import { stemGains, stemMixFor, useStemMixStore } from './stemMix'
 import { pickStemSet, stemSetsOf } from './stems'
-import { computeActiveMs, jumpBoundaryMs } from './playbackTransport'
+import { computeActiveMs, jumpBoundaryMs, rateOf } from './playbackTransport'
 import type { TrackJump } from './webAudioTrackEngine'
 import { practiceTransportOf, usePracticeStateStore } from '../store/usePracticeStateStore'
-import { useLoopTrainerStore } from '../store/useLoopTrainerStore'
 import { useStemPlaybackStore } from '../store/useStemPlaybackStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 
@@ -27,30 +28,42 @@ import { useWorkspaceStore } from '../store/useWorkspaceStore'
  *
  * The track's `<audio>` element keeps running silently - position, track end and everything that
  * follows it stay as they are - and is heard whenever the engine isn't ready (still loading,
- * failed). Not during a Rehearsal Loop (#61): the loop plays its own copy of the track.
+ * failed). The loop trainer (#683) plays here too: slower, through one stretch on the whole mix.
  */
-/** The song time as heard `latencyMs` from now - across a queued section jump (#479) the same way
- * the Gig's track does (useAudioOutputDriver): past the boundary in that played-ahead time, the
- * target's time. Null while stopped. */
+/** The song time as heard `latencyMs` (clock time) from now - across a queued section jump (#479)
+ * the same way the Gig's track does (useAudioOutputDriver): past the boundary in that played-ahead
+ * time, the target's time, at the target's speed (#683). Null while stopped. */
 function playedAheadNow(workspaceId: string, latencyMs: number): number | null {
   const transport = practiceTransportOf(usePracticeStateStore.getState().get(workspaceId))
   if (transport.status === 'stopped') return null
-  const played = computeActiveMs({ ...transport, jump: null }, Date.now()) + latencyMs
+  const rate = rateOf(transport)
+  const played = computeActiveMs({ ...transport, jump: null }, Date.now()) + latencyMs * rate
   const boundary = jumpBoundaryMs(transport)
-  return transport.jump && boundary !== null && played >= boundary ? transport.jump.toMs + (played - boundary) : played
+  return transport.jump && boundary !== null && played >= boundary ? transport.jump.toMs + ((played - boundary) / rate) * (transport.jump.rate ?? rate) : played
 }
 
 function queuedJump(workspaceId: string): TrackJump | null {
   const transport = practiceTransportOf(usePracticeStateStore.getState().get(workspaceId))
   const boundary = jumpBoundaryMs(transport)
-  return transport.jump && boundary !== null ? { id: transport.jump.at, boundaryMs: boundary, toMs: transport.jump.toMs } : null
+  return transport.jump && boundary !== null
+    ? { id: transport.jump.at, boundaryMs: boundary, toMs: transport.jump.toMs, ...(transport.jump.rate !== undefined ? { rate: transport.jump.rate } : {}) }
+    : null
+}
+
+function practiceRate(workspaceId: string): number {
+  return rateOf(practiceTransportOf(usePracticeStateStore.getState().get(workspaceId)))
 }
 
 export function useStemPlaybackDriver(): void {
   const { mode, queue, playbackStatus, trackOverride } = useShowModeCore()
   const workspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
   const { currentEntry, currentVariant } = queue
-  const loopActive = useLoopTrainerStore((state) => state.active)
+  // A slowed trainer session (#683) - the whole session, also its 100 % passes, so the stretch's
+  // delay never changes mid-loop. At the song's own tempo nothing is stretched.
+  const stretch = usePracticeStateStore((state) => {
+    const practice = state.byWorkspace[workspaceId]
+    return (practice?.playbackRate ?? 1) !== 1 || (practice?.playbackLoop?.rates ?? []).some((rate) => rate !== 1)
+  })
   const settings = stemMixFor(
     currentVariant?.id,
     useStemMixStore((state) => state.byVariant),
@@ -60,7 +73,7 @@ export function useStemPlaybackDriver(): void {
   const useStems = settings.on && set !== null && set.stems.length > 0
   const stemIds = useMemo(() => (useStems && set ? set.stems.map((s) => s.id) : playingTrack ? [playingTrack.id] : []), [useStems, set, playingTrack])
   const idsKey = stemIds.join(',')
-  const wanted = mode === 'practice' && stemIds.length > 0 && !loopActive
+  const wanted = mode === 'practice' && stemIds.length > 0
   const status = useStemPlaybackStore((state) => state.status)
 
   useEffect(() => {
@@ -97,16 +110,37 @@ export function useStemPlaybackDriver(): void {
   // Every frame while playing, on its own loop (#457), once on every change otherwise (start, pause,
   // stop). The engine reads the song time itself, right when it reads the audio clock, shifted like
   // the click and the Gig's Web Audio track so it is heard on the song time.
-  const latencyMs = useAudioOutputLatencyMs()
+  const outputLatencyMs = useAudioOutputLatencyMs()
+  useEffect(() => {
+    if (!stretch) {
+      setStemsStretched(false)
+      return
+    }
+    // Loaded already (the trainer loads it before it starts): routed in right now, before the sync
+    // below starts the stems - one frame later their timing jumped by the stretch's delay and the
+    // engine restarted them at the loop's start (seen on the Fire, 2026-11-04).
+    if (stretchChain()) {
+      setStemsStretched(true)
+      return
+    }
+    let cancelled = false
+    void prepareStretch(getSharedAudioContext()).then(() => !cancelled && setStemsStretched(true))
+    return () => {
+      cancelled = true
+    }
+  }, [stretch])
   const sync = () => {
     if (status !== 'ready') return
+    // Through the stretch the mix comes out later - it is played that much earlier.
+    const latencyMs = outputLatencyMs + (stemsStretched() ? stretchLatencyMs() : 0)
     syncStems(
       () => playedAheadNow(workspaceId, latencyMs),
       playbackStatus === 'playing',
       () => queuedJump(workspaceId),
+      () => practiceRate(workspaceId),
     )
   }
-  useEffect(sync, [status, latencyMs, playbackStatus, workspaceId])
+  useEffect(sync, [status, outputLatencyMs, playbackStatus, workspaceId, stretch])
   useFrameLoop(sync, status === 'ready' && playbackStatus === 'playing')
 
   useEffect(

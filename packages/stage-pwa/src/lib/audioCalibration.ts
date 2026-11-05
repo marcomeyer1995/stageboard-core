@@ -5,6 +5,7 @@ import { playClickAt } from './clickEngine'
 import { getServerTime } from './clockSync'
 import { getDeviceId } from './deviceId'
 import { getSharedAudioContext, holdAudioOutputAwake } from './sharedAudioContext'
+import { serverText } from './serverMessage'
 import { getStageServerUrl } from './stageServer'
 import { useAudioRouteStore } from '../store/useAudioRouteStore'
 
@@ -38,7 +39,7 @@ export async function runAudioCalibration(earlierByMs = 0, onProgress?: (msLeft:
       body: JSON.stringify({ deviceId: getDeviceId(), input: measureInputFor(useAudioRouteStore.getState().route) }),
     })
     if (!response.ok) {
-      const message = ((await response.json().catch(() => ({}))) as { message?: string }).message ?? `HTTP ${response.status}`
+      const message = serverText((await response.json().catch(() => ({}))) as { message?: string }) ?? `HTTP ${response.status}`
       return { ok: false, message, ...(response.status === 409 ? { busy: true } : {}) }
     }
     run = (await response.json()) as CalibrationRunStart

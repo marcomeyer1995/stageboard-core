@@ -89,3 +89,27 @@ describe('section jump (#479)', () => {
     expect(computePlayedMs(looping, 45_000)).toBe(35_000)
   })
 })
+
+describe('a slowed transport (#683, the loop trainer)', () => {
+  const slow: TransportState = { status: 'playing', startedAt: 1000, accumulatedMs: 5000, rate: 0.5 }
+
+  it('song time runs at its rate, and past a jump at the jump\'s rate', () => {
+    expect(computeActiveMs(slow, 3000)).toBe(6000)
+    const jumping: TransportState = { ...slow, jump: { at: 3000, toMs: 2000, rate: 0.8 } }
+    expect(jumpBoundaryMs(jumping)).toBe(6000)
+    expect(computeActiveMs(jumping, 4000)).toBe(2800)
+  })
+
+  it('folding the jump takes its rate; pause and play keep the rate', () => {
+    const folded = foldJump({ ...slow, jump: { at: 3000, toMs: 2000, rate: 0.8 } }, 4000)
+    expect(folded).toMatchObject({ startedAt: 3000, accumulatedMs: 2000, rate: 0.8 })
+    const paused = pause(slow, 3000)
+    expect(paused).toMatchObject({ status: 'paused', accumulatedMs: 6000, rate: 0.5 })
+    expect(computeActiveMs(play(paused, 10_000), 12_000)).toBe(7000)
+  })
+
+  it('a Gig transport never carries a rate', () => {
+    expect(play(ARMED_TRANSPORT, 0)).not.toHaveProperty('rate')
+    expect(pause({ status: 'playing', startedAt: 0, accumulatedMs: 0 }, 100)).not.toHaveProperty('rate')
+  })
+})

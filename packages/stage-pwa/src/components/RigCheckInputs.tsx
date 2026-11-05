@@ -7,6 +7,7 @@ import { getStageServerUrl } from '../lib/stageServer'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { Group } from './SystemSettings'
 import { Button, Section, Select } from './ui'
+import { serverText } from '../lib/serverMessage'
 
 /** How long "Pegel prüfen" listens; "Testklick" plays its clicks inside that window. */
 const LISTEN_MS = 2500
@@ -30,7 +31,7 @@ function useServerCall() {
         body: JSON.stringify({ adminUsername: workspace.username, adminPassword: workspace.couchPassword, ...extra }),
       })
       const body = (await res.json().catch(() => null)) as (T & { message?: string }) | null
-      if (!res.ok) throw new Error(body?.message ?? t('inputs.http', { status: res.status }))
+      if (!res.ok) throw new Error(serverText(body) ?? t('inputs.http', { status: res.status }))
       return body as T
     },
     [workspace?.username, workspace?.couchPassword, t],

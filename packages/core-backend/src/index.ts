@@ -47,6 +47,7 @@ import {
   WorkspaceProvisionRequestSchema,
   type Device,
 } from 'shared-types'
+import { messageFieldsOf, serverMessage, type ServerMessage } from 'shared-types'
 import { BackupAdminRequestSchema, BackupSaveRequestSchema, MeasureInputsSaveRequestSchema, MeasureLevelRequestSchema, type MeasureInputsOverview, BackupTargetRequestSchema, FlashReportSchema, ShowStatePushAckSchema, ShowStatePushSchema, SwitchStateEventSchema, SpeechSpeedSchema, SpeechVoiceKeySchema, YOUTUBE_VIDEO_ID_RE } from 'shared-types'
 import { createBackupService, realBackupDeps, type BackupService } from './backup.js'
 import { deleteAudioFile, isSafeAudioId, readAudioFile, writeAudioFile } from './audioStore.js'
@@ -448,14 +449,14 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
     const parsed = CalibrationRunRequestSchema.safeParse(request.body ?? {})
     if (!parsed.success) return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
     const run = calibrationRuns.start(parsed.data.count, parsed.data.input ?? 'mic')
-    if (!run) return reply.status(409).send({ status: 'error', message: 'Gerade läuft schon eine Messung - bitte kurz warten.' })
+    if (!run) return reply.status(409).send({ status: 'error', ...serverMessage('calibration.busy') })
     app.log.info({ runId: run.id, deviceId: parsed.data.deviceId, input: parsed.data.input ?? 'mic', listensOn: measureInputs.resolve(parsed.data.input ?? 'mic'), clicks: run.times.length, recordUntil: run.recordUntil }, 'Calibration run started')
     return run
   })
   app.get('/calibration/runs/:id', async (request, reply) => {
     const { id } = request.params as { id: string }
     const status = calibrationRuns.get(id)
-    if (!status) return reply.status(404).send({ status: 'error', message: 'Unbekannte Messung' })
+    if (!status) return reply.status(404).send({ status: 'error', ...serverMessage('calibration.unknownRun') })
     if (status.state === 'failed') app.log.error({ runId: id, error: status.error }, 'Calibration run failed')
     if (status.state === 'done') app.log.info({ runId: id, onsets: status.onsets, result: status.result }, 'Calibration run finished')
     return status
@@ -834,7 +835,7 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
 
     const delivered = deviceRelay.relay(workspaceId, deviceId, parsed.data)
     if (!delivered) {
-      return reply.status(200).send({ status: 'error', message: 'Zielgerät nicht verbunden' })
+      return reply.status(200).send({ status: 'error', ...serverMessage('device.notConnected') })
     }
     return { status: 'ok' }
   })
@@ -912,22 +913,22 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
   // downloaded on request (voiceCatalog.ts), so the band picks one in the plugin's settings.
   const speechReady = (reply: FastifyReply) => {
     if (registry.get(PIPER_SPEECH_PLUGIN_ID)) return true
-    void reply.status(404).send({ status: 'error', message: 'Plugin piper-speech ist nicht installiert.' })
+    void reply.status(404).send({ status: 'error', ...serverMessage('speech.pluginMissing') })
     return false
   }
   app.get('/speech', async (request, reply) => {
     const query = request.query as { text?: unknown; voice?: unknown; speed?: unknown }
     const text = PiperSpeech.normalise(String(query.text ?? ''))
-    if (!text) return reply.status(400).send({ status: 'error', message: 'text fehlt' })
+    if (!text) return reply.status(400).send({ status: 'error', ...serverMessage('speech.textMissing') })
     const voice = query.voice === undefined || query.voice === '' ? undefined : SpeechVoiceKeySchema.safeParse(query.voice)
-    if (voice && !voice.success) return reply.status(400).send({ status: 'error', message: 'Ungültige Stimme' })
+    if (voice && !voice.success) return reply.status(400).send({ status: 'error', ...serverMessage('speech.invalidVoice') })
     const speed = query.speed === undefined || query.speed === '' ? undefined : SpeechSpeedSchema.safeParse(Number(query.speed))
-    if (speed && !speed.success) return reply.status(400).send({ status: 'error', message: 'Ungültiges Tempo' })
+    if (speed && !speed.success) return reply.status(400).send({ status: 'error', ...serverMessage('speech.invalidSpeed') })
     if (!speechReady(reply)) return reply
     const result = await serverSpeech.speak(text, voice?.data, speed?.data)
     if (!result.ok) {
       app.log.error({ text, voice: voice?.data, reason: result.reason, message: result.message }, 'Speech clip failed')
-      return reply.status(result.reason === 'unavailable' ? 503 : 500).send({ status: 'error', message: result.message })
+      return reply.status(result.reason === 'unavailable' ? 503 : 500).send({ status: 'error', message: result.message, messageCode: result.messageCode, messageParams: result.messageParams })
     }
     if (result.generated) app.log.info({ text, voice: voice?.data, bytes: result.wav.length }, 'Speech clip generated')
     return reply.header('Content-Type', 'audio/wav').header('Cache-Control', 'public, max-age=31536000, immutable').send(result.wav)
@@ -938,16 +939,16 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
   })
   app.get('/speech/voices/:key/license', async (request, reply) => {
     const key = SpeechVoiceKeySchema.safeParse((request.params as { key: string }).key)
-    if (!key.success) return reply.status(400).send({ status: 'error', message: 'Ungültige Stimme' })
+    if (!key.success) return reply.status(400).send({ status: 'error', ...serverMessage('speech.invalidVoice') })
     if (!speechReady(reply)) return reply
     return serverVoices.license(key.data)
   })
   app.post('/speech/voices/:key/install', async (request, reply) => {
     const key = SpeechVoiceKeySchema.safeParse((request.params as { key: string }).key)
-    if (!key.success) return reply.status(400).send({ status: 'error', message: 'Ungültige Stimme' })
+    if (!key.success) return reply.status(400).send({ status: 'error', ...serverMessage('speech.invalidVoice') })
     if (!speechReady(reply)) return reply
     const started = await serverVoices.install(key.data)
-    if (!started) return reply.status(409).send({ status: 'error', message: 'Gerade läuft schon ein Download, oder die Stimme ist unbekannt.' })
+    if (!started) return reply.status(409).send({ status: 'error', ...serverMessage('speech.downloadBusy') })
     app.log.info({ voice: key.data }, 'Speech voice download started')
     return { status: 'ok' }
   })
@@ -1064,11 +1065,11 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
 
   /** Ultimate Guitar only for a band that installed its add-on (#546) - the app sends its band as
    * `workspace`. Other providers (MusicBrainz) need nothing. Returns the refusal, or null. */
-  async function lookupRefusal(provider: string, workspace: string | undefined): Promise<string | null> {
+  async function lookupRefusal(provider: string, workspace: string | undefined): Promise<ServerMessage | null> {
     if (provider !== ULTIMATE_GUITAR_PROVIDER) return null
-    if (!workspace || !/^[a-z0-9_-]+$/i.test(workspace)) return 'Für Ultimate Guitar fehlt die Band (Add-on-Prüfung).'
+    if (!workspace || !/^[a-z0-9_-]+$/i.test(workspace)) return serverMessage('ug.bandMissing')
     const installed = await bandHasAddon(couch, workspace, ULTIMATE_GUITAR_PLUGIN_ID).catch(() => false)
-    return installed ? null : 'Das Add-on „Ultimate Guitar Import“ ist für diese Band nicht installiert.'
+    return installed ? null : serverMessage('ug.addonMissing')
   }
 
   app.get('/lookup/:provider/search', async (request, reply) => {
@@ -1078,7 +1079,7 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
       return reply.status(400).send({ status: 'error', message: 'Missing query parameter q' })
     }
     const refusal = await lookupRefusal(provider, workspace)
-    if (refusal) return reply.status(403).send({ status: 'error', message: refusal })
+    if (refusal) return reply.status(403).send({ status: 'error', ...refusal })
 
     try {
       const results = await lookupRegistry.search(provider, q)
@@ -1103,7 +1104,7 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
       return reply.status(400).send({ status: 'error', message: 'Missing query parameter resultId' })
     }
     const refusal = await lookupRefusal(provider, workspace)
-    if (refusal) return reply.status(403).send({ status: 'error', message: refusal })
+    if (refusal) return reply.status(403).send({ status: 'error', ...refusal })
 
     try {
       const detail = await lookupRegistry.fetchDetail(provider, resultId)
@@ -1118,10 +1119,10 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
   })
 
   /** The YouTube add-on (#546) for this band, or the refusal - like `lookupRefusal` for UG. */
-  async function youtubeRefusal(workspace: string | undefined): Promise<string | null> {
-    if (!workspace || !/^[a-z0-9_-]+$/i.test(workspace)) return 'Für die YouTube-Suche fehlt die Band (Add-on-Prüfung).'
+  async function youtubeRefusal(workspace: string | undefined): Promise<ServerMessage | null> {
+    if (!workspace || !/^[a-z0-9_-]+$/i.test(workspace)) return serverMessage('youtube.bandMissing')
     const installed = await bandHasAddon(couch, workspace, YOUTUBE_DOWNLOAD_PLUGIN_ID).catch(() => false)
-    return installed ? null : 'Das Add-on „YouTube-Download“ ist für diese Band nicht installiert.'
+    return installed ? null : serverMessage('youtube.addonMissing')
   }
 
   // YouTube search for "Track hinzufügen" (#618): the same yt-dlp as the download, metadata only.
@@ -1129,12 +1130,12 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
     const { q, workspace } = request.query as { q?: string; workspace?: string }
     if (!q?.trim()) return reply.status(400).send({ status: 'error', message: 'Missing query parameter q' })
     const refusal = await youtubeRefusal(workspace)
-    if (refusal) return reply.status(403).send({ status: 'error', message: refusal })
+    if (refusal) return reply.status(403).send({ status: 'error', ...refusal })
     try {
       return await runYtDlpSearch(q.trim().slice(0, 200))
     } catch (err) {
       app.log.error({ err, q }, 'YouTube search failed')
-      return reply.status(502).send({ status: 'error', message: err instanceof Error ? err.message : String(err) })
+      return reply.status(502).send({ status: 'error', ...messageFieldsOf(err) })
     }
   })
 
@@ -1648,12 +1649,12 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
   async function activeBandAdmin(request: FastifyRequest, reply: FastifyReply, body: { adminUsername: string; adminPassword: string }): Promise<boolean> {
     const workspaceId = workspaceHardware.getActiveWorkspaceId()
     if (!workspaceId) {
-      void reply.status(409).send({ status: 'error', message: 'Auf diesem Stage-Server ist keine Band aktiv.' })
+      void reply.status(409).send({ status: 'error', ...serverMessage('band.noneActive') })
       return false
     }
     if (!(await isWorkspaceAdmin(request, workspaceId, body.adminUsername, body.adminPassword))) {
       app.log.warn({ workspaceId, remoteAddress: request.ip }, 'Server setting refused: not this band\'s admin')
-      void reply.status(403).send({ status: 'error', message: 'Nur ein Admin der aktiven Band.' })
+      void reply.status(403).send({ status: 'error', ...serverMessage('band.activeAdminOnly') })
       return false
     }
     return true
@@ -1715,7 +1716,7 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
     if (!parsed.success) return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
     if (!(await activeBandAdmin(request, reply, parsed.data))) return reply
     // The device is in use while a calibration run records - one at a time.
-    if (calibrationRuns.busy()) return reply.status(409).send({ status: 'error', message: 'Gerade läuft eine Messung - bitte kurz warten.' })
+    if (calibrationRuns.busy()) return reply.status(409).send({ status: 'error', ...serverMessage('calibration.busy') })
     const level = await measureLevel(parsed.data.input, parsed.data.durationMs ?? 2000)
     if (level.error) app.log.warn({ input: parsed.data.input, error: level.error }, 'Measuring input level failed')
     return reply.status(200).send(level)
@@ -1732,7 +1733,7 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
       return reply.status(200).send(JSON.parse(readFileSync(file, 'utf8')))
     } catch (err) {
       app.log.warn({ err }, 'backup-status.json unreadable')
-      return reply.status(200).send({ ok: false, error: 'Status-Datei unlesbar' })
+      return reply.status(200).send({ ok: false, error: serverMessage('backup.statusUnreadable').message, errorCode: 'backup.statusUnreadable' })
     }
   })
 
