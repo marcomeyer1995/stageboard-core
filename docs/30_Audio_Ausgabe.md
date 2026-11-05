@@ -45,6 +45,18 @@ Spike `spike/native-click` (App 1.712): ein Klick über AAudio, gelegt auf ein 1
 
 Daten und Skripte: `~/stageboard-data/sync-bench/2026-11-05-native/`.
 
+### 2b. Im Gig: die ganze Mischung über die native Ausgabe (2026-11-05, PR #697)
+
+Marcos Entscheidung: nicht nur der Klick, sondern **die ganze Mischung** geht nativ raus ("pipe") – sonst lägen Klick (nativ) und Track (WebView) auf dem Fire um den WebView-Fehler auseinander. Ein AudioWorklet greift die Mischung ab, ein Worker schickt sie über einen WebSocket auf 127.0.0.1 an einen AAudio-Stream, der jeden Frame zur Zeit „gerendert + feste Verzögerung“ abspielt (Fire 410 ms, Redmi/Handy 231 ms). Messung im Gig mit dem Referenz-Song, jedes Gerät klickt in eigener Tonhöhe (`sb:debug:click-hz`), Bezug Laptop-Chrome:
+
+| | WebView | native Ausgabe |
+|---|---|---|
+| Fire gegen Laptop | −107…−114 ms | −15…−17 ms |
+| Redmi gegen Laptop | +24…+32 ms | −25…−31 ms |
+| Handy gegen Laptop | +1…+6 ms | −27…−30 ms |
+
+Schwankung von Schlag zu Schlag 0,5–2 ms, keine Aussetzer bei Play/Stop. Lehren unterwegs: Übergabe über die Capacitor-Brücke vom Haupt-Thread setzte bei Play/Stop aus (Haupt-Thread 200–350 ms blockiert) → Worker + WebSocket; einzelne Frames überspringen knackte → Tempo um höchstens 0,2 % anpassen; Capacitors `getDouble()` liefert 0 für große ganze Zahlen; Android blockiert `ws://127.0.0.1` ohne Cleartext-Ausnahme. Offen: Sprünge auf dem Handy bei Play/Stop, die konstanten ~12 ms Fire gegen Redmi/Handy, längere Reaktion auf Stop am Fire.
+
 Daraus:
 
 1. **Die Browser-Zeitangabe ist geräteabhängig verlässlich** – auf zwei von drei Geräten gut, auf dem Fire falsch. Das lässt sich in der App nicht reparieren, nur erkennen und ausgleichen.
