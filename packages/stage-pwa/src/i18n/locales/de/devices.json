@@ -82,6 +82,14 @@
     "msPlaceholder": "z. B. 70",
     "save": "Speichern"
   },
+  "native": {
+    "label": "Native Tonausgabe (Android)",
+    "on": "An: gehört {{ms}} ms nach dem Abspielen - genau, ohne gespeicherte Latenz.",
+    "starting": "Startet…",
+    "failed": "Nicht verfügbar ({{error}}) - die App spielt wie bisher.",
+    "off": "Aus: Ton über die WebView, mit der gespeicherten Latenz unten.",
+    "info": "Spielt Klick, Track und Ansagen über Androids eigene Tonausgabe statt über die WebView. Ihre Zeitangabe stimmt auf allen gemessenen Geräten; die der WebView ist auf manchen (Fire) bei jedem Start anders falsch. Dann braucht dieses Gerät keinen gespeicherten Latenzwert."
+  },
   "comp": {
     "label": "Ton-Latenz ausgleichen",
     "stored": "{{ms}} ms für {{route}}",

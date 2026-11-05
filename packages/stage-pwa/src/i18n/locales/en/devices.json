@@ -82,6 +82,14 @@
     "msPlaceholder": "e.g. 70",
     "save": "Save"
   },
+  "native": {
+    "label": "Native sound output (Android)",
+    "on": "On: heard {{ms}} ms after rendering - exact, no stored latency needed.",
+    "starting": "Starting…",
+    "failed": "Not available ({{error}}) - the app plays as before.",
+    "off": "Off: sound through the WebView, with the stored latency below.",
+    "info": "Plays click, track and announcements through Android's own sound output instead of the WebView. Its timing report was right on every device measured; the WebView's is wrong on some (Fire), differently at every start. Then this device needs no stored latency value."
+  },
   "comp": {
     "label": "Compensate sound latency",
     "stored": "{{ms}} ms for {{route}}",

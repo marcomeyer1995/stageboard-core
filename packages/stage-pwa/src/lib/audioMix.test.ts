@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { __resetAudioMixForTests, DEFAULT_MIX, mixGain, parseMix, sideOf, sourceOutput, trackElementVolume, useAudioMixStore, useOutputRoutingStore } from './audioMix'
+import { masterOutput } from './nativeOutput'
 
 class FakeGain {
   gain = {
@@ -60,7 +61,9 @@ describe('Mein Mix (docs/21 §9.3)', () => {
     const ctx = fakeCtx()
     const click = sourceOutput('click', ctx) as unknown as FakeGain
     expect(sourceOutput('click', ctx)).toBe(click as unknown as AudioNode)
-    expect(click.connectedTo).toBe(ctx.destination)
+    expect(click.connectedTo).toBe(masterOutput(ctx))
+    // Every source ends in the one master node (docs/30), which goes to the speaker unless the native output plays.
+    expect((masterOutput(ctx) as unknown as FakeGain).connectedTo).toBe(ctx.destination)
     useAudioMixStore.getState().setLevel('click', 0.5)
     expect(click.gain.targets[click.gain.targets.length - 1]).toBe(0.5)
     useAudioMixStore.getState().setMuted('click', true)
@@ -97,13 +100,13 @@ describe('Klick und Track trennen (#481 step 1)', () => {
     expect([right.channelCount, right.channelCountMode, right.channelInterpretation]).toEqual([1, 'explicit', 'speakers'])
     const merger = left.connectedTo as FakeMerger
     expect(right.connectedTo).toBe(merger)
-    expect(merger.connectedTo).toBe(ctx.destination)
+    expect(merger.connectedTo).toBe(masterOutput(ctx))
     // A source created later follows the routing too.
     const voice = sourceOutput('voice', ctx) as unknown as FakeGain
     expect(voice.connectedTo).toBe(left)
     useOutputRoutingStore.getState().setRouting('mixed')
-    expect(click.connectedTo).toBe(ctx.destination)
-    expect(track.connectedTo).toBe(ctx.destination)
+    expect(click.connectedTo).toBe(masterOutput(ctx))
+    expect(track.connectedTo).toBe(masterOutput(ctx))
   })
 
   it('is kept per device', () => {

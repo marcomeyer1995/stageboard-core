@@ -1,3 +1,4 @@
+import { nativeOutputAudioPerWall, nativeOutputNow } from './nativeOutput'
 import { timeBase } from './timeBase'
 /** Recent readings of `currentTime - wall clock`, s. The band's Fire tablet advances
  * `currentTime` in 64 ms steps (sometimes 128/192 ms - measured 2026-09-27, output latency
@@ -97,14 +98,27 @@ export function keepAudioClockWarm(ctx: AudioContext): void {
   }, WARM_INTERVAL_MS)
 }
 
-/** The audio clock now: from the output timestamps (timeBase.ts, docs/29 step 1) once they are
- * ready, else from the smoother above. */
+/** The audio clock now: from the native output's line while that plays (nativeOutput.ts, docs/30),
+ * else from the output timestamps (timeBase.ts, docs/29 step 1) once they are ready, else from the
+ * smoother above. */
 export const sharedAudioClock: AudioClock = {
   now(ctx) {
     keepAudioClockWarm(ctx)
+    const piped = nativeOutputNow(ctx)
+    if (piped !== null) return Math.max(ctx.currentTime, piped)
     const smoothed = shared.now(ctx)
     const measured = timeBase.now(ctx)
     return measured === null ? smoothed : Math.max(ctx.currentTime, measured)
   },
   reset: () => shared.reset(),
+}
+
+/** Whether `sharedAudioClock` reads a precise clock (native output or time service), not the smoother. */
+export function audioClockPrecise(ctx: AudioContext): boolean {
+  return nativeOutputNow(ctx) !== null || timeBase.ready(ctx)
+}
+
+/** Audio seconds per wall-clock second - from the native output's line while that plays. */
+export function audioPerWall(ctx: AudioContext): number {
+  return nativeOutputAudioPerWall(ctx) ?? timeBase.audioPerWall(ctx)
 }

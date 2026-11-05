@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { getSharedAudioContext } from './sharedAudioContext'
+import { masterOutput } from './nativeOutput'
 
 /**
  * "Mein Mix" (docs/21 §9.3): how loud backing track, click and spoken announcements play on this
@@ -145,7 +146,7 @@ function sideBus(ctx: AudioContext, side: 'left' | 'right'): GainNode {
   let buses = sides.get(ctx)
   if (!buses) {
     const merger = ctx.createChannelMerger(2)
-    merger.connect(ctx.destination)
+    merger.connect(masterOutput(ctx))
     const bus = (channel: number) => {
       const node = ctx.createGain()
       node.channelCount = 1
@@ -165,7 +166,7 @@ function sideBus(ctx: AudioContext, side: 'left' | 'right'): GainNode {
 function route(source: MixSource, ctx: AudioContext, gain: GainNode, routing: OutputRouting, rewire = false): void {
   if (rewire) gain.disconnect()
   const side = sideOf(source, routing)
-  gain.connect(side ? sideBus(ctx, side) : ctx.destination)
+  gain.connect(side ? sideBus(ctx, side) : masterOutput(ctx))
 }
 
 /**

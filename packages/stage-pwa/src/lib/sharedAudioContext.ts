@@ -1,4 +1,5 @@
 import { keepAudioClockWarm } from './audioClock'
+import { followNativeOutput, masterOutput } from './nativeOutput'
 /**
  * The one AudioContext of this device - the click (clickEngine.ts) and, with the Web Audio track
  * engine (#468), the backing track play on it. Same context = same audio clock and same output
@@ -10,6 +11,7 @@ export function getSharedAudioContext(): AudioContext {
   if (!context) {
     context = new AudioContext()
     keepAudioClockWarm(context)
+    followNativeOutput(context)
   }
   return context
 }
@@ -39,7 +41,7 @@ export function holdAudioOutputAwake(who: string, on: boolean): void {
     const gain = ctx.createGain()
     gain.gain.value = KEEP_ALIVE_GAIN
     osc.connect(gain)
-    gain.connect(ctx.destination)
+    gain.connect(masterOutput(ctx))
     osc.start()
     // Without a user gesture the browser may refuse; the next tap (Play) resumes the context anyway.
     void ctx.resume().catch(() => {})
