@@ -2,6 +2,9 @@ import { ALIGN_SOUND } from './alignByEar'
 
 /** Band filters' Q: narrow enough to keep the two sounds apart, wide enough to ring up fast. */
 const Q = 4
+/** Two filters in series per band: one let the loud accented reference click through into the
+ * target's band strongly enough to count as a target click (Fire quieter at 2000 Hz, 2026-11-05). */
+const STAGES = 2
 
 /** Onsets per band: the envelope crossing a share of its recent peak, then quiet for a while - and
  * not where it is only the other sound leaking through this band's filter: a loud click of the
@@ -47,7 +50,7 @@ export interface AlignmentMic {
  * Listens with this device's microphone during "Abgleich nach Gehör" (docs/21 §4): two band
  * filters on the two click sounds (ALIGN_SOUND), onsets of each reported with their time. The
  * microphone's own delay drops out - only the gap between the two clicks counts; the filters' ring-up
- * (≈ Q/(π·f), longer for the lower sound) is taken off each band. Without echo cancellation, noise
+ * (≈ Q/(π·f) per stage, longer for the lower sound) is taken off each band. Without echo cancellation, noise
  * suppression and gain control, which would smear the clicks.
  */
 export async function startAlignmentMic(onOnset: (band: 'reference' | 'target', timeS: number) => void): Promise<AlignmentMic> {
@@ -60,12 +63,16 @@ export async function startAlignmentMic(onOnset: (band: 'reference' | 'target', 
     const source = ctx.createMediaStreamSource(stream)
     const merger = ctx.createChannelMerger(2)
     const bands = (['reference', 'target'] as const).map((role, i) => {
-      const filter = ctx.createBiquadFilter()
-      filter.type = 'bandpass'
-      filter.frequency.value = ALIGN_SOUND[role].hz
-      filter.Q.value = Q
-      source.connect(filter).connect(merger, 0, i)
-      return Q / (Math.PI * ALIGN_SOUND[role].hz)
+      let node: AudioNode = source
+      for (let k = 0; k < STAGES; k++) {
+        const filter = ctx.createBiquadFilter()
+        filter.type = 'bandpass'
+        filter.frequency.value = ALIGN_SOUND[role].hz
+        filter.Q.value = Q
+        node = node.connect(filter)
+      }
+      node.connect(merger, 0, i)
+      return (STAGES * Q) / (Math.PI * ALIGN_SOUND[role].hz)
     })
     const detector = new AudioWorkletNode(ctx, 'sb-align-onsets', { numberOfInputs: 1, numberOfOutputs: 1, channelCount: 2, channelCountMode: 'explicit', channelInterpretation: 'discrete' })
     const silent = ctx.createGain()
