@@ -466,6 +466,32 @@ describe('section jump in the show (#479)', () => {
     expect(atBoundary?.downbeat).toBe(true)
   })
 
+  it('a loop pass at a new speed (#683): 0.5 s beats before the joint, 0.625 s after, the downbeat on it', () => {
+    // At 100 % up to 8 s, then back to 2 s at 80 %: 500 ms of song take 625 ms.
+    const jump = { id: 3, boundaryMs: 8000, toMs: 2000, rate: 0.8 }
+    let wallMs = 0
+    const startMs = 7700
+    let rate = 1
+    const songMs = () => {
+      const old = startMs + wallMs
+      if (old < jump.boundaryMs) return old
+      rate = 0.8
+      return jump.toMs + (old - jump.boundaryMs) * 0.8
+    }
+    startClick(() => ({ timeline, elapsedMs: songMs(), jump, playbackRate: rate }))
+    for (let i = 0; i < 60; i++) {
+      vi.advanceTimersByTime(50)
+      wallMs += 50
+      fakeCtx.currentTime += 0.05
+    }
+    const all = clicks()
+    const boundary = all.findIndex((c) => Math.abs(c.at - 1000.3) < 0.01)
+    expect(all[boundary]?.downbeat).toBe(true)
+    for (let i = 1; i <= boundary; i++) expect(all[i].at - all[i - 1].at).toBeCloseTo(0.5, 3)
+    expect(all.length - boundary).toBeGreaterThan(3)
+    for (let i = boundary + 1; i < all.length; i++) expect(all[i].at - all[i - 1].at).toBeCloseTo(0.625, 3)
+  })
+
   it('jumps forward the same way (skipping a section)', () => {
     run({ id: 2, boundaryMs: 8000, toMs: 16000 }, 7700, 40)
     const all = clicks()

@@ -26,11 +26,11 @@ interface LoopTrainerStore {
    * different entry sees the defaults (same mechanism as useChordOffsetStore). */
   entryId: string | null
   config: LoopTrainerConfig
-  /** Whether the loop engine is running (set by lib/loopTrainer.ts, the only writer). */
-  active: boolean
+  /** Why the last start failed (set by lib/loopTrainer.ts). Whether a loop runs is the practice
+   * state's (#683, `trainerLoopOf`). */
   error: string | null
   setConfig: (entryId: string, patch: Partial<LoopTrainerConfig>) => void
-  setActive: (active: boolean, error?: string | null) => void
+  setError: (error: string | null) => void
 }
 
 /** This device's rehearsal loop: local, never synced, never persisted - like every other
@@ -38,11 +38,10 @@ interface LoopTrainerStore {
 export const useLoopTrainerStore = create<LoopTrainerStore>((set, get) => ({
   entryId: null,
   config: DEFAULT_LOOP_CONFIG,
-  active: false,
   error: null,
   setConfig: (entryId, patch) =>
     set({ entryId, config: { ...(get().entryId === entryId ? get().config : DEFAULT_LOOP_CONFIG), ...patch } }),
-  setActive: (active, error = null) => set({ active, error }),
+  setError: (error) => set({ error }),
 }))
 
 export function loopConfigFor(entryId: string | null): LoopTrainerConfig {

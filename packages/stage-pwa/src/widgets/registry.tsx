@@ -313,7 +313,7 @@ const DEFINITIONS: WidgetDefinition[] = [
   defineWidget({
     type: 'loop-trainer',
     title: 'Loop-Trainer',
-    description: 'Solo Üben: wiederholt einen Abschnitt des Backing-Tracks lückenlos, optional mit steigendem Tempo pro Durchgang (Tonhöhe bleibt).',
+    description: 'Solo Üben: wiederholt einen Bereich des Songs lückenlos - Track oder Stems mit Mein Mix, und der Klick -, optional mit steigendem Tempo pro Durchgang (Tonhöhe bleibt).',
     category: 'performance',
     stageTier: 'rehearsal',
     defaultLayout: { w: 5, h: 8, minW: 3, minH: 4, maxW: 8, maxH: 12 },

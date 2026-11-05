@@ -1,13 +1,11 @@
-import { jumpBoundaryMs } from './playbackTransport'
+import { jumpBoundaryMs, rateOf } from './playbackTransport'
 import { useEffect, useMemo, useRef, useSyncExternalStore } from 'react'
 import { CAPABILITIES } from 'shared-types'
 import { startClick, stopClick, type ClickEngineState } from './clickEngine'
 import { holdAudioOutputAwake } from './sharedAudioContext'
-import { getLoopPlaybackState } from './loopTrainerEngine'
 import { adjustedBpm, effectiveClickEnabled } from './metronome'
 import { useCapabilityRouting } from './useCapabilityRouting'
 import { useShowModeCore } from './showMode'
-import { useLoopTrainerStore } from '../store/useLoopTrainerStore'
 import { clickTimeline } from './beatGrid'
 import { useAudioOutputLatencyMs } from './latencyCompensation'
 import { playbackLookup } from './playbackCues'
@@ -37,12 +35,6 @@ function subscribeToVisibility(callback: () => void): () => void {
 
 function isPageVisibleSnapshot(): boolean {
   return document.visibilityState !== 'hidden' && document.hasFocus()
-}
-
-/** The slice of ClickEngineState a running Rehearsal Loop (#61) contributes - nothing otherwise. */
-function loopClickState(loopActive: boolean): Pick<ClickEngineState, 'playbackRate' | 'loop'> {
-  const loop = loopActive ? getLoopPlaybackState() : null
-  return loop ? { playbackRate: loop.rate, loop: { startMs: loop.startMs, endMs: loop.endMs } } : { playbackRate: 1, loop: null }
 }
 
 /**
@@ -79,7 +71,6 @@ export function useClickOutputDriver(): void {
   // re-renders on song and state changes only, not every frame (#457).
   const { mode, queue, elapsedNow, playbackStatus, liveTempoAdjustPercent, clickTrackOverride, transport } = useShowModeCore()
   const { engine } = useCapabilityRouting(CAPABILITIES.clickTrack, mode)
-  const loopActive = useLoopTrainerStore((state) => state.active)
   const isPageVisible = useSyncExternalStore(subscribeToVisibility, isPageVisibleSnapshot, () => true)
   // Heard that much later than scheduled on this device's current output (#491).
   const outputLatencyMs = useAudioOutputLatencyMs()
@@ -111,11 +102,13 @@ export function useClickOutputDriver(): void {
   const playbackJump = transport?.jump ?? null
   const startedAt = transport?.startedAt ?? null
   const accumulatedMs = transport?.accumulatedMs ?? 0
+  // The loop trainer's speed (#683) - always 1 in the Gig. The click is generated at it, never stretched.
+  const playbackRate = transport ? rateOf(transport) : 1
   const jump = useMemo(() => {
     if (!playbackJump) return null
-    const boundaryMs = jumpBoundaryMs({ status: 'playing', startedAt, accumulatedMs, jump: playbackJump })
-    return boundaryMs === null ? null : { id: playbackJump.at, boundaryMs, toMs: playbackJump.toMs }
-  }, [playbackJump, startedAt, accumulatedMs])
+    const boundaryMs = jumpBoundaryMs({ status: 'playing', startedAt, accumulatedMs, jump: playbackJump, rate: playbackRate })
+    return boundaryMs === null ? null : { id: playbackJump.at, boundaryMs, toMs: playbackJump.toMs, ...(playbackJump.rate !== undefined ? { rate: playbackJump.rate } : {}) }
+  }, [playbackJump, startedAt, accumulatedMs, playbackRate])
   const elapsedNowRef = useRef(elapsedNow)
   elapsedNowRef.current = elapsedNow
   const stateRef = useRef<ClickEngineState>({ elapsedMs: null, timeline })
@@ -125,14 +118,7 @@ export function useClickOutputDriver(): void {
         return elapsedNowRef.current()
       },
       timeline,
-      // Rehearsal Looper (#61): the click follows the trainer's current pass speed and stays inside
-      // the looped section - read at each tick, the pass speed changes from pass to pass.
-      get playbackRate() {
-        return loopClickState(loopActive).playbackRate
-      },
-      get loop() {
-        return loopClickState(loopActive).loop
-      },
+      playbackRate,
       outputLatencyMs,
       clickOnAt,
       jump,

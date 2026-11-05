@@ -3,9 +3,8 @@ import { useState } from 'react'
 import { useShowPart } from '../lib/widgetParts'
 import { Button, Dialog, Select, Switch } from '../components/ui'
 import { parseChordPro } from '../lib/chordpro'
-import { getLoopPlaybackState } from '../lib/loopTrainerEngine'
 import { formatLoopTime, loopSections } from '../lib/loopSections'
-import { startLoopTrainer, stopLoopTrainer } from '../lib/loopTrainer'
+import { startLoopTrainer, stopLoopTrainer, useTrainerLoop } from '../lib/loopTrainer'
 import { resolveTrackForEntry } from '../lib/computeQueue'
 import { useShowMode } from '../lib/showMode'
 import { useContentFontSizeStore } from '../store/useContentFontSizeStore'
@@ -54,10 +53,11 @@ function Stepper({
 }
 
 /**
- * Rehearsal Looper / Speed Trainer (#61): repeats a section of the backing track gaplessly and,
- * optionally, speeds it up a little on every pass until the target tempo - pitch stays put. Solo
- * Üben only: it slows and loops THIS tablet's own audio and clock, which a band-synced Gig
- * clock must never allow one tablet to do.
+ * Rehearsal Looper / Speed Trainer (#61): repeats a range of the song and, optionally, speeds it
+ * up a little on every pass until the target tempo - pitch stays put. Since #683 it is Solo Üben's
+ * section loop with its own range and speed: track or stems with Mein Mix, and the click, all
+ * play it. Solo Üben only: it slows THIS tablet's own clock, which a band-synced Gig clock must
+ * never allow one tablet to do.
  */
 export function LoopTrainerWidget({ config }: { config: LoopTrainerWidgetConfig }) {
   const { t } = useTranslation('widgets')
@@ -68,8 +68,9 @@ export function LoopTrainerWidget({ config }: { config: LoopTrainerWidgetConfig 
   const trackOverride = usePracticeStateStore((state) => (state.byWorkspace[workspaceId] ?? DEFAULT_PRACTICE_STATE).trackOverride)
   const baseFontSize = useContentFontSizeStore((state) => state.baseFontSize)
   const stored = useLoopTrainerStore((state) => state)
-  // Loading the stretch engine and decoding the track takes seconds on the Fire - say so, or a
-  // second tap looks like the obvious thing to do.
+  const running = useTrainerLoop()
+  // Loading the stretcher takes a moment on the Fire - say so, or a second tap looks like the
+  // obvious thing to do.
   const [starting, setStarting] = useState(false)
   const [tempoOpen, setTempoOpen] = useState(false)
   const fontSize = stageFontSize(baseFontSize * (config.sizeRatio ?? DEFAULT_SIZE_RATIO))
@@ -92,8 +93,9 @@ export function LoopTrainerWidget({ config }: { config: LoopTrainerWidgetConfig 
   const settings: LoopTrainerConfig = stored.entryId === entryId ? stored.config : DEFAULT_LOOP_CONFIG
   const update = (patch: Partial<LoopTrainerConfig>) => stored.setConfig(entryId, patch)
   const sections = loopSections(parseChordPro(currentVariant.chordProContent), track.durationMs ?? null)
-  const playing = stored.active ? getLoopPlaybackState() : null
-  const canSetPoint = elapsedMs !== null && !stored.active
+  const active = running !== null
+  const playing = running
+  const canSetPoint = elapsedMs !== null && !active
   const hasLoop = settings.startMs !== null && settings.endMs !== null && settings.endMs > settings.startMs
 
   return (
@@ -115,7 +117,7 @@ export function LoopTrainerWidget({ config }: { config: LoopTrainerWidgetConfig 
         <div className="grid grid-cols-2 gap-2">
           <Select
             label={t('loop.from')}
-            disabled={stored.active}
+            disabled={active}
             className="min-w-0"
             value=""
             onChange={(e) => e.target.value !== '' && update({ startMs: Number(e.target.value) })}
@@ -123,7 +125,7 @@ export function LoopTrainerWidget({ config }: { config: LoopTrainerWidgetConfig 
           />
           <Select
             label={t('loop.to')}
-            disabled={stored.active}
+            disabled={active}
             className="min-w-0"
             value=""
             onChange={(e) => e.target.value !== '' && update({ endMs: Number(e.target.value) })}
@@ -138,7 +140,7 @@ export function LoopTrainerWidget({ config }: { config: LoopTrainerWidgetConfig 
       {/* Tempo and Speed Trainer behind a button (Marco, 2026-10-22): seven rows never fit the
           widget, and a dashboard never scrolls. While the loop runs the button shows its progress. */}
       <div className="mt-auto flex items-center gap-2">
-        <Button className="min-w-0 flex-1" disabled={stored.active} onClick={() => setTempoOpen(true)}>
+        <Button className="min-w-0 flex-1" disabled={active} onClick={() => setTempoOpen(true)}>
           <span style={{ fontSize }} className="truncate tabular-nums">
             {playing
               ? t('loop.pass', { n: playing.pass + 1, pct: Math.round(playing.rate * 100) })
@@ -147,7 +149,7 @@ export function LoopTrainerWidget({ config }: { config: LoopTrainerWidgetConfig 
                 : t('loop.tempo', { pct: settings.startPercent })}
           </span>
         </Button>
-        {stored.active ? (
+        {active ? (
           <Button className="min-w-0 flex-1" variant="primary" icon="stop" onClick={stopLoopTrainer}>
             {t('loop.stop')}
           </Button>

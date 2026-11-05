@@ -14,12 +14,27 @@ export interface TransportState {
   jump?: SectionJump | null
   /** Song time leapt over by passed jumps (ShowState.playbackSkippedMs) - forward +, back −. */
   skippedMs?: number
+  /** How fast song time runs against the clock (#683, Solo Üben's loop trainer): 0.8 = an 80 %
+   * pass. Absent means 1 - always in the Gig, where the band's clock never slows. */
+  rate?: number
 }
 
 export interface SectionJump {
   at: number
   toMs: number
   label?: string
+  /** The speed from the jump on (#683: the loop trainer's next pass). Absent: unchanged. */
+  rate?: number
+}
+
+/** The speed of a transport (#683). */
+export function rateOf(state: Pick<TransportState, 'rate'>): number {
+  return state.rate ?? 1
+}
+
+/** The speed after a jump - its own, or the one before. */
+function rateAfter(state: TransportState): number {
+  return state.jump?.rate ?? rateOf(state)
 }
 
 /** The transport slice of a show state. */
@@ -37,8 +52,8 @@ export const ARMED_TRANSPORT: TransportState = { status: 'stopped', startedAt: n
 export function computeActiveMs(state: TransportState, now: number): number {
   if (state.status === 'playing' && state.startedAt !== null) {
     // Past a section jump (#479) the song continues at its target.
-    if (state.jump && now >= state.jump.at) return state.jump.toMs + (now - state.jump.at)
-    return state.accumulatedMs + Math.max(0, now - state.startedAt)
+    if (state.jump && now >= state.jump.at) return state.jump.toMs + (now - state.jump.at) * rateAfter(state)
+    return state.accumulatedMs + Math.max(0, now - state.startedAt) * rateOf(state)
   }
   return state.accumulatedMs
 }
@@ -47,14 +62,28 @@ export function computeActiveMs(state: TransportState, now: number): number {
  * without a jump or while not playing. */
 export function jumpBoundaryMs(state: TransportState): number | null {
   if (!state.jump || state.status !== 'playing' || state.startedAt === null) return null
-  return state.accumulatedMs + (state.jump.at - state.startedAt)
+  return state.accumulatedMs + (state.jump.at - state.startedAt) * rateOf(state)
+}
+
+/** The clock time at which a playing transport reaches song time `songMs` (before any jump) -
+ * null unless playing. */
+export function clockTimeAt(state: TransportState, songMs: number): number | null {
+  if (state.status !== 'playing' || state.startedAt === null) return null
+  return state.startedAt + (songMs - state.accumulatedMs) / rateOf(state)
 }
 
 /** The same song clock without the passed jump: anchored on it (#479). Unchanged before the jump. */
 export function foldJump(state: TransportState, now: number): TransportState {
   if (!state.jump || now < state.jump.at || state.status !== 'playing' || state.startedAt === null) return state
-  const boundary = state.accumulatedMs + (state.jump.at - state.startedAt)
-  return { status: 'playing', startedAt: state.jump.at, accumulatedMs: state.jump.toMs, jump: null, skippedMs: (state.skippedMs ?? 0) + (state.jump.toMs - boundary) }
+  const boundary = state.accumulatedMs + (state.jump.at - state.startedAt) * rateOf(state)
+  return {
+    status: 'playing',
+    startedAt: state.jump.at,
+    accumulatedMs: state.jump.toMs,
+    jump: null,
+    skippedMs: (state.skippedMs ?? 0) + (state.jump.toMs - boundary),
+    ...withRate(rateAfter(state)),
+  }
 }
 
 /** The time really played (#64, Marco 2026-10-29): song time without what jumps leapt over -
@@ -64,11 +93,16 @@ export function computePlayedMs(state: TransportState, now: number): number {
   return computeActiveMs(folded, now) - (folded.skippedMs ?? 0)
 }
 
+/** `rate` only when it isn't 1 - a Gig transport never carries one. */
+function withRate(rate: number): { rate?: number } {
+  return rate === 1 ? {} : { rate }
+}
+
 /** Starts or resumes - a no-op if already playing, so re-pressing Play mid-song never resets
  * the accumulated position. */
 export function play(state: TransportState, now: number): TransportState {
   if (state.status === 'playing') return state
-  return { status: 'playing', startedAt: now, accumulatedMs: state.accumulatedMs, jump: null, skippedMs: state.skippedMs ?? 0 }
+  return { status: 'playing', startedAt: now, accumulatedMs: state.accumulatedMs, jump: null, skippedMs: state.skippedMs ?? 0, ...withRate(rateOf(state)) }
 }
 
 /** Freezes the current position for a later resume - a no-op unless currently playing. */
@@ -77,7 +111,7 @@ export function pause(state: TransportState, now: number): TransportState {
   // A jump not reached yet is dropped - after Pause the song resumes where it stood. One already
   // passed is folded first, so what it skipped is kept.
   const folded = foldJump(state, now)
-  return { status: 'paused', startedAt: null, accumulatedMs: computeActiveMs(folded, now), jump: null, skippedMs: folded.skippedMs ?? 0 }
+  return { status: 'paused', startedAt: null, accumulatedMs: computeActiveMs(folded, now), jump: null, skippedMs: folded.skippedMs ?? 0, ...withRate(rateOf(folded)) }
 }
 
 /** Rearms: back to 0. Both Reset (no log) and Stop (queue.ts's stopSong logs first, from the

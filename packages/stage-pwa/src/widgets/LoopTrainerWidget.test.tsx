@@ -11,7 +11,7 @@ vi.mock('../lib/showMode', () => {
   // Widgets read the clock only where they show it (#457) - the same mocked show for every hook.
   return { useShowMode: show, useShowModeCore: () => ({ ...show(), elapsedNow: () => show()?.elapsedMs ?? null }), useShowModeOnDemand: show }
 })
-vi.mock('../lib/loopTrainer', () => ({ startLoopTrainer: vi.fn(), stopLoopTrainer: vi.fn() }))
+vi.mock('../lib/loopTrainer', () => ({ startLoopTrainer: vi.fn(), stopLoopTrainer: vi.fn(), useTrainerLoop: () => null }))
 vi.mock('../store/usePracticeStateStore', () => ({
   DEFAULT_PRACTICE_STATE: { trackOverride: null },
   usePracticeStateStore: (selector: (state: { byWorkspace: Record<string, unknown> }) => unknown) => selector({ byWorkspace: {} }),
@@ -51,7 +51,7 @@ function mockMode(mode: 'gig' | 'practice', elapsedMs: number | null = 12_500, v
 
 describe('LoopTrainerWidget (#61)', () => {
   beforeEach(() => {
-    useLoopTrainerStore.setState({ entryId: null, active: false, error: null })
+    useLoopTrainerStore.setState({ entryId: null, error: null })
   })
 
   it('explains itself away in Gig mode instead of offering a control that would desync the band', () => {
