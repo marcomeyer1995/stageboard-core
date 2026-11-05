@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Cleartext only to the device itself: the native audio output (NativeOutputPlugin.java) takes the
+     WebView's frames over a WebSocket on 127.0.0.1. Everything else stays as Android's default. -->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">127.0.0.1</domain>
+    </domain-config>
+</network-security-config>

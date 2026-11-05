@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { audioOutputLatencyMs } from './latencyProfiles'
+import { useNativeOutputStore } from './nativeOutput'
 import { getDeviceId } from './deviceId'
 import { useAudioRouteStore } from '../store/useAudioRouteStore'
 import { useLatencyProfilesStore } from '../store/useLatencyProfilesStore'
@@ -39,5 +40,7 @@ export function useAudioOutputLatencyMs(): number {
   const profiles = useLatencyProfilesStore((state) => state.profiles)
   const route = useAudioRouteStore((state) => state.route)
   const on = useAudioCompensationStore((state) => state.on)
-  return audioOutputLatencyMs(profiles, getDeviceId(), route, on)
+  // The native output (docs/30) plays at a delay of its own choosing - exact, no stored value needed.
+  const nativeDelayMs = useNativeOutputStore((state) => (state.state === 'on' ? state.delayMs : null))
+  return nativeDelayMs ?? audioOutputLatencyMs(profiles, getDeviceId(), route, on)
 }

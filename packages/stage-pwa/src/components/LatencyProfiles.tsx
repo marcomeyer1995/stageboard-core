@@ -8,6 +8,7 @@ import { useLatencyProfilesStore } from '../store/useLatencyProfilesStore'
 import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
 import { audioOutputLatencyMs, routeLabel } from '../lib/latencyProfiles'
 import { LatencyCompensationSettings } from './LatencyCompensationSettings'
+import { NativeOutputSettings } from './NativeOutputSettings'
 import { Button, Dialog, Field, Select } from './ui'
 import { useTranslation } from 'react-i18next'
 
@@ -173,6 +174,7 @@ export function LatencyProfileDialog({ deviceId, deviceName, onClose }: { device
           {t('lat.info')}
         </p>
         {/* The on/off switch beside the values it uses (Marco, 2026-10-16 - it was alone in "Ton & Timing"). */}
+        {deviceId === getDeviceId() && <NativeOutputSettings />}
         {deviceId === getDeviceId() && <LatencyCompensationSettings />}
         {profiles.length > 0 && (
           <ul className="flex flex-col gap-2">

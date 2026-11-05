@@ -1,6 +1,5 @@
 import type { ClickTimeline } from './beatGrid'
-import { sharedAudioClock } from './audioClock'
-import { timeBase } from './timeBase'
+import { audioClockPrecise, audioPerWall, sharedAudioClock } from './audioClock'
 import { __resetSharedAudioContextForTests, getSharedAudioContext } from './sharedAudioContext'
 import { sourceOutput } from './audioMix'
 
@@ -100,13 +99,25 @@ function getAudioContext(): AudioContext {
   return getSharedAudioContext()
 }
 
+/** Debug (docs/30 §2a): a click pitch of this device's own, so a microphone can tell the band's
+ * devices apart when they all click together - `localStorage['sb:debug:click-hz'] = '1700'`. */
+function debugClickHz(): number | null {
+  try {
+    const hz = Number(localStorage.getItem('sb:debug:click-hz'))
+    return hz > 0 ? hz : null
+  } catch {
+    return null
+  }
+}
+
 /** One click burst: a short, fast-decaying oscillator tone - higher-pitched and louder on the
  * downbeat, exactly the same accent Visual Metronome draws visually (metronome.ts's
  * Beat.isDownbeat), so the two are recognizably "the same beat" to anyone comparing them. */
 export function playClickAt(ctx: AudioContext, time: number, isDownbeat: boolean): void {
   const osc = ctx.createOscillator()
   const gain = ctx.createGain()
-  osc.frequency.value = isDownbeat ? 1500 : 1000
+  const hz = debugClickHz()
+  osc.frequency.value = hz ?? (isDownbeat ? 1500 : 1000)
   // Fast attack, exponential decay to near-silence - a "click", not a beep. Starting the decay
   // ramp from a moment after `time` (not exactly at it) avoids the near-zero-to-target jump
   // exponentialRampToValueAtTime rejects as invalid at time 0.
@@ -177,7 +188,7 @@ function tick(getState: () => ClickEngineState): void {
 
   const ctx = getAudioContext()
   const audioNow = audioClock.now(ctx)
-  const precise = timeBase.ready(ctx)
+  const precise = audioClockPrecise(ctx)
   // The lookahead window is wall time, `elapsedMs` is song time - a slowed pass covers less song per ms.
   // Output latency compensation (#491) widens it: a click heard 430 ms after scheduling must be
   // queued 430 ms earlier. The schedule still anchors on the real song time, so a click whose early
@@ -219,7 +230,7 @@ function tick(getState: () => ClickEngineState): void {
     nextBeat++
     nextBeatOnsetMs += beatMs
     // A beat lasts its song time on the wall clock - in audio time at the audio clock's own rate.
-    nextBeatAudioTime += (beatMs / 1000 / (crossedJump && offsetMs !== 0 ? rateAfterJump(crossedJump) : playbackRate)) * timeBase.audioPerWall(ctx)
+    nextBeatAudioTime += (beatMs / 1000 / (crossedJump && offsetMs !== 0 ? rateAfterJump(crossedJump) : playbackRate)) * audioPerWall(ctx)
   }
 }
 

@@ -1,4 +1,4 @@
-import { timeBase } from './timeBase'
+import { audioPerWall } from './audioClock'
 
 /**
  * How fast audio that follows the song clock plays (docs/29 §5.5, step 2): the audio clock's own
@@ -15,5 +15,5 @@ export const RATE_STEP = 0.00002
 /** Song seconds per audio second for audio `errorS` ahead of the song clock (negative: behind). */
 export function driftRate(ctx: AudioContext, errorS: number): number {
   const pull = 1 - Math.max(-MAX_RATE_DEVIATION, Math.min(MAX_RATE_DEVIATION, errorS / RATE_TIME_CONSTANT_S))
-  return pull / timeBase.audioPerWall(ctx)
+  return pull / audioPerWall(ctx)
 }
