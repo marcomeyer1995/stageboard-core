@@ -25,9 +25,17 @@ namespace {
 constexpr int RING_FRAMES = 1 << 17;   // ~2.7 s at 48 kHz - well above any delay we choose
 /** A difference up to this is taken up frame by frame, above it the read position jumps. */
 constexpr double JUMP_MS = 20.0;
-/** How fast a difference is taken up: playing faster/slower by off / this, at most MAX_RATE_DEVIATION. */
+/** How fast a difference is taken up: playing faster/slower by off / this, at most MAX_RATE_DEVIATION -
+ * plus an integral part (INTEGRAL_TIME_S) that learns the steady speed difference: the WebView's
+ * clock runs ~1 ms/s slower than the wall clock, and with the proportional part alone following
+ * it took a lasting 2-4 ms offset that changed with the load (2026-11-05). */
 constexpr double PULL_TIME_S = 2.0;
+<<<<<<< ours
 constexpr double MAX_RATE_DEVIATION = 0.002;
+=======
+constexpr double INTEGRAL_TIME_S = 20.0;
+constexpr double MAX_RATE_DEVIATION = 0.004;
+>>>>>>> theirs
 /** A timestamp this far from the running estimate is an outlier - or a real move, once it has held
  * for TIMESTAMP_CONFIRM_MS. Three callbacks in a row were not enough: the Redmi's timestamps stay
  * ~5 ms off for a few dozen ms at a time, and each such stretch moved its output there and back
@@ -52,6 +60,7 @@ double gHeardMs0 = 0;   // wall-clock time at which the current buffer's first f
 double gPendingErr = 0;  // an unconfirmed move of the timestamps, and since which frame it holds
 long long gPendingSince = -1;
 double gRead = -1;   // pipe frame position, fractional
+double gRateIntegral = 0;   // learned steady speed difference (fraction)
 
 // Stats for JS.
 std::atomic<double> gLatencyMs{-1};
@@ -85,6 +94,7 @@ void resetCallbackState() {
     gLocked = false;
     gPendingSince = -1;
     gRead = -1;
+    gRateIntegral = 0;
 }
 
 float ringAt(long long f, int ch, long long written, bool &missing) {
@@ -132,7 +142,9 @@ aaudio_data_callback_result_t onData(AAudioStream *stream, void *, void *audioDa
             if (gRead >= 0) gJumps.fetch_add(1);
             gRead = want;
         } else {
-            step = 1.0 + std::max(-MAX_RATE_DEVIATION, std::min(MAX_RATE_DEVIATION, off / 1000.0 / PULL_TIME_S));
+            const double dtS = numFrames / static_cast<double>(gRate);
+            gRateIntegral = std::max(-MAX_RATE_DEVIATION, std::min(MAX_RATE_DEVIATION, gRateIntegral + off / 1000.0 * dtS / (PULL_TIME_S * INTEGRAL_TIME_S)));
+            step = 1.0 + std::max(-MAX_RATE_DEVIATION, std::min(MAX_RATE_DEVIATION, off / 1000.0 / PULL_TIME_S + gRateIntegral));
         }
         gRateDev.store(step - 1.0);
         const double lead = (static_cast<double>(written) - gRead) * msPerFrame;
