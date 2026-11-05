@@ -30,12 +30,8 @@ constexpr double JUMP_MS = 20.0;
  * clock runs ~1 ms/s slower than the wall clock, and with the proportional part alone following
  * it took a lasting 2-4 ms offset that changed with the load (2026-11-05). */
 constexpr double PULL_TIME_S = 2.0;
-<<<<<<< ours
-constexpr double MAX_RATE_DEVIATION = 0.002;
-=======
 constexpr double INTEGRAL_TIME_S = 20.0;
 constexpr double MAX_RATE_DEVIATION = 0.004;
->>>>>>> theirs
 /** A timestamp this far from the running estimate is an outlier - or a real move, once it has held
  * for TIMESTAMP_CONFIRM_MS. Three callbacks in a row were not enough: the Redmi's timestamps stay
  * ~5 ms off for a few dozen ms at a time, and each such stretch moved its output there and back
