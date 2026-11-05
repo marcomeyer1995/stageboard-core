@@ -28,10 +28,12 @@ constexpr double JUMP_MS = 20.0;
 /** How fast a difference is taken up: playing faster/slower by off / this, at most MAX_RATE_DEVIATION. */
 constexpr double PULL_TIME_S = 2.0;
 constexpr double MAX_RATE_DEVIATION = 0.002;
-/** A timestamp this far from the running estimate is an outlier (the Redmi reports every tenth
- * one ~5 ms late) - or a real move, once TIMESTAMP_CONFIRMATIONS in a row agree on it. */
+/** A timestamp this far from the running estimate is an outlier - or a real move, once it has held
+ * for TIMESTAMP_CONFIRM_MS. Three callbacks in a row were not enough: the Redmi's timestamps stay
+ * ~5 ms off for a few dozen ms at a time, and each such stretch moved its output there and back
+ * (115 confirmed "jumps" in an hour, playback speed swinging ±0.05 %, 2026-11-05). */
 constexpr double TIMESTAMP_JUMP_MS = 3.0;
-constexpr int TIMESTAMP_CONFIRMATIONS = 3;
+constexpr double TIMESTAMP_CONFIRM_MS = 500.0;
 
 std::mutex gLock;   // open/close only - never taken in the callback
 AAudioStream *gStream = nullptr;
@@ -47,8 +49,8 @@ std::atomic<double> gBaseMs{0};
 long long gFrames = 0;
 bool gLocked = false;
 double gHeardMs0 = 0;   // wall-clock time at which the current buffer's first frame is heard
-double gPendingErr = 0;  // an unconfirmed move of the timestamps, and how often it was seen
-int gPendingCount = 0;
+double gPendingErr = 0;  // an unconfirmed move of the timestamps, and since which frame it holds
+long long gPendingSince = -1;
 double gRead = -1;   // pipe frame position, fractional
 
 // Stats for JS.
@@ -81,7 +83,7 @@ std::string json(const char *fmt, ...) {
 void resetCallbackState() {
     gFrames = 0;
     gLocked = false;
-    gPendingCount = 0;
+    gPendingSince = -1;
     gRead = -1;
 }
 
@@ -108,15 +110,15 @@ aaudio_data_callback_result_t onData(AAudioStream *stream, void *, void *audioDa
             gHeardMs0 = measured;
             gLocked = true;
         } else if (std::fabs(err) > TIMESTAMP_JUMP_MS) {
-            gPendingCount = gPendingCount > 0 && std::fabs(err - gPendingErr) <= TIMESTAMP_JUMP_MS ? gPendingCount + 1 : 1;
+            if (gPendingSince < 0 || std::fabs(err - gPendingErr) > TIMESTAMP_JUMP_MS) gPendingSince = gFrames;
             gPendingErr = err;
-            if (gPendingCount >= TIMESTAMP_CONFIRMATIONS) {
+            if ((gFrames - gPendingSince) * msPerFrame >= TIMESTAMP_CONFIRM_MS) {
                 gTimestampJumps.fetch_add(1);
                 gHeardMs0 = measured;
-                gPendingCount = 0;
+                gPendingSince = -1;
             }
         } else {
-            gPendingCount = 0;
+            gPendingSince = -1;
             gHeardMs0 += 0.02 * err;   // timestamps jitter by a burst; follow slowly
         }
     }
