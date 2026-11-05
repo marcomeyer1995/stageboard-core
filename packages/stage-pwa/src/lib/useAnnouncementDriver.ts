@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef } from 'react'
 import { CAPABILITIES, SERVER_EXECUTION_TARGET } from 'shared-types'
 import { create } from 'zustand'
 import { announcementsDue, sectionAnnouncements, type Announcement } from './announcements'
-import { createAudioClock } from './audioClock'
+import { sharedAudioClock } from './audioClock'
 import { clickTimeline } from './beatGrid'
 import { pluginProviding } from './capabilities'
 import { useAudioOutputLatencyMs } from './latencyCompensation'
@@ -122,7 +122,7 @@ export function usePlayAnnouncements(
     // Nothing to say: no AudioContext needed (the Timeline plays its track on an <audio> element).
     if (!playing || items.length === 0) return
     const ctx = getSharedAudioContext()
-    const audioClock = createAudioClock()
+    const audioClock = sharedAudioClock
     let done = new Set<number>()
     let lastElapsed: number | null = null
     let pending: { node: AudioBufferSourceNode; when: number }[] = []
