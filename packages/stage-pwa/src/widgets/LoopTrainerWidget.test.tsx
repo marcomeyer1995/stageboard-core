@@ -96,6 +96,35 @@ describe('LoopTrainerWidget (#61)', () => {
     expect(useLoopTrainerStore.getState().config).toMatchObject({ startMs: 10_000, endMs: 90_000 })
   })
 
+  it('puts A and B on the bars of the grid and moves them bar by bar (#683)', () => {
+    // 120 BPM 4/4: a bar every 2 s, so 12.5 s lies in bar 7 (12-14 s).
+    mockMode('practice', 12_500, { ...VARIANT, bpm: 120, timeSignature: '4/4' } as SongVariant)
+    render(<LoopTrainerWidget config={{}} />)
+    fireEvent.click(screen.getByText('A setzen'))
+    expect(useLoopTrainerStore.getState().config.startMs).toBe(12_000)
+    expect(screen.getByText('Takt 7')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByLabelText('A erhöhen'))
+    expect(useLoopTrainerStore.getState().config.startMs).toBe(14_000)
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Schläge' }))
+    fireEvent.click(screen.getByLabelText('A verringern'))
+    expect(useLoopTrainerStore.getState().config.startMs).toBe(13_500)
+    expect(screen.getByText('Takt 7.4')).toBeInTheDocument()
+
+    // Back to bars: the point moves onto the nearest bar at once.
+    fireEvent.click(screen.getByRole('radio', { name: 'Takte' }))
+    expect(useLoopTrainerStore.getState().config.startMs).toBe(14_000)
+  })
+
+  it('keeps B after A', () => {
+    mockMode('practice', 12_500, { ...VARIANT, bpm: 120, timeSignature: '4/4' } as SongVariant)
+    useLoopTrainerStore.getState().setConfig('e1', { startMs: 12_000, endMs: 14_000 })
+    render(<LoopTrainerWidget config={{}} />)
+    expect(screen.getByLabelText('B verringern')).toBeDisabled()
+    expect(screen.getByLabelText('A erhöhen')).toBeDisabled()
+  })
+
   it('keeps tempo and Speed Trainer in a dialog - the widget itself never scrolls (2026-10-22)', () => {
     mockMode('practice')
     render(<LoopTrainerWidget config={{}} />)

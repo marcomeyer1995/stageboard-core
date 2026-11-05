@@ -1,10 +1,13 @@
 import { create } from 'zustand'
+import type { LoopSnap } from '../lib/loopSnap'
 
 /** The user-facing loop/trainer settings for one song. Percentages, not fractions - that is what
  * the steppers show; lib/loopTrainer.ts converts. */
 export interface LoopTrainerConfig {
   startMs: number | null
   endMs: number | null
+  /** What A and B snap to and what −/+ moves them by (#683). */
+  snap: LoopSnap
   /** Tempo of the first (or, with the trainer off, every) pass. */
   startPercent: number
   trainerEnabled: boolean
@@ -15,6 +18,7 @@ export interface LoopTrainerConfig {
 export const DEFAULT_LOOP_CONFIG: LoopTrainerConfig = {
   startMs: null,
   endMs: null,
+  snap: 'bars',
   startPercent: 100,
   trainerEnabled: false,
   targetPercent: 100,
