@@ -7,6 +7,8 @@ Konzept, Stand 2026-11-05, kein Beschluss im Detail. Anlass: Marco hat Klick und
 - **Für alle Geräte am Markt, nicht für die Geräte im Haus.** Kein Weg, der nur auf dem Fire oder nur auf MediaTek passt; eine große Gemeinschaft soll ihre eigenen Tablets und Handys benutzen können.
 - **Beide nativen Wege anbieten:** Androids eigener Treiber (AAudio) und unser eigener USB-Treiber (docs/28 §4). Der Browser-Weg (Web Audio) bleibt für alles andere.
 - **Ausgleich immer möglich, am besten nie nötig:** jeder Weg kann um eine gemessene Verzögerung früher spielen; Ziel ist ein Weg, dessen Zeitangabe stimmt, sodass nichts eingemessen werden muss.
+- **So wenig Zusatzhardware wie möglich:** eigene Hardware, Spezialkabel auf der Bühne sind ein Grund, die App nicht zu kaufen. Gemessen wird mit dem, was eine Band hat (Pult, Handys, Laptop); auf einer lauten Bühne muss es trotzdem verlässlich sein.
+- **Abgleich von Hand** ohne jedes Gerät gehört dazu: ein Regler in ms, einstellen nach Gehör oder Auge gegen eine Referenz (docs/21 §4).
 
 ## 2. Was wir wissen
 
@@ -42,14 +44,11 @@ Eine **Audio-Engine** mit austauschbaren **Ausgabewegen**. Alle Wege beantworten
 
 ## 4. Messen statt glauben: die Geräteprüfung
 
-Damit es auf jedem Gerät funktioniert, ohne dass wir es vorher kennen:
+Wie gemessen wird - mit möglichst keiner Zusatzhardware, auch auf einer lauten Bühne - steht für alle Ausgänge (Ton, Licht, Video, Amp-Modeller) in **docs/21 §4 „Stufen ohne Zusatzhardware“**: Abgleich von Hand nach Gehör/Auge als Grundbaustein, das Mischpult als Sensor für alle Audio-Ausgänge gleichzeitig, die Handy-Kamera für Licht, das Mikrofon nur im Proberaum, Loopback für Interfaces. Für die Audio-Ausgabe heißt das:
 
-1. **Selbsttest beim ersten Einrichten** eines Ausgangs (und wenn sich der Weg ändert – Kopfhörer, Bluetooth, Interface): ein kurzer Klick-Zug, aufgenommen von einem Mikrofon. Ergebnis: die wirkliche Verzögerung bis hörbar gegen das, was der Weg behauptet.
-   - **Mikrofon im selben Gerät** für Lautsprecher-Wege (jedes Tablet hat eins; die Eingangslatenz wird mit einem zweiten, bekannten Klick herausgerechnet – oder mit dem Rig-Check-Verfahren über ein zweites Gerät).
-   - **Ein Gerät hört alle** (Rig-Check-Messrunde, docs/24): ein Handy oder Laptop nimmt nacheinander jeden Ausgang der Band auf – so wie heute Nacht mit dem Laptop-Mikrofon.
-   - **Loopback** für Interfaces: Ausgang in einen Eingang desselben Interfaces (docs/28 §5), Mikrofon unnötig.
-2. **Urteil je Weg:** stimmt die Zeitangabe (Abweichung ≤ 2 ms), braucht der Weg keinen Ausgleich. Weicht sie fest ab, wird der Unterschied als Ausgleich gespeichert. Schwankt sie von Start zu Start (Fire-WebView: bis 30 ms je App-Start), sagt die App das offen und empfiehlt einen anderen Weg.
-3. **Gemeinschaft:** die Ergebnisse (Modell, Android-Version, Weg, behauptet vs. gehört, Schwankung) können anonym geteilt werden – eine Tabelle, welches Gerät auf welchem Weg taugt. Neue Musiker bekommen einen Startwert, bevor sie selbst messen. (Freiwillig; Datenschutz und Server dafür offen, docs/16.)
+1. **Urteil je Weg:** stimmt die Zeitangabe (Abweichung ≤ 2 ms), braucht der Weg keinen Ausgleich. Weicht sie fest ab, wird der Unterschied als Ausgleich gespeichert. Schwankt sie von Start zu Start (Fire-WebView: bis 30 ms je App-Start), sagt die App das offen („Ausgang ungenau, ±30 ms“) und empfiehlt einen anderen Weg - eine Kalibrierung hilft dort nicht.
+2. **Ein Wert gilt je Gerät und Weg** (Lautsprecher, Kopfhörer, Bluetooth, Interface - `AudioRoutePlugin`), im Proberaum gemessen oder nach Gehör eingestellt; am Ort nur die Kurzprüfung.
+3. **Gemeinschaft:** die Ergebnisse (Modell, Android-Version, Weg, behauptet vs. gehört, Schwankung) können anonym geteilt werden - eine Tabelle, welches Gerät auf welchem Weg taugt. Neue Musiker bekommen einen Startwert, bevor sie selbst messen. (Freiwillig; Datenschutz und Server dafür offen, docs/16.)
 
 ## 5. Ausgleich
 
@@ -60,7 +59,7 @@ Wie heute (#491, docs/21 §9): ein Weg spielt um seinen gemessenen Rest früher.
 1. **AAudio-Spike (Oboe) als Ausgabeweg für den Klick** – auf allen Geräten im Haus (Fire, Redmi, Xiaomi-Handy), nicht nur dem Fire: Klick nativ, geplant auf der Band-Zeit, Zeitangabe über `getTimestamp`. Gemessen mit dem Laptop-Mikrofon wie heute: behauptet vs. gehört, Schwankung je Start, Abstand zu den anderen Geräten. Erst wenn das auf allen dreien hält, weiter.
 2. **Engine nativ:** Track und Stems (PCM über die Brücke oder nativ dekodiert), Drift-Anpassung, Stummschalten; Web Audio bleibt als Weg erhalten.
 3. **Eigener USB-Treiber als zweiter nativer Weg** in dieselbe Engine (docs/28 §6, Eingang zuerst stabil).
-4. **Geräteprüfung** (§4) mit Mikrofon und Loopback, Urteil je Weg, Ausgleich nur wo nötig; Anzeige in Bühnentechnik.
+4. **Geräteprüfung** (§4, docs/21 §4): Abgleich von Hand zuerst (keine Hardware), dann Mischpult und Loopback automatisch; Urteil je Weg, Ausgleich nur wo nötig; Anzeige in Bühnentechnik.
 5. **Gemeinschafts-Tabelle** (§4.3), wenn es Nutzer außerhalb gibt.
 6. Später: iOS (AVAudioEngine mit `outputLatency`/Host-Zeit – derselbe Gedanke), Windows/macOS für den Laptop-Host (docs/25).
 
@@ -68,5 +67,5 @@ Wie heute (#491, docs/21 §9): ein Weg spielt um seinen gemessenen Rest früher.
 
 - Oboe als Fremdbibliothek (Apache 2.0) oder AAudio direkt? Oboe bringt Rückfall auf OpenSL ES für Android < 8.1 und viele Geräte-Umgehungen – Vorschlag: Oboe.
 - Track-Daten in die native Engine: dekodiert über die Brücke (einfach, Speicher) oder nativ dekodieren (MediaCodec)?
-- Wie geht die Geräteprüfung mit dem eingebauten Mikrofon, wenn der Lautsprecher daneben liegt (Übersteuerung, Echo-Unterdrückung des Systems abschalten)?
+- Welche Pulte geben ihre Eingänge per USB/Netz so heraus, dass StageBoard sie lesen kann (USB-Audio class compliant vs. eigene Treiber/Protokolle)? Zuerst die Pulte, für die es schon Plugins gibt (CQ-18T, Ui24R).
 - Was zeigt die App, wenn kein Weg auf einem Gerät stimmt (der Fire-WebView-Fall)? Vorschlag: rotes „Ausgang ungenau“ in Bühnentechnik mit der gemessenen Schwankung, Empfehlung eines anderen Wegs.
