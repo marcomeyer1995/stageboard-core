@@ -94,6 +94,38 @@ Die **Eigenlatenz des Sensors** wird einmal gegen eine bekannte Referenz bestimm
 - **Mischpult (IEM):** Klasse `soft` - keine Kalibrierung nötig. Höchstens eine Prüfung über die Rückmeldung des Pults (Meter/Statusecho).
 - **Video/Beamer, Kamera:** Reiz Weißbild auf dem Beamer → Fotodiode; Kamera: Server löst eine LED aus, die Kamera filmt sie, der Versatz im Bild ergibt die Aufnahmelatenz.
 
+### Stufen ohne Zusatzhardware (Konzept, Marco 2026-11-05)
+
+Leitlinie: **Zusätzliche, eigene Hardware ist ein Grund, die App nicht zu kaufen.** Gemessen wird mit dem, was eine Band ohnehin hat (Mischpult, Handys, Laptop); Spezialhardware bleibt freiwillig. Und: auf der Bühne ist es laut, und der Ton geht dort nicht über den Tablet-Lautsprecher, sondern über Kopfhörer, Interface, Pult oder In-Ear-Sender - ein Mikrofon vor dem Tablet misst dort den falschen Weg.
+
+| Stufe | Wie | Für | Hardware |
+|---|---|---|---|
+| **Von Hand** (immer möglich) | Abgleich nach Gehör/Auge, s. u. | alles | keine |
+| **Mischpult als Sensor** | digitale Pulte (CQ-18T, Ui24R, XR18, X32 …) geben alle Eingangskanäle per USB/Netz an Laptop oder Tablet (Mehrspuraufnahme): jeder Tablet-Ausgang, der für die Show ohnehin am Pult hängt, wird gleichzeitig gemessen; elektrisch, Lärm egal, automatisch beim Line-Check | Klick, Track, Ansagen, Amp-Modeller am Pult | keine (Pult und Kabel sind da) |
+| **Handy-Kamera** | DMX lässt die Lampen in unregelmäßigem Muster blitzen, ein Handy filmt mit 120-240 fps (4-8 ms je Bild); über viele Blitze und die ansteigende Helligkeit ~±2 ms; mehrere Lampen gleichzeitig (Bildbereiche), Beamer mit Weißbild | Licht, Video | keine (Handy der Band) |
+| **Mikrofon** (Proberaum) | Sweep oder Rauschfolge statt Klicks, Korrelation - robust, aber nur für den Lautsprecher-Weg sinnvoll | Geräte ohne Pult/Interface | keine (Tablet-, Handy-, Laptop-Mikrofon) |
+| **Loopback** | Ausgang in einen Eingang desselben Interfaces (docs/28 §5) | Interface-Wege | ein Kabel |
+| Freiwillig | Fotodiode, LED an der Kopfhörerbuchse (Ton → Licht für die Kamera), ESP32-Box | Sonderfälle, Gemeinschafts-Tipp | Bastelteile |
+
+**Amp-Modeller (Kemper, MG-30), MIDI-Geräte:** die Umschaltzeit ist eine Gerätekonstante - das Plugin bringt einen Standardwert (`plugin-default`); messen nur auf Wunsch (Wechsel leiser ↔ lauter Test-Patch, über den Pult-Kanal).
+
+**Abgleich von Hand („nach Gehör“):** der Grundbaustein, der immer geht.
+
+- Eine Schleife läuft: Referenz (Klick des Masters, Backing-Track, ein Gerät mit stimmender Zeitangabe) und der einzustellende Ausgang auf denselben Schlägen. Ein Regler plus ±1/±10 ms; jede Änderung gilt ab dem nächsten Schlag.
+- Ziel bei Ton: zwei gleiche Klicks verschmelzen zu einem (über ~5 ms hört man einen „Flam“, bei 1-2 ms eine leichte Phasung) - erreichbar ~2-5 ms. Licht/Video: Blitz bzw. Weißbild auf dem Schlag, bis es „zusammen aussieht“ - Menschen sehen einen Versatz Licht ↔ Ton erst ab ~20-40 ms, für die Wahrnehmung (auch die des Publikums) genügt das. Kemper: Patch-Wechsel bei gehaltenem Akkord, bis der Wechsel auf dem Klick liegt.
+- **Eingabeln** statt Suchen: erst so weit schieben, bis der Flam früh gerade hörbar wird, dann in die andere Richtung bis spät - die App nimmt die Mitte. Genauer als direkt „zusammen“ zu suchen.
+- **Am Hörort einstellen** (In-Ear, hinter dem Schlagzeug, im Saal): enthält dann auch die Wege auf der Bühne (3 ms je Meter), die kein Sensor sieht.
+- Funktioniert auch Tablet gegen Tablet.
+- Gespeichert wie jeder Wert im Latenzprofil, `source: 'manual'` (das Feld zum Eintippen gibt es schon); eine spätere automatische Prüfung kann ihn bestätigen.
+
+**Was jede Kalibrierung verlässlich macht - unabhängig vom Sensor:**
+
+1. Unregelmäßige Reize, viele Wiederholungen, Muster-Auswertung (gebaut, s. o.).
+2. **Wiederholen und vergleichen:** zwei Läufe, die weiter als die Toleranz der Klasse auseinanderliegen, heißen „Weg instabil“ - kein Wert wird gespeichert, die App sagt es offen und empfiehlt einen anderen Weg (docs/30: der Fire-Browser-Weg schwankt je App-Start um bis zu 30 ms; dort hilft keine Kalibrierung).
+3. **Nachprüfen:** ein zweiter Lauf mit angewendetem Ausgleich muss in der Toleranz landen.
+4. **Stabile Wege sind die Voraussetzung** (docs/30): dann gilt ein im Proberaum gemessener Wert auch beim Gig, weil der Weg derselbe ist. Am Ort nur die Kurzprüfung (§5), automatisch beim Line-Check über das Pult - nie eine Pflicht-Kalibrierung.
+5. **Nur wo es zählt:** `soft`/`none` nie; `realtime` freiwillig mit Standardwert; `sample` geprüft.
+
 ## 5. Wann: einmal je Aufbau, Kurzprüfung beim Soundcheck
 
 Entscheidung 2026-10-13:
