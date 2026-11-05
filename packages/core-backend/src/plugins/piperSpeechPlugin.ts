@@ -1,4 +1,4 @@
-import { CAPABILITIES, type IShowControlPlugin, type PluginContext, type ShowControlEvent, type ShowControlResult } from 'shared-types'
+import { CAPABILITIES, serverMessage, type IShowControlPlugin, type PluginContext, type ShowControlEvent, type ShowControlResult } from 'shared-types'
 import { PiperSpeech, speechConfigFromEnv } from '../speech/piperSpeech.js'
 import { SpeechVoices } from '../speech/voiceCatalog.js'
 
@@ -27,10 +27,10 @@ export function createPiperSpeechPlugin(): IShowControlPlugin {
       else ctx.log.error('piper-speech: Piper or voice not installed - announcements stay silent', { voice: serverSpeech.voiceName() })
     },
     async trigger(event: ShowControlEvent): Promise<ShowControlResult> {
-      if (event.type !== 'test') return { status: 'error', message: `piper-speech: unbekannter Event-Typ "${event.type}".` }
+      if (event.type !== 'test') return { status: 'error', ...serverMessage('plugin.unknownEvent', { plugin: 'piper-speech', type: event.type }) }
       const result = await serverSpeech.speak('Test')
       context?.log.info('piper-speech test', { ok: result.ok })
-      return result.ok ? { status: 'ok', data: { voice: serverSpeech.voiceName(), bytes: result.wav.length } } : { status: 'error', message: result.message }
+      return result.ok ? { status: 'ok', data: { voice: serverSpeech.voiceName(), bytes: result.wav.length } } : { status: 'error', message: result.message, messageCode: result.messageCode, messageParams: result.messageParams }
     },
   }
 }

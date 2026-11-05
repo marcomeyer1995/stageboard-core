@@ -1,4 +1,5 @@
 import type { LookupResult } from 'shared-types'
+import { serverText } from './serverMessage'
 import { getStageServerUrl, NO_STAGE_SERVER_MESSAGE, STAGE_SERVER_UNREACHABLE_MESSAGE } from './stageServer'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 
@@ -18,7 +19,7 @@ export async function getJson<T>(url: string): Promise<LookupClientResult<T>> {
     const response = await fetch(`${base}${url}`)
     const body = await response.json()
     if (!response.ok) {
-      const message = (body as { message?: string } | null)?.message ?? `HTTP ${response.status}`
+      const message = serverText(body as { message?: string } | null) ?? `HTTP ${response.status}`
       return { status: 'error', message }
     }
     return { status: 'ok', data: body as T }
