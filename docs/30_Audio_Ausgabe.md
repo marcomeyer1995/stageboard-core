@@ -9,6 +9,8 @@ Konzept, Stand 2026-11-05, kein Beschluss im Detail. Anlass: Marco hat Klick und
 - **Ausgleich immer möglich, am besten nie nötig:** jeder Weg kann um eine gemessene Verzögerung früher spielen; Ziel ist ein Weg, dessen Zeitangabe stimmt, sodass nichts eingemessen werden muss.
 - **So wenig Zusatzhardware wie möglich:** eigene Hardware, Spezialkabel auf der Bühne sind ein Grund, die App nicht zu kaufen. Gemessen wird mit dem, was eine Band hat (Pult, Handys, Laptop); auf einer lauten Bühne muss es trotzdem verlässlich sein.
 - **Abgleich von Hand** ohne jedes Gerät gehört dazu: ein Regler in ms, einstellen nach Gehör oder Auge gegen eine Referenz (docs/21 §4).
+- **Die ganze Mischung geht nativ raus** („pipe“, nicht nur der Klick) – sonst lägen Klick und Track auf dem Fire um den WebView-Fehler auseinander (§2b).
+- **Native Ausgabe auf Android standardmäßig an**, je Gerät abschaltbar (nach dem Hörtest, PR #699).
 
 ## 2. Was wir wissen
 
@@ -57,6 +59,14 @@ Marcos Entscheidung: nicht nur der Klick, sondern **die ganze Mischung** geht na
 
 Schwankung von Schlag zu Schlag 0,5–2 ms, keine Aussetzer bei Play/Stop. Lehren unterwegs: Übergabe über die Capacitor-Brücke vom Haupt-Thread setzte bei Play/Stop aus (Haupt-Thread 200–350 ms blockiert) → Worker + WebSocket; einzelne Frames überspringen knackte → Tempo um höchstens 0,2 % anpassen; Capacitors `getDouble()` liefert 0 für große ganze Zahlen; Android blockiert `ws://127.0.0.1` ohne Cleartext-Ausnahme. Offen: Sprünge auf dem Handy bei Play/Stop, die konstanten ~12 ms Fire gegen Redmi/Handy, längere Reaktion auf Stop am Fire.
 
+### 2c. Uhr nach dem App-Start und Restausgleich (2026-11-05, PR #698, #699)
+
+**Uhr:** gegen die echte Geräte-Uhr über USB gemessen (Gerät gibt alle 20 ms seine Uhr über adb aus, kleinste Ankunfts-Differenz = Versatz; je 4 App-Starts × 3 min). Die Band-Zeit des Redmi lief 45–150 s nach dem Start bis 68 ms weg. Drei eigene Rechenfehler, kein Gerätelimit: Drift-Linie durch zu wenige Samples (jetzt ab 60 s, höchstens 100 ppm), die Burst-Samples (direkt hintereinander, auf dem Redmi ~40 ms daneben) zählten im Fenster mit (jetzt nicht mehr), und während der Audio-Downloads nach dem Start (docs/11) lagen langsame Anfragen bis 1,5 s daneben (jetzt zählen nur Samples höchstens 20 ms langsamer als das schnellste). Danach alle drei Geräte ab ~40 s innerhalb −2…+6 ms, Fire und Handy meist ab der ersten Sekunde.
+
+**Restausgleich:** auch mit nativer Ausgabe blieb ein fester Rest, den kein Gerät meldet – Fire 15 ms nach Redmi/Handy (Lautsprecher), Laptop-Chrome 30 ms. Eigener Profil-Ausgang `audio-native` je Gerät und Route (im Latenz-Dialog „Ton über die native Ausgabe“), zur nativen Verzögerung addiert. Gesetzt: Fire 15 ms, Laptop 30 ms (sein WebView-Wert). Danach gegen den Laptop-Klick: Fire 0…+3 ms, Redmi −3…+2 ms, Handy ~0; Marco: „sounds good“.
+
+**Messfalle:** liegen die Klicks zusammen, verdecken sie sich im Mikrofon (der leisere wird nicht mehr erkannt). Zum Prüfen jedem Gerät einen bekannten Versatz geben (über die Profile), danach abziehen.
+
 Daraus:
 
 1. **Die Browser-Zeitangabe ist geräteabhängig verlässlich** – auf zwei von drei Geräten gut, auf dem Fire falsch. Das lässt sich in der App nicht reparieren, nur erkennen und ausgleichen.
@@ -93,13 +103,18 @@ Wie heute (#491, docs/21 §9): ein Weg spielt um seinen gemessenen Rest früher.
 ## 6. Reihenfolge
 
 1. ✅ (2026-11-05, §2a) **AAudio-Spike als Ausgabeweg für den Klick** – auf allen Geräten im Haus (Fire, Redmi, Xiaomi-Handy), nicht nur dem Fire: Klick nativ, geplant auf der Band-Zeit, Zeitangabe über `getTimestamp`. Gemessen mit dem Laptop-Mikrofon wie heute: behauptet vs. gehört, Schwankung je Start, Abstand zu den anderen Geräten. Erst wenn das auf allen dreien hält, weiter.
-2. **Engine nativ:** Track und Stems (PCM über die Brücke oder nativ dekodiert), Drift-Anpassung, Stummschalten; Web Audio bleibt als Weg erhalten.
+2. ✅ (2026-11-05, §2b, PR #697) **Ausgabe nativ:** statt einer nativen Engine geht die fertige Mischung der WebView über einen Worker und einen Loopback-WebSocket an AAudio („pipe“) – Track, Stems, Zeitdehnung bleiben, wie sie sind.
 3. **Eigener USB-Treiber als zweiter nativer Weg** in dieselbe Engine (docs/28 §6, Eingang zuerst stabil).
 4. **Geräteprüfung** (§4, docs/21 §4): Abgleich von Hand zuerst (keine Hardware), dann Mischpult und Loopback automatisch; Urteil je Weg, Ausgleich nur wo nötig; Anzeige in Bühnentechnik.
 5. **Gemeinschafts-Tabelle** (§4.3), wenn es Nutzer außerhalb gibt.
 6. Später: iOS (AVAudioEngine mit `outputLatency`/Host-Zeit – derselbe Gedanke), Windows/macOS für den Laptop-Host (docs/25).
 
 ## 7. Offen
+
+- Handy: Schwankung von Schlag zu Schlag höher als bei den anderen (in einzelnen Aufnahmen 8–12 ms), Sprünge > 20 ms bei Play/Stop.
+- Fire: in einer Aufnahme einige verschobene Klicks in den ersten Sekunden nach Play.
+- Der Restausgleich (`audio-native`) gilt je Route – mit Kopfhörer braucht der Fire einen eigenen Wert.
+- Ein Redmi-Start blieb 30 s bei −20 ms (zu wenige schnelle Uhr-Anfragen während der Downloads).
 
 - Oboe als Fremdbibliothek (Apache 2.0) oder AAudio direkt? Oboe bringt Rückfall auf OpenSL ES für Android < 8.1 und viele Geräte-Umgehungen – Vorschlag: Oboe.
 - Track-Daten in die native Engine: dekodiert über die Brücke (einfach, Speicher) oder nativ dekodieren (MediaCodec)?
