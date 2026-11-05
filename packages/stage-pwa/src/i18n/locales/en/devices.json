@@ -16,7 +16,7 @@
   "notPossible": "Not possible - no admin rights or the Stage server is unreachable.",
   "forgetConfirm": "Remove “{{name}}” from the list? No block: when the device starts the app again, it reappears.",
   "remove": "Remove",
-  "inUse": "“{{name}}” is still used in Stage gear - choose another device there first.",
+  "inUse": "“{{name}}” is still used in Stage - choose another device there first.",
   "blocked": "“{{name}}” has been blocked meanwhile - a blocked device stays in the list.",
   "skipNote": " {{count}} more stay because hardware uses them.",
   "forgetInactiveConfirm": "Remove {{count}} inactive devices from the list? Blocked devices and this device stay.{{note}}",
@@ -47,7 +47,7 @@
   "appOpen": "App open",
   "appClosed": "App closed / not reported",
   "noData": "No diagnostic data from this device yet.",
-  "inUseBy": "In use: {{list}} - choose another device in the Stage gear tab, then it can be removed.",
+  "inUseBy": "In use: {{list}} - choose another device in the Stage tab, then it can be removed.",
   "src": {
     "measured": "measured",
     "manual": "by hand",
