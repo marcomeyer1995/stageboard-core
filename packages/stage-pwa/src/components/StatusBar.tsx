@@ -29,9 +29,7 @@ import { deriveSyncStatus, useSyncStore, type SyncStatus } from '../store/useSyn
 import { clickTimeline } from '../lib/beatGrid'
 import { Icon, type IconName } from './Icon'
 import { stageVariantLabel } from '../lib/variantLabel'
-import { getLoopPlaybackState } from '../lib/loopTrainerEngine'
-import { stopLoopTrainer } from '../lib/loopTrainer'
-import { useLoopTrainerStore } from '../store/useLoopTrainerStore'
+import { stopLoopTrainer, useTrainerLoop } from '../lib/loopTrainer'
 
 /** Gap between the bar's items (gap-3) when the browser can't tell - part of each item's room. */
 const GAP_PX = 12
@@ -184,8 +182,8 @@ export function StatusBar({
   const isCountIn = clock.isCountIn
 
   // Read each render - the bar re-renders with the song clock, so pass and tempo stay current.
-  const loopActive = useLoopTrainerStore((s) => s.active)
-  const loop = loopActive ? getLoopPlaybackState() : null
+  const trainerLoop = useTrainerLoop()
+  const loop = mode === 'practice' ? trainerLoop : null
   const state = statusBarState({
     loop: loop !== null,
     mode,

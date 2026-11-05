@@ -96,7 +96,7 @@ function currentTransport(state: PracticeState): TransportState {
 /** Every transport change also sets the jump (play and pause drop one not reached); a stop, a new
  * song or another variant also ends a loop (`ARMED_TRANSPORT` callers add `playbackLoop: null`). */
 function transportPatch(t: TransportState): Partial<PracticeState> {
-  return { playbackStatus: t.status, playbackStartedAt: t.startedAt, playbackAccumulatedMs: t.accumulatedMs, playbackJump: t.jump ?? null, trackEnded: false }
+  return { playbackStatus: t.status, playbackStartedAt: t.startedAt, playbackAccumulatedMs: t.accumulatedMs, playbackJump: t.jump ?? null, playbackRate: t.rate ?? 1, trackEnded: false }
 }
 
 /** Cancels a pending deferred audio start (see `practicePlaySong` below) - every action that can
@@ -179,22 +179,25 @@ export function practiceLoopContext(): { entryId: string; variantId: string; tra
   return { entryId: currentEntry.id, variantId: currentVariant.id, trackId: track.id }
 }
 
-/** Marks practice as playing from `startMs` for a loop: the transport (Prompter, click, transport
- * buttons) then reads "playing" while the loop engine, not this transport's own wall clock,
- * supplies the position (usePracticeElapsedMs.ts). The `<audio>` element is silenced so the
- * two never sound together. */
-export function practiceBeginLoop(startMs: number): void {
+/** Plays the loop trainer's range (#683): from PLAY_LEAD_MS before `startMs` (the Web Audio
+ * engine needs that lead to schedule, as at any start), at the first pass's speed; the section-jump driver loops it and changes the speed per pass. The
+ * `<audio>` element stays quiet - its fallback can't play slowed, the Web Audio engine does. */
+export function practiceBeginTrainerLoop(startMs: number, endMs: number, rates: number[]): void {
   clearScheduledAudioStart()
-  jumpPosition(startMs)
+  const rate = rates[0] ?? 1
+  const from = startMs - PLAY_LEAD_MS * rate
+  jumpPosition(from)
   pauseLocalTrack()
-  // The Rehearsal Looper plays its own copy - a section loop (#479) ends with it.
-  patch({ ...transportPatch(playTransport({ ...ARMED_TRANSPORT, accumulatedMs: startMs }, Date.now())), playbackLoop: null })
+  const start = { ...ARMED_TRANSPORT, accumulatedMs: from, ...(rate !== 1 ? { rate } : {}) }
+  patch({ ...transportPatch(playTransport(start, Date.now())), playbackLoop: { startMs, endMs, rates, pass: 0 } })
 }
 
-/** Leaves a loop paused at `positionMs`, so the normal Play button resumes the song from there. */
-export function practiceEndLoop(positionMs: number): void {
-  jumpPosition(positionMs)
-  patch(transportPatch({ status: 'paused', startedAt: null, accumulatedMs: positionMs, jump: null }))
+/** Ends the trainer loop paused where it was, at the song's own tempo - Play continues from there. */
+export function practiceEndTrainerLoop(): void {
+  const state = currentPracticeState()
+  if (!state.playbackLoop?.rates) return
+  const positionMs = computeActiveMs(currentTransport(state), Date.now())
+  patch({ ...transportPatch({ status: 'paused', startedAt: null, accumulatedMs: positionMs, jump: null }), playbackLoop: null })
 }
 
 export async function practiceStopSong(): Promise<void> {

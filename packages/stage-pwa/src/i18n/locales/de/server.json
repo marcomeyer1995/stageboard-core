@@ -1,0 +1,74 @@
+{
+  "backup": {
+    "unknownTarget": "Unbekanntes Ziel",
+    "folderMissing": "Ordner nicht da (nicht eingesteckt oder nicht eingehängt): {{path}}",
+    "folderNotWritable": "Der Stage-Server darf in diesen Ordner nicht schreiben.",
+    "sameDisk": "Der Ordner liegt auf derselben Platte wie die Daten - Medium nicht eingehängt? Ein zweites Medium wählen.",
+    "folderOk": "Ordner ist beschreibbar und liegt auf einem eigenen Medium.",
+    "sshKeyMissing": "SSH-Schlüssel des Servers fehlt.",
+    "nasOk": "Verbunden - {{path}} ist beschreibbar.",
+    "nasNoConnection": "Keine Verbindung zur NAS.",
+    "never": "Noch keine Sicherung gelaufen",
+    "statusUnreadable": "Status-Datei unlesbar"
+  },
+  "calibration": {
+    "busy": "Gerade läuft schon eine Messung - bitte kurz warten.",
+    "unknownRun": "Unbekannte Messung"
+  },
+  "band": {
+    "noneActive": "Auf diesem Stage-Server ist keine Band aktiv.",
+    "activeAdminOnly": "Nur ein Admin der aktiven Band."
+  },
+  "device": {
+    "notConnected": "Zielgerät nicht verbunden"
+  },
+  "speech": {
+    "pluginMissing": "Plugin piper-speech ist nicht installiert.",
+    "textMissing": "text fehlt",
+    "invalidVoice": "Ungültige Stimme",
+    "invalidSpeed": "Ungültiges Tempo",
+    "downloadBusy": "Gerade läuft schon ein Download, oder die Stimme ist unbekannt.",
+    "notInstalled": "Piper oder Stimme {{voice}} nicht installiert"
+  },
+  "plugin": {
+    "unknownEvent": "{{plugin}}: unbekannter Event-Typ \"{{type}}\"."
+  },
+  "stems": {
+    "demucsMissing": "Demucs ist auf dem Stage-Server nicht installiert (docs/03).",
+    "notInstalled": "Stem-Trennung ist auf dem Stage-Server nicht installiert (Demucs, siehe docs/03)."
+  },
+  "osc": {
+    "unknownCommand": "Unbekannter OSC-Befehl: {{type}}",
+    "invalidAddress": "Keine gültige OSC-Adresse: „{{address}}“",
+    "noTarget": "Für dieses OSC-Gerät fehlen Host und Port (Bühnentechnik).",
+    "sendFailed": "OSC an {{host}}:{{port}} fehlgeschlagen: {{error}}"
+  },
+  "job": {
+    "interrupted": "Durch einen Neustart des Stage-Servers unterbrochen.",
+    "variantGone": "Die Song-Variante existiert nicht mehr.",
+    "trackGone": "Der Track existiert nicht mehr.",
+    "audioMissing": "Die Audiodatei des Tracks liegt nicht auf dem Stage-Server.",
+    "stemPluginMissing": "Das Plugin „Spuren trennen“ ist nicht installiert.",
+    "invalidVariantId": "Ungültige Song-Varianten-ID.",
+    "invalidIds": "Ungültige Song- oder Track-ID."
+  },
+  "youtube": {
+    "addonMissing": "Das Add-on „YouTube-Download“ ist für diese Band nicht installiert.",
+    "bandMissing": "Für die YouTube-Suche fehlt die Band (Add-on-Prüfung).",
+    "urlOnly": "Nur youtube.com/youtu.be-Links werden unterstützt.",
+    "downloadTimeout": "yt-dlp hat nach {{minutes}} Minuten nicht fertig geladen und wurde abgebrochen.",
+    "tooLarge": "Die Audiospur ist größer als das Limit von {{mb}} MB.",
+    "searchTimeout": "Die YouTube-Suche hat nicht geantwortet - ist der Stage-Server online?"
+  },
+  "ug": {
+    "addonMissing": "Das Add-on „Ultimate Guitar Import“ ist für diese Band nicht installiert.",
+    "bandMissing": "Für Ultimate Guitar fehlt die Band (Add-on-Prüfung).",
+    "chromePathWrong": "CHROME_EXECUTABLE_PATH zeigt auf „{{path}}“ - dort ist kein Chrome/Chromium. Pfad korrigieren oder die Variable entfernen.",
+    "chromeMissing": "Für Ultimate Guitar braucht der Stage-Server Chrome oder Chromium - keins gefunden. Installieren (z. B. „sudo apt install chromium“) oder CHROME_EXECUTABLE_PATH setzen. Gesucht in: {{paths}}",
+    "timeout": "Ultimate Guitar antwortet nicht ({{seconds}} s). Internetverbindung des Stage-Servers prüfen und noch einmal versuchen.",
+    "unavailable": "Ultimate Guitar ist nicht erreichbar - hat der Stage-Server gerade Internet?",
+    "blocked": "Ultimate Guitar hat die Anfrage als Bot blockiert. In ein paar Minuten noch einmal versuchen.",
+    "sourceChanged": "Ultimate Guitar hat seine Seite umgebaut - der Import (Plugin „ultimate-guitar-scraper“) muss angepasst werden. Seitentitel: „{{title}}“",
+    "notImportable": "Diese Version hat keinen Text zum Übernehmen (z. B. eine Pro- oder Video-Version). Bitte eine andere Version wählen."
+  }
+}
