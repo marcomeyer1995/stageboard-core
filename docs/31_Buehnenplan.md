@@ -8,7 +8,9 @@ Berührt drei Ideen, die dieselben Daten zeigen: **#62** (räumliche Bühnenmatr
 
 | Frage | Entscheidung |
 |---|---|
-| Ort | **ersetzt den Tab „Bühnentechnik“** in System (Rollen, Logical Devices, dazu Wege und Einmessen); „Tablets & Handys“ bleibt Diagnose |
+| Ort | **ersetzt den Tab „Bühnentechnik“** in System, **Name „Bühne“** (Rollen, Logical Devices, dazu Wege und Einmessen); „Tablets & Handys“ bleibt Diagnose |
+| Korrektur | **jeder physische Weg, der Ausgleich braucht, hat genau eine Latenz-Korrektur** – nicht je Hörort; ein Weg, den mehrere Hörorte hören, hat einen Wert |
+| Eigenes Gerät | **das eigene Tablet ist in der Übersicht hervorgehoben** – wie in „Band“ und bei den Bandmitgliedern |
 | Umfang | **Wege und Einmessen**; #62 (Matrix per Ziehen) und #488 (Plot/PDF) bleiben getrennt |
 | Zuerst | **Liste der Wege** (Weg → Hörort, Zustand, einmessen) – die Karte später auf denselben Daten |
 | Wer bearbeitet | **jeder seinen eigenen Platz** (eigene Position, eigener Hörweg, die eigenen Geräte); alles andere der Admin |
@@ -51,15 +53,15 @@ Jeder Weg (Linie) hat einen Zustand: ● eingemessen · ◐ von Hand · ○ fehl
 - **Bühne:** schematischer Umriss, keine Maße (§0); Vorlagen (Proberaum, kleine Bühne, große Bühne).
 - **Personen:** Bandmitglieder (Profile) mit Position, Instrument, **Hörweg** (In-Ear, Wedge, Kopfhörer, Saal) – ihr Hörort.
 - **Geräte:** alles mit Zeitbezug – Tablets/Handys, Laptop, Stage-Server, Pult, Interface, Amp-Modeller (Kemper, MG-30), Licht (DMX), Video. Position auf dem Plan; Verknüpfung mit dem echten Gerät (Geräte-Registry, Logical Device).
-- **Wege:** von einem Ausgang eines Geräts zu einem Ziel: Lautsprecher des Tablets, Kopfhörer, Pult-Kanal, In-Ear-Sender, DMX-Universum. Je Weg der Latenzwert (heute: Latenzprofil je Gerät/Ausgang/Route) und sein Zustand.
+- **Wege:** physische Wege von einem Ausgang eines Geräts zu einem Ziel: Lautsprecher des Tablets, Kopfhörer, Pult-Kanal, In-Ear-Sender, DMX-Universum. **Je physischem Weg genau eine Latenz-Korrektur** (heute: Latenzprofil je Gerät/Ausgang/Route) und ihr Zustand; Wege ohne Zeitbezug (`soft`/`none`, docs/21) brauchen keine.
 - **Rollen:** wer spielt Klick, Track, Ansagen, wer schaltet Kemper/Licht – heute Logical Devices; im Plan als Markierung am Gerät.
-- **Hörorte:** wo gemessen bzw. abgeglichen wird – je Person ihr Hörweg, dazu „Saal/FOH“. Ein Wert gilt für einen Weg zu einem Hörort.
+- **Hörorte:** wo gemessen bzw. abgeglichen wird – je Person ihr Hörweg, dazu „Saal/FOH“. Der Hörort sagt, *wo* ein Weg eingemessen wird; der Wert gehört dem Weg (§0).
 
 Gespeichert band-weit (wie die übrigen Band-Daten), mit **Varianten** je Aufbau (Proberaum / Club / Festival). Messwerte gehören zum Weg, nicht zur Variante: ein im Proberaum eingemessener Weg gilt auf der Bühne weiter (docs/21 §4 Regel 4); nur Abstände und Hörwege ändern sich.
 
 ## 4. Ansichten
 
-Zuerst nur die **Liste der Wege**, gruppiert nach Hörort (je Person, dazu Saal) – auf jedem Gerät, auch dem Handy:
+Zuerst nur die **Liste der Wege**, gruppiert nach Hörort (je Person, dazu Saal) – auf jedem Gerät, auch dem Handy. Das **eigene Gerät ist hervorgehoben** (wie „Dieses Gerät“ in Band und bei den Bandmitgliedern):
 
 ```
 Kai (Drums, In-Ear)
@@ -79,7 +81,7 @@ Heute: ein Gerät wählen → Wert. Im Plan: **ein Weg zu einem Hörort.**
 
 - **Startwert:** bekannte Gerätewerte (Plugin-Standard bei Kemper/MIDI); keine Abstände, der Plan ist schematisch (§0).
 - **Einmess-Runde:** „Alle Wege zu meinem Hörort einmessen“ – das Handy in der Hand am Hörort, die Wege nacheinander (Referenz gegen Ziel, eigene Tonhöhen, Mikrofon wie PR #700), Wert übernehmen, nachprüfen. Der Plan weiß, welche Wege es gibt und welche fehlen – keine Geräteauswahl von Hand.
-- **Welcher Hörort zählt:** In-Ear-Wege am In-Ear (Mikro am Ohrhörer oder von Hand), Saalwege am FOH, Bühnenwege an der Person. Ein Weg kann mehrere Hörorte haben; dann entscheidet der „wichtigste“ (Klick: der Drummer).
+- **Wo eingemessen wird:** In-Ear-Wege am In-Ear (Mikro am Ohrhörer oder von Hand), Saalwege am FOH, Bühnenwege an der Person. Ein Weg hat eine Korrektur (§0) – hören ihn mehrere, misst man ihn dort, wo es am meisten zählt (Klick: beim Drummer).
 - **Ohne Mikrofon:** von Hand nach Gehör (PR #700) – derselbe Weg, dieselben Werte.
 - **Später automatisch:** Pult als Sensor (alle Wege am Pult auf einmal), Kamera für Licht (docs/21 §4).
 - **Zustände** je Weg nach den Regeln aus docs/21 §4: zweimal gemessen und gleich → ● eingemessen; weichen ab → ✕ instabil (kein Wert); von Hand → ◐.
@@ -94,7 +96,5 @@ Heute: ein Gerät wählen → Wert. Im Plan: **ein Weg zu einem Hörort.**
 
 ## 7. Offen
 
-- Wie heißt der Tab, wenn er Bühnentechnik ersetzt – „Bühne“, „Bühnenplan“, „Aufbau“?
-- Ein Weg mit mehreren Hörorten (Klick über Lautsprecher, gehört vom Drummer und vom Bassisten): ein Wert je Hörort, oder zählt der „wichtigste“?
 - Wie werden die Varianten in der Show gewählt – an der Setlist, an der Show, oder von Hand im Gig?
 - Was ist der „eigene Platz“ ohne Profil (ein Gerät ohne angemeldete Person)?
