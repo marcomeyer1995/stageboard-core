@@ -45,6 +45,33 @@ const CHUNK_MS = 40
 /** Added to the stream's own latency: rendering in bursts, the chunk, the handover (Fire: up to
  * ~150 ms from rendering to arrival through the main thread, measured 2026-11-05) and some reserve. */
 const TRANSPORT_MS = 200
+/** Where the reserve learned so far is kept (per device): a WebView that renders in large blocks
+ * delivers its frames unevenly (the Fire in Solo: 10-180 ms ahead, 2026-11-05). */
+const EXTRA_KEY = 'sb:audio:native-output-extra'
+/** When the frames were ever this close to being late, the next start gets EXTRA_STEP_MS more. */
+const TIGHT_LEAD_MS = 30
+const EXTRA_STEP_MS = 50
+const EXTRA_MAX_MS = 400
+
+function readExtra(): number {
+  try {
+    return Math.min(EXTRA_MAX_MS, Math.max(0, Number(localStorage.getItem(EXTRA_KEY)) || 0))
+  } catch {
+    return 0
+  }
+}
+
+/** Learns more reserve for the next start - never changed while on: a new delay moves the audio. */
+function learnExtra(leadMinMs: number | undefined, appliedExtra: number): void {
+  if (leadMinMs === undefined || leadMinMs < 0 || leadMinMs >= TIGHT_LEAD_MS) return
+  const next = Math.min(EXTRA_MAX_MS, appliedExtra + EXTRA_STEP_MS)
+  if (next <= readExtra()) return
+  try {
+    localStorage.setItem(EXTRA_KEY, String(next))
+  } catch {
+    // Blocked storage: the reserve stays as it is.
+  }
+}
 /** The render line is the earliest arrival of the last few seconds - a message is never early. */
 const LINE_WINDOW_MS = 5000
 /** How fast the line may follow a slow move (the audio clock against the wall clock, ppm). */
@@ -269,12 +296,17 @@ async function attach(ctx: AudioContext): Promise<void> {
     const status = await NativeOutput.status()
     if (p.closed) return
     if (!status.open || status.latencyMs === undefined || status.latencyMs < 0) throw new Error('no timestamp')
-    p.delayMs = Math.round(status.latencyMs + TRANSPORT_MS)
+    // The WebView's own block size (Fire: 64-160 ms) adds to how unevenly its frames arrive.
+    const extra = readExtra()
+    p.delayMs = Math.round(status.latencyMs + TRANSPORT_MS + Math.max(0, ctx.baseLatency * 1000 - 20) + extra)
     worker.postMessage({ type: 'delay', delayMs: p.delayMs })
     rewire(ctx, tap)
     useNativeOutputStore.setState({ state: 'on', delayMs: p.delayMs, status })
     p.timer = setInterval(() => {
-      void NativeOutput.status().then((s) => useNativeOutputStore.setState({ status: s }), () => {})
+      void NativeOutput.status().then((s) => {
+        learnExtra(s.leadMinMs, extra)
+        useNativeOutputStore.setState({ status: s })
+      }, () => {})
     }, STATUS_INTERVAL_MS)
   } catch (error) {
     detach()
