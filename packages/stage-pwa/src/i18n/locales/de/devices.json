@@ -72,6 +72,8 @@
     "measuredDetail": " ({{matched}} von {{total}} Klicks, Streuung {{jitter}} ms)",
     "apply": "Übernehmen",
     "soundOutput": "Ton (Klick und Backing-Track)",
+    "soundNative": "Ton, native Ausgabe",
+    "soundNativeOutput": "Ton über die native Ausgabe (später gehört als gemeldet)",
     "title": "Latenz - {{device}}",
     "info": "Wie viel später als geplant ein Ausgang wirklich klingt oder schaltet. Das Gerät sendet um diesen Wert früher, damit alles auf dem Schlag ankommt. Ton gilt je Ausgabeweg (Lautsprecher, Kopfhörer, Bluetooth, USB).",
     "remove": "Entfernen",
@@ -81,6 +83,14 @@
     "ms": "Latenz in ms",
     "msPlaceholder": "z. B. 70",
     "save": "Speichern"
+  },
+  "native": {
+    "label": "Native Tonausgabe (Android)",
+    "on": "An: gehört {{ms}} ms nach dem Abspielen - genau, ohne gespeicherte Latenz.",
+    "starting": "Startet…",
+    "failed": "Nicht verfügbar ({{error}}) - die App spielt wie bisher.",
+    "off": "Aus: Ton über die WebView, mit der gespeicherten Latenz unten.",
+    "info": "Spielt Klick, Track und Ansagen über Androids eigene Tonausgabe statt über die WebView. Ihre Zeitangabe stimmt auf allen gemessenen Geräten; die der WebView ist auf manchen (Fire) bei jedem Start anders falsch. Dann braucht dieses Gerät keinen gespeicherten Latenzwert."
   },
   "comp": {
     "label": "Ton-Latenz ausgleichen",

@@ -1,0 +1,1 @@
+JSON.stringify({ sr: __cap.ctx.sampleRate, ready: !!__cap.ready, meta: __cap.meta.filter(m => m[2] > __cap.armedAt - 60000 && m[2] < __cap.disarmedAt + 1000), onsets: __cap.onsets, srv: __cap.srv, transport: __cap.transport ?? null, armedAt: __cap.armedAt })

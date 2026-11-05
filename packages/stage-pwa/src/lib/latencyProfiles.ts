@@ -1,5 +1,5 @@
 import i18n from '../i18n'
-import { AUDIO_OUTPUT, type AudioRoute, type LatencyProfileDoc } from 'shared-types'
+import { AUDIO_OUTPUT, NATIVE_AUDIO_OUTPUT, type AudioRoute, type LatencyProfileDoc } from 'shared-types'
 
 /** The stored profile for one output path, or null. Audio is per route; an unknown route (a browser)
  * only matches a profile stored for `unknown`. */
@@ -24,4 +24,11 @@ export function routeLabel(route: AudioRoute): string {
 export function audioOutputLatencyMs(profiles: readonly LatencyProfileDoc[], deviceId: string, route: AudioRoute, on: boolean): number {
   if (!on) return 0
   return Math.max(0, findLatencyProfile(profiles, deviceId, AUDIO_OUTPUT, route)?.latencyMs ?? 0)
+}
+
+/** With the native output on (docs/30): its own delay plus what is heard later than AAudio reports,
+ * stored per route (NATIVE_AUDIO_OUTPUT) - with compensation switched off only the delay. */
+export function nativeOutputLatencyMs(delayMs: number, profiles: readonly LatencyProfileDoc[], deviceId: string, route: AudioRoute, on: boolean): number {
+  if (!on) return delayMs
+  return delayMs + Math.max(0, findLatencyProfile(profiles, deviceId, NATIVE_AUDIO_OUTPUT, route)?.latencyMs ?? 0)
 }

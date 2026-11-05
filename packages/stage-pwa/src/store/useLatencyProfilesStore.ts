@@ -45,3 +45,5 @@ export const useLatencyProfilesStore = create<LatencyProfilesState>((set) => ({
     await removeLatencyProfile(id)
   },
 }))
+
+if (typeof window !== 'undefined') (window as unknown as { __sbLatencyProfiles: typeof useLatencyProfilesStore }).__sbLatencyProfiles = useLatencyProfilesStore

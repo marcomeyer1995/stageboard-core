@@ -59,7 +59,7 @@ Dazu die **fertige Box**: Heute bauen Bands ihr Rack selbst zusammen (Playback-R
    - **Geschlossen:** Repo privat stellen und normal verkaufen.
    - **Open Core, wie Home Assistant mit Nabu Casa:** Der Kern bleibt offen; Geld kommt von der Box, der App, Support und einer Komfort-Cloud.
 
-   Alle Abhängigkeiten sind permissiv lizenziert (MIT, Apache 2.0; eine MPL-2.0-Bibliothek fürs Pitch-Shifting, `@soundtouchjs/audio-worklet`), beide Wege sind also möglich.
+   Alle Abhängigkeiten sind permissiv lizenziert (MIT, Apache 2.0; das Pitch-Shifting des Loop-Trainers ist seit #683 Signalsmith Stretch, MIT - die MPL-2.0-Bibliothek `@soundtouchjs/audio-worklet` ist entfernt), beide Wege sind also möglich.
 2. **Rechtlich riskante Funktionen entfernen oder abtrennen:**
    - **Ultimate-Guitar-Import:** liest deren Webseite aus (Scraping), das verstößt gegen deren Nutzungsbedingungen. In einem kommerziellen Produkt nicht tragbar.
    - **YouTube-Referenzspuren über yt-dlp:** dasselbe Problem mit YouTube.

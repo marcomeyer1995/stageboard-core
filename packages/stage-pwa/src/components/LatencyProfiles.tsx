@@ -1,13 +1,14 @@
 import i18n from '../i18n'
 import { useState } from 'react'
 import { runAudioCalibration, type AudioCalibrationOutcome } from '../lib/audioCalibration'
-import { AUDIO_OUTPUT, AudioRouteSchema, SERVER_EXECUTION_TARGET, latencyProfileId, type AudioRoute, type LatencyProfileDoc } from 'shared-types'
+import { AUDIO_OUTPUT, AudioRouteSchema, NATIVE_AUDIO_OUTPUT, SERVER_EXECUTION_TARGET, latencyProfileId, type AudioRoute, type LatencyProfileDoc } from 'shared-types'
 import { getDeviceId } from '../lib/deviceId'
 import { useAudioRouteStore } from '../store/useAudioRouteStore'
 import { useLatencyProfilesStore } from '../store/useLatencyProfilesStore'
 import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
 import { audioOutputLatencyMs, routeLabel } from '../lib/latencyProfiles'
 import { LatencyCompensationSettings } from './LatencyCompensationSettings'
+import { NativeOutputSettings } from './NativeOutputSettings'
 import { Button, Dialog, Field, Select } from './ui'
 import { useTranslation } from 'react-i18next'
 
@@ -15,7 +16,7 @@ import { useTranslation } from 'react-i18next'
 
 function useOutputName(): (output: string) => string {
   const logicalDevices = useLogicalDevicesStore((state) => state.devices)
-  return (output) => (output === AUDIO_OUTPUT ? i18n.t('devices:lat.sound') : (logicalDevices.find((d) => d.id === output)?.name ?? i18n.t('devices:lat.deletedDevice')))
+  return (output) => (output === AUDIO_OUTPUT ? i18n.t('devices:lat.sound') : output === NATIVE_AUDIO_OUTPUT ? i18n.t('devices:lat.soundNative') : (logicalDevices.find((d) => d.id === output)?.name ?? i18n.t('devices:lat.deletedDevice')))
 }
 
 function profileLabel(profile: LatencyProfileDoc, outputName: (output: string) => string): string {
@@ -143,7 +144,9 @@ export function LatencyProfileDialog({ deviceId, deviceName, onClose }: { device
 
   const isServer = deviceId === SERVER_EXECUTION_TARGET
   const driven = logicalDevices.filter((d) => (isServer ? d.executionTarget === SERVER_EXECUTION_TARGET : d.executionTarget === deviceId))
-  const outputs = [...(isServer ? [] : [{ value: AUDIO_OUTPUT, label: t('lat.soundOutput') }]), ...driven.map((d) => ({ value: d.id, label: d.name }))]
+  const outputs = [
+    ...(isServer ? [] : [{ value: AUDIO_OUTPUT, label: t('lat.soundOutput') }, { value: NATIVE_AUDIO_OUTPUT, label: t('lat.soundNativeOutput') }]),
+    ...driven.map((d) => ({ value: d.id, label: d.name }))]
 
   const [output, setOutput] = useState(outputs[0]?.value ?? '')
   const [route, setRoute] = useState<AudioRoute>(deviceId === getDeviceId() ? currentRoute : 'speaker')
@@ -153,7 +156,7 @@ export function LatencyProfileDialog({ deviceId, deviceName, onClose }: { device
 
   async function add() {
     if (!valid || !output) return
-    const profileRoute = output === AUDIO_OUTPUT ? route : null
+    const profileRoute = output === AUDIO_OUTPUT || output === NATIVE_AUDIO_OUTPUT ? route : null
     await save({
       id: latencyProfileId(deviceId, output, profileRoute),
       deviceId,
@@ -173,6 +176,7 @@ export function LatencyProfileDialog({ deviceId, deviceName, onClose }: { device
           {t('lat.info')}
         </p>
         {/* The on/off switch beside the values it uses (Marco, 2026-10-16 - it was alone in "Ton & Timing"). */}
+        {deviceId === getDeviceId() && <NativeOutputSettings />}
         {deviceId === getDeviceId() && <LatencyCompensationSettings />}
         {profiles.length > 0 && (
           <ul className="flex flex-col gap-2">
@@ -192,7 +196,7 @@ export function LatencyProfileDialog({ deviceId, deviceName, onClose }: { device
         ) : (
           <div className="flex flex-col gap-3">
             <Select label={t('lat.output')} value={output} onChange={(e) => setOutput(e.target.value)} options={outputs} />
-            {output === AUDIO_OUTPUT && (
+            {(output === AUDIO_OUTPUT || output === NATIVE_AUDIO_OUTPUT) && (
               <Select
                 label={t('lat.route')}
                 value={route}

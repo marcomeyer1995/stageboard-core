@@ -1,4 +1,5 @@
-import { createAudioClock } from './audioClock'
+import { sharedAudioClock } from './audioClock'
+import { driftRate, RATE_STEP } from './driftCorrection'
 import type { LocalAudioResult } from './localAudioEngine'
 import { getSharedAudioContext } from './sharedAudioContext'
 import { getTrack } from './songVariantsDb'
@@ -84,13 +85,6 @@ const RESCHEDULE_ERROR_S = 0.08
  * thread stalled between computing the song time and reading the audio clock (2026-10-09: 130-160 ms
  * stalls while the next song decoded, each one a false restart and a ~150 ms gap). */
 const RESCHEDULE_CONFIRMATIONS = 2
-/** Drift (tablet crystal vs server clock, a few ms per minute) is worked off over this long, at
- * most MAX_RATE_DEVIATION off normal speed - 0.1 % is 1.7 cents, inaudible. Unlike the `<audio>`
- * element's playbackRate, a source node's rate is a plain audio parameter: no pipeline reset. */
-const RATE_TIME_CONSTANT_S = 8
-const MAX_RATE_DEVIATION = 0.001
-/** Rate changes smaller than this are not applied - keeps the rate still while in sync. */
-const RATE_STEP = 0.00002
 /** Short fades so a start mid-file or a stop never cracks. */
 const FADE_S = 0.02
 /** The engine is driven from a per-frame effect; it works at most this often (the click's tick rate). */
@@ -169,6 +163,8 @@ export interface TrackJump {
   id: number
   boundaryMs: number
   toMs: number
+  /** The speed from the boundary on (#683, Solo's loop trainer) - absent: unchanged. */
+  rate?: number
 }
 
 /** Prepared tracks by key (variant:track) - audio is only ever played under its own key, never
@@ -185,7 +181,7 @@ const waiters = new Map<string, (() => void)[]>()
 let voice: Voice | null = null
 let lastSyncAt = -Infinity
 let suspect = 0
-const clock = createAudioClock()
+const clock = sharedAudioClock
 
 /** The track's level over the song from its playback cues (#485, playbackCues.ts) - empty: as
  * uploaded. Applied on its own gain node after the voices, so crossfades and level never fight. */
@@ -514,7 +510,6 @@ export function syncWebAudioTrack(elapsedNow: () => number | null, shouldPlay: b
   const prepared = wantedPrepared()
   if (!shouldPlay || !prepared || !wanted) {
     stopVoice()
-    clock.reset()
     lastSyncAt = -Infinity
     suspect = 0
     return { blocked: false }
@@ -615,7 +610,8 @@ export function syncWebAudioTrack(elapsedNow: () => number | null, shouldPlay: b
     return { blocked: false }
   }
   if (suspect > 0 || now < firstTime) return { blocked: false }
-  const rate = 1 - Math.max(-MAX_RATE_DEVIATION, Math.min(MAX_RATE_DEVIATION, errorS / RATE_TIME_CONSTANT_S))
+  // The audio clock's own rate fed forward, the rest pulled in gently (driftCorrection.ts).
+  const rate = driftRate(ctx, errorS)
   if (Math.abs(rate - v.seg.rate) < RATE_STEP) return { blocked: false }
   if (v.kind === 'buffer') {
     // One node plays the whole song: change its rate from now on.

@@ -49,6 +49,7 @@
     "noneFound": "No widget found.",
     "noPreview": "No preview",
     "rehearsalInGig": "Meant for rehearsal - this dashboard is also offered in Gig mode.",
+    "practiceOnlyInGig": "Solo practice only - in Gig mode its place stays empty.",
     "noRoomTitle": "No room for “{{title}}”",
     "noRoomText": "At full size ({{w}} × {{h}}) there is no room on this dashboard - it would be shrunk and might not show everything. Pick another dashboard or make room first.",
     "addHereAnyway": "Add here anyway",

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { ServerMessageParamsSchema } from './serverMessage.js'
 
 /**
  * A replicated background-job document (#5): the Stage-Server watches this workspace's shared
@@ -22,8 +23,11 @@ const AsyncJobBase = {
   updatedAt: z.number().int().nonnegative(),
   /** The SongVariant this job attaches its resulting track(s) to. */
   variantId: z.string().min(1),
-  /** Set once `status` reaches `error` - human-readable, shown as-is in the UI. */
+  /** Set once `status` reaches `error` - human-readable (German), the fallback for `errorCode`. */
   error: z.string().min(1).optional(),
+  /** The error as a code the device translates (#679, serverMessage.ts), when the server has one. */
+  errorCode: z.string().min(1).optional(),
+  errorParams: ServerMessageParamsSchema.optional(),
 }
 
 export const YoutubeExtractJobSchema = z.object({

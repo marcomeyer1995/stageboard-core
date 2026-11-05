@@ -1,5 +1,5 @@
 import type { ClickTimeline } from './beatGrid'
-import { createAudioClock } from './audioClock'
+import { audioClockPrecise, audioPerWall, sharedAudioClock } from './audioClock'
 import { __resetSharedAudioContextForTests, getSharedAudioContext } from './sharedAudioContext'
 import { sourceOutput } from './audioMix'
 
@@ -40,7 +40,7 @@ export interface ClickEngineState {
    * Beats are scheduled across it ahead of time - the target's downbeat lands exactly on the
    * boundary, nothing of the old song is queued past it. `id` tells two jumps between the same
    * points apart (a looped section jumps back the same way every pass). */
-  jump?: { id: number; boundaryMs: number; toMs: number } | null
+  jump?: { id: number; boundaryMs: number; toMs: number; rate?: number } | null
 }
 
 let intervalId: ReturnType<typeof setInterval> | null = null
@@ -59,7 +59,7 @@ let lastTickElapsedMs: number | null = null
  * beats are in the target's song time while `elapsedMs` is still in the old one - `offsetMs`
  * (boundary - target) converts between them; once the clock has jumped it is 0. Kept (by `id`)
  * until the jump is gone, so it is crossed only once. */
-let crossedJump: { id: number; offsetMs: number } | null = null
+let crossedJump: { id: number; offsetMs: number; boundaryMs: number; rate?: number } | null = null
 /** The timeline the schedule was built on. A new one while playing (the grid edited, Tempo ×2/÷2
  * in the timeline) moves `nextBeat` to the same moment in it - on a grid the beat number alone
  * points somewhere else then: after ÷2 beat 739 lay past the song's end and the click stopped. */
@@ -75,11 +75,13 @@ let nextBeatAudioTime: number | null = null
  * is re-derived - above the audio clock's step jitter, below anything audible as a "late" click.
  * Catches real discontinuities the stall/wrap checks don't, e.g. a clock-sync offset update. */
 const AUDIO_TIME_TOLERANCE_S = 0.05
+/** How far one beat may move towards the song clock (docs/29 §5.5). */
+const DRIFT_STEP_S = 0.001
 
 /** The audio clock, smoothed over its step size (audioClock.ts) - converting with a single raw
  * reading tripped AUDIO_TIME_TOLERANCE_S every few beats on the Fire, each re-derivation an
  * audible jump (2026-09-27). */
-const audioClock = createAudioClock()
+const audioClock = sharedAudioClock
 
 /** How large a jump in `elapsedMs` between two consecutive ticks counts as "the browser stalled
  * this tab's timers," not just normal scheduling - comfortably above the ~TICK_INTERVAL_MS gap a
@@ -97,13 +99,25 @@ function getAudioContext(): AudioContext {
   return getSharedAudioContext()
 }
 
+/** Debug (docs/30 §2a): a click pitch of this device's own, so a microphone can tell the band's
+ * devices apart when they all click together - `localStorage['sb:debug:click-hz'] = '1700'`. */
+function debugClickHz(): number | null {
+  try {
+    const hz = Number(localStorage.getItem('sb:debug:click-hz'))
+    return hz > 0 ? hz : null
+  } catch {
+    return null
+  }
+}
+
 /** One click burst: a short, fast-decaying oscillator tone - higher-pitched and louder on the
  * downbeat, exactly the same accent Visual Metronome draws visually (metronome.ts's
  * Beat.isDownbeat), so the two are recognizably "the same beat" to anyone comparing them. */
 export function playClickAt(ctx: AudioContext, time: number, isDownbeat: boolean): void {
   const osc = ctx.createOscillator()
   const gain = ctx.createGain()
-  osc.frequency.value = isDownbeat ? 1500 : 1000
+  const hz = debugClickHz()
+  osc.frequency.value = hz ?? (isDownbeat ? 1500 : 1000)
   // Fast attack, exponential decay to near-silence - a "click", not a beep. Starting the decay
   // ramp from a moment after `time` (not exactly at it) avoids the near-zero-to-target jump
   // exponentialRampToValueAtTime rejects as invalid at time 0.
@@ -147,7 +161,7 @@ function tick(getState: () => ClickEngineState): void {
   if (crossedJump && crossedJump.offsetMs !== 0 && lastTickElapsedMs !== null) {
     const asTarget = Math.abs(elapsedMs + crossedJump.offsetMs - lastTickElapsedMs)
     if (asTarget < Math.abs(elapsedMs - lastTickElapsedMs)) {
-      crossedJump = { id: crossedJump.id, offsetMs: 0 }
+      crossedJump = { ...crossedJump, offsetMs: 0 }
       lastTickElapsedMs = elapsedMs
     }
   }
@@ -174,12 +188,15 @@ function tick(getState: () => ClickEngineState): void {
 
   const ctx = getAudioContext()
   const audioNow = audioClock.now(ctx)
+  const precise = audioClockPrecise(ctx)
   // The lookahead window is wall time, `elapsedMs` is song time - a slowed pass covers less song per ms.
   // Output latency compensation (#491) widens it: a click heard 430 ms after scheduling must be
   // queued 430 ms earlier. The schedule still anchors on the real song time, so a click whose early
   // moment already passed (latency longer than the Play lead) plays at once instead of being skipped.
   const lookaheadSongMs = (LOOKAHEAD_MS + outputLatencyMs) * playbackRate
   const latencyS = outputLatencyMs / 1000
+  // Past a jump with its own speed (#683, the loop trainer's next pass) the beats there run at it.
+  const rateAfterJump = (target: { rate?: number } | null) => target?.rate ?? playbackRate
   while (nextBeat !== null) {
     if (timeline.rigid) nextBeatOnsetMs = timeline.timeOfBeat(nextBeat)
     // Reaching a queued section jump (#479): the next beat is the target's, at the boundary's moment.
@@ -187,22 +204,33 @@ function tick(getState: () => ClickEngineState): void {
       const atBoundary =
         (nextBeatAudioTime ?? audioNow + (nextBeatOnsetMs - elapsedMs) / 1000 / playbackRate - latencyS) - (nextBeatOnsetMs - jump.boundaryMs) / 1000 / playbackRate
       anchorSchedule(timeline, jump.toMs, true)
-      nextBeatAudioTime = atBoundary + (nextBeatOnsetMs - jump.toMs) / 1000 / playbackRate
-      crossedJump = { id: jump.id, offsetMs: jump.boundaryMs - jump.toMs }
+      nextBeatAudioTime = atBoundary + (nextBeatOnsetMs - jump.toMs) / 1000 / rateAfterJump(jump)
+      crossedJump = { id: jump.id, offsetMs: jump.boundaryMs - jump.toMs, boundaryMs: jump.boundaryMs, ...(jump.rate !== undefined ? { rate: jump.rate } : {}) }
       continue
     }
     const offsetMs = crossedJump?.offsetMs ?? 0
     if (nextBeatOnsetMs + offsetMs >= elapsedMs + lookaheadSongMs) break
     if (loop && nextBeatOnsetMs >= loop.endMs) break
-    const converted = audioNow + (nextBeatOnsetMs + offsetMs - elapsedMs) / 1000 / playbackRate - latencyS
+    // Until the song clock has jumped too: the time up to the boundary at this speed, after it at the next.
+    const converted =
+      crossedJump && offsetMs !== 0
+        ? audioNow + (crossedJump.boundaryMs - elapsedMs) / 1000 / playbackRate + (nextBeatOnsetMs + offsetMs - crossedJump.boundaryMs) / 1000 / rateAfterJump(crossedJump) - latencyS
+        : audioNow + (nextBeatOnsetMs - elapsedMs) / 1000 / playbackRate - latencyS
     if (nextBeatAudioTime === null || Math.abs(converted - nextBeatAudioTime) > AUDIO_TIME_TOLERANCE_S) {
       nextBeatAudioTime = converted
+    } else if (precise) {
+      // Drift (docs/29 §5.5): follow the song clock beat by beat, at most DRIFT_STEP_S per beat -
+      // the time service reads the clock without steps, and a millisecond between two beats is not
+      // heard. On the smoothed fallback clock a reading wobbles by its steps: there the schedule
+      // still runs on until AUDIO_TIME_TOLERANCE_S.
+      nextBeatAudioTime += Math.max(-DRIFT_STEP_S, Math.min(DRIFT_STEP_S, converted - nextBeatAudioTime))
     }
     if (!clickOnAt || clickOnAt(nextBeatOnsetMs)) playClickAt(ctx, nextBeatAudioTime, timeline.beatInBar(nextBeat) === 0)
     const beatMs = timeline.periodAfter(nextBeat)
     nextBeat++
     nextBeatOnsetMs += beatMs
-    nextBeatAudioTime += beatMs / 1000 / playbackRate
+    // A beat lasts its song time on the wall clock - in audio time at the audio clock's own rate.
+    nextBeatAudioTime += (beatMs / 1000 / (crossedJump && offsetMs !== 0 ? rateAfterJump(crossedJump) : playbackRate)) * audioPerWall(ctx)
   }
 }
 
@@ -229,7 +257,6 @@ export function stopClick(): void {
   intervalId = null
   nextBeat = null
   nextBeatAudioTime = null
-  audioClock.reset()
   lastTickElapsedMs = null
   crossedJump = null
   scheduledTimeline = null
@@ -239,5 +266,6 @@ export function stopClick(): void {
  * otherwise has no way to reset its module-level scheduler state between tests. */
 export function __resetClickEngineForTests(): void {
   stopClick()
+  audioClock.reset()
   __resetSharedAudioContextForTests()
 }
