@@ -10,3 +10,44 @@ export function alignmentBeatsDue(startedAt: number, periodMs: number, fromMs: n
 export function bracketMiddle(a: number, b: number): number {
   return Math.round((a + b) / 2)
 }
+
+/** Beats per bar - the first is accented on both devices, so a click shifted by whole beats no
+ * longer sounds "together" (Marco merged two wrong clicks, 2026-11-05). */
+export const ALIGN_BAR = 4
+/** The value moves at most this far from where it started - less than half a beat (600 ms). */
+export const ALIGN_RANGE_MS = 250
+
+/** Two sounds: the reference a low "tock", the target a high "tick" - you hear which comes first,
+ * and the microphone tells them apart. No integer ratio between them (no shared harmonics). */
+export const ALIGN_SOUND = { reference: { hz: 800 }, target: { hz: 2000 } } as const
+
+/** Whether the beat at band time `beatMs` is the first of its bar. */
+export function isAlignAccent(startedAt: number, periodMs: number, beatMs: number): boolean {
+  return Math.round((beatMs - startedAt) / periodMs) % ALIGN_BAR === 0
+}
+
+/** A value kept within ALIGN_RANGE_MS of the one the session started with. */
+export function clampAlignValue(value: number, startValue: number): number {
+  return Math.max(startValue - ALIGN_RANGE_MS, Math.min(startValue + ALIGN_RANGE_MS, value))
+}
+
+/**
+ * The target's offset against the reference for every target click heard (ms, + = target late):
+ * each paired with the nearest reference click within `maxMs`; clicks without a partner are left out.
+ */
+export function pairOffsets(referenceS: readonly number[], targetS: readonly number[], maxMs = ALIGN_RANGE_MS): number[] {
+  const out: number[] = []
+  for (const t of targetS) {
+    let best: number | null = null
+    for (const r of referenceS) if (best === null || Math.abs(t - r) < Math.abs(t - best)) best = r
+    if (best !== null && Math.abs(t - best) * 1000 <= maxMs) out.push((t - best) * 1000)
+  }
+  return out
+}
+
+export function median(values: readonly number[]): number | null {
+  if (values.length === 0) return null
+  const sorted = [...values].sort((a, b) => a - b)
+  const mid = Math.floor(sorted.length / 2)
+  return sorted.length % 2 ? sorted[mid]! : (sorted[mid - 1]! + sorted[mid]!) / 2
+}

@@ -97,7 +97,15 @@
     "mark": "Grenze merken (Flam gerade hörbar)",
     "middle": "Mitte übernehmen: {{ms}} ms",
     "marks": "Gemerkt: {{marks}} ms",
-    "stop": "Abgleich beenden"
+    "stop": "Abgleich beenden",
+    "micStart": "Live messen (Mikrofon dieses Geräts)",
+    "micFailed": "Kein Mikrofon - Zugriff erlaubt?",
+    "micListening": "Höre zu… (beide Klicks müssen hörbar sein)",
+    "micTogether": "Zusammen (unter 1 ms).",
+    "micLate": "Das Gerät klingt {{ms}} ms zu spät.",
+    "micEarly": "Das Gerät klingt {{ms}} ms zu früh.",
+    "micApply": "Vorschlag übernehmen: {{ms}} ms",
+    "range": "Tiefer Klick = Referenz, hoher Klick = dieses Gerät, der erste Schlag im Takt lauter. Der Wert bleibt höchstens {{ms}} ms vom Startwert entfernt."
   },
   "native": {
     "label": "Native Tonausgabe (Android)",

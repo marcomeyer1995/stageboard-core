@@ -1,8 +1,8 @@
 import { useEffect, useRef } from 'react'
 import { AUDIO_OUTPUT, NATIVE_AUDIO_OUTPUT } from 'shared-types'
-import { alignmentBeatsDue } from './alignByEar'
+import { ALIGN_SOUND, alignmentBeatsDue, isAlignAccent } from './alignByEar'
+import { sourceOutput } from './audioMix'
 import { sharedAudioClock } from './audioClock'
-import { playClickAt } from './clickEngine'
 import { getServerTime } from './clockSync'
 import { getDeviceId } from './deviceId'
 import { useAudioOutputLatencyMs } from './latencyCompensation'
@@ -14,6 +14,25 @@ import { useAudioRouteStore } from '../store/useAudioRouteStore'
 const TICK_MS = 50
 /** Same window as the click (clickEngine.ts), widened by the output latency. */
 const LOOKAHEAD_MS = 150
+const CLICK_S = 0.03
+
+/** A 2-ms rise instead of a hard start: a hard start sounds in every band, and the microphone heard
+ * the reference's click in the target's band too (2026-11-05). */
+const RISE_S = 0.002
+
+/** One alignment click: the role's own pitch, the bar's first beat louder. */
+function playAlignClick(ctx: AudioContext, when: number, hz: number, accent: boolean): void {
+  const osc = ctx.createOscillator()
+  const gain = ctx.createGain()
+  osc.frequency.value = hz
+  gain.gain.setValueAtTime(0, when)
+  gain.gain.linearRampToValueAtTime(accent ? 0.8 : 0.3, when + RISE_S)
+  gain.gain.exponentialRampToValueAtTime(0.001, when + CLICK_S)
+  osc.connect(gain)
+  gain.connect(sourceOutput('click', ctx))
+  osc.start(when)
+  osc.stop(when + CLICK_S)
+}
 
 /**
  * "Abgleich nach Gehör" (docs/21 §4) on this device: while a session names it as reference or
@@ -57,7 +76,7 @@ export function useAlignmentDriver(): void {
       const horizon = serverNow + LOOKAHEAD_MS + latencyMs
       for (const beat of alignmentBeatsDue(startedAt, periodMs, scheduledTo, horizon)) {
         const when = audioNow + (beat - serverNow - latencyMs) / 1000
-        if (when >= ctx.currentTime) playClickAt(ctx, when, false)
+        if (when >= ctx.currentTime) playAlignClick(ctx, when, ALIGN_SOUND[role].hz, isAlignAccent(startedAt, periodMs, beat))
       }
       scheduledTo = Math.max(scheduledTo, horizon)
     }

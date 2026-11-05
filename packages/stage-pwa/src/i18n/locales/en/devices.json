@@ -97,7 +97,15 @@
     "mark": "Mark edge (flam just audible)",
     "middle": "Take the middle: {{ms}} ms",
     "marks": "Marked: {{marks}} ms",
-    "stop": "Stop aligning"
+    "stop": "Stop aligning",
+    "micStart": "Measure live (this device's microphone)",
+    "micFailed": "No microphone - access allowed?",
+    "micListening": "Listening… (both clicks must be audible)",
+    "micTogether": "Together (below 1 ms).",
+    "micLate": "The device sounds {{ms}} ms late.",
+    "micEarly": "The device sounds {{ms}} ms early.",
+    "micApply": "Take the suggestion: {{ms}} ms",
+    "range": "Low click = reference, high click = this device, the first beat of each bar louder. The value stays within {{ms}} ms of where it started."
   },
   "native": {
     "label": "Native sound output (Android)",
