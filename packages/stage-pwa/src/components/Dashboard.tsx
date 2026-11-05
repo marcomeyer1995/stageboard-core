@@ -32,6 +32,7 @@ import { useEditBarSlot } from '../lib/useEditBarSlot'
 import { createPortal } from 'react-dom'
 import { useModeDashboards } from '../lib/useModeDashboards'
 import { useDashboardsStore } from '../store/useDashboardsStore'
+import { useAppModeStore } from '../store/useAppModeStore'
 import { useEditModeStore } from '../store/useEditModeStore'
 import { WIDGET_REGISTRY } from '../widgets/registry'
 import { DashboardEditBar } from './DashboardEditBar'
@@ -119,6 +120,7 @@ export function Dashboard() {
   const save = useDashboardsStore((state) => state.save)
   const updateWidget = useDashboardsStore((state) => state.updateWidget)
   const isEditing = useEditModeStore((state) => state.isEditing)
+  const mode = useAppModeStore((state) => state.mode)
   const capabilities = useCapabilities()
   const editBarSlot = useEditBarSlot(isEditing)
   // Private Stations and dashboards not offered in the current session mode are filtered out
@@ -470,6 +472,9 @@ export function Dashboard() {
                     </div>
                   )
                 }
+                // Solo-Üben-only widgets leave their place empty in Gig (#683); edit mode keeps
+                // them so they stay removable.
+                if (definition.practiceOnly && mode !== 'practice' && !isEditing) return null
                 const status = capabilityStatusFor(definition.requires, capabilities)
                 const { Component, ConfigPanel } = definition
 

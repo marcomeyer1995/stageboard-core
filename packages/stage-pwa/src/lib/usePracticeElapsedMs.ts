@@ -1,33 +1,24 @@
 import { useEffect, useState } from 'react'
-import { getLoopPlaybackState } from './loopTrainerEngine'
 import { computeActiveMs } from './playbackTransport'
-import { useLoopTrainerStore } from '../store/useLoopTrainerStore'
-import { DEFAULT_PRACTICE_STATE, usePracticeStateStore } from '../store/usePracticeStateStore'
+import { DEFAULT_PRACTICE_STATE, practiceTransportOf, usePracticeStateStore } from '../store/usePracticeStateStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 
 /** Practice mode's counterpart to usePlaybackElapsedMs.ts - same tick/compute logic, just off
  * the local practice state instead of synced ShowState, and plain Date.now() rather than
  * clockSync.ts's getServerTime() (there's only ever one device involved, nothing to
- * cross-tablet-synchronize). Returns null while stopped, same "nothing to show" contract. */
+ * cross-tablet-synchronize). Returns null while stopped, same "nothing to show" contract.
+ * A section jump (#479) continues the clock at its target, the loop trainer's speed (#683) is the
+ * transport's `rate`. */
 /** The same value, read once without subscribing - for a timer that must not re-render (#400 review). */
 export function practiceElapsedMsNow(workspaceId: string): number | null {
   const state = usePracticeStateStore.getState().byWorkspace[workspaceId] ?? DEFAULT_PRACTICE_STATE
   if (state.playbackStatus === 'stopped') return null
-  if (useLoopTrainerStore.getState().active) {
-    const loop = getLoopPlaybackState()
-    if (loop) return loop.positionMs
-  }
-  // A section jump (#479) continues the clock at its target.
-  return computeActiveMs(
-    { status: state.playbackStatus, startedAt: state.playbackStartedAt, accumulatedMs: state.playbackAccumulatedMs, jump: state.playbackJump ?? null },
-    Date.now(),
-  )
+  return computeActiveMs(practiceTransportOf(state), Date.now())
 }
 
 export function usePracticeElapsedMs(): number | null {
   const workspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
   const state = usePracticeStateStore((s) => s.byWorkspace[workspaceId] ?? DEFAULT_PRACTICE_STATE)
-  const loopActive = useLoopTrainerStore((s) => s.active)
   const [, forceTick] = useState(0)
 
   useEffect(() => {
@@ -42,15 +33,5 @@ export function usePracticeElapsedMs(): number | null {
   }, [state.playbackStatus])
 
   if (state.playbackStatus === 'stopped') return null
-  // While the Rehearsal Looper (#61) runs, its engine - not the wall-clock transport - knows where
-  // playback is: it loops and changes speed per pass, which a start-time/accumulated pair can't say.
-  if (loopActive) {
-    const loop = getLoopPlaybackState()
-    if (loop) return loop.positionMs
-  }
-  // A section jump (#479) continues the clock at its target.
-  return computeActiveMs(
-    { status: state.playbackStatus, startedAt: state.playbackStartedAt, accumulatedMs: state.playbackAccumulatedMs, jump: state.playbackJump ?? null },
-    Date.now(),
-  )
+  return computeActiveMs(practiceTransportOf(state), Date.now())
 }

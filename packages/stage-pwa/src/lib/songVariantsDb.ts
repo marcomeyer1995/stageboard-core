@@ -4,6 +4,7 @@ import { deleteTrackFile, fetchTrack, uploadTrack } from './audioClient'
 import { getAudioStorageBackend } from './audioStorageBackend'
 import { getBackingTrack, putSong, removeBackingTrack, removeSong } from './db'
 import { randomId } from './id'
+import { getAllSavedLoops, putSavedLoop, removeLoopsOfVariant } from './savedLoopsDb'
 import { createWorkspaceCollection, type Doc } from './workspaceCollection'
 
 export type SongVariantDoc = Doc<SongVariant>
@@ -165,6 +166,7 @@ export async function deleteVariant(variantId: string): Promise<void> {
     await getAudioStorageBackend().remove(cacheKey(variantId, track.id))
   }
   await removeVariant(variantId)
+  await removeLoopsOfVariant(variantId)
 }
 
 /** Makes `variantId` the song's one default variant and mirrors its content onto the Song doc
@@ -219,8 +221,17 @@ export async function duplicateSongAndVariants(song: Song, newTitle: string): Pr
   await putSong(copy)
 
   const sourceVariants = (await getAllVariants()).filter((variant) => variant.songId === song.id)
+  const loops = await getAllSavedLoops()
   for (const variant of sourceVariants) {
-    await putVariant({ ...variant, id: randomId(), songId: copy.id, tracks: [] })
+    const variantCopy = { ...variant, id: randomId(), songId: copy.id, tracks: [] }
+    await putVariant(variantCopy)
+    // Its saved loops come along: they sit on the same timings the copy keeps (#683).
+    for (const loop of loops.filter((l) => l.variantId === variant.id)) {
+      const { _id, _rev, ...rest } = loop
+      void _id
+      void _rev
+      await putSavedLoop({ ...rest, id: randomId(), variantId: variantCopy.id })
+    }
   }
 
   return copy
@@ -243,6 +254,7 @@ export async function removeSongAndVariants(songId: string): Promise<void> {
       await removeTrack(variant.id, track.id)
     }
     await removeVariant(variant.id)
+    await removeLoopsOfVariant(variant.id)
   }
 
   await removeSong(songId)
