@@ -2,7 +2,7 @@
 
 Stand 2026-11-05, Konzept mit Marcos ersten Entscheidungen (§0). Anlass: beim Abgleich nach Gehör (PR #700) war der Weg Geräte → ⋯ → Latenz… → Abgleich zu verschachtelt; Marco: Abgleich gehört in einen späteren Bühnenplan mit sichtbarer Aufstellung, und der kann den Ablauf des Einmessens ändern – darum erst dieses Konzept, dann die automatische Einmess-Runde.
 
-Berührt drei Ideen, die dieselben Daten zeigen: **#62** (räumliche Bühnenmatrix), **#488** (Stage Plot und Input-Liste als PDF) und **docs/21 §4 / docs/30** (Ausgabewege mit Latenz, Hörorte, Abgleich, Einmessen). Dieser Bühnenplan nimmt nur die dritte auf; #62 und #488 bleiben eigene Themen (§0).
+Berührt drei Ideen, die dieselben Daten zeigen: **#62** (räumliche Bühnenmatrix), **#488** (Stage Plot und Input-Liste als PDF) und **docs/21 §4 / docs/30** (Ausgabewege mit Latenz, Abgleich, Einmessen). Dieser Bühnenplan nimmt nur die dritte auf; #62 und #488 bleiben eigene Themen (§0).
 
 ## 0. Entscheidungen (Marco, 2026-11-05)
 
@@ -34,7 +34,7 @@ Ein Bild der Bühne von oben, je Band: **wer steht wo, welches Gerät steht wo, 
  │            └──► Pult K7                       │
  │                ▣ CQ-18T ◄── Laptop (Track)    │
  └───────────────────────────────────────────────┘
-         ✦ Hörort Saal (FOH)
+         (Publikum / Saal)
 ```
 
 Jeder Weg (Linie) hat einen Zustand: ● eingemessen · ◐ von Hand · ○ fehlt · ✕ instabil.
@@ -88,8 +88,8 @@ Heute: ein Gerät wählen → Wert. Im Plan: **ein Weg** (Gerät-Ausgang → Zie
 
 ## 6. Reihenfolge
 
-1. **Datenmodell + Wege-Liste** im Tab (heute „Bühnentechnik“): Personen mit Hörweg, Hörort „Saal“, Wege (Gerät-Ausgang → Ziel → Hörort) mit Wert und Zustand; „einmessen / abgleichen“ am Weg – ersetzt den verschachtelten Einstieg aus PR #700. Bestehende Latenzprofile werden zu Wegen.
-2. **Einmess-Runde** über die Wege eines Hörorts (Mikrofon am Hörort, automatisch, nachprüfen).
+1. **Datenmodell + Wege-Liste** im Tab „Bühne“ (heute „Bühnentechnik“): Wege (Gerät-Ausgang → Ziel) mit Wert, Zustand und Nutzern, nach Gerät gruppiert, das eigene hervorgehoben; „einmessen / abgleichen“ am Weg – ersetzt den verschachtelten Einstieg aus PR #700. Bestehende Latenzprofile werden zu Wegen.
+2. **Einmess-Runde** über die fehlenden Wege (Mikrofon, automatisch, nachprüfen).
 3. **Varianten** je Band, im Gig von Hand gewählt.
 4. **Karte** (schematisch) mit Aufbau/Prüfen.
 5. Pult als Sensor, Licht per Kamera.
