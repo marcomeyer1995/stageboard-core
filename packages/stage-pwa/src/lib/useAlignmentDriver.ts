@@ -1,12 +1,11 @@
 import { useEffect, useRef } from 'react'
 import { AUDIO_OUTPUT, NATIVE_AUDIO_OUTPUT } from 'shared-types'
 import { ALIGN_SOUND, alignmentBeatsDue, isAlignAccent } from './alignByEar'
-import { sourceOutput } from './audioMix'
 import { sharedAudioClock } from './audioClock'
 import { getServerTime } from './clockSync'
 import { getDeviceId } from './deviceId'
 import { useAudioOutputLatencyMs } from './latencyCompensation'
-import { useNativeOutputStore } from './nativeOutput'
+import { masterOutput, useNativeOutputStore } from './nativeOutput'
 import { getSharedAudioContext, holdAudioOutputAwake } from './sharedAudioContext'
 import { useAlignmentStore } from '../store/useAlignmentStore'
 import { useAudioRouteStore } from '../store/useAudioRouteStore'
@@ -14,7 +13,10 @@ import { useAudioRouteStore } from '../store/useAudioRouteStore'
 const TICK_MS = 50
 /** Same window as the click (clickEngine.ts), widened by the output latency. */
 const LOOKAHEAD_MS = 150
-const CLICK_S = 0.03
+/** Long enough to carry energy (30 ms was quiet on the tablets), the start stays sharp. */
+const CLICK_S = 0.06
+const HOLD_S = 0.015
+const PEAK = 0.9
 
 /** A 2-ms rise instead of a hard start: a hard start sounds in every band, and the microphone heard
  * the reference's click in the target's band too (2026-11-05). */
@@ -26,10 +28,14 @@ function playAlignClick(ctx: AudioContext, when: number, hz: number, accent: boo
   const gain = ctx.createGain()
   osc.frequency.value = hz
   gain.gain.setValueAtTime(0, when)
-  gain.gain.linearRampToValueAtTime(accent ? 0.8 : 0.3, when + RISE_S)
+  gain.gain.linearRampToValueAtTime(accent ? PEAK : PEAK * 0.6, when + RISE_S)
+  // Held a moment before it decays - most of the loudness is here.
+  gain.gain.setValueAtTime(accent ? PEAK : PEAK * 0.6, when + HOLD_S)
   gain.gain.exponentialRampToValueAtTime(0.001, when + CLICK_S)
   osc.connect(gain)
-  gain.connect(sourceOutput('click', ctx))
+  // Past the click's mix level, at a fixed level just below full scale: through it (165 % on the
+  // laptop) the click clipped, distorted and rang for ~250 ms - the microphone counted it twice.
+  gain.connect(masterOutput(ctx))
   osc.start(when)
   osc.stop(when + CLICK_S)
 }

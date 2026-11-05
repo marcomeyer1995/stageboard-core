@@ -12,7 +12,7 @@ const STAGES = 2
  * string module (blob URL) - small, no bundler entry. */
 const DETECTOR_SOURCE = `
 class Onsets extends AudioWorkletProcessor {
-  constructor() { super(); this.env = [0, 0]; this.peak = [0, 0]; this.noise = [1e-4, 1e-4]; this.quietUntil = [0, 0] }
+  constructor() { super(); this.env = [0, 0]; this.peak = [0, 0]; this.noise = [1e-4, 1e-4]; this.quietUntil = [0, 0]; this.armed = [true, true] }
   process(inputs) {
     const input = inputs[0]
     if (!input || input.length === 0) return true
@@ -30,9 +30,14 @@ class Onsets extends AudioWorkletProcessor {
         const threshold = this.noise[ch] + 0.3 * (this.peak[ch] - this.noise[ch])
         // Leakage of the other sound through this band's filter is ~10 % of it; a real click of similar
         // loudness is far above that, also while both sound at once.
-        if (t >= this.quietUntil[ch] && this.peak[ch] > this.noise[ch] * 6 && this.env[ch] > threshold && this.env[ch] > 0.3 * this.env[1 - ch]) {
+        // Ready again only once the click has died down: a loud click rings for ~300 ms (speaker,
+        // room) and rose again inside that - counted twice, paired with the wrong one (2026-11-05).
+        if (!this.armed[ch] && t >= this.quietUntil[ch] && this.env[ch] < this.noise[ch] + 0.1 * (this.peak[ch] - this.noise[ch])) this.armed[ch] = true
+        if (this.armed[ch] && this.peak[ch] > this.noise[ch] * 6 && this.env[ch] > threshold && this.env[ch] > 0.3 * this.env[1 - ch]) {
           this.port.postMessage({ band: ch, t })
-          this.quietUntil[ch] = t + 0.25
+          this.armed[ch] = false
+          // Echoes come back ~185 ms later (Fire, living room): deaf for 400 ms - beats are 600 ms apart.
+          this.quietUntil[ch] = t + 0.4
         }
       }
     }

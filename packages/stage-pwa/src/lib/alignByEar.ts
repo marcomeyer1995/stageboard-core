@@ -17,9 +17,11 @@ export const ALIGN_BAR = 4
 /** The value moves at most this far from where it started - less than half a beat (600 ms). */
 export const ALIGN_RANGE_MS = 250
 
-/** Two sounds: the reference a low "tock", the target a high "tick" - you hear which comes first,
- * and the microphone tells them apart. No integer ratio between them (no shared harmonics). */
-export const ALIGN_SOUND = { reference: { hz: 800 }, target: { hz: 2000 } } as const
+/** Two sounds: the reference a lower "tock", the target a high "tick" - you hear which comes first,
+ * and the microphone tells them apart. No integer ratio between them (no shared harmonics), and
+ * both where small speakers and the ear are strong: at 800 Hz the tablets were ~9 dB quieter than
+ * the laptop, too quiet to align by ear (Marco, 2026-11-05). */
+export const ALIGN_SOUND = { reference: { hz: 1200 }, target: { hz: 3000 } } as const
 
 /** Whether the beat at band time `beatMs` is the first of its bar. */
 export function isAlignAccent(startedAt: number, periodMs: number, beatMs: number): boolean {
