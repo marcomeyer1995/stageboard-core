@@ -107,5 +107,13 @@
     "failed": "Backup failed{{when}}: {{error}}",
     "last": "Last backup {{when}}",
     "stale": " - older than two days"
+  },
+  "audioOut": {
+    "webview": "Sound through the WebView",
+    "native": "Sound native, clean ({{ms}} ms)",
+    "dropouts": "Sound: {{ms}} ms of dropouts in the last minute",
+    "jumps_one": "Sound: {{count}} jump in the last minute",
+    "jumps_other": "Sound: {{count}} jumps in the last minute",
+    "tight": "Sound: reserve tight ({{ms}} ms)"
   }
 }

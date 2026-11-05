@@ -1,6 +1,6 @@
 import i18n from '../i18n'
 import { useEffect, useRef, useState } from 'react'
-import { DEVICE_INFO_TIMEOUT_MS, SERVER_EXECUTION_TARGET, type Device, type LogicalDevice } from 'shared-types'
+import { DEVICE_INFO_TIMEOUT_MS, SERVER_EXECUTION_TARGET, type AudioOutputHealth, type Device, type LogicalDevice } from 'shared-types'
 import { getServerTime } from '../lib/clockSync'
 import { useNow } from '../lib/useNow'
 import { useStageServerStatus } from '../lib/useStageServerStatus'
@@ -31,6 +31,31 @@ const SYNC_STATES = ['idle', 'syncing', 'offline', 'error'] as const
 function formatDateTime(ms: number | undefined): string {
   if (!ms) return i18n.t('devices:unknown')
   return new Date(ms).toLocaleString(i18n.language, { dateStyle: 'medium', timeStyle: 'short' })
+}
+
+/** A reserve below this (ms) is about to drop out - shown red before it does. */
+const TIGHT_LEAD_MS = 30
+
+/** How cleanly the device's audio output played over the last minute (docs/30): green when the
+ * native output had no dropout, no jump and enough reserve; the WebView path is only named. */
+function AudioOutputLine({ health }: { health: AudioOutputHealth }) {
+  const { t } = useTranslation('devices')
+  if (health.path === 'webview') return <span>{t('audioOut.webview')}</span>
+  const tight = health.leadMinMs !== null && health.leadMinMs < TIGHT_LEAD_MS
+  const ok = health.missingMs === 0 && health.jumps === 0 && !tight
+  const text = health.missingMs > 0
+    ? t('audioOut.dropouts', { ms: health.missingMs })
+    : health.jumps > 0
+      ? t('audioOut.jumps', { count: health.jumps })
+      : tight
+        ? t('audioOut.tight', { ms: health.leadMinMs })
+        : t('audioOut.native', { ms: health.delayMs })
+  return (
+    <span className={`flex items-center gap-1.5 ${ok ? '' : 'text-danger'}`}>
+      <StatusDot on={ok} title={text} />
+      {text}
+    </span>
+  )
 }
 
 function StatusDot({ on, title }: { on: boolean | null; title: string }) {
@@ -282,6 +307,7 @@ export function DeviceLedgerView() {
                     <span>{info.os}</span>
                     <span>{(ENVIRONMENTS as readonly string[]).includes(info.environment) ? t(`env.${info.environment as (typeof ENVIRONMENTS)[number]}`) : info.environment}</span>
                     <span>{(SYNC_STATES as readonly string[]).includes(info.syncStatus) ? t(`sync.${info.syncStatus as (typeof SYNC_STATES)[number]}`) : info.syncStatus}</span>
+                    {info.audioOutput && appOpen && <AudioOutputLine health={info.audioOutput} />}
                   </>
                 ) : (
                   <span className="text-ink-faint">{t('noData')}</span>
