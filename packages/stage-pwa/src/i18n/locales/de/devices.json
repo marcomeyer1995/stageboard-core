@@ -97,7 +97,8 @@
     "stored": "{{ms}} ms für {{route}}",
     "none": "kein Wert für {{route}} - unten eintragen",
     "now": "Jetzt: {{status}}.",
-    "info": "Klick und Backing-Track starten um die gemessene Latenz dieses Ausgabewegs früher, damit sie auf dem Schlag klingen."
+    "info": "Klick und Backing-Track starten um die gemessene Latenz dieses Ausgabewegs früher, damit sie auf dem Schlag klingen.",
+    "nativeOn": "die native Tonausgabe ist an - sie braucht diesen Wert nicht, nur „Ton über die native Ausgabe“ (Nach Gehör abgleichen)"
   },
   "backup": {
     "minutes": "vor {{n}} Min.",

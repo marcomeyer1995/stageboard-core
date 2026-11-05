@@ -97,7 +97,8 @@
     "stored": "{{ms}} ms for {{route}}",
     "none": "no value for {{route}} - enter it below",
     "now": "Now: {{status}}.",
-    "info": "Click and backing track start earlier by the measured latency of this output route, so that they sound on the beat."
+    "info": "Click and backing track start earlier by the measured latency of this output route, so that they sound on the beat.",
+    "nativeOn": "the native sound output is on - it doesn't use this value, only \"Sound through the native output\" (Align by ear)"
   },
   "backup": {
     "minutes": "{{n}} min ago",
