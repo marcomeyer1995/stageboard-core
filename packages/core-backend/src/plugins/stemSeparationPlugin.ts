@@ -1,4 +1,4 @@
-import { CAPABILITIES, type IShowControlPlugin, type PluginContext, type ShowControlEvent, type ShowControlResult } from 'shared-types'
+import { CAPABILITIES, serverMessage, type IShowControlPlugin, type PluginContext, type ShowControlEvent, type ShowControlResult } from 'shared-types'
 import { stemsAvailable, stemsConfigFromEnv } from '../stems/stemSeparation.js'
 
 export const STEM_SEPARATION_PLUGIN_ID = 'stem-separation'
@@ -22,10 +22,10 @@ export function createStemSeparationPlugin(): IShowControlPlugin {
       else ctx.log.error('stem-separation: Demucs not installed - jobs will fail', { python: stemsConfigFromEnv().python })
     },
     async trigger(event: ShowControlEvent): Promise<ShowControlResult> {
-      if (event.type !== 'test') return { status: 'error', message: `stem-separation: unbekannter Event-Typ "${event.type}".` }
+      if (event.type !== 'test') return { status: 'error', ...serverMessage('plugin.unknownEvent', { plugin: 'stem-separation', type: event.type }) }
       const ok = stemsAvailable()
       context?.log.info('stem-separation test', { ok })
-      return ok ? { status: 'ok', data: { python: stemsConfigFromEnv().python } } : { status: 'error', message: 'Demucs ist auf dem Stage-Server nicht installiert (docs/03).' }
+      return ok ? { status: 'ok', data: { python: stemsConfigFromEnv().python } } : { status: 'error', ...serverMessage('stems.demucsMissing') }
     },
   }
 }

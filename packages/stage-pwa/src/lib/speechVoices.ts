@@ -9,7 +9,8 @@ import {
   type SpeechVoicesResponse,
 } from 'shared-types'
 import type { ClipVoice } from './speechClips'
-import { getStageServerUrl } from './stageServer'
+import { serverText } from './serverMessage'
+import { getStageServerUrl, NO_STAGE_SERVER_MESSAGE } from './stageServer'
 
 /** piper-speech's plugin id - the voice lives in its installation's settings. */
 export const PIPER_SPEECH_PLUGIN = 'piper-speech'
@@ -33,11 +34,11 @@ export function bandAnnouncementSettings(installed: readonly PluginInstallation[
 
 async function call<T>(path: string, parse: (body: unknown) => T, init?: RequestInit): Promise<{ ok: true; data: T } | { ok: false; message: string }> {
   const base = getStageServerUrl()
-  if (!base) return { ok: false, message: 'Kein Stage-Server verbunden.' }
+  if (!base) return { ok: false, message: NO_STAGE_SERVER_MESSAGE }
   try {
     const response = await fetch(`${base}${path}`, init)
     const body: unknown = await response.json()
-    if (!response.ok) return { ok: false, message: (body as { message?: string }).message ?? `HTTP ${response.status}` }
+    if (!response.ok) return { ok: false, message: serverText(body as { message?: string }) ?? `HTTP ${response.status}` }
     return { ok: true, data: parse(body) }
   } catch (err) {
     return { ok: false, message: err instanceof Error ? err.message : String(err) }
