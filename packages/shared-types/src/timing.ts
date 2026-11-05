@@ -79,6 +79,11 @@ export type AudioRoute = z.infer<typeof AudioRouteSchema>
  * is a Logical Device id. */
 export const AUDIO_OUTPUT = 'audio'
 
+/** The `output` of a profile for a device's own audio through the native output (docs/30): what is
+ * heard later than AAudio reports (speaker processing, distance) - added to the native delay. The
+ * WebView's value (AUDIO_OUTPUT) is a different quantity: its whole latency. */
+export const NATIVE_AUDIO_OUTPUT = 'audio-native'
+
 /**
  * A stored latency profile for one output path (docs/21 §3, #491): `deviceId` drives `output`
  * (a Logical Device id, or AUDIO_OUTPUT for its own audio) over `route` (audio only; null for

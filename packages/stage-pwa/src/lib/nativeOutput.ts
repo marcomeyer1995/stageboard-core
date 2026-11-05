@@ -97,11 +97,13 @@ interface NativeOutputStore {
   setWanted: (wanted: boolean) => void
 }
 
+/** On unless switched off on this device (Marco, 2026-11-05: on by default) - only where it exists
+ * (the Android app, nativeOutputAvailable). */
 function readSwitch(): boolean {
   try {
-    return localStorage.getItem(SWITCH_KEY) === '1'
+    return localStorage.getItem(SWITCH_KEY) !== '0'
   } catch {
-    return false
+    return true
   }
 }
 

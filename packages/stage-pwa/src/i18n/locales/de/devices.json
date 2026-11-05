@@ -72,6 +72,8 @@
     "measuredDetail": " ({{matched}} von {{total}} Klicks, Streuung {{jitter}} ms)",
     "apply": "Übernehmen",
     "soundOutput": "Ton (Klick und Backing-Track)",
+    "soundNative": "Ton, native Ausgabe",
+    "soundNativeOutput": "Ton über die native Ausgabe (später gehört als gemeldet)",
     "title": "Latenz - {{device}}",
     "info": "Wie viel später als geplant ein Ausgang wirklich klingt oder schaltet. Das Gerät sendet um diesen Wert früher, damit alles auf dem Schlag ankommt. Ton gilt je Ausgabeweg (Lautsprecher, Kopfhörer, Bluetooth, USB).",
     "remove": "Entfernen",
