@@ -1,3 +1,4 @@
+import { timeBase } from './timeBase'
 /** Recent readings of `currentTime - wall clock`, s. The band's Fire tablet advances
  * `currentTime` in 64 ms steps (sometimes 128/192 ms - measured 2026-09-27, output latency
  * 260 ms), so a single reading can be up to ~130 ms behind the real audio clock. Right after a
@@ -81,16 +82,29 @@ const shared = createAudioClock(CLOCK_WINDOW * 5, 0.02)
 const WARM_INTERVAL_MS = 50
 let warmFor: AudioContext | null = null
 
+/** Starts reading the clock of `ctx` in the background (once per context) - called when the
+ * shared AudioContext is created and on every read, so the time service is ready before the first
+ * Play. */
+export function keepAudioClockWarm(ctx: AudioContext): void {
+  if (warmFor === ctx || import.meta.env.MODE === 'test') return
+  warmFor = ctx
+  const timer = setInterval(() => {
+    if (warmFor !== ctx || ctx.state === 'closed') clearInterval(timer)
+    else if (ctx.state === 'running') {
+      shared.now(ctx)
+      timeBase.sample(ctx)
+    }
+  }, WARM_INTERVAL_MS)
+}
+
+/** The audio clock now: from the output timestamps (timeBase.ts, docs/29 step 1) once they are
+ * ready, else from the smoother above. */
 export const sharedAudioClock: AudioClock = {
   now(ctx) {
-    if (warmFor !== ctx && import.meta.env.MODE !== 'test') {
-      warmFor = ctx
-      const timer = setInterval(() => {
-        if (warmFor !== ctx || ctx.state === 'closed') clearInterval(timer)
-        else if (ctx.state === 'running') shared.now(ctx)
-      }, WARM_INTERVAL_MS)
-    }
-    return shared.now(ctx)
+    keepAudioClockWarm(ctx)
+    const smoothed = shared.now(ctx)
+    const measured = timeBase.now(ctx)
+    return measured === null ? smoothed : Math.max(ctx.currentTime, measured)
   },
   reset: () => shared.reset(),
 }
