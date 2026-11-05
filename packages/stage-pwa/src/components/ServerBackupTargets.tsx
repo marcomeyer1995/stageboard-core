@@ -6,6 +6,7 @@ import { useDialogStore } from '../store/useDialogStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { AddRow, Button, Card, Dialog, Field, Section, Segmented, StatusDot, Switch } from './ui'
 import { useTranslation } from 'react-i18next'
+import { serverText } from '../lib/serverMessage'
 
 /** How long ago, in words. */
 function ago(iso: string, now = Date.now()): string {
@@ -62,7 +63,7 @@ export function ServerBackupTargets() {
         body: JSON.stringify({ adminUsername: workspace.username, adminPassword: workspace.couchPassword, ...extra }),
       })
       const body = (await res.json().catch(() => null)) as { message?: string } | null
-      if (!res.ok) throw new Error(body?.message ?? t('bk.httpError', { status: res.status }))
+      if (!res.ok) throw new Error(serverText(body) ?? t('bk.httpError', { status: res.status }))
       return body
     },
     [workspace?.username, workspace?.couchPassword, t],
@@ -108,8 +109,9 @@ export function ServerBackupTargets() {
   async function test(target: BackupTarget) {
     setBusy(target.id)
     try {
-      const r = (await call('test', { targetId: target.id })) as { ok: boolean; message: string }
-      void alert(r.ok ? `✓ ${r.message}` : t('bk.notWorking', { message: r.message }))
+      const r = (await call('test', { targetId: target.id })) as { ok: boolean; message: string; messageCode?: string }
+      const message = serverText(r) ?? r.message
+      void alert(r.ok ? `✓ ${message}` : t('bk.notWorking', { message }))
     } catch (err) {
       void alert(err instanceof Error ? err.message : String(err))
     } finally {

@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { basename, join } from 'node:path'
+import { serverMessage, type ServerMessageCode, type ServerMessageParams } from 'shared-types'
 import { readWav16Mono, trimSpeech, writeWav16Mono } from './wavTrim.js'
 
 /**
@@ -36,7 +37,7 @@ export function speechConfigFromEnv(env: NodeJS.ProcessEnv = process.env): Speec
   }
 }
 
-export type SpeechResult = { ok: true; wav: Buffer; generated: boolean } | { ok: false; reason: 'unavailable' | 'failed'; message: string }
+export type SpeechResult = { ok: true; wav: Buffer; generated: boolean } | { ok: false; reason: 'unavailable' | 'failed'; message: string; messageCode?: ServerMessageCode; messageParams?: ServerMessageParams }
 
 export class PiperSpeech {
   private queue: Promise<unknown> = Promise.resolve()
@@ -79,7 +80,7 @@ export class PiperSpeech {
     const file = join(this.config.cacheDir, `${key}.wav`)
     if (existsSync(file)) return { ok: true, wav: await readFile(file), generated: false }
     const model = this.voiceFile(voiceKey)
-    if (!this.piperInstalled() || !model) return { ok: false, reason: 'unavailable', message: `Piper oder Stimme ${this.voiceName(voiceKey)} nicht installiert` }
+    if (!this.piperInstalled() || !model) return { ok: false, reason: 'unavailable', ...serverMessage('speech.notInstalled', { voice: this.voiceName(voiceKey) }) }
     const running = this.inFlight.get(key)
     if (running) return running
     // One Piper at a time: a song's clips are requested together, the laptop must keep its CPU for audio.

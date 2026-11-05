@@ -1,5 +1,5 @@
 import { createSocket, type Socket } from 'node:dgram'
-import { DeviceTransportConfigSchema, type IShowControlPlugin, type OscInMessage, type PluginContext, type ShowControlEvent, type ShowControlResult } from 'shared-types'
+import { DeviceTransportConfigSchema, serverMessage, type IShowControlPlugin, type OscInMessage, type PluginContext, type ShowControlEvent, type ShowControlResult } from 'shared-types'
 
 /**
  * Generic OSC sender (#484): cues to lighting and video software (QLC+, Resolume, ProPresenter,
@@ -105,11 +105,11 @@ export function createOscPlugin(): IShowControlPlugin {
       socket = null
     },
     async trigger(event: ShowControlEvent): Promise<ShowControlResult> {
-      if (event.type !== OSC_SEND) return { status: 'error', message: `Unbekannter OSC-Befehl: ${event.type}` }
+      if (event.type !== OSC_SEND) return { status: 'error', ...serverMessage('osc.unknownCommand', { type: event.type }) }
       const address = typeof event.payload?.address === 'string' ? event.payload.address.trim() : ''
-      if (!isOscAddress(address)) return { status: 'error', message: `Keine gültige OSC-Adresse: „${address}“` }
+      if (!isOscAddress(address)) return { status: 'error', ...serverMessage('osc.invalidAddress', { address }) }
       const target = await resolveTarget(event.logicalDeviceId).catch(() => null)
-      if (!target) return { status: 'error', message: 'Für dieses OSC-Gerät fehlen Host und Port (Bühnentechnik).' }
+      if (!target) return { status: 'error', ...serverMessage('osc.noTarget') }
       const args = parseOscArgs(typeof event.payload?.args === 'string' ? event.payload.args : '')
       try {
         await send(encodeOscMessage(address, args), target)
@@ -118,7 +118,7 @@ export function createOscPlugin(): IShowControlPlugin {
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err)
         context?.log.error('osc send failed', { address, host: target.host, port: target.port, error: message })
-        return { status: 'error', message: `OSC an ${target.host}:${target.port} fehlgeschlagen: ${message}` }
+        return { status: 'error', ...serverMessage('osc.sendFailed', { host: target.host, port: target.port, error: message }) }
       }
     },
   }
