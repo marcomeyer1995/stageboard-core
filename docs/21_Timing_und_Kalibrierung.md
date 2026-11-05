@@ -117,6 +117,7 @@ Leitlinie: **Zusätzliche, eigene Hardware ist ein Grund, die App nicht zu kaufe
 - **Am Hörort einstellen** (In-Ear, hinter dem Schlagzeug, im Saal): enthält dann auch die Wege auf der Bühne (3 ms je Meter), die kein Sensor sieht.
 - Funktioniert auch Tablet gegen Tablet.
 - Gespeichert wie jeder Wert im Latenzprofil, `source: 'manual'` (das Feld zum Eintippen gibt es schon); eine spätere automatische Prüfung kann ihn bestätigen.
+- **Gebaut (2026-11-05):** im Latenz-Dialog eines Geräts „Nach Gehör abgleichen…“ – von jedem Gerät aus für jedes Gerät. Eine band-weite Sitzung (`alignment-session`) lässt Referenz und Zielgerät auf der Bandzeit klicken (600 ms, sonst nichts, endet nach 10 min oder beim Schließen); das Ziel meldet, welchen Wert sein Planer liest (native Ausgabe `audio-native` oder WebView `audio`, je Route); ±1/±10 ms und „Grenze merken“ (zwei Grenzen → Mitte). Gemessen: +20 ms am Wert verschieben den Fire-Klick um 19,5 ms.
 
 **Was jede Kalibrierung verlässlich macht - unabhängig vom Sensor:**
 

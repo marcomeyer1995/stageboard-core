@@ -84,6 +84,21 @@
     "msPlaceholder": "z. B. 70",
     "save": "Speichern"
   },
+  "align": {
+    "open": "Nach Gehör abgleichen…",
+    "title": "Nach Gehör abgleichen: {{device}}",
+    "info": "Ein Referenzgerät und dieses Gerät klicken gleichzeitig auf der Bandzeit, sonst nichts. Stell dich an deinen Hörplatz (In-Ear, hinter dem Schlagzeug, im Saal) und verschiebe den Wert, bis beide Klicks zu einem verschmelzen.",
+    "reference": "Referenzgerät",
+    "start": "Abgleich starten",
+    "running": "Läuft gegen {{reference}}.",
+    "waiting": "Warte auf das Gerät… (App dort geöffnet?)",
+    "value": "Wert jetzt: {{ms}} ms ({{route}})",
+    "direction": "Mehr = dieses Gerät klingt früher, weniger = später. Jede Änderung gilt nach etwa einer Sekunde.",
+    "mark": "Grenze merken (Flam gerade hörbar)",
+    "middle": "Mitte übernehmen: {{ms}} ms",
+    "marks": "Gemerkt: {{marks}} ms",
+    "stop": "Abgleich beenden"
+  },
   "native": {
     "label": "Native Tonausgabe (Android)",
     "on": "An: gehört {{ms}} ms nach dem Abspielen - genau, ohne gespeicherte Latenz.",

@@ -84,6 +84,21 @@
     "msPlaceholder": "e.g. 70",
     "save": "Save"
   },
+  "align": {
+    "open": "Align by ear…",
+    "title": "Align by ear: {{device}}",
+    "info": "A reference device and this device click together on band time, nothing else. Stand where you listen (in-ear, behind the drums, in the room) and move the value until both clicks merge into one.",
+    "reference": "Reference device",
+    "start": "Start aligning",
+    "running": "Running against {{reference}}.",
+    "waiting": "Waiting for the device… (is the app open there?)",
+    "value": "Value now: {{ms}} ms ({{route}})",
+    "direction": "More = this device sounds earlier, less = later. Each change takes effect after about a second.",
+    "mark": "Mark edge (flam just audible)",
+    "middle": "Take the middle: {{ms}} ms",
+    "marks": "Marked: {{marks}} ms",
+    "stop": "Stop aligning"
+  },
   "native": {
     "label": "Native sound output (Android)",
     "on": "On: heard {{ms}} ms after rendering - exact, no stored latency needed.",
