@@ -266,6 +266,17 @@ describe('stemEngine (docs/22 §3)', () => {
     expect(__stemStatsForTests().startFixes).toBe(0)
   })
 
+  it('follows a song clock that runs faster than the audio clock by rate, gaplessly, without a restart (docs/29 step 2)', async () => {
+    await loadStems('v', STEMS)
+    // The song clock gains 0.3 ms per second on the audio clock (300 ppm) - 6 ms in 20 s.
+    await run(10_000, 20_000, (t) => t * 0.0003)
+    const stats = __stemStatsForTests()
+    expect(stats.reschedules).toBe(0)
+    expect(stats.rate).toBeGreaterThan(1)
+    expect(Math.abs(stats.lastErrorMs)).toBeLessThanOrEqual(3)
+    for (const out of new Set(sorted().map((n) => n.out))) expectGapless(sorted().filter((n) => n.out === out))
+  })
+
   it('stops when playback stops', async () => {
     await loadStems('v', STEMS)
     await run(5_000, 200)

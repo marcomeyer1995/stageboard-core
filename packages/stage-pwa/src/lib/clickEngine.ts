@@ -1,5 +1,6 @@
 import type { ClickTimeline } from './beatGrid'
 import { sharedAudioClock } from './audioClock'
+import { timeBase } from './timeBase'
 import { __resetSharedAudioContextForTests, getSharedAudioContext } from './sharedAudioContext'
 import { sourceOutput } from './audioMix'
 
@@ -75,6 +76,8 @@ let nextBeatAudioTime: number | null = null
  * is re-derived - above the audio clock's step jitter, below anything audible as a "late" click.
  * Catches real discontinuities the stall/wrap checks don't, e.g. a clock-sync offset update. */
 const AUDIO_TIME_TOLERANCE_S = 0.05
+/** How far one beat may move towards the song clock (docs/29 §5.5). */
+const DRIFT_STEP_S = 0.001
 
 /** The audio clock, smoothed over its step size (audioClock.ts) - converting with a single raw
  * reading tripped AUDIO_TIME_TOLERANCE_S every few beats on the Fire, each re-derivation an
@@ -174,6 +177,7 @@ function tick(getState: () => ClickEngineState): void {
 
   const ctx = getAudioContext()
   const audioNow = audioClock.now(ctx)
+  const precise = timeBase.ready(ctx)
   // The lookahead window is wall time, `elapsedMs` is song time - a slowed pass covers less song per ms.
   // Output latency compensation (#491) widens it: a click heard 430 ms after scheduling must be
   // queued 430 ms earlier. The schedule still anchors on the real song time, so a click whose early
@@ -203,12 +207,19 @@ function tick(getState: () => ClickEngineState): void {
         : audioNow + (nextBeatOnsetMs - elapsedMs) / 1000 / playbackRate - latencyS
     if (nextBeatAudioTime === null || Math.abs(converted - nextBeatAudioTime) > AUDIO_TIME_TOLERANCE_S) {
       nextBeatAudioTime = converted
+    } else if (precise) {
+      // Drift (docs/29 §5.5): follow the song clock beat by beat, at most DRIFT_STEP_S per beat -
+      // the time service reads the clock without steps, and a millisecond between two beats is not
+      // heard. On the smoothed fallback clock a reading wobbles by its steps: there the schedule
+      // still runs on until AUDIO_TIME_TOLERANCE_S.
+      nextBeatAudioTime += Math.max(-DRIFT_STEP_S, Math.min(DRIFT_STEP_S, converted - nextBeatAudioTime))
     }
     if (!clickOnAt || clickOnAt(nextBeatOnsetMs)) playClickAt(ctx, nextBeatAudioTime, timeline.beatInBar(nextBeat) === 0)
     const beatMs = timeline.periodAfter(nextBeat)
     nextBeat++
     nextBeatOnsetMs += beatMs
-    nextBeatAudioTime += beatMs / 1000 / (crossedJump && offsetMs !== 0 ? rateAfterJump(crossedJump) : playbackRate)
+    // A beat lasts its song time on the wall clock - in audio time at the audio clock's own rate.
+    nextBeatAudioTime += (beatMs / 1000 / (crossedJump && offsetMs !== 0 ? rateAfterJump(crossedJump) : playbackRate)) * timeBase.audioPerWall(ctx)
   }
 }
 

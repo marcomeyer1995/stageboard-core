@@ -33,3 +33,16 @@ Device serials and ports are in `full.sh`. Raw data of 2026-11-04: `~/stageboard
 - The absolute offset includes neither the output's remainder after the timestamp (DAC, speaker)
   nor a latency profile (the dev app has its own device id) - compare spreads and drift, not the
   absolute value.
+
+## Gig (band clock across devices)
+The master (here the Redmi, port 9302) plays; every device records. `capture.js` also takes a
+`/time` sample every second while armed, so each device's heard beats map to server time on its
+own, independent of the app's clock sync. `sse-log.mjs` logs the master's show-state pushes
+(`playbackStartedAt` in server time) with the laptop's clock - the laptop is the Stage-Server.
+
+    node sse-log.mjs https://<server>/workspaces/<id>/show-state/stream <dir>/pushes.jsonl &
+    ./gig-take.sh fresh 10 <dir> t01      # Stop → Play on the master, 10 s
+    ./gig-take.sh resume 10 <dir> t02     # Pause → Play
+    node gig-analyze.mjs <dir>            # each device against the band clock, and device against device
+
+Only the devices the band routes audio to make a sound (2026-11-04: Fire = click, Redmi = track).

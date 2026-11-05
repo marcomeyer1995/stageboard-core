@@ -36,7 +36,18 @@
     // Output-timestamp pairs all the time (last ~10 min), so a short take can use a long fit.
     setInterval(() => { if (ctx.state !== 'running') return; const ts = ctx.getOutputTimestamp(); c.meta.push([ts.contextTime, ts.performanceTime, performance.now(), Date.now()]); if (c.meta.length > 30000) c.meta.splice(0, 1000) }, 20)
   }
-  c.arm = (on) => { c.armed = on; if (on) { c.onsets = []; c.armedAt = performance.now() } else c.disarmedAt = performance.now(); c.node?.port.postMessage(on ? 'arm' : 'disarm') }
+  // Server-time samples while armed (Gig: the band clock), like clockSync's: [perf sent, perf back, server].
+  const serverBase = (() => { try { return JSON.parse(localStorage.getItem('stageboard-stage-server')).state.url } catch { return null } })()
+  let srvTimer = null
+  c.arm = (on) => {
+    c.armed = on
+    if (on) {
+      c.onsets = []; c.srv = []; c.armedAt = performance.now()
+      clearInterval(srvTimer)
+      if (serverBase) srvTimer = setInterval(async () => { const a = performance.now(); try { const r = await fetch(serverBase + '/time', { cache: 'no-store' }); const { serverTime } = await r.json(); c.srv.push([a, performance.now(), serverTime]) } catch {} }, 1000)
+    } else { c.disarmedAt = performance.now(); clearInterval(srvTimer) }
+    c.node?.port.postMessage(on ? 'arm' : 'disarm')
+  }
   AudioNode.prototype.connect = function (dest, ...rest) {
     const r = orig.call(this, dest, ...rest)
     try {
