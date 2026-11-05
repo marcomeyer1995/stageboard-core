@@ -1,11 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
-import { AUDIO_OUTPUT, latencyProfileId } from 'shared-types'
+import { AUDIO_OUTPUT, DEVICE_INFO_TIMEOUT_MS, latencyProfileId } from 'shared-types'
+import { getServerTime } from '../lib/clockSync'
 import { getDeviceId } from '../lib/deviceId'
 import { findLatencyProfile, routeLabel } from '../lib/latencyProfiles'
 import { ALIGN_RANGE_MS, ALIGN_SOUND, bracketMiddle, clampAlignValue, laneOffsets, median, pairOffsets } from '../lib/alignByEar'
 import { startAlignmentMic, type AlignmentMic } from '../lib/alignmentMic'
 import { useAlignmentStore } from '../store/useAlignmentStore'
+import { useDeviceInfoStore } from '../store/useDeviceInfoStore'
 import { useDevicesStore } from '../store/useDevicesStore'
+import { useShowStateStore } from '../store/useShowStateStore'
 import { useLatencyProfilesStore } from '../store/useLatencyProfilesStore'
 import { Button, Dialog, Select } from './ui'
 import { useTranslation } from 'react-i18next'
@@ -25,8 +28,23 @@ export function AlignByEarDialog({ targetDeviceId, onClose }: { targetDeviceId: 
   const stop = useAlignmentStore((state) => state.stop)
   const profiles = useLatencyProfilesStore((state) => state.profiles)
   const save = useLatencyProfilesStore((state) => state.save)
-  const others = devices.filter((d) => d.id !== targetDeviceId)
-  const [reference, setReference] = useState(() => (getDeviceId() !== targetDeviceId ? getDeviceId() : (others[0]?.id ?? '')))
+  // Only devices with the app open can click - an old, offline one was the default (2026-11-05).
+  // Without reports yet (the Geräte tab polls them), every device stays in the list.
+  const deviceInfo = useDeviceInfoStore((state) => state.deviceInfo)
+  const infoLoaded = useDeviceInfoStore((state) => state.loaded)
+  const masterHolderId = useShowStateStore((state) => state.state.masterHolderId)
+  const serverNow = getServerTime()
+  const isActive = (id: string) => {
+    const info = deviceInfo.devices[id]
+    return info !== undefined && serverNow - info.lastSeenAt <= DEVICE_INFO_TIMEOUT_MS
+  }
+  const allOthers = devices.filter((d) => d.id !== targetDeviceId)
+  const activeOthers = allOthers.filter((d) => isActive(d.id))
+  const others = infoLoaded && activeOthers.length > 0 ? activeOthers : allOthers
+  // The master's click is the band's reference; else this device; else the first one there is.
+  const preferred = [masterHolderId, getDeviceId()].find((id) => others.some((d) => d.id === id)) ?? others[0]?.id ?? ''
+  const [chosen, setReference] = useState<string | null>(null)
+  const reference = chosen !== null && others.some((d) => d.id === chosen) ? chosen : preferred
   const [marks, setMarks] = useState<number[]>([])
   const [mic, setMic] = useState<'off' | 'starting' | 'on' | 'failed'>('off')
   const [offsets, setOffsets] = useState<number[]>([])
