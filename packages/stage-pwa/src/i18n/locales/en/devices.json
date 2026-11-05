@@ -72,6 +72,8 @@
     "measuredDetail": " ({{matched}} of {{total}} clicks, spread {{jitter}} ms)",
     "apply": "Apply",
     "soundOutput": "Sound (click and backing track)",
+    "soundNative": "Sound, native output",
+    "soundNativeOutput": "Sound through the native output (heard later than reported)",
     "title": "Latency - {{device}}",
     "info": "How much later than planned an output really sounds or switches. The device sends that much earlier, so that everything arrives on the beat. Sound applies per output route (speaker, headphones, Bluetooth, USB).",
     "remove": "Remove",
