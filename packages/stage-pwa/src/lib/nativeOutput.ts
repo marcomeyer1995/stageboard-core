@@ -82,6 +82,8 @@ const MIN_FIT_SECONDS = 5
  * earliest let the line fall behind the WebView's own clock (the schedulers then clamped to
  * `currentTime`, and the two disagreed by up to 10 ms from one song start to the next). */
 const EDGE_QUANTILE = 0
+/** For this long after the start the line takes the edge at once (see the worker). */
+const SETTLE_MS = 60_000
 /** A steeper slope than 0.2 % is not a clock but a failure. */
 const MAX_LINE_SLOPE = 0.002
 /** How fast the line is pulled to the edge on top of its slope. */
@@ -183,7 +185,7 @@ registerProcessor('sb-native-output', Tap)
  * fast lagged ever further behind, 2026-11-05), and a few seconds of late arrivals (load at a song
  * start) must not lift it. The line moves with that slope and is pulled to the edge slowly. */
 const WORKER_SOURCE = `
-let ws = null, rate = 48000, delayMs = null, line = null, lineAt = 0, buckets = [], slope = 0, fitAt = 0, c = null
+let ws = null, rate = 48000, delayMs = null, line = null, lineAt = 0, startedAt = 0, buckets = [], slope = 0, fitAt = 0, c = null
 function theilSen(points) {
   const s = []
   for (let i = 0; i < points.length; i++) for (let j = i + 1; j < points.length; j++) s.push((points[j].min - points[i].min) / (points[j].t - points[i].t))
@@ -214,7 +216,10 @@ function chunk(first, pcm) {
   }
   const residuals = buckets.map((b) => b.min - slope * (b.t - now)).sort((a, b) => a - b)
   const edge = residuals[Math.floor(c.edgeQuantile * (residuals.length - 1))]
-  if (line === null || Math.abs(edge - line) > c.lineJumpMs) line = edge
+  if (line === null) startedAt = now
+  // In the first minute the line takes the edge as it is: the first arrivals came late under the
+  // start's load, the line began up to 40 ms late and was slewed back over a minute (Fire, 2026-11-05).
+  if (line === null || now - startedAt < c.settleMs || Math.abs(edge - line) > c.lineJumpMs) line = edge
   else {
     const dt = now - lineAt, step = c.lineSlewMsPerS * dt / 1000
     line += slope * dt
@@ -328,7 +333,7 @@ async function attach(ctx: AudioContext): Promise<void> {
       }
     })
     const channel = new MessageChannel()
-    const constants = { fitWindowMs: FIT_WINDOW_MS, minBuckets: MIN_FIT_SECONDS, maxSlope: MAX_LINE_SLOPE, edgeQuantile: EDGE_QUANTILE, lineJumpMs: LINE_JUMP_MS, lineSlewMsPerS: LINE_SLEW_MS_PER_S }
+    const constants = { settleMs: SETTLE_MS, fitWindowMs: FIT_WINDOW_MS, minBuckets: MIN_FIT_SECONDS, maxSlope: MAX_LINE_SLOPE, edgeQuantile: EDGE_QUANTILE, lineJumpMs: LINE_JUMP_MS, lineSlewMsPerS: LINE_SLEW_MS_PER_S }
     worker.postMessage({ type: 'init', rate: ctx.sampleRate, url: `ws://127.0.0.1:${started.port}/${started.token}`, port: channel.port1, constants }, [channel.port1])
     tap.port.postMessage({ port: channel.port2 }, [channel.port2])
     await opened
