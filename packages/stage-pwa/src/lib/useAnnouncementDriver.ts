@@ -12,7 +12,8 @@ import { useShowModeSong } from './showMode'
 import { loadSpeechClip, speechClip, type ClipVoice } from './speechClips'
 import { bandAnnouncementSettings, bandSpeechVoice } from './speechVoices'
 import { useCapabilityRouting } from './useCapabilityRouting'
-import { useHardwareBindingFor } from './useHardwareBindingFor'
+import { resolveBuiltInBinding } from './hardwareRouting'
+import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
 import { usePluginsStore } from '../store/usePluginsStore'
 import { useShowStateStore } from '../store/useShowStateStore'
 import { sourceOutput } from './audioMix'
@@ -64,8 +65,10 @@ export function useAnnouncementDriver(): void {
   const { engine: clickEngine } = useCapabilityRouting(CAPABILITIES.clickTrack, mode)
   // Bühnentechnik → Ansagen (Marco, 2026-10-16): a chosen tablet speaks them in Gig; without one
   // they come with the click, as before.
-  const announcementRole = useHardwareBindingFor(CAPABILITIES.sectionAnnouncements)
   const deviceId = useShowStateStore((state) => state.deviceId)
+  // Several tablets may speak them (one role each) - the role naming this one counts here.
+  const logicalDevices = useLogicalDevicesStore((state) => state.devices)
+  const announcementRole = resolveBuiltInBinding(logicalDevices, CAPABILITIES.sectionAnnouncements, deviceId)
   const ownTarget = mode === 'gig' && announcementRole?.executionTarget && announcementRole.executionTarget !== SERVER_EXECUTION_TARGET ? announcementRole.executionTarget : null
   const engine = ownTarget ? (ownTarget === deviceId ? 'local-mine' : 'local-other') : clickEngine
   const liveTempoAdjustPercent = useShowStateStore((state) => state.state.liveTempoAdjustPercent)
