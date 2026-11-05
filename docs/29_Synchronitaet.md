@@ -429,3 +429,8 @@ Mit #695 spielt jeder angehakte Ausgang auf allen gewählten Tablets. Gemessen m
 Ziel „zwischen Geräten ≤ 10 ms“: nach den Zeitstempeln erreicht.
 
 **Aber: was zu hören ist (Laptop-Mikrofon, 2026-11-05).** Marco hat alle Geräte zusammen angehört: Redmi, Laptop und Handy passen, der Fire liegt hörbar daneben. Messung: UMC vom Redmi abgezogen (sonst spielt der Redmi über das Interface, nicht den Lautsprecher), Klick auf Fire und Redmi, Laptop-Mikrofon, nach ~18 s der Redmi abgehakt (so ist klar, welcher Klick welcher ist). Beide Geräte stehen im Take auf ±1,5 ms, aber **der Fire ist 360 ms nach dem Redmi zu hören** – nach den Zeitstempeln wären es ~180 ms. Die Ausgabe-Zeitstempel der Fire-WebView geben also ~180 ms zu wenig an (dazu die Ausreißer oben). Auf dem Fire ist der Browser-Weg damit nicht über seine eigene Zeitangabe zu retten; weiter in docs/30 (andere Ausgabewege, Geräteprüfung per Mikrofon). Eine Messung, ~35 s, Laptop-Mikrofon – mit einem echten Mikrofon wiederholen.
+
+### Native Ausgabe, Uhr nach dem Start, Restausgleich (2026-11-05)
+
+Der Fire lag mit der WebView je App-Start 24 oder 160 ms daneben – nicht ausgleichbar. Seitdem geht die Mischung auf Android über die native Ausgabe (AAudio, Zeitstempel auf allen Geräten verlässlich), die Uhr-Synchronisation läuft nach dem App-Start nicht mehr weg (Redmi vorher bis 68 ms), und ein fester Rest je Gerät (Fire 15 ms, Laptop 30 ms) wird über Profile ausgeglichen. Ergebnis im Gig: alle vier Geräte innerhalb ±3 ms. Einzelheiten und Messungen: docs/30 §2a–§2c (PRs #697–#699).
+
