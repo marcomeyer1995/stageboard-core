@@ -53,13 +53,15 @@ dB; höher ist besser außer Klangfehler und Zeit. Vergleich zum Hören: Artifac
 
 **Marco nach dem Hören (2026-11-03):** Demucs ist klar am schlechtesten – bei lauten Schlagzeug-Schlägen nimmt es die Gitarre stark zurück. Die anderen drei liegen nah beieinander: Kaskade vor Mittel vor becruily allein. Noch nicht perfekt: etwas Übersprechen, stellenweise flach.
 
+**Zweiter Hörvergleich mit der Kim-Variante (2026-11-03 spät, über das UMC-Interface und Kopfhörer):** alle Varianten klingen sehr gut, keine ist durchgehend vorn. Je nach Song ist mal Demucs besser, mal eine der anderen. Damit relativiert sich das erste Urteil (Demucs klar am schlechtesten): über bessere Abhöre ist der Abstand im Ohr klein, die Messgrößen (§3.2) bleiben der einzige eindeutige Unterschied.
+
 **Erkenntnisse:**
 
 - Der Sprung kommt vom Modell (becruily), nicht von Einstellungen: mehr Shifts bei Demucs bringen +0,08 dB für die dreifache Zeit.
 - Übersprechen im becruily-Stem kommt vor allem von Keys (−10,6 dB), dann Gesang (−13,2), Bass (−15,1), Schlagzeug (−19,7).
 - Je-Frequenz-Kombinationen verschieben nur Übersprechen gegen Fülle.
 - Die Zahlen bevorzugen das Mittel, das Ohr die Kaskade: das Mittel enthält das Wegdrücken der Gitarre durch Demucs zur Hälfte, das die Messgrößen schlecht abbilden. Bei Geschmacksfragen zählt das Ohr.
-- Nachtlauf 2026-11-03 (8 Threads, fp32; bfloat16 war 25 % schneller, wich aber hörbar ab, 16 Threads brachten nur 7 %): das Kim-Gesangsmodell (913 MB) vor becruily bringt +0,2 dB gegenüber becruily allein, gemittelt mit Demucs +0,1 dB gegenüber dem bisherigen Mittel – messbar, aber klein, für die 2,5-fache Rechenzeit (4-min-Song ~21 min auf dem Laptop). Ob das hörbar ist, steht aus (Vergleichsseite).
+- Nachtlauf 2026-11-03 (8 Threads, fp32; bfloat16 war 25 % schneller, wich aber hörbar ab, 16 Threads brachten nur 7 %): das Kim-Gesangsmodell (913 MB) vor becruily bringt +0,2 dB gegenüber becruily allein, gemittelt mit Demucs +0,1 dB gegenüber dem bisherigen Mittel – messbar, aber klein, für die 2,5-fache Rechenzeit (4-min-Song ~21 min auf dem Laptop). Im Hörvergleich nicht als besser erkannt (siehe oben) – die 2,5-fache Zeit lohnt sich nach Gehör nicht.
 - BS-Roformer SW (700 MB, 6 Spuren): auf 2 Songs uneinheitlich (+0,7 dB auf einem, −1,0 dB auf dem anderen) und über 10× Songlänge – verworfen.
 
 ### 3.3 Grenzen, die bleiben
@@ -76,6 +78,8 @@ Trennen läuft einmal je Song in der Vorbereitung; Zeit ist dort zweitrangig (Ma
 | Gut | Mittel Demucs + becruily (oder die Kaskade, die Marco nach Gehör vorn sah) | ~8 min |
 | Beste | Mittel Demucs + Kim-Kaskade, als Hintergrund-Job | ~21 min |
 
+Nach dem zweiten Hörvergleich (§3.2) ist „Beste“ nach Gehör nicht von „Gut“ zu unterscheiden; Vorschlag: nur Schnell und Gut anbieten. Weil je Song mal die eine, mal die andere Trennung besser klingt, wäre eine Alternative, beide Stems eines Songs zu behalten und in der Bibliothek je Song umschaltbar zu machen (mehr Speicher, ein Wahlschalter). Beides ist noch nicht entschieden.
+
 Große Modelle als optionale Plugin-Downloads – niemand will 1,5 GB Modelle ungefragt auf dem Server. **Lizenz:** becruily nennt keine Lizenz, das Kim-Modell ist MIT. Intern unproblematisch, vor einem Verkauf klären (docs/16).
 
 ## 5. Wie gut muss die Spur für den Matcher sein?
@@ -86,7 +90,7 @@ Unabhängig davon: nur Stellen verwenden, an denen die Gitarre frei liegt (Intro
 
 ## 6. Reihenfolge
 
-1. Nachtlauf ausgewertet (§3.2); offen: Marcos Hörvergleich der Kim-Variante, dann Varianten für „Gut“ und „Beste“ festlegen (#681).
+1. Nachtlauf und beide Hörvergleiche ausgewertet (§3.2): keine Variante klar vorn. Offen: Stufen festlegen (nur Schnell/Gut oder beide Stems je Song, §4) (#681).
 2. Qualitätsstufen in „Spuren trennen“ (eigenes Issue).
 3. Hardware-Annahmen prüfen: USB-Audio und Parameter-Steuerung an MG-30 und Kemper (Emulatoren, dann echt).
 4. Matcher offline als Prototyp: Weg B (Regler-Suche) an einem Gerät, Empfindlichkeitstest aus §5.

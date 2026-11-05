@@ -40,7 +40,7 @@ export interface ClickEngineState {
    * Beats are scheduled across it ahead of time - the target's downbeat lands exactly on the
    * boundary, nothing of the old song is queued past it. `id` tells two jumps between the same
    * points apart (a looped section jumps back the same way every pass). */
-  jump?: { id: number; boundaryMs: number; toMs: number } | null
+  jump?: { id: number; boundaryMs: number; toMs: number; rate?: number } | null
 }
 
 let intervalId: ReturnType<typeof setInterval> | null = null
@@ -59,7 +59,7 @@ let lastTickElapsedMs: number | null = null
  * beats are in the target's song time while `elapsedMs` is still in the old one - `offsetMs`
  * (boundary - target) converts between them; once the clock has jumped it is 0. Kept (by `id`)
  * until the jump is gone, so it is crossed only once. */
-let crossedJump: { id: number; offsetMs: number } | null = null
+let crossedJump: { id: number; offsetMs: number; boundaryMs: number; rate?: number } | null = null
 /** The timeline the schedule was built on. A new one while playing (the grid edited, Tempo ×2/÷2
  * in the timeline) moves `nextBeat` to the same moment in it - on a grid the beat number alone
  * points somewhere else then: after ÷2 beat 739 lay past the song's end and the click stopped. */
@@ -147,7 +147,7 @@ function tick(getState: () => ClickEngineState): void {
   if (crossedJump && crossedJump.offsetMs !== 0 && lastTickElapsedMs !== null) {
     const asTarget = Math.abs(elapsedMs + crossedJump.offsetMs - lastTickElapsedMs)
     if (asTarget < Math.abs(elapsedMs - lastTickElapsedMs)) {
-      crossedJump = { id: crossedJump.id, offsetMs: 0 }
+      crossedJump = { ...crossedJump, offsetMs: 0 }
       lastTickElapsedMs = elapsedMs
     }
   }
@@ -180,6 +180,8 @@ function tick(getState: () => ClickEngineState): void {
   // moment already passed (latency longer than the Play lead) plays at once instead of being skipped.
   const lookaheadSongMs = (LOOKAHEAD_MS + outputLatencyMs) * playbackRate
   const latencyS = outputLatencyMs / 1000
+  // Past a jump with its own speed (#683, the loop trainer's next pass) the beats there run at it.
+  const rateAfterJump = (target: { rate?: number } | null) => target?.rate ?? playbackRate
   while (nextBeat !== null) {
     if (timeline.rigid) nextBeatOnsetMs = timeline.timeOfBeat(nextBeat)
     // Reaching a queued section jump (#479): the next beat is the target's, at the boundary's moment.
@@ -187,14 +189,18 @@ function tick(getState: () => ClickEngineState): void {
       const atBoundary =
         (nextBeatAudioTime ?? audioNow + (nextBeatOnsetMs - elapsedMs) / 1000 / playbackRate - latencyS) - (nextBeatOnsetMs - jump.boundaryMs) / 1000 / playbackRate
       anchorSchedule(timeline, jump.toMs, true)
-      nextBeatAudioTime = atBoundary + (nextBeatOnsetMs - jump.toMs) / 1000 / playbackRate
-      crossedJump = { id: jump.id, offsetMs: jump.boundaryMs - jump.toMs }
+      nextBeatAudioTime = atBoundary + (nextBeatOnsetMs - jump.toMs) / 1000 / rateAfterJump(jump)
+      crossedJump = { id: jump.id, offsetMs: jump.boundaryMs - jump.toMs, boundaryMs: jump.boundaryMs, ...(jump.rate !== undefined ? { rate: jump.rate } : {}) }
       continue
     }
     const offsetMs = crossedJump?.offsetMs ?? 0
     if (nextBeatOnsetMs + offsetMs >= elapsedMs + lookaheadSongMs) break
     if (loop && nextBeatOnsetMs >= loop.endMs) break
-    const converted = audioNow + (nextBeatOnsetMs + offsetMs - elapsedMs) / 1000 / playbackRate - latencyS
+    // Until the song clock has jumped too: the time up to the boundary at this speed, after it at the next.
+    const converted =
+      crossedJump && offsetMs !== 0
+        ? audioNow + (crossedJump.boundaryMs - elapsedMs) / 1000 / playbackRate + (nextBeatOnsetMs + offsetMs - crossedJump.boundaryMs) / 1000 / rateAfterJump(crossedJump) - latencyS
+        : audioNow + (nextBeatOnsetMs - elapsedMs) / 1000 / playbackRate - latencyS
     if (nextBeatAudioTime === null || Math.abs(converted - nextBeatAudioTime) > AUDIO_TIME_TOLERANCE_S) {
       nextBeatAudioTime = converted
     }
@@ -202,7 +208,7 @@ function tick(getState: () => ClickEngineState): void {
     const beatMs = timeline.periodAfter(nextBeat)
     nextBeat++
     nextBeatOnsetMs += beatMs
-    nextBeatAudioTime += beatMs / 1000 / playbackRate
+    nextBeatAudioTime += beatMs / 1000 / (crossedJump && offsetMs !== 0 ? rateAfterJump(crossedJump) : playbackRate)
   }
 }
 
