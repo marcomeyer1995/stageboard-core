@@ -288,7 +288,23 @@
       "beats": "Beats",
       "free": "Free"
     },
-    "barAt": "Bar {{at}}"
+    "barAt": "Bar {{at}}",
+    "barRange": "Bar {{from}}–{{to}}",
+    "savedButton_one": "{{count}} saved loop",
+    "savedButton_other": "{{count}} saved loops",
+    "savedButton_zero": "Saved loops",
+    "loadedChanged": "{{name}} · changed",
+    "savedTitle": "Saved loops",
+    "savedEmpty": "No loop saved for this variant yet.",
+    "rename": "Rename",
+    "delete": "Delete",
+    "saveChanges": "Save changes to “{{name}}”",
+    "forEveryone": "Applies to the whole band.",
+    "newName": "Name",
+    "namePlaceholder": "e.g. Solo",
+    "saveNew": "Save as new loop",
+    "deleteTitle": "Delete “{{name}}”?",
+    "deleteText": "The loop disappears for the whole band."
   },
   "active": {
     "caption": "Active setlist",

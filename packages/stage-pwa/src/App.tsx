@@ -53,6 +53,7 @@ import { useDevicesStore } from './store/useDevicesStore'
 import { useDiscoverySessionStore } from './store/useDiscoverySessionStore'
 import { useEditModeStore } from './store/useEditModeStore'
 import { FlashOverlay } from './components/FlashOverlay'
+import { useSavedLoopsStore } from './store/useSavedLoopsStore'
 import { useSwitchesStore } from './store/useSwitchesStore'
 import { useMidiControllerRulesStore } from './store/useMidiControllerRulesStore'
 import { useOscInputRulesStore } from './store/useOscInputRulesStore'
@@ -190,6 +191,7 @@ function App() {
   useWorkspaceResource(useMidiControllerRulesStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(useOscInputRulesStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(useSwitchesStore((state) => state.init), noopStart, activeWorkspaceId)
+  useWorkspaceResource(useSavedLoopsStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(useDashboardsStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(useProfilesStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(useWorkspaceStore((state) => state.initNameSync), noopStart, activeWorkspaceId)

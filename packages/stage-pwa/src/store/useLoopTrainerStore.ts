@@ -13,6 +13,8 @@ export interface LoopTrainerConfig {
   trainerEnabled: boolean
   targetPercent: number
   stepPercent: number
+  /** The saved loop (#683) this setting was recalled from or saved as - null for a free one. */
+  savedLoopId: string | null
 }
 
 export const DEFAULT_LOOP_CONFIG: LoopTrainerConfig = {
@@ -23,6 +25,7 @@ export const DEFAULT_LOOP_CONFIG: LoopTrainerConfig = {
   trainerEnabled: false,
   targetPercent: 100,
   stepPercent: 5,
+  savedLoopId: null,
 }
 
 interface LoopTrainerStore {

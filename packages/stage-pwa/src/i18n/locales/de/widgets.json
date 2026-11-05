@@ -288,7 +288,23 @@
       "beats": "Schläge",
       "free": "Frei"
     },
-    "barAt": "Takt {{at}}"
+    "barAt": "Takt {{at}}",
+    "barRange": "Takt {{from}}–{{to}}",
+    "savedButton_one": "{{count}} gespeicherter Loop",
+    "savedButton_other": "{{count}} gespeicherte Loops",
+    "savedButton_zero": "Gespeicherte Loops",
+    "loadedChanged": "{{name}} · geändert",
+    "savedTitle": "Gespeicherte Loops",
+    "savedEmpty": "Für diese Variante ist noch kein Loop gespeichert.",
+    "rename": "Umbenennen",
+    "delete": "Löschen",
+    "saveChanges": "Änderungen an „{{name}}“ speichern",
+    "forEveryone": "Gilt für die ganze Band.",
+    "newName": "Name",
+    "namePlaceholder": "z. B. Solo",
+    "saveNew": "Als neuen Loop speichern",
+    "deleteTitle": "„{{name}}“ löschen?",
+    "deleteText": "Der Loop verschwindet für die ganze Band."
   },
   "active": {
     "caption": "Aktive Setlist",
