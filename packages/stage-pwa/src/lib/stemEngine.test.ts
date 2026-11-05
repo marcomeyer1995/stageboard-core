@@ -35,6 +35,7 @@ function fakeBuffer(id: string, seconds: number): FakeBuffer {
 
 /** The wall clock; the fake audio clock runs with it. */
 let wallMs = 0
+let audioStepMs = 0
 interface FakeNode {
   buffer: FakeBuffer | null
   when: number
@@ -57,7 +58,8 @@ const gains: {
 const ctx = {
   state: 'running',
   get currentTime() {
-    return wallMs / 1000 + 100
+    // Like the Fire: the audio clock may advance in steps (64 ms there), read behind in between.
+    return (audioStepMs > 0 ? Math.floor(wallMs / audioStepMs) * audioStepMs : wallMs) / 1000 + 100
   },
   destination: {},
   resume: vi.fn(async () => {}),
@@ -133,6 +135,7 @@ const flush = async (rounds = 20) => {
 }
 
 beforeEach(() => {
+  audioStepMs = 0
   vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
   wallMs = 1_000_000
   nodes.length = 0
@@ -243,6 +246,24 @@ describe('stemEngine (docs/22 §3)', () => {
     expect(__stemStatsForTests().reschedules).toBe(1)
     const restarted = nodes.slice(before).filter((n) => !Number.isNaN(n.when))
     expect(new Set(restarted.map((n) => n.out)).size).toBe(STEMS.length)
+  })
+
+  it('places a start again before it is heard when the fresh clock read behind (2026-11-04)', async () => {
+    await loadStems('v', STEMS)
+    audioStepMs = 64
+    wallMs = 64 * 20_000 + 60 // the first reading is 60 ms behind the real audio clock
+    await run(42_000, 700)
+    const stats = __stemStatsForTests()
+    expect(stats.startFixes).toBe(1)
+    // Within one 16 ms frame - as close as the smoothed clock reads a stepping one (unfixed: ~60).
+    expect(Math.abs(stats.lastErrorMs)).toBeLessThanOrEqual(16)
+    expect(stats.reschedules).toBe(0)
+  })
+
+  it('leaves a start that was placed right alone', async () => {
+    await loadStems('v', STEMS)
+    await run(42_000, 700)
+    expect(__stemStatsForTests().startFixes).toBe(0)
   })
 
   it('follows a song clock that runs faster than the audio clock by rate, gaplessly, without a restart (docs/29 step 2)', async () => {

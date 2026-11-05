@@ -337,6 +337,16 @@ describe('duplicateSongAndVariants (#178)', () => {
     expect(store.has('song-variants:variant-3')).toBe(true)
   })
 
+  it('copies the saved loops onto the copied variant (#683)', async () => {
+    store.set('song-variants:variant-1', { _id: 'song-variants:variant-1', id: 'variant-1', songId: 'song-1', label: 'Original', isDefault: true, tracks: [] })
+    store.set('saved-loop:l1', { _id: 'saved-loop:l1', id: 'l1', variantId: 'variant-1', name: 'Solo', startMs: 1000, endMs: 2000 })
+    const copy = await duplicateSongAndVariants(makeSong({ id: 'song-1' }), 'Copy')
+    const copiedVariant = [...store.values()].find((doc) => doc.songId === copy.id)!
+    const loops = [...store.values()].filter((doc) => doc.name === 'Solo')
+    expect(loops).toHaveLength(2)
+    expect(loops.map((loop) => loop.variantId).sort()).toEqual([copiedVariant.id, 'variant-1'].sort())
+  })
+
   it('duplicates a song with no variants at all without throwing', async () => {
     const source = makeSong({ id: 'song-1' })
     const copy = await duplicateSongAndVariants(source, 'Copy')
@@ -361,6 +371,14 @@ describe('deleteVariant / setDefaultVariant / variantToOpen', () => {
     expect(store.has('song-variants:v-orig')).toBe(false)
     expect(audioClientMocks.deleteTrackFile).toHaveBeenCalledWith('v-orig', 't1')
     expect(cacheStore.has('v-orig:t1')).toBe(false)
+  })
+
+  it('drops the saved loops of a deleted variant, not those of others (#683)', async () => {
+    store.set('saved-loop:l1', { _id: 'saved-loop:l1', id: 'l1', variantId: 'v-orig', name: 'Solo' })
+    store.set('saved-loop:l2', { _id: 'saved-loop:l2', id: 'l2', variantId: 'v-akustik', name: 'Intro' })
+    await deleteVariant('v-orig')
+    expect(store.has('saved-loop:l1')).toBe(false)
+    expect(store.has('saved-loop:l2')).toBe(true)
   })
 
   it('leaves the song without a default when the default is deleted - no other variant takes over', async () => {

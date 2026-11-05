@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { playLocalTrack, stopLocalTrack } from './localAudioEngine'
-import { practiceAdvanceNext, practiceBeginLoop, practicePlaySong, practiceEndLoop, practicePauseSong, practiceSetActiveSetlist, practiceSetVariantOverride, practiceStopSong, practiceStopSongAtTrackEnd } from './practiceQueue'
+import { practiceAdvanceNext, practiceBeginTrainerLoop, practicePlaySong, practiceEndTrainerLoop, practicePauseSong, practiceSetActiveSetlist, practiceSetVariantOverride, practiceStopSong, practiceStopSongAtTrackEnd } from './practiceQueue'
 import { usePracticeStateStore } from '../store/usePracticeStateStore'
 
 vi.mock('./localAudioEngine', () => ({
@@ -149,19 +149,33 @@ describe('practice log (Solo Üben, "Geübt" / "30 Tage")', () => {
     vi.useFakeTimers()
     try {
       vi.setSystemTime(1_000_000)
-      ran(0)
-      practiceBeginLoop(150_000)
-      vi.setSystemTime(1_003_000)
-      practiceEndLoop(152_000)
-      await practiceStopSong()
-      expect(practiceLog.add).not.toHaveBeenCalled()
-
       ran(30_000)
-      practiceBeginLoop(150_000)
-      vi.setSystemTime(1_028_000)
-      practiceEndLoop(160_000)
+      // The trainer starts PLAY_LEAD_MS before A and plays 25 s of the loop.
+      practiceBeginTrainerLoop(150_000, 200_000, [1])
+      vi.setSystemTime(1_025_000)
+      practiceEndTrainerLoop()
       await practiceStopSong()
       expect(practiceLog.add).toHaveBeenCalledWith(expect.objectContaining({ activeMs: 55_000 }))
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('the loop trainer (#683) plays its range at the first pass speed and ends at the song tempo', async () => {
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(2_000_000)
+      practiceBeginTrainerLoop(60_000, 80_000, [0.8, 0.9, 1])
+      expect(usePracticeStateStore.getState().byWorkspace['ws-1']).toMatchObject({
+        playbackStatus: 'playing',
+        playbackRate: 0.8,
+        playbackAccumulatedMs: 60_000 - 400 * 0.8,
+        playbackLoop: { startMs: 60_000, endMs: 80_000, rates: [0.8, 0.9, 1], pass: 0 },
+      })
+      vi.setSystemTime(2_010_000)
+      practiceEndTrainerLoop()
+      expect(usePracticeStateStore.getState().byWorkspace['ws-1']).toMatchObject({ playbackStatus: 'paused', playbackRate: 1, playbackLoop: null, playbackAccumulatedMs: 60_000 - 320 + 8_000 })
+      await practiceStopSong()
     } finally {
       vi.useRealTimers()
     }
