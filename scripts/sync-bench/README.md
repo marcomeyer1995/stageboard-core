@@ -46,3 +46,19 @@ own, independent of the app's clock sync. `sse-log.mjs` logs the master's show-s
     node gig-analyze.mjs <dir>            # each device against the band clock, and device against device
 
 Only the devices the band routes audio to make a sound (2026-11-04: Fire = click, Redmi = track).
+`DEVS="fire:9301 redmi:9302 phone:9303"` picks the recording devices (name:CDP port); a device with no
+output bound to it records nothing. A take whose own `/time` samples all came back slow (fastest
+round trip > 40 ms, e.g. the Redmi's t04 on 2026-11-04: 88 ms, 33 ms off) maps that device wrongly -
+the app's clock sync, over 2 minutes, is not fooled by that; the analysis over 10 s is.
+
+## Clock sync (step 4)
+`clocklog.js` (with `DURATION_MS` replaced) records raw `/time` samples on a device - one a second
+plus a 7-sample burst a minute. `node clock-replay.mjs clocklog-<dev>.json...` replays the old
+(burst a minute, applied at once) and the new (continuous window, slewed) sync on the same samples,
+each against a line through the fastest 10 % of the whole recording.
+
+## Laptop browser as a device
+A separate Chrome profile with `--remote-debugging-port=9304` on the Stage-Server's address (join
+the band by hand once). `node serve-build.mjs 9304 <dist> capture.js` answers the app's own files
+from a local build (same origin, so the band data stays) and registers the capture hook - keep it
+running while measuring.
