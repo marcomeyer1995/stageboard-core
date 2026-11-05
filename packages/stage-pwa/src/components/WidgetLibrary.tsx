@@ -98,6 +98,8 @@ export function WidgetLibrary({
   // A rehearsal widget is fine anywhere; on a dashboard that is also offered in Gig mode it
   // just gets a note, never a block (Marco, 2026-09-27: keep the gig dashboards lean by choice).
   const offeredInGig = isDashboardAvailableInMode(dashboard, 'gig')
+  // A Solo-Üben-only widget would never show on a Gig-only dashboard (#683).
+  const offeredInPractice = isDashboardAvailableInMode(dashboard, 'practice')
   const [search, setSearch] = useState('')
   // A widget that does not fit at full size waits here for the user's choice.
   const [noRoom, setNoRoom] = useState<WidgetDefinition | null>(null)
@@ -108,12 +110,14 @@ export function WidgetLibrary({
   const { t: tc } = useTranslation('common')
   const available = useMemo(
     () =>
-      availableWidgets(ALL_WIDGETS, capabilities, activeRoles).map((definition) => ({
+      availableWidgets(ALL_WIDGETS, capabilities, activeRoles)
+        .filter((definition) => offeredInPractice || !definition.practiceOnly)
+        .map((definition) => ({
         ...definition,
         title: widgetText.title(definition),
         description: widgetText.description(definition),
       })),
-    [capabilities, activeRoles, widgetText],
+    [capabilities, activeRoles, widgetText, offeredInPractice],
   )
 
   const term = search.trim().toLowerCase()
@@ -254,9 +258,9 @@ export function WidgetLibrary({
                       </span>
                     )}
                     <span className="block text-sm text-ink-muted">{definition.description}</span>
-                    {definition.stageTier === 'rehearsal' && offeredInGig && (
+                    {offeredInGig && (definition.practiceOnly || definition.stageTier === 'rehearsal') && (
                       <span className="block text-sm text-accent">
-                        {tc('widgetLibrary.rehearsalInGig')}
+                        {tc(definition.practiceOnly ? 'widgetLibrary.practiceOnlyInGig' : 'widgetLibrary.rehearsalInGig')}
                       </span>
                     )}
                   </div>

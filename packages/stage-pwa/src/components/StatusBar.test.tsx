@@ -21,11 +21,7 @@ vi.mock('../store/useLocalAudioOutputStore', () => ({
   useLocalAudioOutputStore: (select: (s: { error: string | null }) => unknown) => select({ error: stores.audioError }),
 }))
 const loop = vi.hoisted(() => ({ state: null as { pass: number; rate: number } | null, stop: vi.fn() }))
-vi.mock('../lib/loopTrainerEngine', () => ({ getLoopPlaybackState: () => loop.state }))
-vi.mock('../lib/loopTrainer', () => ({ stopLoopTrainer: loop.stop }))
-vi.mock('../store/useLoopTrainerStore', () => ({
-  useLoopTrainerStore: (select: (s: { active: boolean }) => unknown) => select({ active: loop.state !== null }),
-}))
+vi.mock('../lib/loopTrainer', () => ({ stopLoopTrainer: loop.stop, useTrainerLoop: () => loop.state }))
 vi.mock('../store/useSyncStore', () => ({
   useSyncStore: (select: (s: { streams: object; browserOffline: boolean }) => unknown) => select({ streams: {}, browserOffline: false }),
   deriveSyncStatus: () => 'idle',
@@ -47,10 +43,10 @@ const variant = {
   tracks: [],
 } as unknown as SongVariant
 
-function mockShow(playbackStatus: 'playing' | 'paused' | 'stopped', elapsedMs: number | null, canControl = true, trackEnded = false) {
+function mockShow(playbackStatus: 'playing' | 'paused' | 'stopped', elapsedMs: number | null, canControl = true, trackEnded = false, mode: 'gig' | 'practice' = 'gig') {
   vi.mocked(useShowMode).mockReturnValue({
     trackEnded,
-    mode: 'gig',
+    mode,
     queue: { currentEntry: entry, currentSong: song, currentVariant: variant, currentArrangement: variant ?? song },
     elapsedMs,
     playbackStatus,
@@ -149,7 +145,8 @@ describe('StatusBar (PR F2)', () => {
   })
 
   it('shows a running loop with pass and tempo, and stops it on a tap - from any dashboard (2026-10-22)', () => {
-    mockShow('playing', 12_000)
+    // The loop trainer is Solo Üben's (#683).
+    mockShow('playing', 12_000, true, false, 'practice')
     loop.state = { pass: 2, rate: 0.85 }
     render(<StatusBar screen="boards" onOpenMenu={vi.fn()} />)
     expect(bar()).toHaveAttribute('data-status', 'loop')

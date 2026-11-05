@@ -1,6 +1,6 @@
 /**
  * Pure timing maths of the Rehearsal Looper / Speed Trainer (#61), kept free of Web Audio so
- * the engine (loopTrainerEngine.ts) and every clock consumer derive the exact same position
+ * the loop trainer (loopTrainer.ts, #683) and every clock consumer derive the exact same position
  * from the same schedule, and it can be unit-tested without an AudioContext.
  *
  * A loop plays the section [startMs, endMs] over and over. Each pass runs at one playback

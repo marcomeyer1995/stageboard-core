@@ -132,4 +132,36 @@ describe('Solo Üben - the same jump on this device\'s own practice state (#479,
     expect(practice()).toMatchObject({ playbackStartedAt: 116_000, playbackAccumulatedMs: 8000, playbackJump: null })
     vi.useRealTimers()
   })
+
+  it('the loop trainer (#683): each pass back to A carries the next speed, the last one holds', async () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
+    // Song 8 s at 100 000, at 50 %: the loop 8-16 s takes 16 s of clock time per pass.
+    usePracticeStateStore.setState({
+      byWorkspace: {
+        band: { ...DEFAULT_PRACTICE_STATE, playbackStatus: 'playing', playbackStartedAt: 100_000, playbackAccumulatedMs: 8000, playbackRate: 0.5, playbackLoop: { startMs: 8000, endMs: 16_000, rates: [0.5, 0.75], pass: 0 } },
+      },
+    })
+    renderHook(() => useSectionJumpDriver())
+    // 1 s of song before the end is 2 s of clock at half speed - inside the notice.
+    clock.now = 114_000
+    await act(async () => vi.advanceTimersByTime(100))
+    expect(practice().playbackJump).toEqual({ at: 116_000, toMs: 8000, rate: 0.75 })
+    clock.now = 116_050
+    await act(async () => vi.advanceTimersByTime(100))
+    expect(practice()).toMatchObject({ playbackStartedAt: 116_000, playbackAccumulatedMs: 8000, playbackRate: 0.75, playbackJump: null, playbackLoop: { pass: 1 } })
+    // Pass 2 at 75 %: 8 s of song in 10.67 s; the way back keeps the last speed.
+    clock.now = 116_000 + 9_500
+    await act(async () => vi.advanceTimersByTime(100))
+    expect(practice().playbackJump).toMatchObject({ at: 116_000 + 8000 / 0.75, toMs: 8000, rate: 0.75 })
+    vi.useRealTimers()
+  })
+
+  it('releasing the trainer loop goes back to the song tempo without moving the position (#683)', async () => {
+    usePracticeStateStore.setState({
+      byWorkspace: { band: { ...DEFAULT_PRACTICE_STATE, playbackStatus: 'playing', playbackStartedAt: 100_000, playbackAccumulatedMs: 8000, playbackRate: 0.5, playbackLoop: { startMs: 8000, endMs: 16_000, rates: [0.5] } } },
+    })
+    clock.now = 104_000
+    await setSectionLoop(null)
+    expect(practice()).toMatchObject({ playbackStartedAt: 104_000, playbackAccumulatedMs: 10_000, playbackRate: 1, playbackLoop: null })
+  })
 })
