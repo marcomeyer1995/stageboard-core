@@ -29,7 +29,7 @@ describe('DeviceVitalsPanel', () => {
     useDeviceVitalsStore.setState({ snapshot: PHONE })
     render(<DeviceVitalsPanel />)
     expect(screen.getByRole('status')).toHaveTextContent('Ton-Aussetzer · Audio-Uhr unruhig · Ton-Reserve knapp · Speicher knapp')
-    expect(screen.getByRole('status')).toHaveClass('text-danger')
+    expect(screen.getByRole('status')).toHaveClass('text-warn')
     expect(screen.getByText('13.967 ms')).toBeInTheDocument()
     expect(screen.getByText(/-0,60 %/)).toHaveTextContent('-0,60 % · 4 Hänger (bis 128 ms)')
     expect(screen.getByText('250 MB von 10,9 GB')).toBeInTheDocument()

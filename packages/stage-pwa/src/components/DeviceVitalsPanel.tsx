@@ -97,7 +97,7 @@ export function DeviceVitalsPanel() {
               </Row>
               {audio.path === 'native' && (
                 <>
-                  <Row label={t('vit.missing')} status={light(has('audioMissing'))}>
+                  <Row label={t('vit.missing')} status={light(false, has('audioMissing'))}>
                     {audio.missingMs > 0 ? `${num(audio.missingMs)} ms` : t('vit.none')}
                   </Row>
                   <Row label={t('vit.reserve')} status={audio.leadMinMs === null ? undefined : light(false, has('audioTight'))}>

@@ -45,14 +45,14 @@ describe('assessVitals', () => {
     expect(assessVitals(CLEAN)).toEqual({ level: 'ok', issues: [] })
   })
 
-  it('the phone after 17 h: red for missing audio, yellow for the clock and the memory', () => {
+  it('the phone after 17 h: yellow for missing audio, the clock and the memory - red only once it switched over', () => {
     const phone = {
       ...CLEAN,
       audio: { path: 'native' as const, delayMs: 332, missingMs: 13967, jumps: 2, leadMinMs: 3 },
       audioClock: { pct: -0.6, losses: 4, worstLossMs: 128 },
       native: { ...CLEAN.native!, availMb: 250, totalMb: 11190 },
     }
-    expect(assessVitals(phone)).toEqual({ level: 'error', issues: ['audioMissing', 'audioClock', 'audioTight', 'memoryTight'] })
+    expect(assessVitals(phone)).toEqual({ level: 'warning', issues: ['audioMissing', 'audioClock', 'audioTight', 'memoryTight'] })
   })
 
   it('after switching to the WebView output it stays red until the app restarts', () => {

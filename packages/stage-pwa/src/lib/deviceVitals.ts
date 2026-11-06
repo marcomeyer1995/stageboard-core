@@ -110,12 +110,15 @@ export interface Assessment {
   issues: VitalsIssue[]
 }
 
-/** The traffic light: what is wrong, worst first. Red only where sound or the device is failing. */
+/** The traffic light: what is wrong, worst first. Red only where sound or the device is failing (the
+ * output switched over, Android out of memory). */
 export function assessVitals(v: Pick<VitalsSnapshot, 'audio' | 'audioClock' | 'native' | 'stallsPerMin' | 'clock'>): Assessment {
   const errors: VitalsIssue[] = []
   const warnings: VitalsIssue[] = []
   if (v.audio?.fellBack) errors.push('audioFallback')
-  if (v.audio && v.audio.missingMs > 0) errors.push('audioMissing')
+  // A loss is yellow: one stall of the whole phone is not a fault of the output (2026-11-06) - red
+  // only once the safeguard switched over (audioFallback).
+  if (v.audio && v.audio.missingMs > 0) warnings.push('audioMissing')
   if (v.audioClock && ((v.audioClock.pct !== null && Math.abs(v.audioClock.pct) > CLOCK_WARN_PCT) || v.audioClock.losses > 0)) warnings.push('audioClock')
   if (v.audio?.leadMinMs != null && v.audio.leadMinMs < TIGHT_LEAD_MS) warnings.push('audioTight')
   if (v.native?.lowMemory) errors.push('memoryLow')

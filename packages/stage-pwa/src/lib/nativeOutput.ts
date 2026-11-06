@@ -2,7 +2,7 @@ import { registerPlugin } from '@capacitor/core'
 import type { AudioOutputHealth } from 'shared-types'
 import { create } from 'zustand'
 import { isNativeApp } from './native'
-import { FALLBACK_WINDOW_MS, missingInWindowMs, shouldFallBack, type MissingSample } from './nativeOutputFallback'
+import { FALLBACK_SPAN_MS, FALLBACK_WINDOW_MS, missingInWindowMs, shouldFallBack, trackLossEpisodes, type MissingSample } from './nativeOutputFallback'
 
 /**
  * Native audio output (docs/30, Marco 2026-11-05: "pipe the mix"). Everything keeps playing on the
@@ -380,6 +380,8 @@ async function attach(ctx: AudioContext): Promise<void> {
     const startedAt = Date.now()
     healthSamples.length = 0
     const recent: MissingSample[] = []
+    let episodes: number[] = []
+    let lost: { at: number; ms: number }[] = []
     p.timer = setInterval(() => {
       void NativeOutput.status().then((s) => {
         if (p.closed) return
@@ -387,8 +389,15 @@ async function attach(ctx: AudioContext): Promise<void> {
         const now = Date.now()
         recent.push({ at: now, missing: s.missing ?? 0 })
         while (recent.length > 0 && recent[0]!.at < now - FALLBACK_WINDOW_MS) recent.shift()
-        if (shouldFallBack(recent, now, p.rate, startedAt)) {
-          fallBack(Math.round(missingInWindowMs(recent, now, p.rate)))
+        const tracked = trackLossEpisodes(episodes, recent, now, p.rate, startedAt)
+        episodes = tracked.episodes
+        if (tracked.started) {
+          const ms = Math.round(missingInWindowMs(recent, now, p.rate))
+          lost = [...lost.filter((l) => l.at >= now - FALLBACK_SPAN_MS), { at: now, ms }]
+          console.warn(`[native-output] ${ms} ms audio missing in ${FALLBACK_WINDOW_MS / 1000} s (${episodes.length}. time in ${FALLBACK_SPAN_MS / 60_000} min)`)
+        }
+        if (shouldFallBack(episodes)) {
+          fallBack(lost.reduce((sum, l) => sum + l.ms, 0), episodes.length)
           return
         }
         // The first minute settles on purpose (the line takes the edge at once) - not a fault.
@@ -404,8 +413,8 @@ async function attach(ctx: AudioContext): Promise<void> {
 }
 
 /** Back to the WebView's own output for the rest of this app run (nativeOutputFallback.ts). */
-function fallBack(missingMs: number): void {
-  console.error(`[native-output] ${missingMs} ms audio missing in ${FALLBACK_WINDOW_MS / 1000} s - switched to the WebView's output until the app restarts`)
+function fallBack(missingMs: number, times: number): void {
+  console.error(`[native-output] audio missing ${times} times in ${FALLBACK_SPAN_MS / 60_000} min (${missingMs} ms) - switched to the WebView's output until the app restarts`)
   detach()
   useNativeOutputStore.setState({ fellBack: { at: Date.now(), missingMs } })
 }
