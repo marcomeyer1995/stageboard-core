@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { playLocalTrack, stopLocalTrack } from './localAudioEngine'
 import { practiceAdvanceNext, practiceBeginTrainerLoop, practicePlaySong, practiceEndTrainerLoop, practicePauseSong, practiceSetActiveSetlist, practiceSetVariantOverride, practiceStopSong, practiceStopSongAtTrackEnd } from './practiceQueue'
 import { usePracticeStateStore } from '../store/usePracticeStateStore'
+import { PLAY_LEAD_MS } from './playbackTransport'
 
 vi.mock('./localAudioEngine', () => ({
   pauseLocalTrack: vi.fn(),
@@ -169,12 +170,12 @@ describe('practice log (Solo Üben, "Geübt" / "30 Tage")', () => {
       expect(usePracticeStateStore.getState().byWorkspace['ws-1']).toMatchObject({
         playbackStatus: 'playing',
         playbackRate: 0.8,
-        playbackAccumulatedMs: 60_000 - 400 * 0.8,
+        playbackAccumulatedMs: 60_000 - PLAY_LEAD_MS * 0.8,
         playbackLoop: { startMs: 60_000, endMs: 80_000, rates: [0.8, 0.9, 1], pass: 0 },
       })
       vi.setSystemTime(2_010_000)
       practiceEndTrainerLoop()
-      expect(usePracticeStateStore.getState().byWorkspace['ws-1']).toMatchObject({ playbackStatus: 'paused', playbackRate: 1, playbackLoop: null, playbackAccumulatedMs: 60_000 - 320 + 8_000 })
+      expect(usePracticeStateStore.getState().byWorkspace['ws-1']).toMatchObject({ playbackStatus: 'paused', playbackRate: 1, playbackLoop: null, playbackAccumulatedMs: 60_000 - PLAY_LEAD_MS * 0.8 + 8_000 })
       await practiceStopSong()
     } finally {
       vi.useRealTimers()
@@ -193,9 +194,9 @@ describe('practicePlaySong - play lead', () => {
     vi.useFakeTimers()
     try {
       await practicePlaySong()
-      expect(usePracticeStateStore.getState().byWorkspace['ws-1']).toMatchObject({ playbackStatus: 'playing', playbackAccumulatedMs: -400 })
+      expect(usePracticeStateStore.getState().byWorkspace['ws-1']).toMatchObject({ playbackStatus: 'playing', playbackAccumulatedMs: -PLAY_LEAD_MS })
       expect(playLocalTrack).not.toHaveBeenCalled()
-      vi.advanceTimersByTime(400)
+      vi.advanceTimersByTime(PLAY_LEAD_MS)
       expect(playLocalTrack).toHaveBeenCalledWith(0)
     } finally {
       vi.useRealTimers()
