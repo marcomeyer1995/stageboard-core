@@ -1,3 +1,4 @@
+import { StageMap } from './StageMap'
 import { StagePathList } from './StagePathList'
 import { useEffect, useState } from 'react'
 import { CAPABILITIES, SERVER_EXECUTION_TARGET, type LogicalDevice } from 'shared-types'
@@ -171,6 +172,7 @@ export function HardwareSetupManager() {
       </div>
 
       {/* Die Wege mit ihrer Korrektur (docs/31, Schritt 1) - Abgleichen am Weg statt über Geräte → Latenz… */}
+      <StageMap />
       <StagePathList />
 
       <div className="mb-6">

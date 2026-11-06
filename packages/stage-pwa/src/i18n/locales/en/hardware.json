@@ -147,5 +147,64 @@
       "manual": "by hand",
       "missing": "missing"
     }
+  },
+  "map": {
+    "title": "Stage map",
+    "explainLabel": "What does the map show?",
+    "explain": "All of the band's devices and equipment with their ports and cables, per setup. A cable shows what is patched onto it (click, track, Kemper …). A path runs from the tablet to whoever hears it. Nothing plays by the map yet - that comes as its own step.",
+    "loading": "Loading map…",
+    "full": "Fullscreen",
+    "exitFull": "Exit fullscreen",
+    "whole": "Whole stage",
+    "ports": "Ports",
+    "edit": "Edit",
+    "setup": "Setup",
+    "newSetup": "Setup (copy)",
+    "deleteSetup": "Delete setup",
+    "deleteSetupConfirm": "Delete setup “{{name}}” with all its cables?",
+    "nobody": "nobody signed in",
+    "hint": "Tap a device or a cable.",
+    "connect": "Connect",
+    "connecting": "Connecting from {{port}} - tap a highlighted device.",
+    "cancel": "Cancel",
+    "pickPort": "Port on {{name}}",
+    "port": "Port",
+    "addEquipment": "Add equipment",
+    "addTitle": "Add equipment",
+    "model": "Kind",
+    "name": "Name",
+    "add": "Add",
+    "rename": "Rename",
+    "save": "Save",
+    "offStage": "Take out of this setup",
+    "offStageList": "Not in this setup:",
+    "delete": "Delete",
+    "deleteConfirm": "Delete “{{name}}” from all setups?",
+    "adapter": "Adapter needed",
+    "nowhere": "reaches nobody",
+    "patched": "On this cable",
+    "routes": "Goes on in the mixer to",
+    "noRoutes": "Nothing ticked - goes nowhere in the mixer.",
+    "removeLink": "Remove cable",
+    "dir": {
+      "in": "Input",
+      "out": "Output",
+      "both": "In/Out"
+    },
+    "signal": {
+      "audio": "Audio",
+      "usb-audio": "USB audio",
+      "midi": "MIDI",
+      "dmx": "DMX",
+      "net": "Network",
+      "light": "Light"
+    },
+    "class": {
+      "sound": "Sound",
+      "midi": "MIDI",
+      "light": "Light"
+    },
+    "atDevice": "on {{device}}",
+    "nobodyShort": "Nobody"
   }
 }

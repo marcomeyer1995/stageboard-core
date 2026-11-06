@@ -59,6 +59,7 @@ import { useMidiControllerRulesStore } from './store/useMidiControllerRulesStore
 import { useOscInputRulesStore } from './store/useOscInputRulesStore'
 import { useAlignmentStore } from './store/useAlignmentStore'
 import { useLatencyProfilesStore } from './store/useLatencyProfilesStore'
+import { useStageMapStore } from './store/useStageMapStore'
 import { useAudioRouteStore } from './store/useAudioRouteStore'
 import { useLogicalDevicesStore } from './store/useLogicalDevicesStore'
 import { usePluginsStore } from './store/usePluginsStore'
@@ -189,6 +190,7 @@ function App() {
   useWorkspaceResource(useLogicalDevicesStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(useDeviceTransportConfigStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(useLatencyProfilesStore((state) => state.init), noopStart, activeWorkspaceId)
+  useWorkspaceResource(useStageMapStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(useAlignmentStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(useMidiControllerRulesStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(useOscInputRulesStore((state) => state.init), noopStart, activeWorkspaceId)

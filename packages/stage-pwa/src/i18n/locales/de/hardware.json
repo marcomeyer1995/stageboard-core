@@ -147,5 +147,64 @@
       "manual": "von Hand",
       "missing": "fehlt"
     }
+  },
+  "map": {
+    "title": "Bühnen-Karte",
+    "explainLabel": "Was zeigt die Karte?",
+    "explain": "Alle Geräte und Ausrüstung der Band mit ihren Anschlüssen und Kabeln, je Aufbau. Auf einem Kabel steht, was darauf gepatcht ist (Klick, Track, Kemper …). Ein Weg läuft vom Tablet bis zu dem, der ihn hört. Noch spielt nichts nach der Karte - das kommt als eigener Schritt.",
+    "loading": "Karte wird geladen…",
+    "full": "Vollbild",
+    "exitFull": "Vollbild beenden",
+    "whole": "Ganze Bühne",
+    "ports": "Anschlüsse",
+    "edit": "Bearbeiten",
+    "setup": "Aufbau",
+    "newSetup": "Aufbau (Kopie)",
+    "deleteSetup": "Aufbau löschen",
+    "deleteSetupConfirm": "Aufbau „{{name}}“ mit allen Kabeln löschen?",
+    "nobody": "niemand angemeldet",
+    "hint": "Tippe ein Gerät oder ein Kabel an.",
+    "connect": "Verbinden",
+    "connecting": "Verbinden von {{port}} - tippe ein leuchtendes Gerät an.",
+    "cancel": "Abbrechen",
+    "pickPort": "Anschluss an {{name}}",
+    "port": "Anschluss",
+    "addEquipment": "Ausrüstung hinzufügen",
+    "addTitle": "Ausrüstung hinzufügen",
+    "model": "Art",
+    "name": "Name",
+    "add": "Hinzufügen",
+    "rename": "Umbenennen",
+    "save": "Speichern",
+    "offStage": "Aus diesem Aufbau nehmen",
+    "offStageList": "Nicht in diesem Aufbau:",
+    "delete": "Löschen",
+    "deleteConfirm": "„{{name}}“ aus allen Aufbauten löschen?",
+    "adapter": "Adapter nötig",
+    "nowhere": "kommt nirgends an",
+    "patched": "Auf diesem Kabel",
+    "routes": "Geht im Pult weiter auf",
+    "noRoutes": "Nichts angehakt - geht im Pult nirgendwohin.",
+    "removeLink": "Kabel entfernen",
+    "dir": {
+      "in": "Eingang",
+      "out": "Ausgang",
+      "both": "Ein/Aus"
+    },
+    "signal": {
+      "audio": "Audio",
+      "usb-audio": "USB-Audio",
+      "midi": "MIDI",
+      "dmx": "DMX",
+      "net": "Netzwerk",
+      "light": "Licht"
+    },
+    "class": {
+      "sound": "Ton",
+      "midi": "MIDI",
+      "light": "Licht"
+    },
+    "atDevice": "an {{device}}",
+    "nobodyShort": "Niemand"
   }
 }
