@@ -220,7 +220,7 @@ export function DeviceLedgerView() {
       <div className="flex flex-col gap-2">
         {sorted.map((device) => {
           const info = deviceInfo.devices[device.id]
-          const appOpen = info ? now - info.lastSeenAt <= DEVICE_INFO_TIMEOUT_MS : false
+          const appOpen = info ? serverNow - info.lastSeenAt <= DEVICE_INFO_TIMEOUT_MS : false
           const used = usedBy(device.id)
 
           return (
