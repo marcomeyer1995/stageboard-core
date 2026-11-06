@@ -132,17 +132,25 @@ Neu seit der Karte (Marco, 2026-11-06); die Wege-Liste aus PR #705 bleibt bis da
 
 **Bedienen:** Normalansicht nur Geräte und Linien; Anschluss-Namen an den Linien für den gewählten Weg/das gewählte Gerät oder per Schalter „Anschlüsse“. Verbinden: Gerät antippen → am Anschluss „Verbinden“ → passende Ziele leuchten → Ziel antippen → Anschluss (und Kanal) wählen. Jeder verbindet die Anschlüsse seines eigenen Geräts; Ausrüstung, Anschlüsse und Modelle ändert der Admin.
 
-**Interne Wege eines Pults** (Marco, 2026-11-06): an jeder Verbindung **in** ein Pult hakt man an, auf welche Ausgänge sie weitergeht („Kanal 15 → Aux 1, Aux 2“). Das stellt nichts am Pult ein, es beschreibt nur, wie es eingestellt ist. Ohne Haken geht ein Pult-Eingang **nirgendwohin** – nie „alles überall“, damit der Klick nicht aus Annahme im Saal landet (docs/28); „Prüfen“ warnt, wenn Klick oder Ansagen auf Main gehen. Andere passive Ausrüstung (Interface, In-Ear-Sender) gibt ohne Haken alles weiter. Ein Pult mit Plugin kann sein echtes Routing später selbst liefern.
+**Routing-Matrix je Gerät** (Marco, 2026-11-06, ersetzt die Haken am Kabel): jedes Gerät, das routet oder mischt, hat eine Matrix – **Spalten = Eingänge, Zeilen = Ausgänge**, die Ausgangsnamen **rechts** fest („Ausgang ist rechts“). Ein gesetzter Punkt heißt: dieser Eingang geht auf diesen Ausgang; gezeichnet als Linie vom Eingang herunter bis zum Punkt und von dort nach rechts zum Ausgang (wie ein Steckfeld), statt nur eines Hakens. Am Handy scrollt das Raster seitlich, die Ausgänge bleiben stehen.
+- **Je Gerät festgelegt**, ob sein Routing änderbar ist: fest (In-Ear-Sender, Wedge, PA, Licht, Amp-Modeller) wird **grau angezeigt**, damit sichtbar bleibt, was wohin geht; frei mit Startwert (Pult **leer** – nie „alles überall“, damit der Klick nicht aus Annahme im Saal landet, docs/28; Interface USB → Out 1/2). Plugin-Modelle bringen ihr Routing mit.
+- Die Matrix beschreibt nur, wie das Gerät eingestellt ist; sie stellt am Pult nichts ein. „Prüfen“ soll warnen, wenn Klick oder Ansagen auf Main gehen.
+- Welche Signale auf einem Kabel laufen, folgt aus den Matrizen entlang des Wegs – jedes Kabel trägt sie auf der Karte.
+
+**Was ein Antippen zeigt** (Marco, 2026-11-06):
+- **Gerät:** nur seine Anschlüsse (rein und raus) und seine Matrix.
+- **Kabel, erstes Antippen:** seine beiden Enden (Quelle → Ziel, bei Zwei-Wege-Kabeln beide Endpunkte) und welche Signale darauf laufen.
+- **Kabel nochmal antippen oder ein Signal darauf antippen („Klick“):** der ganze Weg des Signals, von wo es kommt bis wo es ankommt.
 
 ## 7a. Virtuelle Anschlüsse und Soft-Patching (§0a)
 
 Zwei Ebenen:
 1. **Virtuelle Anschlüsse** (heute Logical Devices), band-weit und stabil: Ausgänge („Klick“, „Track“, „Ansagen“, „Kemper“, „Licht“, eigene wie „Klick Drums“) und Eingänge („Pedal“, docs/23). Songs, Cues, Widgets und Auslöser kennen nur diese Namen, nie ein Gerät oder Kabel.
-2. **Patch** (die Karte), je Aufbau: virtueller Anschluss → Gerät + physischer Anschluss (→ Weg bis zum Hörer). „Kemper“ im Proberaum: Redmi USB-C → Kemper USB; im Club: Redmi USB-C → UMC → MIDI Out → Kemper MIDI In. Die Songs bleiben gleich, nur der Patch wechselt.
+2. **Patch** (die Karte), je Aufbau: in der **Matrix des StageBoard-Geräts** – virtuelle Quellen (Klick, Kemper …) sind Spalten, physische Ausgänge Zeilen; physische Eingänge (USB-, Bluetooth-, WLAN-MIDI eines Pedals oder Keyboards) sind Spalten, virtuelle Eingänge („Pedal“) Zeilen. „Kemper“ im Proberaum: Redmi USB-C → Kemper USB; im Club: Redmi USB-C → UMC → MIDI Out → Kemper MIDI In. Die Songs bleiben gleich, nur der Patch wechselt.
 
 - Ein virtueller Ausgang darf auf **mehrere** Anschlüsse zugleich gepatcht sein (Klick auf Kais In-Ear und Svens Kopfhörer); jeder Patch-Punkt ist ein eigener physischer Weg mit eigener Korrektur.
 - Eingänge umgekehrt: ein physischer Anschluss (USB-MIDI des Pedals am Fire) → virtueller Eingang „Pedal“.
-- Auf der Karte trägt eine Verbindung, was auf sie gepatcht ist („Kemper“ an der MIDI-Linie, „Klick“ an der Kopfhörer-Linie).
+- Auf der Karte trägt jedes Kabel, welche Signale darüber laufen („Kemper“ an der MIDI-Linie, „Klick“ an Kopfhörer-, Pult- und In-Ear-Linie).
 - Die Standard-Karte (§0a) ist damit: Klick, Track, Ansagen auf den Lautsprecher jedes Geräts gepatcht.
 - Virtuelle Anschlüsse legt der Admin an (wie Band-Modelle).
 
