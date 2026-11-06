@@ -115,6 +115,7 @@ Wie heute (#491, docs/21 §9): ein Weg spielt um seinen gemessenen Rest früher.
 - Fire: in einer Aufnahme einige verschobene Klicks in den ersten Sekunden nach Play.
 - Der Restausgleich (`audio-native`) gilt je Route – mit Kopfhörer braucht der Fire einen eigenen Wert.
 - Ein Redmi-Start blieb 30 s bei −20 ms (zu wenige schnelle Uhr-Anfragen während der Downloads).
+- **Idee (Marco, 2026-11-06: nur notieren):** Die gelernte Extra-Reserve der nativen Ausgabe (`sb:audio:native-output-extra`) wächst nur (+50 ms je knappem Moment) und schrumpft nie – Drehen, Sperren, der 17-h-Lauf haben sie dauerhaft erhöht (Handy 200 ms, Redmi 150 ms, Fire 50 ms). Im Dauerlauf 2026-11-06 (1 h) blieb trotzdem immer Reserve übrig: kleinste Fire 149 ms, Redmi 131 ms, Handy 235 ms. Vorschlag: nach 30 min sauberem Spielen beim nächsten Start 50 ms weniger, nie unter 0. Gewinn: kürzerer Play-Vorlauf, kürzeres Warten von MIDI/Licht auf den Ton. Risiko: Pendeln bei Geräten, die selten knapp werden.
 
 - Oboe als Fremdbibliothek (Apache 2.0) oder AAudio direkt? Oboe bringt Rückfall auf OpenSL ES für Android < 8.1 und viele Geräte-Umgehungen – Vorschlag: Oboe.
 - Track-Daten in die native Engine: dekodiert über die Brücke (einfach, Speicher) oder nativ dekodieren (MediaCodec)?
