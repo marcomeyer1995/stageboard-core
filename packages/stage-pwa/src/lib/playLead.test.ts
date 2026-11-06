@@ -17,8 +17,8 @@ const { useShowStateStore } = await import('../store/useShowStateStore')
 afterEach(() => setPlayLead(undefined))
 
 describe('playLead', () => {
-  it('is 800 ms without a band setting, the band value otherwise - clamped to 200-3000', () => {
-    expect(playLeadMs()).toBe(800)
+  it('is 1000 ms without a band setting, the band value otherwise - clamped to 200-3000', () => {
+    expect(playLeadMs()).toBe(1000)
     setPlayLead(1200)
     expect(playLeadMs()).toBe(1200)
     setPlayLead(50)

@@ -30,8 +30,8 @@ beforeEach(() => {
 describe('PlayLeadSettings', () => {
   it('names the device that needed more than the setting, with the value to set', () => {
     render(<PlayLeadSettings />)
-    act(() => useDeviceInfoStore.setState({ deviceInfo: { devices: { fire: entry(943), redmi: entry(512) } } }))
-    expect(screen.getByText('Fire brauchte zuletzt 943 ms - Vorlauf auf mindestens 1000 ms erhöhen.')).toBeInTheDocument()
+    act(() => useDeviceInfoStore.setState({ deviceInfo: { devices: { fire: entry(1043), redmi: entry(512) } } }))
+    expect(screen.getByText('Fire brauchte zuletzt 1043 ms - Vorlauf auf mindestens 1100 ms erhöhen.')).toBeInTheDocument()
   })
 
   it('says it is enough when every device managed, and saves a new value band-wide', () => {

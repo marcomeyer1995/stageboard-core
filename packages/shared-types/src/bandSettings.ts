@@ -36,5 +36,7 @@ export const BandSettingsSchema = z.object({
 })
 export type BandSettings = z.infer<typeof BandSettingsSchema>
 
-export const DEFAULT_PLAY_LEAD_MS = 800
+/** 1000 ms (measured 2026-11-06): the Fire needed ~880 ms - Play arriving ~170 ms late, native output
+ * 611 ms - and played the first sound ~200 ms late at 800; at 1100 all three devices were in sync. */
+export const DEFAULT_PLAY_LEAD_MS = 1000
 export const PLAY_LEAD_LIMITS = { min: 200, max: 3000, step: 100 } as const
