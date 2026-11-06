@@ -84,3 +84,43 @@ describe('init', () => {
     consoleError.mockRestore()
   })
 })
+
+describe('live changes (2026-11-06: a full re-read per cue stalled the Fire ~600 ms each bar)', () => {
+  /** The mocked feed: init's listener, to hand changes to. */
+  function feed() {
+    const listeners: ((change: unknown) => void)[] = []
+    showLogChanges.mockReturnValue({ on: (_: string, listener: (change: unknown) => void) => listeners.push(listener), cancel: vi.fn() })
+    return (change: unknown) => listeners.forEach((listener) => listener(change))
+  }
+  const doc = (id: string, at: number) => ({ _id: `showlog:${id}`, _rev: '1-x', id, showId: 's1', type: 'show-started', at })
+
+  it('applies each change from its document - the log is read once, at the start', async () => {
+    const emit = feed()
+    getAllShowLogEvents.mockResolvedValue([doc('a', 100), doc('c', 300)])
+    await useShowLogStore.getState().init('band-a')
+
+    emit({ id: 'showlog:b', seq: 1, doc: doc('b', 200) })
+    emit({ id: 'showlog:d', seq: 2, doc: doc('d', 400) })
+    await Promise.resolve()
+    expect(useShowLogStore.getState().events.map((e) => e.id)).toEqual(['a', 'b', 'c', 'd'])
+
+    emit({ id: 'showlog:c', seq: 3, deleted: true, doc: { _id: 'showlog:c', _rev: '2-y', _deleted: true } })
+    emit({ id: 'showlog:a', seq: 4, doc: doc('a', 500) })
+    await Promise.resolve()
+    expect(useShowLogStore.getState().events.map((e) => e.id)).toEqual(['b', 'd', 'a'])
+    expect(getAllShowLogEvents).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps a change that lands while the first read runs', async () => {
+    const emit = feed()
+    let finish: (docs: unknown[]) => void = () => {}
+    getAllShowLogEvents.mockReturnValue(new Promise((resolve) => (finish = resolve)))
+    const loading = useShowLogStore.getState().init('band-a')
+    await Promise.resolve()
+    emit({ id: 'showlog:new', seq: 1, doc: doc('new', 900) })
+    finish([doc('old', 100), doc('new', 900)])
+    await loading
+
+    expect(useShowLogStore.getState().events.map((e) => e.id)).toEqual(['old', 'new'])
+  })
+})
