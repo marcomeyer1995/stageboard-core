@@ -27,7 +27,9 @@ Anlass: die gebaute Wege-Liste (PR #705) war Marco zu wenig – er will die **dy
 |---|---|
 | Karte | **jetzt bauen** (statt Schritt 4); die Liste bleibt als zweite Ansicht derselben Daten und als Start auf dem Handy; Karte im **Vollbild** mit Verschieben/Zoomen bis „Ganze Bühne“ |
 | Anschlüsse | jedes Gerät zeigt seine **Anschlüsse** je nach Fähigkeit (Kemper: DIN-MIDI oder USB-MIDI; Pult: Eingänge, USB-Audio …); verbunden wird **Anschluss mit Anschluss** (§7) |
-| Karte als Master | **die Karte konfiguriert** – sie ist die eine Quelle für Rollen, Logical Devices, den MIDI-Anschluss eines Plugins und die Latenzwerte; keine zweite Stelle, die widersprechen kann |
+| Karte als Master | **die Karte konfiguriert** – sie ist die eine Stelle, die entscheidet, wo ein virtueller Anschluss physisch herauskommt (Gerät, Anschluss, MIDI-Port des Plugins) und welche Latenzwerte gelten; keine zweite Stelle, die widersprechen kann |
+| Logical Devices | **bleiben** – als **virtuelle Anschlüsse** von StageBoard („Kemper“, „Licht“, „Klick“ …), die Songs, Cues, Widgets und Auslöser ansprechen; die Karte ist das **Soft-Patching** je Aufbau auf physische Anschlüsse (wie am Digitalpult); der feste Zielort (`executionTarget`) und die eigene Port-Einstellung im Plugin fallen weg (Marcos Idee, §7a) |
+| Klick/Track/Ansagen | **gewöhnliche virtuelle Ausgänge** – umbenennen und verdoppeln möglich („Klick Drums“ mit Einzähler, „Klick Band“ ohne) |
 | Regeln | **locker**: Signal und Richtung müssen passen, ein anderer Stecker nur Warnung („Adapter nötig“); streng (Kabelplanung) vielleicht später |
 | Eigene Modelle | **nur der Admin** legt Ausrüstung und Band-Modelle an |
 | Umfang Anschlüsse | am Ende **jeder physische Anschluss**, aber **optional**: eine Band legt nur an, was sie nutzt |
@@ -126,7 +128,20 @@ Heute: ein Gerät wählen → Wert. Im Plan: **ein Weg** (Gerät-Ausgang → Zie
 
 **Bedienen:** Normalansicht nur Geräte und Linien; Anschluss-Namen an den Linien für den gewählten Weg/das gewählte Gerät oder per Schalter „Anschlüsse“. Verbinden: Gerät antippen → am Anschluss „Verbinden“ → passende Ziele leuchten → Ziel antippen → Anschluss (und Kanal) wählen. Jeder verbindet die Anschlüsse seines eigenen Geräts; Ausrüstung, Anschlüsse und Modelle ändert der Admin.
 
+## 7a. Virtuelle Anschlüsse und Soft-Patching (§0a)
+
+Zwei Ebenen:
+1. **Virtuelle Anschlüsse** (heute Logical Devices), band-weit und stabil: Ausgänge („Klick“, „Track“, „Ansagen“, „Kemper“, „Licht“, eigene wie „Klick Drums“) und Eingänge („Pedal“, docs/23). Songs, Cues, Widgets und Auslöser kennen nur diese Namen, nie ein Gerät oder Kabel.
+2. **Patch** (die Karte), je Aufbau: virtueller Anschluss → Gerät + physischer Anschluss (→ Weg bis zum Hörer). „Kemper“ im Proberaum: Redmi USB-C → Kemper USB; im Club: Redmi USB-C → UMC → MIDI Out → Kemper MIDI In. Die Songs bleiben gleich, nur der Patch wechselt.
+
+- Ein virtueller Ausgang darf auf **mehrere** Anschlüsse zugleich gepatcht sein (Klick auf Kais In-Ear und Svens Kopfhörer); jeder Patch-Punkt ist ein eigener physischer Weg mit eigener Korrektur.
+- Eingänge umgekehrt: ein physischer Anschluss (USB-MIDI des Pedals am Fire) → virtueller Eingang „Pedal“.
+- Auf der Karte trägt eine Verbindung, was auf sie gepatcht ist („Kemper“ an der MIDI-Linie, „Klick“ an der Kopfhörer-Linie).
+- Die Standard-Karte (§0a) ist damit: Klick, Track, Ansagen auf den Lautsprecher jedes Geräts gepatcht.
+- Virtuelle Anschlüsse legt der Admin an (wie Band-Modelle).
+
 ## 8. Offen
 
-- Reihenfolge (§6) an die Karte anpassen: Datenmodell (Ausrüstung, Anschlüsse, Verbindungen, Aufbauten) und Karte vor der Einmess-Runde; wie die Konfiguration aus der Karte die heutigen Logical Devices ablöst.
+- Reihenfolge (§6) an die Karte anpassen: Datenmodell (Ausrüstung, Anschlüsse, Verbindungen, Patch, Aufbauten) und Karte vor der Einmess-Runde.
+- Interne Wege eines Pults (welcher Eingang auf welchen Ausgang/Aux geht): bei Plugin-Pulten bekannt, beim generischen Pult heute „alles überall“ – im Mockup hört der Saal darum auch den Klick aus Kanal 15.
 - Dialog für generische Ausrüstung/Band-Modelle im Detail; welche Anschlüsse die App auf Tablets selbst erkennt.
