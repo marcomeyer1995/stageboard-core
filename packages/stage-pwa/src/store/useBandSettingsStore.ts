@@ -3,6 +3,7 @@ import { create } from 'zustand'
 import type { BandSettings } from 'shared-types'
 import type { LocalChangesHandle } from '../lib/localChanges'
 import { setShowLogOff } from '../lib/showLogPolicy'
+import { setPlayLead } from '../lib/playLead'
 import { bandSettingsChanges, getAllBandSettings, putBandSettings, switchBandSettingsWorkspace } from '../lib/bandSettingsDb'
 
 interface BandSettingsState {
@@ -18,6 +19,7 @@ async function refresh(set: (partial: Partial<BandSettingsState>) => void) {
   const docs = await getAllBandSettings()
   const settings = docs.find((doc) => doc.id === 'band') ?? EMPTY
   setShowLogOff(settings.showLogOff)
+  setPlayLead(settings.playLeadMs)
   set({ settings })
 }
 
@@ -30,6 +32,7 @@ export const useBandSettingsStore = create<BandSettingsState>((set) => ({
     switchBandSettingsWorkspace(workspaceId)
     set({ settings: EMPTY })
     setShowLogOff(undefined)
+    setPlayLead(undefined)
     await refresh(set)
     changesHandle = bandSettingsChanges()
     changesHandle.on('change', coalesced(() => refresh(set)))

@@ -9,6 +9,7 @@ import { lockViewport } from './lib/lockViewport'
 import { initTheme } from './store/useThemeStore'
 import { installConsoleCapture } from './lib/debugLog'
 import { startLongFrameMonitor } from './lib/longFrameMonitor'
+import { startLeadCheck } from './lib/leadCheck'
 
 initTheme()
 lockViewport()
@@ -18,6 +19,8 @@ installBackGuard()
 installConsoleCapture()
 // Long frames with their cause, when switched on (docs/26).
 startLongFrameMonitor()
+// How much Play lead this device needs - reported, Bühne warns when the band's is too short.
+startLeadCheck()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

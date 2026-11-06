@@ -29,5 +29,12 @@ export const BandSettingsSchema = z.object({
   /** Categories the Nachbericht does not record (#673) - absent or empty: everything is recorded.
    * Kept as the list of what is OFF, so a category added later starts recorded. Admins only. */
   showLogOff: z.array(z.string()).optional(),
+  /** How far after Play the first sound of a fresh song lies, ms (PLAY_LEAD_LIMITS) - absent:
+   * DEFAULT_PLAY_LEAD_MS. Long enough for the Play to reach every device and for the slowest output
+   * to schedule it (Marco, 2026-11-06: set it in Bühne, a device that needed more says so). */
+  playLeadMs: z.number().int().optional(),
 })
 export type BandSettings = z.infer<typeof BandSettingsSchema>
+
+export const DEFAULT_PLAY_LEAD_MS = 800
+export const PLAY_LEAD_LIMITS = { min: 200, max: 3000, step: 100 } as const

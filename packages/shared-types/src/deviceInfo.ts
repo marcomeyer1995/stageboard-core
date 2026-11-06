@@ -40,6 +40,9 @@ export const DeviceInfoEntrySchema = z.object({
    * only, `null` whenever the LAN doesn't have a reverse-DNS record for it, which is the common
    * case on most consumer/venue networks and not an error. */
   hostname: z.string().nullable(),
+  /** The Play lead this device needed at its last fresh song start, ms (stage-pwa lib/playLead.ts) -
+   * absent from older apps. The Bühne tab warns when it is more than the band's setting. */
+  leadNeededMs: z.number().int().nonnegative().nullable().optional(),
 })
 export type DeviceInfoEntry = z.infer<typeof DeviceInfoEntrySchema>
 
@@ -71,5 +74,6 @@ export const DeviceInfoReportSchema = z.object({
   os: z.string().min(1),
   environment: z.enum(['browser', 'pwa', 'native']),
   syncStatus: z.enum(['idle', 'syncing', 'offline', 'error']),
+  leadNeededMs: z.number().int().nonnegative().nullable().optional(),
 })
 export type DeviceInfoReport = z.infer<typeof DeviceInfoReportSchema>

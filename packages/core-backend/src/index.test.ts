@@ -721,6 +721,15 @@ describe('Fastify routes', () => {
       expect(entry.syncStatus).toBe('syncing')
     })
 
+    it('passes the Play lead a device needed through (2026-11-06)', async () => {
+      await app.inject({
+        method: 'POST',
+        url: '/workspaces/band-a/device-info/report',
+        payload: { deviceId: 'device-1', os: 'Android', environment: 'native', syncStatus: 'idle', leadNeededMs: 943 },
+      })
+      expect(getDeviceInfoSnapshot('band-a').devices['device-1'].leadNeededMs).toBe(943)
+    })
+
     it('rejects a body missing required fields', async () => {
       const response = await app.inject({
         method: 'POST',

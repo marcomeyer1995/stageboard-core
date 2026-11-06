@@ -4,6 +4,7 @@ import { detectEnvironment } from './detectEnvironment'
 import { getDeviceId } from './deviceId'
 import { guessDeviceName } from './guessDeviceName'
 import { reportDeviceInfo } from './reportDeviceInfo'
+import { useLeadNeededStore } from './leadCheck'
 
 /** Comfortably inside DEVICE_INFO_TIMEOUT_MS (shared-types), same margin usePresenceReporter.ts
  * keeps against PRESENCE_TIMEOUT_MS. */
@@ -32,6 +33,7 @@ export function useDeviceInfoReporter(workspaceId: string): void {
         os: guessDeviceName(),
         environment: detectEnvironment(),
         syncStatus: deriveSyncStatus(useSyncStore.getState().streams, useSyncStore.getState().browserOffline),
+        leadNeededMs: useLeadNeededStore.getState().neededMs,
       })
     report()
     const interval = setInterval(report, REPORT_INTERVAL_MS)

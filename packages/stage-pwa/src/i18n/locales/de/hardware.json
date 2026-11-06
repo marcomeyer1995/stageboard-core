@@ -130,5 +130,15 @@
   "builtIn": {
     "playsOn": "{{label}} - spielt auf",
     "noneChosen": "Keins gewählt: {{fallback}}"
+  },
+  "lead": {
+    "title": "Vorlauf bei Play",
+    "explainLabel": "Erklärung: Vorlauf bei Play",
+    "explain": "So lange nach dem Drücken von Play beginnt ein neuer Song (mit Einzähler) auf allen Geräten gleichzeitig. Jedes Gerät braucht die Zeit, bis der Play-Befehl ankommt, plus die Verzögerung seiner Tonausgabe. Ist der Vorlauf zu kurz, kommen Klick und Ansage am Anfang auf diesem Gerät zu spät. Jedes Gerät misst bei jedem Play, was es gebraucht hätte - hier steht, wenn es mehr war.",
+    "label": "Vorlauf",
+    "value": "Vorlauf: {{ms}} ms",
+    "tooShort": "{{name}} brauchte zuletzt {{ms}} ms - Vorlauf auf mindestens {{suggest}} ms erhöhen.",
+    "enough": "Reicht: höchstens {{ms}} ms gebraucht ({{name}}).",
+    "notMeasured": "Noch nicht gemessen - jedes Gerät prüft es beim nächsten Play."
   }
 }

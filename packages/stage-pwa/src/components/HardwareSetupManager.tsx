@@ -18,6 +18,7 @@ import { OscInputButtonsDialog } from './OscInputButtons'
 import { OSC_INPUT_CAPABILITY } from '../lib/oscInput'
 import { pluginKind, pluginName } from '../lib/pluginCatalog'
 import { ActionMenu, AddRow, InfoHint } from './ui'
+import { PlayLeadSettings } from './PlayLeadSettings'
 import { useTranslation } from 'react-i18next'
 
 /**
@@ -171,6 +172,10 @@ export function HardwareSetupManager() {
 
       <div className="mb-6">
         <DeviceList onEdit={setEditing} onAdd={openBlankWizard} />
+      </div>
+
+      <div className="mb-6">
+        <PlayLeadSettings />
       </div>
 
       {editing !== undefined && (

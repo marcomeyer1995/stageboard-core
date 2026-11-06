@@ -1,4 +1,4 @@
-import type { PlaybackStatus, ShowState } from 'shared-types'
+import { DEFAULT_PLAY_LEAD_MS, type PlaybackStatus, type ShowState } from 'shared-types'
 
 export type { PlaybackStatus }
 
@@ -127,12 +127,7 @@ export interface PlayOptions {
   skipCountIn?: boolean
 }
 
-/** How far ahead of Play a fresh song start lies (docs/00 §4 "Ahead-of-Time Dispatch") - long
- * enough for the Play to reach every device over Wi-Fi and for each to schedule its audio. Solo
- * practice uses it too: its Web Audio track and stems need the same lead (2026-10-15).
- *
- * 800 ms since 2026-11-06 (Marco: fixed, not per band): with the native output a device hears its
- * audio its whole delay after scheduling it - the Fire 483 ms, the phone 379 ms. With 400 ms the
- * first click and the first announcement after Play could not be on time there: measured 100-300 ms
- * (Fire) and 55-190 ms (phone) late, the count-in announcement an audible echo against the Redmi. */
-export const PLAY_LEAD_MS = 800
+/** The Play lead without a band setting (docs/00 §4 "Ahead-of-Time Dispatch") - what a fresh song
+ * start uses is the band's value, playLead.ts. 400 ms until 2026-11-06: too short for the native
+ * output (Fire 483 ms delay), its first click and announcement came 100-300 ms late. */
+export const PLAY_LEAD_MS = DEFAULT_PLAY_LEAD_MS
