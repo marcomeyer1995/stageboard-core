@@ -105,11 +105,15 @@ Heute: ein Gerät wählen → Wert. Im Plan: **ein Weg** (Gerät-Ausgang → Zie
 
 ## 6. Reihenfolge
 
-1. **Datenmodell + Wege-Liste** im Tab „Bühne“ (heute „Bühnentechnik“): Wege (Gerät-Ausgang → Ziel) mit Wert, Zustand und Nutzern, nach Gerät gruppiert, das eigene hervorgehoben; „einmessen / abgleichen“ am Weg – ersetzt den verschachtelten Einstieg aus PR #700. Bestehende Latenzprofile werden zu Wegen.
-2. **Einmess-Runde** über die fehlenden Wege (Mikrofon, automatisch, nachprüfen).
-3. **Varianten** je Band, im Gig von Hand gewählt.
-4. **Karte** (schematisch) mit Aufbau/Prüfen.
-5. Pult als Sensor, Licht per Kamera.
+Neu seit der Karte (Marco, 2026-11-06); die Wege-Liste aus PR #705 bleibt bis dahin als Übergang.
+
+1. **Datenmodell** (`shared-types/src/stageMap.ts`): Ausrüstung, Anschlüsse, Verbindungen, Patch, Aufbauten, eingebaute generische Modelle, Standard-Karte, Wege je Signalart. Nur Daten, noch von nichts gelesen.
+2. **Umschalten, wer spielt:** Klick, Track, Ansagen und Plugins spielen dort, wo der Patch sagt, statt nach `executionTarget` bzw. „der Master spielt“. Ändert, was im Gig zu hören ist – erst nach Marcos Hörtest von #700–#705, gemeinsam auf den Geräten prüfen.
+3. **Karte und Liste in der App:** ansehen, bearbeiten, Vollbild, „Prüfen“.
+4. **Anschlüsse in den Plugin-Manifesten** (Kemper, CQ-18T).
+5. **Aufbau im Gig wählen.**
+6. **Einmess-Runde** über die fehlenden Wege (wartet, bis der Rest trägt).
+7. Pult als Sensor, Licht per Kamera.
 
 ## 7. Ausrüstung und Anschlüsse (§0a)
 
@@ -128,6 +132,8 @@ Heute: ein Gerät wählen → Wert. Im Plan: **ein Weg** (Gerät-Ausgang → Zie
 
 **Bedienen:** Normalansicht nur Geräte und Linien; Anschluss-Namen an den Linien für den gewählten Weg/das gewählte Gerät oder per Schalter „Anschlüsse“. Verbinden: Gerät antippen → am Anschluss „Verbinden“ → passende Ziele leuchten → Ziel antippen → Anschluss (und Kanal) wählen. Jeder verbindet die Anschlüsse seines eigenen Geräts; Ausrüstung, Anschlüsse und Modelle ändert der Admin.
 
+**Interne Wege eines Pults** (Marco, 2026-11-06): an jeder Verbindung **in** ein Pult hakt man an, auf welche Ausgänge sie weitergeht („Kanal 15 → Aux 1, Aux 2“). Das stellt nichts am Pult ein, es beschreibt nur, wie es eingestellt ist. Ohne Haken geht ein Pult-Eingang **nirgendwohin** – nie „alles überall“, damit der Klick nicht aus Annahme im Saal landet (docs/28); „Prüfen“ warnt, wenn Klick oder Ansagen auf Main gehen. Andere passive Ausrüstung (Interface, In-Ear-Sender) gibt ohne Haken alles weiter. Ein Pult mit Plugin kann sein echtes Routing später selbst liefern.
+
 ## 7a. Virtuelle Anschlüsse und Soft-Patching (§0a)
 
 Zwei Ebenen:
@@ -143,5 +149,4 @@ Zwei Ebenen:
 ## 8. Offen
 
 - Reihenfolge (§6) an die Karte anpassen: Datenmodell (Ausrüstung, Anschlüsse, Verbindungen, Patch, Aufbauten) und Karte vor der Einmess-Runde.
-- Interne Wege eines Pults (welcher Eingang auf welchen Ausgang/Aux geht): bei Plugin-Pulten bekannt, beim generischen Pult heute „alles überall“ – im Mockup hört der Saal darum auch den Klick aus Kanal 15.
 - Dialog für generische Ausrüstung/Band-Modelle im Detail; welche Anschlüsse die App auf Tablets selbst erkennt.
