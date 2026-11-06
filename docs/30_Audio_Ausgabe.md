@@ -167,8 +167,11 @@ Was bleibt: die Band-Zeit (docs/29), der Ausgleich je Weg (§5, docs/31), Web Au
 - **Störtests:** Drehen, Sperren, Wärme (lange laufen lassen), schwerer Bildschirm (Bibliothek scrollen), 3 h am Stück – kein fehlender Klick.
 - **Gleiche Ergebnisse beider Engines:** derselbe Plan offline in beiden gerechnet, Klickzeiten und Pegel verglichen (Testvektoren im Repo).
 
-### 8f. Offen
+### 8f. Entschieden (Marco, 2026-11-06)
 
-- Soll der Klick bei gesperrtem Bildschirm **weiterspielen**? Bisher stoppt er absichtlich (lieber synchron als unsauber im Hintergrund). Nativ wäre beides möglich; Android verlangt dafür einen Vordergrund-Dienst mit sichtbarer Benachrichtigung.
+- **Bei gesperrtem Bildschirm spielt es weiter.** Mit der WebView geht das nicht sauber – im Hintergrund bekommt sie nur noch vereinzelte Timer-Takte, daher stoppt der Klick dort heute absichtlich (lieber synchron als unsauber). Weiterspielen kommt also mit **N1** (Klick und Ansagen nativ); Android verlangt dafür einen Vordergrund-Dienst mit sichtbarer Benachrichtigung („StageBoard spielt“). Bis dahin bleibt das heutige Verhalten.
+
+### 8g. Offen
+
 - Läuft die Uhr-Synchronisation bei gesperrtem Bildschirm weiter (nativ), oder reicht der letzte Stand (Drift ~0,3 ms pro Minute)?
 - Aufwand N1 grob: Plan-Format und Brücke, Mischer mit Klick-Synthese und Clip-Wiedergabe, Wechsel Web Audio ↔ nativ, Tests – geschätzt 1–2 Wochen; N2 deutlich mehr.
