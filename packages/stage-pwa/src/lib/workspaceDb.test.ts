@@ -23,7 +23,7 @@ vi.mock('pouchdb-browser', () => ({
   },
 }))
 
-const { destroyLocalWorkspaceDb, localDbName, remoteDbUrl, startWorkspaceSync } = await import('./workspaceDb')
+const { destroyLocalWorkspaceDb, isStatusDocId, localDbName, remoteDbUrl, startWorkspaceSync } = await import('./workspaceDb')
 
 beforeEach(() => {
   constructed.length = 0
@@ -82,5 +82,20 @@ describe('startWorkspaceSync', () => {
   it('returns null without constructing a remote db when no Stage-Server is configured', () => {
     const result = startWorkspaceSync('band-a', { username: 'stageboard-band-a', password: 'secret-pw' })
     expect(result).toBeNull()
+  })
+})
+
+describe('isStatusDocId (2026-11-06: no sync symbol for the running show)', () => {
+  it('counts the show, its log, job progress and an align session as status', () => {
+    expect(isStatusDocId('show-state')).toBe(true)
+    expect(isStatusDocId('showlog:cue-s1-123-c1')).toBe(true)
+    expect(isStatusDocId('async-jobs:42')).toBe(true)
+    expect(isStatusDocId('alignment-session')).toBe(true)
+  })
+
+  it('everything saved in the Bibliothek and the settings is real', () => {
+    for (const id of ['songs:1', 'setlists:1', 'song-variants:1', 'dashboards:1', 'logical-devices:1', 'band-settings:main', 'show-protection:s1', 'practice-log:1']) {
+      expect(isStatusDocId(id)).toBe(false)
+    }
   })
 })
