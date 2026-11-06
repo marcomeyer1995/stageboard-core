@@ -1,6 +1,6 @@
 # 31 Bühnenplan – die Bühne als ein Bild (Konzept)
 
-Stand 2026-11-05, Konzept mit Marcos ersten Entscheidungen (§0). Anlass: beim Abgleich nach Gehör (PR #700) war der Weg Geräte → ⋯ → Latenz… → Abgleich zu verschachtelt; Marco: Abgleich gehört in einen späteren Bühnenplan mit sichtbarer Aufstellung, und der kann den Ablauf des Einmessens ändern – darum erst dieses Konzept, dann die automatische Einmess-Runde.
+Stand 2026-11-06, Konzept mit Marcos Entscheidungen (§0, §0a: Karte, Anschlüsse, Karte als Master). Anlass: beim Abgleich nach Gehör (PR #700) war der Weg Geräte → ⋯ → Latenz… → Abgleich zu verschachtelt; Marco: Abgleich gehört in einen späteren Bühnenplan mit sichtbarer Aufstellung, und der kann den Ablauf des Einmessens ändern – darum erst dieses Konzept, dann die automatische Einmess-Runde.
 
 Berührt drei Ideen, die dieselben Daten zeigen: **#62** (räumliche Bühnenmatrix), **#488** (Stage Plot und Input-Liste als PDF) und **docs/21 §4 / docs/30** (Ausgabewege mit Latenz, Abgleich, Einmessen). Dieser Bühnenplan nimmt nur die dritte auf; #62 und #488 bleiben eigene Themen (§0).
 
@@ -18,6 +18,21 @@ Berührt drei Ideen, die dieselben Daten zeigen: **#62** (räumliche Bühnenmatr
 | Maße | **nur schematisch** – keine Meter, keine Startwerte aus Abständen |
 | Varianten | **mehrere Aufbauten je Band** (Proberaum/Club/Festival), **im Gig von Hand gewählt** (der Master, wie die Setlist); Messwerte gehören zum Weg und gelten in jeder Variante |
 | Ohne Profil | **nur ansehen** – wer kein Profil gewählt hat, bearbeitet in „Bühne“ nichts |
+
+## 0a. Entscheidungen (Marco, 2026-11-06) – Karte, Anschlüsse, Karte als Master
+
+Anlass: die gebaute Wege-Liste (PR #705) war Marco zu wenig – er will die **dynamische Karte** jetzt, auf der man die Geräte so verbindet wie auf der Bühne. Klickbares Mockup: https://claude.ai/artifact/Q65gXy2yKuz2PU4cmvaZSG (Vollbild mit Verschieben/Zoomen fürs Handy, Anschlüsse, Beispiele Proberaum/Club/Neue Band).
+
+| Frage | Entscheidung |
+|---|---|
+| Karte | **jetzt bauen** (statt Schritt 4); die Liste bleibt als zweite Ansicht derselben Daten und als Start auf dem Handy; Karte im **Vollbild** mit Verschieben/Zoomen bis „Ganze Bühne“ |
+| Anschlüsse | jedes Gerät zeigt seine **Anschlüsse** je nach Fähigkeit (Kemper: DIN-MIDI oder USB-MIDI; Pult: Eingänge, USB-Audio …); verbunden wird **Anschluss mit Anschluss** (§7) |
+| Karte als Master | **die Karte konfiguriert** – sie ist die eine Quelle für Rollen, Logical Devices, den MIDI-Anschluss eines Plugins und die Latenzwerte; keine zweite Stelle, die widersprechen kann |
+| Regeln | **locker**: Signal und Richtung müssen passen, ein anderer Stecker nur Warnung („Adapter nötig“); streng (Kabelplanung) vielleicht später |
+| Eigene Modelle | **nur der Admin** legt Ausrüstung und Band-Modelle an |
+| Umfang Anschlüsse | am Ende **jeder physische Anschluss**, aber **optional**: eine Band legt nur an, was sie nutzt |
+| Umstieg | **leer anfangen, alte Verbindungs-Einstellungen entfallen** (wie beim starren Raster) |
+| Standard | statt unsichtbarem Verhalten eine **Standard-Karte**: hat eine Band keine, erzeugt die App sie aus den bekannten Geräten – **jedes Gerät spielt Klick, Track und Ansagen über den eigenen Lautsprecher für den, der darauf angemeldet ist**, **unabhängig vom Master** (ersetzt die heutige Gig-Regel „der Master spielt“); neue Geräte kommen genauso dazu; danach gewöhnliche Daten, von Hand korrigiert |
 
 ## 1. Was der Bühnenplan ist
 
@@ -94,6 +109,24 @@ Heute: ein Gerät wählen → Wert. Im Plan: **ein Weg** (Gerät-Ausgang → Zie
 4. **Karte** (schematisch) mit Aufbau/Prüfen.
 5. Pult als Sensor, Licht per Kamera.
 
-## 7. Offen
+## 7. Ausrüstung und Anschlüsse (§0a)
 
-- (zurzeit nichts – neue Fragen beim Bauen von Schritt 1)
+**Anschluss** = Stecker (DIN-5, USB-B/C, XLR, 6,3/3,5 mm, Ethernet, DMX, eingebaut, Funk) + Signale (Audio, USB-Audio, MIDI, DMX, Netzwerk, Licht) + Richtung (ein/aus/beides) + optional Kanäle (eine Gruppe „Eingänge 1–16“ statt 16 Punkte; beim Verbinden wählt man den Kanal). USB trägt mehrere Signale – eine Verbindung trägt die gemeinsamen Signale beider Enden (Redmi USB-C → UMC USB: USB-Audio und MIDI).
+
+**Woher die Ausrüstung kommt** (drei Schichten):
+1. **Generisch, eingebaut:** Mischpult (Zahl der Eingänge einstellbar), Audio-Interface, MIDI-Gerät, Amp-Modeller, In-Ear-Sender, Monitor/Wedge, PA, Licht, Person, Saal. Damit geht jede Band, auch ohne Plugin.
+2. **Aus Plugins:** ein Geräte-Plugin bringt sein Modell mit echten Anschlüssen mit (Kemper Player, CQ-18T) – im Manifest wie heute `timing`.
+3. **Band-Modelle (Admin):** generisches oder Plugin-Modell kopieren, Anschlüsse anpassen, speichern („unser UMC204HD“).
+
+**StageBoard-Geräte** bekommen ihre Anschlüsse aus dem, was die App erkennt (Lautsprecher, Kopfhörer, USB-C, Bluetooth). **Modell wechseln** (generisches Pult → CQ-18T nach Plugin-Installation) behält Verbindungen, wo das neue Modell einen Anschluss derselben Art hat.
+
+**Wege:** ein Weg beginnt an einem Anschluss eines StageBoard-Geräts und läuft je Signalart (Ton, MIDI, Licht) über passive Ausrüstung bis zu dem, der ihn hört/sieht; ein Gerät, das klingt (Kemper), führt einen MIDI-Weg als Ton weiter. **Je Weg genau eine Korrektur** (§0); der Wert gehört zum physischen Weg (Anschluss → Anschluss) und gilt in jedem Aufbau, in dem dieselbe Verbindung vorkommt. Ändert sich eine Verbindung im Weg: Wert bleibt, Zustand „Weg geändert – neu einmessen“.
+
+**Karte als Master:** eine Verbindung stellt ein, was sie bedeutet – „Redmi USB → Kemper USB“ heißt: das Kemper-Plugin sendet vom Redmi an den MIDI-Anschluss, den das Redmi unter dem Namen „Kemper Player“ sieht (Auflösung **nach Name**, wie heute bei MIDI); Rollen (Klick, Track, Ansagen) hängen an der Verbindung. Findet das Gerät den Anschluss nicht (nicht angesteckt), zeigt „Prüfen“ die Verbindung rot, die betroffenen Widgets gehen in den Disabled State. Wechsel des Aufbaus im Gig wechselt damit auch die Konfiguration; „Prüfen“ zeigt, was in einem Aufbau fehlt. Einstellungen, die keine Verbindung sind (Kemper-Presets), bleiben im Plugin; die alten Stellen für Verbindungen entfallen oder zeigen nur noch „eingestellt in Bühne“.
+
+**Bedienen:** Normalansicht nur Geräte und Linien; Anschluss-Namen an den Linien für den gewählten Weg/das gewählte Gerät oder per Schalter „Anschlüsse“. Verbinden: Gerät antippen → am Anschluss „Verbinden“ → passende Ziele leuchten → Ziel antippen → Anschluss (und Kanal) wählen. Jeder verbindet die Anschlüsse seines eigenen Geräts; Ausrüstung, Anschlüsse und Modelle ändert der Admin.
+
+## 8. Offen
+
+- Reihenfolge (§6) an die Karte anpassen: Datenmodell (Ausrüstung, Anschlüsse, Verbindungen, Aufbauten) und Karte vor der Einmess-Runde; wie die Konfiguration aus der Karte die heutigen Logical Devices ablöst.
+- Dialog für generische Ausrüstung/Band-Modelle im Detail; welche Anschlüsse die App auf Tablets selbst erkennt.
