@@ -15,6 +15,19 @@ export const FALLBACK_WINDOW_MS = 10_000
 export const FALLBACK_MISSING_MS = 200
 export const FALLBACK_EPISODES = 3
 export const FALLBACK_SPAN_MS = 120_000
+/**
+ * A locked screen is not a fault of the output (Marco, 2026-11-06): while the page is hidden the
+ * WebView barely runs, and after unlocking it delivers its audio unevenly while it catches up - on
+ * the Redmi that counted as three losses and switched the output. Hidden and this long after
+ * becoming visible again, nothing counts.
+ */
+export const LOCK_GRACE_MS = 5000
+
+/** Until when losses don't count, after the page became hidden (`hidden`) or visible again at `now`. */
+export function quietUntil(hidden: boolean, now: number): number {
+  return hidden ? Number.POSITIVE_INFINITY : now + LOCK_GRACE_MS
+}
+
 /** The first seconds after the output opens don't count - the start's load may cost a few frames. */
 export const FALLBACK_GRACE_MS = 15_000
 

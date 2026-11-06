@@ -2,7 +2,7 @@ import { registerPlugin } from '@capacitor/core'
 import type { AudioOutputHealth } from 'shared-types'
 import { create } from 'zustand'
 import { isNativeApp } from './native'
-import { FALLBACK_SPAN_MS, FALLBACK_WINDOW_MS, missingInWindowMs, shouldFallBack, trackLossEpisodes, type MissingSample } from './nativeOutputFallback'
+import { FALLBACK_SPAN_MS, FALLBACK_WINDOW_MS, missingInWindowMs, quietUntil, shouldFallBack, trackLossEpisodes, type MissingSample } from './nativeOutputFallback'
 
 /**
  * Native audio output (docs/30, Marco 2026-11-05: "pipe the mix"). Everything keeps playing on the
@@ -270,6 +270,8 @@ interface Pipe {
   /** The line over the last RATE_WINDOW_MS, for its slope. */
   history: { at: number; line: number }[]
   timer: ReturnType<typeof setInterval> | null
+  /** Stops watching the page's visibility (the lock grace, nativeOutputFallback.ts). */
+  unwatch: (() => void) | null
   closed: boolean
 }
 
@@ -365,7 +367,7 @@ async function attach(ctx: AudioContext): Promise<void> {
     const workerUrl = URL.createObjectURL(new Blob([WORKER_SOURCE], { type: 'text/javascript' }))
     const worker = new Worker(workerUrl)
     URL.revokeObjectURL(workerUrl)
-    const p: Pipe = { ctx, tap, worker, silent, rate: ctx.sampleRate, chunk, delayMs: null, line: null, history: [], timer: null, closed: false }
+    const p: Pipe = { ctx, tap, worker, silent, rate: ctx.sampleRate, chunk, delayMs: null, line: null, history: [], timer: null, unwatch: null, closed: false }
     pipe = p
     const started = await NativeOutput.start({ sampleRate: ctx.sampleRate })
     if (!started.started) throw new Error(started.error ?? 'start')
@@ -394,13 +396,27 @@ async function attach(ctx: AudioContext): Promise<void> {
     const startedAt = Date.now()
     healthSamples.length = 0
     const recent: MissingSample[] = []
+    let quiet = quietUntil(document.visibilityState === 'hidden', Date.now())
+    const onVisibility = () => {
+      quiet = quietUntil(document.visibilityState === 'hidden', Date.now())
+    }
+    document.addEventListener('visibilitychange', onVisibility)
+    p.unwatch = () => document.removeEventListener('visibilitychange', onVisibility)
     let episodes: number[] = []
     let lost: { at: number; ms: number }[] = []
     p.timer = setInterval(() => {
       void NativeOutput.status().then((s) => {
         if (p.closed) return
-        learnExtra(s.leadMinMs, extra)
         const now = Date.now()
+        // Screen locked, or just unlocked: what goes missing is the lock, not the output - no loss,
+        // no health sample, and no bigger reserve learned from it.
+        if (now < quiet) {
+          recent.length = 0
+          healthSamples.length = 0
+          useNativeOutputStore.setState({ status: s })
+          return
+        }
+        learnExtra(s.leadMinMs, extra)
         recent.push({ at: now, missing: s.missing ?? 0 })
         while (recent.length > 0 && recent[0]!.at < now - FALLBACK_WINDOW_MS) recent.shift()
         const tracked = trackLossEpisodes(episodes, recent, now, p.rate, startedAt)
@@ -439,6 +455,7 @@ function detach(): void {
   pipe = null
   p.closed = true
   if (p.timer) clearInterval(p.timer)
+  p.unwatch?.()
   rewire(p.ctx, null)
   p.worker.postMessage({ type: 'close' })
   p.tap.disconnect()

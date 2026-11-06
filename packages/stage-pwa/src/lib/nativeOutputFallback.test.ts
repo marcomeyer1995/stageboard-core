@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { FALLBACK_GRACE_MS, missingInWindowMs, shouldFallBack, trackLossEpisodes, type MissingSample } from './nativeOutputFallback'
+import { FALLBACK_GRACE_MS, LOCK_GRACE_MS, missingInWindowMs, quietUntil, shouldFallBack, trackLossEpisodes, type MissingSample } from './nativeOutputFallback'
 
 const RATE = 48000
 
@@ -52,5 +52,10 @@ describe('nativeOutputFallback', () => {
     const result = run(0, 60_000, (t) => (t <= 12_000 ? t * 4.8 : 57_600))
     expect(result.started).toEqual([])
     expect(FALLBACK_GRACE_MS).toBe(15_000)
+  })
+
+  it('a locked screen does not count - hidden, and 5 s after unlocking', () => {
+    expect(quietUntil(true, 1000)).toBe(Number.POSITIVE_INFINITY)
+    expect(quietUntil(false, 1000)).toBe(1000 + LOCK_GRACE_MS)
   })
 })
