@@ -315,7 +315,7 @@ export function addDeviceToMap(map: StageMap, device: { id: string; name: string
   const index = map.equipment.filter((e) => e.kind === 'stageboard').length
   const setups = map.setups.map((setup) => ({
     ...setup,
-    positions: { ...setup.positions, [equipmentId]: { x: 120 + index * 180, y: 420 }, [listenerId]: { x: 120 + index * 180, y: 220 } },
+    positions: { ...setup.positions, [equipmentId]: { x: 140 + index * 260, y: 420 }, [listenerId]: { x: 140 + index * 260, y: 200 } },
     links: [...setup.links, { id: linkId, from: { equipmentId, portId: SPEAKER_PORT }, to: { equipmentId: listenerId, portId: EARS_PORT }, signals: ['audio' as const] }],
     patch: [...setup.patch, ...virtualOutputIds.map((virtualPortId) => ({ virtualPortId, linkId }))],
   }))
