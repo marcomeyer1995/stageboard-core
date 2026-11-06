@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { assessVitals, audioClockVitals, summarizeVitals, type VitalsSnapshot } from './deviceVitals'
+import { assessVitals, audioClockVitals, countsAsStall, summarizeVitals, type VitalsSnapshot } from './deviceVitals'
 
 /** 40 s of clock reads every 250 ms; `speed` = audio ms per real ms, `blockMs` = render block size. */
 function clock(speed: number, blockMs = 0, lose: { atS: number; ms: number }[] = []) {
@@ -33,10 +33,24 @@ describe('audioClockVitals', () => {
     expect(Math.abs(v?.pct ?? 1)).toBeLessThan(0.05)
   })
 
+  it('a stalled page (one read in a second) on the Fire is not a loss - the clock did not stay behind', () => {
+    const reads = clock(1, 160).filter((r) => !(r.perf > 20_000 && r.perf < 21_000 && r.perf !== 20_750))
+    expect(audioClockVitals(reads, 40_000)?.losses).toBe(0)
+  })
+
   it('counts each stall the audio thread never caught up on', () => {
     const v = audioClockVitals(clock(1, 0, [{ atS: 12, ms: 120 }, { atS: 25, ms: 90 }]), 40_000)
     expect(v?.losses).toBe(2)
     expect(v?.worstLossMs).toBe(120)
+  })
+})
+
+describe('countsAsStall', () => {
+  it('the layout after a rotation is not a hang', () => {
+    expect(countsAsStall(10_300, [10_200])).toBe(false)
+    expect(countsAsStall(12_100, [10_200])).toBe(false)
+    expect(countsAsStall(13_000, [10_200])).toBe(true)
+    expect(countsAsStall(5000, [])).toBe(true)
   })
 })
 
@@ -64,7 +78,10 @@ describe('assessVitals', () => {
   it('Android saying memory is low is red; long frames and an unsure band clock are yellow', () => {
     expect(assessVitals({ ...CLEAN, native: { ...CLEAN.native!, lowMemory: true } }).level).toBe('error')
     expect(assessVitals({ ...CLEAN, stallsPerMin: 2 })).toEqual({ level: 'warning', issues: ['stalls'] })
-    expect(assessVitals({ ...CLEAN, clock: { ...CLEAN.clock, ageMs: 60_000 } }).issues).toEqual(['clockUnsure'])
+    // Slow samples are rejected while songs download (#698) - a minute without one is still fine.
+    expect(assessVitals({ ...CLEAN, clock: { ...CLEAN.clock, ageMs: 60_000 } }).issues).toEqual([])
+    expect(assessVitals({ ...CLEAN, clock: { ...CLEAN.clock, ageMs: 180_000 } }).issues).toEqual(['clockUnsure'])
+    expect(assessVitals({ ...CLEAN, clock: { ...CLEAN.clock, uncertaintyMs: 8 } }).issues).toEqual(['clockUnsure'])
   })
 
   it('a browser without the app: no memory, no band clock yet - nothing to complain about', () => {

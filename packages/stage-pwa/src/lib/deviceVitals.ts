@@ -40,17 +40,27 @@ const CLOCK_WINDOW_MS = 30_000
  * (the Fire renders in blocks of up to 160 ms, so its clock steps - the lowest lag of each second
  * stays flat while nothing is lost). */
 const CLOCK_LOSS_MS = 50
+/** A second needs this many reads to count (see audioClockVitals). */
+const MIN_READS_PER_SECOND = 2
+/** Seconds compared before and after a possible loss. */
+const LOSS_SPAN_S = 3
 /** The native output follows 0.25 % (its time line); more and its reserve runs empty. */
 const CLOCK_WARN_PCT = 0.25
 /** Frames this long count as the app standing still. */
 export const STALL_MS = 200
+/** A rotation (or any window size change) lays the whole app out anew - 200-300 ms on a tablet,
+ * expected and not a hang (2026-11-06: "App hängt" after every rotation). Frames this soon after
+ * one don't count. */
+export const RELAYOUT_GRACE_MS = 2000
 const NATIVE_READ_MS = 10_000
 const MINUTE_MS = 60_000
 /** Reserve below this is close to dropouts (nativeOutput.ts TIGHT_LEAD_MS). */
 const TIGHT_LEAD_MS = 30
 /** The band clock is unsure past this uncertainty, or when its last sample is this old. */
 const CLOCK_UNSURE_MS = 5
-const CLOCK_STALE_MS = 30_000
+/** The band clock holds its estimate between samples (it drifts ~0.3 ms a minute); while songs
+ * download, slow samples are rejected for a while (#698) - only this long without one is unsure. */
+const CLOCK_STALE_MS = 120_000
 
 export interface AudioClockVitals {
   /** How far the audio clock runs from real time, % (negative = slower). Null until 10 s are in. */
@@ -77,32 +87,53 @@ export interface VitalsSnapshot {
   clock: { offsetMs: number; uncertaintyMs: number | null; rttMs: number | null; ageMs: number | null }
 }
 
-/** Per-second lowest lag of the audio clock behind real time - the floor survives block rendering. */
+/**
+ * The audio clock against real time, from its reads: per second the lowest lag (survives the Fire's
+ * render blocks of up to 160 ms), seconds with fewer than 2 reads left out - a brief stall of the
+ * page (a rotation) left one read in a second, and on the Fire one block step looked like a loss.
+ * A loss counts only if the clock STAYS behind: the lowest lag of the 3 s after it against the 3 s
+ * before (2026-11-06: "Audio-Uhr unruhig" came and went with nothing lost).
+ */
 export function audioClockVitals(samples: readonly { perf: number; ctxMs: number }[], now: number): AudioClockVitals | null {
   const first = samples[0]
   if (!first) return null
-  const floors: { t: number; lag: number }[] = []
+  const seconds: { t: number; lag: number; n: number }[] = []
   for (const s of samples) {
     const t = Math.floor(s.perf / 1000)
     const lag = s.perf - first.perf - (s.ctxMs - first.ctxMs)
-    const last = floors[floors.length - 1]
-    if (last && last.t === t) last.lag = Math.min(last.lag, lag)
-    else floors.push({ t, lag })
+    const last = seconds[seconds.length - 1]
+    if (last && last.t === t) {
+      last.lag = Math.min(last.lag, lag)
+      last.n++
+    } else seconds.push({ t, lag, n: 1 })
   }
+  const floors = seconds.filter((second) => second.n >= MIN_READS_PER_SECOND)
+  const lowest = (from: number, to: number) => Math.min(...floors.slice(from, to).map((f) => f.lag))
   let losses = 0
   let worstLossMs = 0
-  for (let i = 1; i < floors.length; i++) {
-    const lost = floors[i]!.lag - floors[i - 1]!.lag
-    if (floors[i]!.t * 1000 >= now - MINUTE_MS && lost > CLOCK_LOSS_MS) {
+  for (let i = LOSS_SPAN_S; i + LOSS_SPAN_S <= floors.length; i++) {
+    const lost = lowest(i, i + LOSS_SPAN_S) - lowest(i - LOSS_SPAN_S, i)
+    if (lost <= CLOCK_LOSS_MS) continue
+    if (floors[i]!.t * 1000 >= now - MINUTE_MS) {
       losses++
       worstLossMs = Math.max(worstLossMs, Math.round(lost))
     }
+    // The same loss is behind every later "before" for a while - count it once.
+    i += LOSS_SPAN_S - 1
   }
   const recent = floors.filter((f) => f.t * 1000 >= now - CLOCK_WINDOW_MS)
   const a = recent[0]
   const b = recent[recent.length - 1]
-  const pct = a && b && b.t - a.t >= 10 ? -((b.lag - a.lag) / ((b.t - a.t) * 1000)) * 100 : null
-  return { pct: pct === null ? null : Math.round(pct * 100) / 100, losses, worstLossMs }
+  if (!a || !b || b.t - a.t < 10) return { pct: null, losses, worstLossMs }
+  const head = Math.min(...recent.slice(0, LOSS_SPAN_S).map((f) => f.lag))
+  const tail = Math.min(...recent.slice(-LOSS_SPAN_S).map((f) => f.lag))
+  const pct = -((tail - head) / ((b.t - a.t) * 1000)) * 100
+  return { pct: Math.round(pct * 100) / 100, losses, worstLossMs }
+}
+
+/** Whether a long frame starting at `at` (performance time) is a hang, not the layout after a rotation. */
+export function countsAsStall(at: number, relayoutTimes: readonly number[]): boolean {
+  return !relayoutTimes.some((r) => at >= r - 100 && at <= r + RELAYOUT_GRACE_MS)
 }
 
 export interface Assessment {
@@ -144,6 +175,7 @@ export function summarizeVitals(v: VitalsSnapshot): DeviceVitalsSummary {
 
 const clockSamples: { perf: number; ctxMs: number }[] = []
 const frames: { at: number; ms: number }[] = []
+const relayouts: number[] = []
 let framesWatched = false
 let native: VitalsSnapshot['native'] = null
 let lastCpu: { cpuMs: number; at: number } | null = null
@@ -202,8 +234,14 @@ export function startDeviceVitals(): void {
     const type = PerformanceObserver.supportedEntryTypes?.includes('long-animation-frame') ? 'long-animation-frame' : PerformanceObserver.supportedEntryTypes?.includes('longtask') ? 'longtask' : null
     if (type) {
       framesWatched = true
+      const relayout = () => {
+        relayouts.push(performance.now())
+        while (relayouts.length > 10) relayouts.shift()
+      }
+      window.addEventListener('resize', relayout)
+      window.addEventListener('orientationchange', relayout)
       new PerformanceObserver((list) => {
-        for (const entry of list.getEntries()) frames.push({ at: entry.startTime, ms: entry.duration })
+        for (const entry of list.getEntries()) if (countsAsStall(entry.startTime, relayouts)) frames.push({ at: entry.startTime, ms: entry.duration })
       }).observe({ type })
     }
   }
