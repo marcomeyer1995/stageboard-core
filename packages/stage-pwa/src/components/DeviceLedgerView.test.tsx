@@ -82,6 +82,20 @@ describe('DeviceLedgerView', () => {
     expect(screen.getByText('Ton: 120 ms Aussetzer in der letzten Minute')).toBeInTheDocument()
   })
 
+  it('shows the device condition and the audio fallback in red (the phone after 17 h, 2026-11-06)', () => {
+    const fellBack = { path: 'webview' as const, delayMs: null, missingMs: 0, jumps: 0, leadMinMs: null, fellBack: true }
+    const vitals = { level: 'error' as const, issues: ['audioFallback' as const, 'memoryTight' as const], memAvailMb: 250, audioClockPct: -0.6, stallsPerMin: 0, uptimeMin: 1055 }
+    useDeviceInfoStore.setState({ deviceInfo: { devices: { 'device-1': { ...DEVICE_INFO_ENTRY, audioOutput: fellBack, vitals } } } })
+    const { unmount } = render(<DeviceLedgerView />)
+    expect(screen.getByText('Ton im Notbetrieb über die WebView - die native Ausgabe verlor Ton')).toHaveClass('text-danger')
+    expect(screen.getByText('Ton im Notbetrieb · Speicher knapp')).toHaveClass('text-danger')
+    expect(screen.getByText('(250 MB frei, läuft seit 17 h)')).toBeInTheDocument()
+    unmount()
+    useDeviceInfoStore.setState({ deviceInfo: { devices: { 'device-1': { ...DEVICE_INFO_ENTRY, vitals: { ...vitals, level: 'ok', issues: [], uptimeMin: 5, memAvailMb: null } } } } })
+    render(<DeviceLedgerView />)
+    expect(screen.getByText('Zustand gut')).toBeInTheDocument()
+  })
+
   it('renders a device with its live diagnostic info', () => {
     render(<DeviceLedgerView />)
 

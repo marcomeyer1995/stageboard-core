@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { deriveSyncStatus, useSyncStore } from '../store/useSyncStore'
 import { detectEnvironment } from './detectEnvironment'
+import { summarizeVitals, vitalsSnapshot } from './deviceVitals'
 import { getDeviceId } from './deviceId'
 import { guessDeviceName } from './guessDeviceName'
 import { nativeOutputHealth } from './nativeOutput'
@@ -34,6 +35,7 @@ export function useDeviceInfoReporter(workspaceId: string): void {
         environment: detectEnvironment(),
         syncStatus: deriveSyncStatus(useSyncStore.getState().streams, useSyncStore.getState().browserOffline),
         audioOutput: nativeOutputHealth(),
+        vitals: summarizeVitals(vitalsSnapshot()),
       })
     report()
     const interval = setInterval(report, REPORT_INTERVAL_MS)

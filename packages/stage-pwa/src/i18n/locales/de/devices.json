@@ -115,6 +115,22 @@
     "dropouts": "Ton: {{ms}} ms Aussetzer in der letzten Minute",
     "jumps_one": "Ton: {{count}} Sprung in der letzten Minute",
     "jumps_other": "Ton: {{count}} Sprünge in der letzten Minute",
-    "tight": "Ton: Reserve knapp ({{ms}} ms)"
+    "tight": "Ton: Reserve knapp ({{ms}} ms)",
+    "fellBack": "Ton im Notbetrieb über die WebView - die native Ausgabe verlor Ton"
+  },
+  "vitals": {
+    "ok": "Zustand gut",
+    "uptime": "läuft seit {{h}} h",
+    "memFree": "{{mb}} MB frei",
+    "issue": {
+      "audioFallback": "Ton im Notbetrieb",
+      "audioMissing": "Ton-Aussetzer",
+      "audioClock": "Audio-Uhr unruhig",
+      "audioTight": "Ton-Reserve knapp",
+      "memoryLow": "Speicher voll",
+      "memoryTight": "Speicher knapp",
+      "stalls": "App hängt",
+      "clockUnsure": "Bandzeit unsicher"
+    }
   }
 }

@@ -728,6 +728,7 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
       networkReachable: deviceInfoStore.getSnapshot(workspaceId).devices[parsed.data.deviceId]?.networkReachable ?? null,
       hostname: deviceInfoStore.getSnapshot(workspaceId).devices[parsed.data.deviceId]?.hostname ?? null,
       audioOutput: parsed.data.audioOutput ?? null,
+      vitals: parsed.data.vitals ?? null,
     })
     return reply.status(204).send()
   })

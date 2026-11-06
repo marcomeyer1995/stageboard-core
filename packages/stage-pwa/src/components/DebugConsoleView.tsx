@@ -2,6 +2,7 @@ import i18n from '../i18n'
 import { useMemo, useState } from 'react'
 import { Segmented, Switch, Button, InfoHint } from './ui'
 import { CueTimingPanel } from './CueTimingPanel'
+import { DeviceVitalsPanel } from './DeviceVitalsPanel'
 import { SyncTestPanel } from './SyncTestPanel'
 import { DEBUG_FLAGS, debugFlagOn, entriesAsText, setDebugFlag, useDebugLogStore, type LogLevel } from '../lib/debugLog'
 import { INPUT_FREE } from './ui/styles'
@@ -53,6 +54,8 @@ export function DebugConsoleView() {
         <h2 className="text-xl font-bold text-ink">{t('dbg.title')}</h2>
         <InfoHint label={t('dbg.explainLabel')} text={t('dbg.explain')} />
       </header>
+
+      <DeviceVitalsPanel />
 
       <Segmented
         label={t('dbg.entries')}

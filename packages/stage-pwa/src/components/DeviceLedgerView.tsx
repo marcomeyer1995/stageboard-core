@@ -1,6 +1,6 @@
 import i18n from '../i18n'
 import { useEffect, useRef, useState } from 'react'
-import { DEVICE_INFO_TIMEOUT_MS, SERVER_EXECUTION_TARGET, type AudioOutputHealth, type Device, type LogicalDevice } from 'shared-types'
+import { DEVICE_INFO_TIMEOUT_MS, SERVER_EXECUTION_TARGET, type AudioOutputHealth, type Device, type DeviceVitalsSummary, type LogicalDevice } from 'shared-types'
 import { getServerTime } from '../lib/clockSync'
 import { useNow } from '../lib/useNow'
 import { useStageServerStatus } from '../lib/useStageServerStatus'
@@ -40,6 +40,14 @@ const TIGHT_LEAD_MS = 30
  * native output had no dropout, no jump and enough reserve; the WebView path is only named. */
 function AudioOutputLine({ health }: { health: AudioOutputHealth }) {
   const { t } = useTranslation('devices')
+  if (health.path === 'webview' && health.fellBack) {
+    return (
+      <span className="flex items-center gap-1.5 text-danger">
+        <StatusDot on={false} title={t('audioOut.fellBack')} />
+        {t('audioOut.fellBack')}
+      </span>
+    )
+  }
   if (health.path === 'webview') return <span>{t('audioOut.webview')}</span>
   const tight = health.leadMinMs !== null && health.leadMinMs < TIGHT_LEAD_MS
   const ok = health.missingMs === 0 && health.jumps === 0 && !tight
@@ -54,6 +62,21 @@ function AudioOutputLine({ health }: { health: AudioOutputHealth }) {
     <span className={`flex items-center gap-1.5 ${ok ? '' : 'text-danger'}`}>
       <StatusDot on={ok} title={text} />
       {text}
+    </span>
+  )
+}
+
+/** The device's own condition check (lib/deviceVitals.ts): the light and what is wrong, with the
+ * runtime and free memory that usually explain it (the phone after 17 h, 2026-11-06). */
+function VitalsLine({ vitals }: { vitals: DeviceVitalsSummary }) {
+  const { t } = useTranslation('devices')
+  const text = vitals.level === 'ok' ? t('vitals.ok') : vitals.issues.map((issue) => t(`vitals.issue.${issue}`)).join(' · ')
+  const extra = [vitals.memAvailMb !== null ? t('vitals.memFree', { mb: vitals.memAvailMb }) : null, vitals.uptimeMin >= 60 ? t('vitals.uptime', { h: Math.floor(vitals.uptimeMin / 60) }) : null].filter(Boolean).join(', ')
+  return (
+    <span className={`flex items-center gap-1.5 ${vitals.level === 'error' ? 'text-danger' : vitals.level === 'warning' ? 'text-warn' : ''}`}>
+      <StatusDot on={vitals.level === 'ok'} title={text} />
+      {text}
+      {extra && <span className="text-ink-faint">({extra})</span>}
     </span>
   )
 }
@@ -308,6 +331,7 @@ export function DeviceLedgerView() {
                     <span>{(ENVIRONMENTS as readonly string[]).includes(info.environment) ? t(`env.${info.environment as (typeof ENVIRONMENTS)[number]}`) : info.environment}</span>
                     <span>{(SYNC_STATES as readonly string[]).includes(info.syncStatus) ? t(`sync.${info.syncStatus as (typeof SYNC_STATES)[number]}`) : info.syncStatus}</span>
                     {info.audioOutput && appOpen && <AudioOutputLine health={info.audioOutput} />}
+                    {info.vitals && appOpen && <VitalsLine vitals={info.vitals} />}
                   </>
                 ) : (
                   <span className="text-ink-faint">{t('noData')}</span>

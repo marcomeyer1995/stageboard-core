@@ -2,6 +2,7 @@ import { registerPlugin } from '@capacitor/core'
 import type { AudioOutputHealth } from 'shared-types'
 import { create } from 'zustand'
 import { isNativeApp } from './native'
+import { FALLBACK_WINDOW_MS, missingInWindowMs, shouldFallBack, type MissingSample } from './nativeOutputFallback'
 
 /**
  * Native audio output (docs/30, Marco 2026-11-05: "pipe the mix"). Everything keeps playing on the
@@ -113,6 +114,9 @@ interface NativeOutputStore {
   delayMs: number | null
   status: NativeOutputStatus | null
   error: string | null
+  /** The native output lost too much audio and this device plays through the WebView instead,
+   * until the app restarts (nativeOutputFallback.ts) - the stored switch stays on. */
+  fellBack: { at: number; missingMs: number } | null
   setWanted: (wanted: boolean) => void
 }
 
@@ -132,6 +136,7 @@ export const useNativeOutputStore = create<NativeOutputStore>((set) => ({
   delayMs: null,
   status: null,
   error: null,
+  fellBack: null,
   setWanted: (wanted) => {
     try {
       localStorage.setItem(SWITCH_KEY, wanted ? '1' : '0')
@@ -265,7 +270,7 @@ const healthSamples: { at: number; missing: number; jumps: number; leadMinMs: nu
  */
 export function nativeOutputHealth(): AudioOutputHealth | null {
   if (!nativeOutputAvailable()) return null
-  if (!pipe || pipe.delayMs === null) return { path: 'webview', delayMs: null, missingMs: 0, jumps: 0, leadMinMs: null }
+  if (!pipe || pipe.delayMs === null) return { path: 'webview', delayMs: null, missingMs: 0, jumps: 0, leadMinMs: null, fellBack: useNativeOutputStore.getState().fellBack !== null }
   const first = healthSamples[0]
   const last = healthSamples[healthSamples.length - 1]
   const leads = healthSamples.map((h) => h.leadMinMs).filter((v): v is number => v !== null && v >= 0)
@@ -371,12 +376,21 @@ async function attach(ctx: AudioContext): Promise<void> {
     p.delayMs = Math.round(status.latencyMs + TRANSPORT_MS + Math.max(0, ctx.baseLatency * 1000 - 20) + extra)
     worker.postMessage({ type: 'delay', delayMs: p.delayMs })
     rewire(ctx, tap)
-    useNativeOutputStore.setState({ state: 'on', delayMs: p.delayMs, status })
+    useNativeOutputStore.setState({ state: 'on', delayMs: p.delayMs, status, fellBack: null })
     const startedAt = Date.now()
     healthSamples.length = 0
+    const recent: MissingSample[] = []
     p.timer = setInterval(() => {
       void NativeOutput.status().then((s) => {
+        if (p.closed) return
         learnExtra(s.leadMinMs, extra)
+        const now = Date.now()
+        recent.push({ at: now, missing: s.missing ?? 0 })
+        while (recent.length > 0 && recent[0]!.at < now - FALLBACK_WINDOW_MS) recent.shift()
+        if (shouldFallBack(recent, now, p.rate, startedAt)) {
+          fallBack(Math.round(missingInWindowMs(recent, now, p.rate)))
+          return
+        }
         // The first minute settles on purpose (the line takes the edge at once) - not a fault.
         if (Date.now() - startedAt >= SETTLE_MS) healthSamples.push({ at: Date.now(), missing: s.missing ?? 0, jumps: s.jumps ?? 0, leadMinMs: s.leadMinMs ?? null })
         while (healthSamples.length > 0 && healthSamples[0]!.at < Date.now() - HEALTH_WINDOW_MS) healthSamples.shift()
@@ -387,6 +401,13 @@ async function attach(ctx: AudioContext): Promise<void> {
     detach()
     useNativeOutputStore.setState({ state: store.wanted ? 'failed' : 'off', error: error instanceof Error ? error.message : String(error) })
   }
+}
+
+/** Back to the WebView's own output for the rest of this app run (nativeOutputFallback.ts). */
+function fallBack(missingMs: number): void {
+  console.error(`[native-output] ${missingMs} ms audio missing in ${FALLBACK_WINDOW_MS / 1000} s - switched to the WebView's output until the app restarts`)
+  detach()
+  useNativeOutputStore.setState({ fellBack: { at: Date.now(), missingMs } })
 }
 
 function detach(): void {
