@@ -96,6 +96,8 @@ const LINE_SLEW_MS_PER_S = 0.5
  * reserve shrinks. Jumping at 20 ms moved everything already scheduled by the stall (+22 ms on the
  * phone, the click took 5 s to come back, 2026-11-05). */
 const LINE_JUMP_MS = 100
+/** All arrivals this long past the line by more than LINE_JUMP_MS: a lasting shift (see the worker). */
+const SHIFT_HOLD_MS = 2000
 /** The window the line's slope (the audio clock's rate) is read over. */
 const RATE_WINDOW_MS = 30_000
 /** How long to wait for the stream's first timestamp before choosing the delay. */
@@ -193,7 +195,7 @@ registerProcessor('sb-native-output', Tap)
  * fast lagged ever further behind, 2026-11-05), and a few seconds of late arrivals (load at a song
  * start) must not lift it. The line moves with that slope and is pulled to the edge slowly. */
 const WORKER_SOURCE = `
-let ws = null, rate = 48000, delayMs = null, line = null, lineAt = 0, startedAt = 0, buckets = [], slope = 0, fitAt = 0, c = null
+let ws = null, rate = 48000, delayMs = null, line = null, lineAt = 0, startedAt = 0, buckets = [], slope = 0, fitAt = 0, c = null, aboveSince = null, aboveMin = 0
 function theilSen(points) {
   const s = []
   for (let i = 0; i < points.length; i++) for (let j = i + 1; j < points.length; j++) s.push((points[j].min - points[i].min) / (points[j].t - points[i].t))
@@ -214,6 +216,13 @@ onmessage = (e) => {
 function chunk(first, pcm) {
   const now = Date.now(), frames = pcm.length / 2
   const v = now - (first + frames) * 1000 / rate
+  // Every arrival held far behind the line: the WebView's clock lost time for good (a rotation on
+  // the Redmi stopped it ~0.5 s, 2026-11-06) - the edge of the last minute is from before and would
+  // keep the line there for a minute, every frame "late". Start the fit again from the shift.
+  if (line !== null && v - line > c.lineJumpMs) {
+    if (aboveSince === null) { aboveSince = now; aboveMin = v } else aboveMin = Math.min(aboveMin, v)
+    if (now - aboveSince >= c.shiftHoldMs) { buckets = [{ t: Math.floor(now / 1000) * 1000, min: aboveMin }]; line = aboveMin; aboveSince = null }
+  } else aboveSince = null
   const second = Math.floor(now / 1000) * 1000, last = buckets[buckets.length - 1]
   if (last && last.t === second) last.min = Math.min(last.min, v)
   else buckets.push({ t: second, min: v })
@@ -242,6 +251,11 @@ function chunk(first, pcm) {
   ws.send(msg)
 }
 `
+
+const WORKER_CONSTANTS = { settleMs: SETTLE_MS, fitWindowMs: FIT_WINDOW_MS, minBuckets: MIN_FIT_SECONDS, maxSlope: MAX_LINE_SLOPE, edgeQuantile: EDGE_QUANTILE, lineJumpMs: LINE_JUMP_MS, lineSlewMsPerS: LINE_SLEW_MS_PER_S, shiftHoldMs: SHIFT_HOLD_MS }
+
+/** Test-only: the worker's source and constants, to run it with simulated arrivals. */
+export const __nativeOutputWorkerForTests = { source: WORKER_SOURCE, constants: WORKER_CONSTANTS }
 
 interface Pipe {
   ctx: AudioContext
@@ -363,7 +377,7 @@ async function attach(ctx: AudioContext): Promise<void> {
       }
     })
     const channel = new MessageChannel()
-    const constants = { settleMs: SETTLE_MS, fitWindowMs: FIT_WINDOW_MS, minBuckets: MIN_FIT_SECONDS, maxSlope: MAX_LINE_SLOPE, edgeQuantile: EDGE_QUANTILE, lineJumpMs: LINE_JUMP_MS, lineSlewMsPerS: LINE_SLEW_MS_PER_S }
+    const constants = WORKER_CONSTANTS
     worker.postMessage({ type: 'init', rate: ctx.sampleRate, url: `ws://127.0.0.1:${started.port}/${started.token}`, port: channel.port1, constants }, [channel.port1])
     tap.port.postMessage({ port: channel.port2 }, [channel.port2])
     await opened
