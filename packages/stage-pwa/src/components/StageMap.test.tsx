@@ -30,6 +30,7 @@ function setUp(isAdmin: boolean) {
   map.equipment.push(mixer)
   map.setups[0]!.positions.pult = { x: 400, y: 600 }
   map.setups[0]!.links.push({ id: 'cable', from: { equipmentId: `device:${me}`, portId: 'headphones' }, to: { equipmentId: 'pult', portId: 'in', channel: 15 }, signals: ['audio'] })
+  map.setups[0]!.routing[`device:${me}`] = [{ from: { kind: 'virtual', virtualPortId: 'klick' }, to: { kind: 'port', portId: 'headphones' } }]
   useStageMapStore.setState({ ...map, loaded: true, updateSetup, saveEquipment })
   useDevicesStore.setState({
     loaded: true,
@@ -56,10 +57,12 @@ beforeEach(() => {
 })
 
 describe('StageMap (docs/31 §7)', () => {
-  it('shows the default map - who is signed in where, and what is patched on each speaker - and writes nothing', () => {
+  it('every cable is labelled with the signals its matrices route over it - and opening the map writes nothing', () => {
     setUp(false)
     render(<StageMap />)
-    expect(screen.getAllByText('Klick · Track · Ansagen')).toHaveLength(2)
+    // Fire keeps its default routing; Redmi routes only the click, to its headphones.
+    expect(screen.getAllByText('Klick · Track · Ansagen')).toHaveLength(1)
+    expect(screen.getAllByText('Klick')).toHaveLength(1)
     expect(screen.getByText('an Fire')).toBeInTheDocument()
     expect(updateSetup).not.toHaveBeenCalled()
     expect(saveEquipment).not.toHaveBeenCalled()
@@ -76,18 +79,27 @@ describe('StageMap (docs/31 §7)', () => {
     expect(screen.queryByRole('button', { name: 'Löschen' })).toBeNull()
   })
 
-  it('a cable into the mixer reaches nobody until an output is ticked, and the tick is written', () => {
+  it('a device shows its interfaces and its routing matrix; a tick in the mixer is written for this setup', () => {
     setUp(true)
     render(<StageMap />)
     fireEvent.click(screen.getByRole('switch', { name: 'Bearbeiten' }))
-    tapNode('Redmi')
-    fireEvent.click(screen.getByRole('button', { name: '→ Pult · Eingänge 15' }))
-    expect(screen.getByText('Nichts angehakt - geht im Pult nirgendwohin.')).toBeInTheDocument()
-    expect(screen.getByText(/kommt nirgends an/)).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Aux / Monitor 1' }))
+    tapNode('Pult')
+    expect(screen.getByRole('group', { name: 'Routing von Pult' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('switch', { name: 'Eingang 15 → Aux 1' }))
     expect(updateSetup).toHaveBeenCalledTimes(1)
     const [, patch] = updateSetup.mock.calls[0]!
     const after = patch(useStageMapStore.getState().setups[0])
-    expect(after.links.find((l: { id: string }) => l.id === 'cable').routes).toEqual([{ portId: 'aux', channel: 1 }])
+    expect(after.routing.pult).toEqual([{ from: { kind: 'port', portId: 'in', channel: 15 }, to: { kind: 'port', portId: 'aux', channel: 1 } }])
+  })
+
+  it('a cable: first its two ends and what runs on it, tapped again the whole way of each signal', () => {
+    setUp(false)
+    render(<StageMap />)
+    tapNode('Redmi')
+    fireEvent.click(screen.getByRole('button', { name: '→ Pult · Eingang 15' }))
+    expect(screen.getByText('Redmi · Kopfhörer → Pult · Eingang 15')).toBeInTheDocument()
+    expect(screen.queryByText(/kommt nirgends an/)).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Klick (Redmi)' }))
+    expect(screen.getByText('kommt nirgends an')).toBeInTheDocument()
   })
 })

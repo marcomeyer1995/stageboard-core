@@ -1,4 +1,4 @@
-import { addDeviceToMap, DEFAULT_VIRTUAL_OUTPUTS, defaultStageMap, type StageEquipment, type StageMap, type StageSetup } from 'shared-types'
+import { addDeviceToMap, defaultStageMap, type StageEquipment, type StageMap, type StageSetup } from 'shared-types'
 
 /** A device not seen for this long is no longer added to the map (an old tablet cluttered the
  * path list, 2026-11-05). */
@@ -14,14 +14,13 @@ export interface StageMapDefaultWrites {
 
 /**
  * What to write so every current device is on the map the default way (docs/31 §0a, decision 6):
- * a band without a map gets the default map; a device new to the map gets its speaker cable with
- * Klick, Track and Ansagen in every setup. A device already on the map is left as the band set it.
+ * a band without a map gets the default map; a device new to the map gets its speaker cable (its
+ * matrix routes Klick, Track and Ansagen there) in every setup. A device already on the map is left as the band set it.
  */
 export function stageMapDefaults(map: StageMap, devices: readonly { id: string; name: string; lastSeenAt?: number; revoked?: boolean }[], ownDeviceId: string, now = Date.now()): StageMapDefaultWrites {
   const current = devices.filter((d) => !d.revoked && (d.id === ownDeviceId || d.lastSeenAt === undefined || now - d.lastSeenAt <= STALE_MS))
-  const outputs = DEFAULT_VIRTUAL_OUTPUTS.map((v) => v.id)
   if (map.setups.length === 0) {
-    const fresh = defaultStageMap(current, outputs)
+    const fresh = defaultStageMap(current)
     const known = new Set(map.equipment.map((e) => e.id))
     return { equipment: fresh.equipment.filter((e) => !known.has(e.id)), newSetups: fresh.setups, addTo: [] }
   }
@@ -30,19 +29,18 @@ export function stageMapDefaults(map: StageMap, devices: readonly { id: string; 
   const addTo: StageMapDefaultWrites['addTo'] = []
   for (const device of missing) {
     const before = grown
-    grown = addDeviceToMap(grown, device, outputs)
+    grown = addDeviceToMap(grown, device)
     const added = grown.equipment.slice(before.equipment.length)
     for (const setup of map.setups) {
       const target = grown.setups.find((s) => s.id === setup.id)!
       const link = target.links[target.links.length - 1]!
-      const patch = target.patch.filter((p) => p.linkId === link.id)
       const positions = Object.fromEntries(added.map((e) => [e.id, target.positions[e.id]!]))
       addTo.push({
         setupId: setup.id,
         apply: (fresh) =>
           fresh.links.some((l) => l.id === link.id)
             ? fresh
-            : { ...fresh, positions: { ...positions, ...fresh.positions }, links: [...fresh.links, link], patch: [...fresh.patch, ...patch] },
+            : { ...fresh, positions: { ...positions, ...fresh.positions }, links: [...fresh.links, link] },
       })
     }
   }

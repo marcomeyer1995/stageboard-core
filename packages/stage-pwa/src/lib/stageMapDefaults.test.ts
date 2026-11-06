@@ -18,12 +18,11 @@ describe('stage map defaults (docs/31 decision 6)', () => {
 
   it('a new device gets its speaker cable in every setup, without touching what the band changed', () => {
     const base = defaultStageMap([{ id: 'redmi', name: 'Redmi' }])
-    const map: StageMap = { ...base, setups: [...base.setups, { id: 'club', name: 'Club', positions: {}, links: [], patch: [] }] }
+    const map: StageMap = { ...base, setups: [...base.setups, { id: 'club', name: 'Club', positions: {}, links: [], routing: {} }] }
     const writes = stageMapDefaults(map, [{ id: 'redmi', name: 'Redmi', lastSeenAt: now }, { id: 'fire', name: 'Fire', lastSeenAt: now }], 'redmi', now)
     expect(writes.equipment.map((e) => e.id)).toEqual(['device:fire', 'listener:fire'])
     const club = writes.addTo.find((w) => w.setupId === 'club')!.apply(map.setups[1]!)
     expect(club.links.map((l) => l.id)).toEqual(['default:fire'])
-    expect(club.patch.map((p) => p.virtualPortId)).toEqual(['klick', 'track', 'ansagen'])
     // Applied twice (two tablets at once): still one cable.
     expect(writes.addTo.find((w) => w.setupId === 'club')!.apply(club)).toBe(club)
   })

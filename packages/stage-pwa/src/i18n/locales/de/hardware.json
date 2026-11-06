@@ -182,9 +182,6 @@
     "deleteConfirm": "„{{name}}“ aus allen Aufbauten löschen?",
     "adapter": "Adapter nötig",
     "nowhere": "kommt nirgends an",
-    "patched": "Auf diesem Kabel",
-    "routes": "Geht im Pult weiter auf",
-    "noRoutes": "Nichts angehakt - geht im Pult nirgendwohin.",
     "removeLink": "Kabel entfernen",
     "dir": {
       "in": "Eingang",
@@ -205,6 +202,13 @@
       "light": "Licht"
     },
     "atDevice": "an {{device}}",
-    "nobodyShort": "Niemand"
+    "nobodyShort": "Niemand",
+    "matrix": "Routing",
+    "matrixFixed": "fest, nicht änderbar",
+    "matrixOf": "Routing von {{name}}",
+    "onCable": "Auf diesem Kabel",
+    "nothingOnCable": "Kein Signal - nichts ist hierhin geroutet.",
+    "showWay": "Ganzen Weg zeigen",
+    "reaches": "kommt an bei: {{who}}"
   }
 }

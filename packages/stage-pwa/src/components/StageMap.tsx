@@ -5,13 +5,19 @@ import {
   CAPABILITIES,
   DEFAULT_VIRTUAL_OUTPUTS,
   DRIVER_KINDS,
+  effectiveRouting,
   equipmentFrom,
   portFit,
   SIGNAL_CLASS,
-  stagePaths,
+  signalFlows,
+  virtualPortClass,
+  virtualPortIsInput,
+  type MatrixPoint,
   type Port,
   type PortRef,
   type SignalClass,
+  type SignalFlow,
+  type VirtualPort,
   type StageEquipment,
   type StageLink,
   type StageSetup,
@@ -26,7 +32,9 @@ import { usePresenceStore } from '../store/usePresenceStore'
 import { useProfilesStore } from '../store/useProfilesStore'
 import { useStageMapStore } from '../store/useStageMapStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
-import { AddRow, Badge, Button, IconButton, InfoHint, Segmented, Switch, ToggleChip } from './ui'
+import { samePoint } from '../lib/matrixPoint'
+import { RoutingMatrix, type MatrixLine } from './RoutingMatrix'
+import { AddRow, Badge, Button, IconButton, InfoHint, Segmented, Switch } from './ui'
 
 /** The map's own coordinates - positions are stored in these. */
 const W = 1000
@@ -40,7 +48,9 @@ const CLASS_STROKE: Record<SignalClass, string> = { sound: 'stroke-accent', midi
  * Logical Devices are not offered twice. */
 const BUILT_IN_CAPABILITIES: readonly string[] = [CAPABILITIES.clickTrack, CAPABILITIES.audioPlayback, CAPABILITIES.sectionAnnouncements]
 
-type Selection = { kind: 'node'; id: string } | { kind: 'link'; id: string } | null
+/** What a tap shows (Marco, 2026-11-06): a device its interfaces and matrix; a cable first its two
+ * ends, tapped again (`chain`) the full way of every signal on it; a signal its full way. */
+type Selection = { kind: 'node'; id: string } | { kind: 'link'; id: string; chain: boolean } | { kind: 'signal'; key: string; linkId: string } | null
 interface ViewBox {
   x: number
   y: number
@@ -65,8 +75,8 @@ function fitView(points: { x: number; y: number }[]): ViewBox {
 const portOf = (equipment: StageEquipment | undefined, portId: string): Port | undefined => equipment?.ports.find((p) => p.id === portId)
 
 /**
- * The stage map (docs/31 §7): the band's equipment, the cables between their ports, and what is
- * patched onto them - per setup. Pan and zoom with a finger or the mouse, fullscreen on the phone.
+ * The stage map (docs/31 §7): the band's equipment, the cables between their ports, and per setup
+ * every device's routing matrix - which signal runs where follows from them. Pan and zoom with a finger or the mouse, fullscreen on the phone.
  * Editing: everyone wires their own device, the admin everything else. Nothing decides who plays
  * what from this yet (docs/31 §6, step 2).
  */
@@ -117,7 +127,6 @@ export function StageMap() {
   const onStage = useMemo(() => (setup ? equipment.filter((e) => setup.positions[e.id]) : []), [equipment, setup])
   const offStage = useMemo(() => (setup ? equipment.filter((e) => !setup.positions[e.id]) : []), [equipment, setup])
   const positionOf = (id: string) => (dragPos?.id === id ? dragPos : (setup?.positions[id] ?? autoPosition(0)))
-  const paths = useMemo(() => (setup ? stagePaths({ equipment, setups }, setup.id) : []), [equipment, setups, setup])
 
   // The first view: the whole stage; again when the setup changes.
   const fittedFor = useRef<string | null>(null)
@@ -142,14 +151,18 @@ export function StageMap() {
   }
   const title = (e: StageEquipment) => (e.listener?.kind === 'signed-in' ? (personName(presence.devices[e.listener.deviceId]?.profileId) ?? t('map.nobodyShort')) : e.name)
 
-  const virtualOutputs = useMemo(
+  // The band's virtual ports: Klick, Track, Ansagen and every other Logical Device.
+  const virtualPorts: VirtualPort[] = useMemo(
     () => [
-      ...DEFAULT_VIRTUAL_OUTPUTS.map((v) => ({ id: v.id, name: v.name })),
-      ...logicalDevices.filter((d) => !BUILT_IN_CAPABILITIES.includes(d.capability)).map((d) => ({ id: d.id, name: d.name })),
+      ...DEFAULT_VIRTUAL_OUTPUTS.map((v) => ({ id: v.id, name: v.name, signalClass: virtualPortClass(v.capability), input: false })),
+      ...logicalDevices
+        .filter((d) => !BUILT_IN_CAPABILITIES.includes(d.capability))
+        .map((d) => ({ id: d.id, name: d.name, signalClass: virtualPortClass(d.capability), input: virtualPortIsInput(d.capability) })),
     ],
     [logicalDevices],
   )
-  const virtualName = (id: string) => virtualOutputs.find((v) => v.id === id)?.name ?? id
+  const flows = useMemo(() => (setup ? signalFlows({ equipment, setups }, setup.id, virtualPorts) : []), [equipment, setups, setup, virtualPorts])
+  const flowsOn = (linkId: string) => flows.filter((f) => f.hops.some((h) => h.linkId === linkId))
 
   // Who may change what: the admin everything, everyone else the cables of their own device.
   const signedIn = myProfileId !== ''
@@ -200,7 +213,7 @@ export function StageMap() {
     const link: StageLink = { id: crypto.randomUUID(), from, to, signals: fit.signals }
     await updateSetup(setup.id, (s) => ({ ...s, links: [...s.links, link] }))
     setConnectFrom(null)
-    setSelection({ kind: 'link', id: link.id })
+    setSelection({ kind: 'link', id: link.id, chain: false })
   }
 
   // Pan, pinch and drag - pointer events in map coordinates.
@@ -333,7 +346,9 @@ export function StageMap() {
       const positions = { ...s.positions }
       delete positions[itemId]
       const gone = s.links.filter((l) => l.from.equipmentId === itemId || l.to.equipmentId === itemId).map((l) => l.id)
-      return { ...s, positions, links: s.links.filter((l) => !gone.includes(l.id)), patch: s.patch.filter((p) => !gone.includes(p.linkId)) }
+      const routing = { ...s.routing }
+      delete routing[itemId]
+      return { ...s, positions, routing, links: s.links.filter((l) => !gone.includes(l.id)) }
     })
   const addSetup = async () => {
     if (!setup) return
@@ -351,34 +366,69 @@ export function StageMap() {
     setSetupId(null)
   }
 
-  const removeLink = (link: StageLink) =>
-    setup && void updateSetup(setup.id, (s) => ({ ...s, links: s.links.filter((l) => l.id !== link.id), patch: s.patch.filter((p) => p.linkId !== link.id) })).then(() => setSelection(null))
-  const togglePatch = (link: StageLink, virtualPortId: string, on: boolean) =>
+  const removeLink = (link: StageLink) => setup && void updateSetup(setup.id, (s) => ({ ...s, links: s.links.filter((l) => l.id !== link.id) })).then(() => setSelection(null))
+  // A tick in a free matrix: the setup keeps the device's whole crosspoint list from then on.
+  const toggleCross = (item: StageEquipment, from: MatrixPoint, to: MatrixPoint, on: boolean) =>
     setup &&
-    void updateSetup(setup.id, (s) => ({
-      ...s,
-      patch: on ? [...s.patch.filter((p) => !(p.linkId === link.id && p.virtualPortId === virtualPortId)), { virtualPortId, linkId: link.id }] : s.patch.filter((p) => !(p.linkId === link.id && p.virtualPortId === virtualPortId)),
-    }))
-  const toggleRoute = (link: StageLink, route: { portId: string; channel?: number }, on: boolean) =>
-    setup &&
-    void updateSetup(setup.id, (s) => ({
-      ...s,
-      links: s.links.map((l) => {
-        if (l.id !== link.id) return l
-        const same = (r: { portId: string; channel?: number }) => r.portId === route.portId && r.channel === route.channel
-        const routes = (l.routes ?? []).filter((r) => !same(r))
-        return { ...l, routes: on ? [...routes, route] : routes }
-      }),
-    }))
+    void updateSetup(setup.id, (s) => {
+      const current = effectiveRouting(item, s).filter((c) => !(samePoint(c.from, from) && samePoint(c.to, to)))
+      return { ...s, routing: { ...s.routing, [item.id]: on ? [...current, { from, to }] : current } }
+    })
+
+  // The rows and columns of a device's matrix: physical ports, one line per channel, and on a
+  // StageBoard device its virtual sources (columns) and virtual inputs (rows).
+  const matrixOf = (item: StageEquipment): { columns: MatrixLine[]; rows: MatrixLine[] } => {
+    const lines = (ports: Port[]): MatrixLine[] =>
+      ports.flatMap((p) =>
+        p.channels
+          ? Array.from({ length: p.channels }, (_, i) => ({ key: `${p.id}#${i + 1}`, label: `${p.name} ${i + 1}`, point: { kind: 'port' as const, portId: p.id, channel: i + 1 } }))
+          : [{ key: p.id, label: p.name, point: { kind: 'port' as const, portId: p.id } }],
+      )
+    const virtualLines = (input: boolean): MatrixLine[] =>
+      DRIVER_KINDS.includes(item.kind) ? virtualPorts.filter((v) => v.input === input).map((v) => ({ key: `v:${v.id}`, label: v.name, point: { kind: 'virtual' as const, virtualPortId: v.id } })) : []
+    return {
+      columns: [...virtualLines(false), ...lines(item.ports.filter((p) => p.direction !== 'out'))],
+      rows: [...lines(item.ports.filter((p) => p.direction !== 'in')), ...virtualLines(true)],
+    }
+  }
+
+  // A signal's way, cable by cable: "Redmi Dev · Kopfhörer → Pult · Eingang 15".
+  // Branch by branch: each cable followed by the cables leaving where it arrives.
+  const wayOf = (flow: SignalFlow) => {
+    const ordered: SignalFlow['hops'] = []
+    const visit = (equipmentId: string) => {
+      for (const hop of flow.hops) {
+        if (hop.from.equipmentId !== equipmentId || ordered.includes(hop)) continue
+        ordered.push(hop)
+        visit(hop.to.equipmentId)
+      }
+    }
+    visit(flow.originEquipmentId)
+    return [...ordered, ...flow.hops.filter((h) => !ordered.includes(h))].map((h) => `${portLabel(h.from)} → ${portLabel(h.to)}`)
+  }
+  const endsOf = (flow: SignalFlow) => [
+    ...flow.listenerIds.map(listenerName),
+    ...flow.virtualInputs.map((v) => `${byId.get(v.equipmentId)?.name ?? ''} · ${virtualPorts.find((p) => p.id === v.virtualPortId)?.name ?? v.virtualPortId}`),
+  ]
+  const signalLabel = (flow: SignalFlow) => {
+    const origin = byId.get(flow.originEquipmentId)
+    return DRIVER_KINDS.includes(origin?.kind ?? 'person') ? `${flow.name} (${origin?.name ?? ''})` : flow.name
+  }
 
   if (!loaded || !setup) return <p className="mb-6 text-base text-ink-muted">{t('map.loading')}</p>
 
   const selectedNode = selection?.kind === 'node' ? byId.get(selection.id) : undefined
-  const selectedLink = selection?.kind === 'link' ? setup.links.find((l) => l.id === selection.id) : undefined
+  const selectedLink = selection?.kind === 'link' || selection?.kind === 'signal' ? setup.links.find((l) => l.id === (selection.kind === 'link' ? selection.id : selection.linkId)) : undefined
+  // The signals whose full way is shown: all on a cable tapped twice, or the one tapped.
+  const chainFlows = selection?.kind === 'signal' ? flows.filter((f) => f.key === selection.key) : selection?.kind === 'link' && selection.chain && selectedLink ? flowsOn(selectedLink.id) : []
   const highlighted = new Set<string>()
-  if (selectedLink) for (const p of paths) if (p.linkIds.includes(selectedLink.id)) p.linkIds.forEach((id) => highlighted.add(id))
+  for (const f of chainFlows) f.hops.forEach((h) => highlighted.add(h.linkId))
+  if (selectedLink && chainFlows.length === 0) highlighted.add(selectedLink.id)
   if (selectedNode) for (const l of setup.links) if (l.from.equipmentId === selectedNode.id || l.to.equipmentId === selectedNode.id) highlighted.add(l.id)
-  const linkLabel = (l: StageLink) => setup.patch.filter((p) => p.linkId === l.id).map((p) => virtualName(p.virtualPortId))
+  const linkLabel = (l: StageLink) => {
+    const names = [...new Set(flowsOn(l.id).map((f) => f.name))]
+    return names.length > 3 ? [...names.slice(0, 2), `+${names.length - 2}`] : names
+  }
 
   return (
     <section className={full ? 'fixed inset-0 z-takeover flex flex-col bg-stage p-2' : 'mb-6'}>
@@ -443,7 +493,9 @@ export function StageMap() {
                 onPointerDown={(e) => e.stopPropagation()}
                 onPointerUp={(e) => {
                   e.stopPropagation()
-                  if (!connectFrom) setSelection({ kind: 'link', id: l.id })
+                  if (connectFrom) return
+                  // Tapped again: the full way of every signal on it.
+                  setSelection((prev) => (prev?.kind === 'link' && prev.id === l.id ? { ...prev, chain: true } : { kind: 'link', id: l.id, chain: false }))
                 }}
               />
               {labels.length > 0 && (
@@ -509,7 +561,7 @@ export function StageMap() {
                       <span className="font-semibold">{port.name}</span>
                       <span className="text-ink-muted"> · {t(`map.dir.${port.direction}`)} · {port.signals.map((s) => t(`map.signal.${s}`)).join(', ')}</span>
                       {cables.map((l) => (
-                        <button key={l.id} type="button" className="block text-left text-ink-soft underline" onClick={() => setSelection({ kind: 'link', id: l.id })}>
+                        <button key={l.id} type="button" className="block text-left text-ink-soft underline" onClick={() => setSelection({ kind: 'link', id: l.id, chain: false })}>
                           {l.from.equipmentId === selectedNode.id ? `→ ${portLabel(l.to)}` : `← ${portLabel(l.from)}`}
                         </button>
                       ))}
@@ -521,6 +573,29 @@ export function StageMap() {
                 )
               })}
             </ul>
+            {selectedNode.routing && (() => {
+              const { columns, rows } = matrixOf(selectedNode)
+              if (columns.length === 0 || rows.length === 0) return null
+              const crosspoints = effectiveRouting(selectedNode, setup)
+              const fixedRouting = selectedNode.routing.mode === 'fixed'
+              return (
+                <div className="flex flex-col gap-1">
+                  <span className="text-base font-semibold">
+                    {t('map.matrix')}
+                    {fixedRouting && <span className="font-normal text-ink-muted"> · {t('map.matrixFixed')}</span>}
+                  </span>
+                  <RoutingMatrix
+                    label={t('map.matrixOf', { name: title(selectedNode) })}
+                    columns={columns}
+                    rows={rows}
+                    routed={(from, to) => crosspoints.some((c) => samePoint(c.from, from) && samePoint(c.to, to))}
+                    fixed={fixedRouting}
+                    editable={selectedNode.kind === 'stageboard' || selectedNode.kind === 'stage-server' ? canWire(selectedNode) : canGear}
+                    onToggle={(from, to, on) => toggleCross(selectedNode, from, to, on)}
+                  />
+                </div>
+              )
+            })()}
             {canGear && (
               <div className="flex flex-wrap gap-2">
                 <Button icon="rename" onClick={() => void renameEquipment(selectedNode)}>
@@ -539,22 +614,18 @@ export function StageMap() {
 
         {selectedLink && (
           <LinkPanel
-            link={selectedLink}
-            from={portLabel(selectedLink.from)}
-            to={portLabel(selectedLink.to)}
+            ends={[portLabel(selectedLink.from), portLabel(selectedLink.to)]}
+            twoWay={portOf(byId.get(selectedLink.from.equipmentId), selectedLink.from.portId)?.direction === 'both' && portOf(byId.get(selectedLink.to.equipmentId), selectedLink.to.portId)?.direction === 'both'}
             adapter={(() => {
               const a = portOf(byId.get(selectedLink.from.equipmentId), selectedLink.from.portId)
               const b = portOf(byId.get(selectedLink.to.equipmentId), selectedLink.to.portId)
               return a && b ? (portFit(a, b)?.adapter ?? false) : false
             })()}
-            paths={paths.filter((p) => p.linkIds.includes(selectedLink.id)).map((p) => ({ key: p.key, cls: p.signalClass, listeners: p.listenerIds.map(listenerName) }))}
-            patchable={DRIVER_KINDS.includes(byId.get(selectedLink.from.equipmentId)?.kind ?? 'person')}
-            virtualOutputs={virtualOutputs}
-            patched={setup.patch.filter((p) => p.linkId === selectedLink.id).map((p) => p.virtualPortId)}
-            mixerOutputs={byId.get(selectedLink.to.equipmentId)?.kind === 'mixer' ? byId.get(selectedLink.to.equipmentId)!.ports.filter((p) => p.direction !== 'in') : null}
-            editable={canWireLink(selectedLink)}
-            onPatch={(id, on) => togglePatch(selectedLink, id, on)}
-            onRoute={(route, on) => toggleRoute(selectedLink, route, on)}
+            signals={flowsOn(selectedLink.id).map((f) => ({ key: f.key, label: signalLabel(f), selected: selection?.kind === 'signal' && selection.key === f.key }))}
+            chains={chainFlows.map((f) => ({ key: f.key, label: signalLabel(f), cls: f.signalClass, way: wayOf(f), ends: endsOf(f) }))}
+            onSignal={(key) => setSelection({ kind: 'signal', key, linkId: selectedLink.id })}
+            onChain={() => setSelection({ kind: 'link', id: selectedLink.id, chain: true })}
+            removable={canWireLink(selectedLink)}
             onRemove={() => removeLink(selectedLink)}
           />
         )}
@@ -587,71 +658,58 @@ export function StageMap() {
 }
 
 function LinkPanel(props: {
-  link: StageLink
-  from: string
-  to: string
+  ends: [string, string]
+  twoWay: boolean
   adapter: boolean
-  paths: { key: string; cls: SignalClass; listeners: string[] }[]
-  patchable: boolean
-  virtualOutputs: { id: string; name: string }[]
-  patched: string[]
-  mixerOutputs: Port[] | null
-  editable: boolean
-  onPatch: (virtualPortId: string, on: boolean) => void
-  onRoute: (route: { portId: string; channel?: number }, on: boolean) => void
+  signals: { key: string; label: string; selected: boolean }[]
+  chains: { key: string; label: string; cls: SignalClass; way: string[]; ends: string[] }[]
+  onSignal: (key: string) => void
+  onChain: () => void
+  removable: boolean
   onRemove: () => void
 }) {
   const { t } = useTranslation('hardware')
-  const { link } = props
-  const routed = (portId: string, channel?: number) => (link.routes ?? []).some((r) => r.portId === portId && r.channel === channel)
   return (
     <div className="flex flex-col gap-3 rounded-container border border-line p-3">
       <div className="flex flex-wrap items-center gap-2">
         <span className="min-w-0 text-lg font-bold">
-          {props.from} → {props.to}
+          {props.ends[0]} {props.twoWay ? '↔' : '→'} {props.ends[1]}
         </span>
         {props.adapter && <Badge tone="warning">{t('map.adapter')}</Badge>}
       </div>
-      <ul className="flex flex-col gap-1">
-        {props.paths.map((p) => (
-          <li key={p.key} className="text-base">
-            <span className="font-semibold">{t(`map.class.${p.cls}`)}</span>
-            <span className="text-ink-muted"> → {p.listeners.length > 0 ? p.listeners.join(', ') : t('map.nowhere')}</span>
-          </li>
-        ))}
-      </ul>
-      {props.patchable && (
-        <div className="flex flex-col gap-1">
-          <span className="text-base font-semibold">{t('map.patched')}</span>
+      <div className="flex flex-col gap-1">
+        <span className="text-base font-semibold">{t('map.onCable')}</span>
+        {props.signals.length === 0 ? (
+          <span className="text-base text-ink-muted">{t('map.nothingOnCable')}</span>
+        ) : (
           <div className="flex flex-wrap gap-2">
-            {props.virtualOutputs.map((v) => (
-              <ToggleChip key={v.id} label={v.name} selected={props.patched.includes(v.id)} disabled={!props.editable} onToggle={(on) => props.onPatch(v.id, on)} />
+            {props.signals.map((s) => (
+              <Button key={s.key} variant={s.selected ? 'primary' : 'secondary'} onClick={() => props.onSignal(s.key)}>
+                {s.label}
+              </Button>
             ))}
-          </div>
-        </div>
-      )}
-      {props.mixerOutputs && (
-        <div className="flex flex-col gap-1">
-          <span className="text-base font-semibold">{t('map.routes')}</span>
-          {!link.routes?.length && <span className="text-base text-ink-muted">{t('map.noRoutes')}</span>}
-          <div className="flex flex-wrap gap-2">
-            {props.mixerOutputs.flatMap((port) =>
-              port.channels
-                ? Array.from({ length: port.channels }, (_, i) => (
-                    <ToggleChip
-                      key={`${port.id}${i + 1}`}
-                      label={`${port.name} ${i + 1}`}
-                      selected={routed(port.id, i + 1)}
-                      disabled={!props.editable}
-                      onToggle={(on) => props.onRoute({ portId: port.id, channel: i + 1 }, on)}
-                    />
-                  ))
-                : [<ToggleChip key={port.id} label={port.name} selected={routed(port.id)} disabled={!props.editable} onToggle={(on) => props.onRoute({ portId: port.id }, on)} />],
+            {props.chains.length === 0 && (
+              <Button variant="quiet" onClick={props.onChain}>
+                {t('map.showWay')}
+              </Button>
             )}
           </div>
+        )}
+      </div>
+      {props.chains.map((c) => (
+        <div key={c.key} className="flex flex-col gap-1">
+          <span className="text-base font-semibold">
+            {c.label} <span className="font-normal text-ink-muted">· {t(`map.class.${c.cls}`)}</span>
+          </span>
+          <ol className="flex flex-col gap-0.5 pl-3 text-base">
+            {c.way.map((step, i) => (
+              <li key={i}>{step}</li>
+            ))}
+          </ol>
+          <span className="pl-3 text-base text-ink-muted">{c.ends.length > 0 ? t('map.reaches', { who: c.ends.join(', ') }) : t('map.nowhere')}</span>
         </div>
-      )}
-      {props.editable && (
+      ))}
+      {props.removable && (
         <div>
           <Button variant="danger" icon="delete" onClick={props.onRemove}>
             {t('map.removeLink')}
