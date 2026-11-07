@@ -84,20 +84,25 @@ describe('StageMap (docs/31 §7)', () => {
     expect(container.querySelector('section')).toHaveAttribute('data-no-tab-swipe')
   })
 
-  it('the admin sets up the mixer: network added, saved on this mixer (2026-11-07)', async () => {
+  it('the admin lists a mixer\'s ports freely: a mono-jack Aux group added, cables kept (2026-11-07)', async () => {
     setUp(true)
     render(<StageMap />)
     fireEvent.click(screen.getByRole('switch', { name: 'Bearbeiten' }))
     tapNode('Pult')
-    fireEvent.click(screen.getByRole('button', { name: 'Einrichten' }))
-    expect(screen.getByRole('dialog', { name: 'Pult einrichten' })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('switch', { name: 'Netzwerk (LAN/WLAN)' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Anschlüsse' }))
+    expect(screen.getByRole('dialog', { name: 'Anschlüsse: Pult' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Anschluss hinzufügen' }))
+    const names = screen.getAllByLabelText('Name')
+    fireEvent.change(names[names.length - 1]!, { target: { value: 'Mono Out' } })
+    const plugs = screen.getAllByLabelText('Stecker')
+    fireEvent.change(plugs[plugs.length - 1]!, { target: { value: 'jack-6.3-ts' } })
     fireEvent.click(screen.getByRole('button', { name: 'Speichern' }))
     await vi.waitFor(() => expect(saveEquipment).toHaveBeenCalled())
-    const saved = saveEquipment.mock.calls[0]![0] as { id: string; ports: { id: string }[] }
+    const saved = saveEquipment.mock.calls[0]![0] as { id: string; ports: { id: string; connector: string }[] }
     expect(saved.id).toBe('pult')
-    expect(saved.ports.map((p) => p.id)).toEqual(['in', 'main', 'aux', 'net'])
-    // Nothing on the map stopped fitting - no cable touched.
+    expect(saved.ports.map((p) => p.id)).toEqual(['in', 'main', 'aux', 'mono-out'])
+    expect(saved.ports[3]!.connector).toBe('jack-6.3-ts')
+    // The cable on input 15 still fits - nothing on the map touched.
     expect(updateSetup).not.toHaveBeenCalled()
   })
 

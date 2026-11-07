@@ -14,10 +14,9 @@ import {
   type StageLink,
   type StageMap,
   type VirtualPort,
-  mixerPorts,
-  mixerSetupOf,
   pruneForPorts,
   channelNumber,
+  numberPorts,
   linkPlaceholder,
   mergeEquipmentInSetup,
 } from './stageMap.js'
@@ -153,36 +152,7 @@ describe('routing and signal flows', () => {
   })
 })
 
-describe('mixer setup (Marco, 2026-11-07)', () => {
-  const generic = BUILTIN_MODELS.find((m) => m.id === 'mixer')!
-
-  it('reads the generic mixer and gives the same ports back', () => {
-    const setup = mixerSetupOf(generic.ports)
-    expect(setup).toMatchObject({ comboInputs: 16, xlrInputs: 0, auxes: 4, usbIn: 0, usbOut: 0, headphones: 0, network: false })
-    expect(mixerPorts(setup).map((p) => p.id)).toEqual(generic.ports.map((p) => p.id))
-  })
-
-  it('a Ui24R: 10 combo then 10 XLR numbered 11-20, two headphone outs, USB with its own count each way', () => {
-    const setup = { ...mixerSetupOf(generic.ports), comboInputs: 10, xlrInputs: 10, headphones: 2, usbIn: 2, usbOut: 22, network: true, midiDin: true, stereoInputs: 1, groups: 1 }
-    const ports = mixerPorts(setup)
-    const xlr = ports.find((p) => p.id === 'in-xlr')!
-    expect(xlr).toMatchObject({ connector: 'xlr', channels: 10, firstChannel: 11 })
-    expect(channelNumber(xlr, 1)).toBe(11)
-    expect(ports.find((p) => p.id === 'in')).toMatchObject({ connector: 'xlr-jack', channels: 10 })
-    expect(ports.find((p) => p.id === 'usb-in')).toMatchObject({ connector: 'usb-b', direction: 'in', channels: 2 })
-    expect(ports.find((p) => p.id === 'usb-out')).toMatchObject({ connector: 'usb-b', direction: 'out', channels: 22 })
-    expect(ports.find((p) => p.id === 'phones')?.channels).toBe(2)
-    expect(ports.find((p) => p.id === 'group')?.channels).toBeUndefined()
-    expect(mixerSetupOf(ports)).toEqual(setup)
-  })
-
-  it('a tablet plugs into the desk\'s USB-B both ways', () => {
-    const tabletUsb = BUILTIN_MODELS.find((m) => m.id === 'tablet')!.ports.find((p) => p.id === 'usb')!
-    const ports = mixerPorts({ ...mixerSetupOf(generic.ports), usbIn: 2, usbOut: 2 })
-    expect(portFit(tabletUsb, ports.find((p) => p.id === 'usb-in')!)).not.toBeNull()
-    expect(portFit(ports.find((p) => p.id === 'usb-out')!, tabletUsb)).not.toBeNull()
-  })
-
+describe('changing a port list (Marco, 2026-11-07)', () => {
   it('fewer inputs drop the cables and matrix points that no longer fit - nothing else', () => {
     const setup = {
       id: 's',
@@ -194,10 +164,21 @@ describe('mixer setup (Marco, 2026-11-07)', () => {
       ],
       routing: { pult: [{ from: { kind: 'port' as const, portId: 'in', channel: 15 }, to: { kind: 'port' as const, portId: 'aux', channel: 1 } }] },
     }
-    const ports = mixerPorts({ ...mixerSetupOf(generic.ports), comboInputs: 8 })
+    const ports = [
+      { id: 'in', name: 'Eingang', connector: 'xlr-jack' as const, signals: ['audio' as const], direction: 'in' as const, channels: 8 },
+      { id: 'aux', name: 'Aux', connector: 'jack-6.3-ts' as const, signals: ['audio' as const], direction: 'out' as const, channels: 6 },
+    ]
     const pruned = pruneForPorts(setup, 'pult', ports)
     expect(pruned.setup.links.map((l) => l.id)).toEqual(['b'])
     expect(pruned).toMatchObject({ links: 1, crosspoints: 1 })
+  })
+
+  it('channel numbers follow the desk', () => {
+    const [, xlr] = numberPorts([
+      { id: 'in', name: 'Eingang', connector: 'xlr-jack', signals: ['audio'], direction: 'in', channels: 10 },
+      { id: 'in-xlr', name: 'Eingang', connector: 'xlr', signals: ['audio'], direction: 'in', channels: 10 },
+    ])
+    expect(channelNumber(xlr, 1)).toBe(11)
   })
 })
 
@@ -256,5 +237,22 @@ describe('placeholder tablets (Marco, 2026-11-07)', () => {
     const map = defaultStageMap([])
     const placeholder = equipmentFrom(BUILTIN_MODELS.find((m) => m.id === 'tablet')!, 'ph', 'Kai (geplant)')
     expect(linkPlaceholder(map, placeholder, 'kai').merge).toBeNull()
+  })
+})
+
+describe('free port list (Marco, 2026-11-07)', () => {
+  it('numbers groups of the same name on, like the desk', () => {
+    const ports = numberPorts([
+      { id: 'a', name: 'Eingang', connector: 'xlr-jack', signals: ['audio'], direction: 'in', channels: 10 },
+      { id: 'b', name: 'Eingang', connector: 'xlr', signals: ['audio'], direction: 'in', channels: 10 },
+      { id: 'c', name: 'Aux', connector: 'jack-6.3-ts', signals: ['audio'], direction: 'out', channels: 6 },
+    ])
+    expect(ports.map((p) => p.firstChannel)).toEqual([undefined, 11, undefined])
+  })
+
+  it('a mono jack (TS) Aux out takes a jack cable and a combo socket - like the CQ-18T', () => {
+    const aux = { id: 'aux', name: 'Aux', connector: 'jack-6.3-ts' as const, signals: ['audio' as const], direction: 'out' as const, channels: 6 }
+    const wedge = BUILTIN_MODELS.find((m) => m.id === 'wedge')!.ports.find((p) => p.id === 'in')!
+    expect(portFit(aux, wedge)?.adapter).toBe(false)
   })
 })

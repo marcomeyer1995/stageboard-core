@@ -38,7 +38,10 @@ export const ConnectorSchema = z.enum([
   'usb-c',
   'xlr',
   'jack-6.3',
+  /** 6.3 mm mono/unbalanced (TS) - the CQ-18T's Aux outs (Marco, 2026-11-07); `jack-6.3` is TRS. */
+  'jack-6.3-ts',
   'jack-3.5',
+  'rca',
   'xlr-jack',
   'ethernet',
   'dmx',
@@ -333,8 +336,11 @@ const USB_CONNECTORS: readonly Connector[] = ['usb-a', 'usb-b', 'usb-c']
 function connectorsFit(from: Connector, to: Connector): boolean {
   if (from === to || SOFT_CONNECTORS.includes(from) || SOFT_CONNECTORS.includes(to)) return true
   if (USB_CONNECTORS.includes(from) && USB_CONNECTORS.includes(to)) return true
+  // TS and TRS are the same 6.3 mm plug.
+  const jack = (c: Connector) => c === 'jack-6.3' || c === 'jack-6.3-ts'
+  if (jack(from) && jack(to)) return true
   // A combo socket takes XLR and a 6.3 mm jack - a 3.5 mm plug still needs an adapter.
-  if (to === 'xlr-jack' || from === 'xlr-jack') return [from, to].every((c) => c === 'xlr' || c === 'jack-6.3' || c === 'xlr-jack')
+  if (to === 'xlr-jack' || from === 'xlr-jack') return [from, to].every((c) => c === 'xlr' || jack(c) || c === 'xlr-jack')
   return false
 }
 
@@ -580,89 +586,6 @@ export function signalFlows(map: StageMap, setupId: string, virtualPorts: readon
   return flows
 }
 
-/**
- * How a mixer is set up (Marco, 2026-11-07): as long as no plugin brings the real model of a desk,
- * the admin sets up the generic one, precisely - a desk like the Ui24R has 10 combo and 10 XLR
- * inputs, several headphone outs, and USB with different channel counts each way. Kept on this one
- * mixer (its `ports`), not as a band model. Counts of 0 leave a connector out.
- */
-export interface MixerSetup {
-  /** Combo sockets (XLR and 6.3 mm jack), numbered first on the desk. */
-  comboInputs: number
-  /** Pure XLR inputs, numbered after the combo ones. */
-  xlrInputs: number
-  /** Stereo/line inputs, in pairs. */
-  stereoInputs: number
-  auxes: number
-  groups: number
-  matrices: number
-  headphones: number
-  /** USB audio over the desk's USB-B socket (most desks have no USB-C): channels to the desk
-   * (a tablet's track on desk channels) and from it (a recording) - shown as two ports of one socket. */
-  usbIn: number
-  usbOut: number
-  usbStick: boolean
-  network: boolean
-  midiDin: boolean
-  /** Digital multichannel (Dante, AES50, stagebox). */
-  digitalChannels: number
-}
-
-export const MIXER_LIMITS = { inputs: 96, stereo: 16, sends: 32, headphones: 8, usb: 128, digital: 128 } as const
-
-/** A port group of `count` channels - one plain port for 1, none for 0. */
-const group = (id: string, name: string, connector: Connector, signals: Signal[], direction: PortDirection, count: number, firstChannel = 1): Port[] => {
-  if (count <= 0) return []
-  const p = port(id, name, connector, signals, direction, count >= 2 ? count : undefined)
-  return [firstChannel > 1 ? { ...p, firstChannel } : p]
-}
-
-export function mixerPorts(s: MixerSetup): Port[] {
-  return [
-    ...group('in', 'Eingang', 'xlr-jack', ['audio'], 'in', s.comboInputs),
-    ...group('in-xlr', 'Eingang', 'xlr', ['audio'], 'in', s.xlrInputs, s.comboInputs + 1),
-    ...group('st', 'Line/Stereo', 'jack-6.3', ['audio'], 'in', s.stereoInputs * 2),
-    port('main', 'Main L/R', 'xlr', ['audio'], 'out'),
-    ...group('aux', 'Aux', 'xlr-jack', ['audio'], 'out', s.auxes),
-    ...group('group', 'Gruppe', 'xlr-jack', ['audio'], 'out', s.groups),
-    ...group('matrix', 'Matrix', 'xlr-jack', ['audio'], 'out', s.matrices),
-    ...group('phones', 'Kopfhörer', 'jack-6.3', ['audio'], 'out', s.headphones),
-    ...group('usb-in', 'USB zum Pult', 'usb-b', ['usb-audio', 'midi'], 'in', s.usbIn),
-    ...group('usb-out', 'USB vom Pult', 'usb-b', ['usb-audio', 'midi'], 'out', s.usbOut),
-    ...(s.usbStick ? [port('usb-stick', 'USB-Stick', 'usb-a', ['audio'], 'both')] : []),
-    ...(s.network ? [port('net', 'Netzwerk', 'ethernet', ['net', 'midi'], 'both')] : []),
-    ...(s.midiDin ? [port('midi-in', 'MIDI In', 'din5', ['midi'], 'in'), port('midi-out', 'MIDI Out', 'din5', ['midi'], 'out')] : []),
-    ...group('digital', 'Digital (Dante/AES50)', 'ethernet', ['audio'], 'both', s.digitalChannels),
-  ]
-}
-
-/** The setup a mixer's ports stand for - the dialog starts from it (also a mixer set up before the
- * counts were split: its one input group by its socket, one USB port both ways). */
-export function mixerSetupOf(ports: readonly Port[]): MixerSetup {
-  const find = (id: string) => ports.find((x) => x.id === id)
-  const count = (id: string) => {
-    const p = find(id)
-    return p ? (p.channels ?? 1) : 0
-  }
-  const has = (id: string) => ports.some((x) => x.id === id)
-  const inXlr = find('in')?.connector === 'xlr'
-  return {
-    comboInputs: inXlr ? 0 : count('in'),
-    xlrInputs: count('in-xlr') + (inXlr ? count('in') : 0),
-    stereoInputs: Math.floor(count('st') / 2),
-    auxes: count('aux'),
-    groups: count('group'),
-    matrices: count('matrix'),
-    headphones: count('phones'),
-    usbIn: count('usb-in') || count('usb'),
-    usbOut: count('usb-out') || count('usb'),
-    usbStick: has('usb-stick'),
-    network: has('net'),
-    midiDin: has('midi-in'),
-    digitalChannels: count('digital'),
-  }
-}
-
 /** The number a channel of a port group has on the device ("Eingang 11" for channel 1 of the XLR
  * inputs after 10 combo ones). */
 export function channelNumber(port: Port | undefined, channel: number): number {
@@ -715,4 +638,49 @@ export function mergeEquipmentInSetup(setup: StageSetup, fromId: string, intoId:
 export function linkPlaceholder(map: StageMap, placeholder: StageEquipment, deviceId: string): { linked: StageEquipment; merge: string | null } {
   const own = map.equipment.find((e) => e.kind === 'stageboard' && e.deviceId === deviceId && e.id !== placeholder.id)
   return { linked: { ...placeholder, deviceId }, merge: own?.id ?? null }
+}
+
+/**
+ * The desk's numbering over port groups (Marco, 2026-11-07): consecutive groups of the same name and
+ * direction count on - "Eingang" 10 combo then "Eingang" 10 XLR are inputs 1-10 and 11-20.
+ */
+export function numberPorts(ports: readonly Port[]): Port[] {
+  const out: Port[] = []
+  for (const p of ports) {
+    const { firstChannel: _old, ...plain } = p
+    const prev = out[out.length - 1]
+    if (prev && prev.name === p.name && prev.direction === p.direction) {
+      const first = (prev.firstChannel ?? 1) + (prev.channels ?? 1)
+      out.push({ ...plain, firstChannel: first })
+    } else out.push(plain)
+  }
+  return out
+}
+
+/** What a port carries, chosen by the person - signals follow from it. */
+export const PORT_SIGNALS = {
+  audio: ['audio'],
+  'usb-audio': ['usb-audio', 'midi'],
+  midi: ['midi'],
+  net: ['net', 'midi'],
+  dmx: ['dmx'],
+} as const satisfies Record<string, readonly Signal[]>
+export type PortSignalKind = keyof typeof PORT_SIGNALS
+
+export function portSignalKind(port: Pick<Port, 'signals'>): PortSignalKind {
+  const s = port.signals
+  if (s.includes('usb-audio')) return 'usb-audio'
+  if (s.includes('net')) return 'net'
+  if (s.includes('dmx')) return 'dmx'
+  if (s.includes('audio')) return 'audio'
+  return 'midi'
+}
+
+/** The signal a connector usually carries - the default when one is picked. */
+export function defaultSignalKind(connector: Connector): PortSignalKind {
+  if (connector === 'usb-a' || connector === 'usb-b' || connector === 'usb-c') return 'usb-audio'
+  if (connector === 'din5') return 'midi'
+  if (connector === 'ethernet') return 'net'
+  if (connector === 'dmx') return 'dmx'
+  return 'audio'
 }
