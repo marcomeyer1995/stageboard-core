@@ -829,3 +829,23 @@ export function wiringList(map: StageMap, setupId: string): WiringCable[] {
   }
   return out
 }
+
+/** The setup a band plays by, until the Gig chooses one (docs/31 §6 step 5): "Standard", else the first. */
+export function activeSetup(map: StageMap): StageSetup | null {
+  return map.setups.find((s) => s.id === DEFAULT_SETUP_ID) ?? map.setups[0] ?? null
+}
+
+/**
+ * Whether a StageBoard device plays a built-in output in the Gig - the map decides (docs/31 §6
+ * step 2, Marco 2026-11-07): its matrix in the active setup routes the virtual output (Klick,
+ * Track, Ansagen) to one of its ports. A device not placed in that setup plays nothing. Null
+ * without a map - the old rules (roles, the master) still apply then.
+ */
+export function mapPlays(map: StageMap, deviceId: string, capability: CapabilityId): boolean | null {
+  const setup = activeSetup(map)
+  if (!setup) return null
+  const device = map.equipment.find((e) => e.kind === 'stageboard' && e.deviceId === deviceId)
+  if (!device || !setup.positions[device.id]) return false
+  const ids = new Set(DEFAULT_VIRTUAL_OUTPUTS.filter((v) => v.capability === capability).map((v) => v.id))
+  return effectiveRouting(device, setup).some((c) => c.from.kind === 'virtual' && ids.has(c.from.virtualPortId) && c.to.kind === 'port')
+}

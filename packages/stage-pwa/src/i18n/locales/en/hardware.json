@@ -223,7 +223,8 @@
     "allChannels": "{{n}} channels",
     "width": "How many channels?",
     "widthLabel": "Cable",
-    "fromChannel": "From {{name}}"
+    "fromChannel": "From {{name}}",
+    "decidesBuiltIn": "Who plays click, track and announcements is set in the stage map above - in each tablet's matrix (default: every device on its speaker)."
   },
   "ports": {
     "title": "Ports: {{name}}",

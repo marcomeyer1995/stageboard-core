@@ -223,7 +223,8 @@
     "allChannels": "{{n}} Kanäle",
     "width": "Wie viele Kanäle?",
     "widthLabel": "Kabel",
-    "fromChannel": "Von {{name}}"
+    "fromChannel": "Von {{name}}",
+    "decidesBuiltIn": "Wer Klick, Track und Ansagen spielt, stellt die Bühnen-Karte oben ein - in der Matrix jedes Tablets (Standard: jedes Gerät über seinen Lautsprecher)."
   },
   "ports": {
     "title": "Anschlüsse: {{name}}",

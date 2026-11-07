@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { CAPABILITIES } from './capability.js'
 import {
   addDeviceToMap,
   BUILTIN_MODELS,
@@ -17,6 +18,7 @@ import {
   pruneForPorts,
   channelNumber,
   numberPorts,
+  mapPlays,
   checkSetup,
   wiringList,
   signalFlows as flowsOf,
@@ -308,5 +310,23 @@ describe('channels, checks and the wiring list (Marco, 2026-11-07)', () => {
     map.setups[0]!.links.push({ id: 'ear', from: { equipmentId: 'tab', portId: 'speaker' }, to: { equipmentId: 'wedge', portId: 'in' }, signals: ['audio'] })
     expect(wiringList(map, 's')).toHaveLength(1)
     expect(checkSetup(map, 's').use.find((u) => u.portId === 'in' && u.equipmentId === 'pult')).toMatchObject({ used: 2, total: 16 })
+  })
+})
+
+describe('the map decides who plays (docs/31 §6 step 2, 2026-11-07)', () => {
+  it('the default map: every device plays Klick, Track and Ansagen on its speaker', () => {
+    const map = defaultStageMap([{ id: 'redmi', name: 'Redmi' }, { id: 'fire', name: 'Fire' }])
+    for (const id of ['redmi', 'fire']) for (const c of [CAPABILITIES.clickTrack, CAPABILITIES.audioPlayback, CAPABILITIES.sectionAnnouncements]) expect(mapPlays(map, id, c)).toBe(true)
+  })
+
+  it('a device whose matrix routes only the click plays only the click; one off the stage plays nothing; no map: the old rules', () => {
+    const map = defaultStageMap([{ id: 'redmi', name: 'Redmi' }, { id: 'fire', name: 'Fire' }])
+    map.setups[0]!.routing['device:redmi'] = [{ from: { kind: 'virtual', virtualPortId: 'klick' }, to: { kind: 'port', portId: 'headphones' } }]
+    delete map.setups[0]!.positions['device:fire']
+    expect(mapPlays(map, 'redmi', CAPABILITIES.clickTrack)).toBe(true)
+    expect(mapPlays(map, 'redmi', CAPABILITIES.audioPlayback)).toBe(false)
+    expect(mapPlays(map, 'fire', CAPABILITIES.clickTrack)).toBe(false)
+    expect(mapPlays(map, 'laptop', CAPABILITIES.clickTrack)).toBe(false)
+    expect(mapPlays({ equipment: [], setups: [] }, 'redmi', CAPABILITIES.clickTrack)).toBeNull()
   })
 })
