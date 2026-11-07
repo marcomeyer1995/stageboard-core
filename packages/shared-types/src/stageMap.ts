@@ -195,6 +195,9 @@ export const StageLinkSchema = z.object({
   /** Channels the cable carries (Marco, 2026-11-07): 1 mono, 2 stereo (Aux 1-2 into an in-ear
    * sender's L/R), more for a multicore - from each end's `channel` on. Absent: 1. */
   width: z.number().int().min(1).max(128).optional(),
+  /** The MIDI port this cable reaches, by the name the sending app sees it ("Kemper Player") - set
+   * by the device's owner when wiring (docs/31 §7, resolved by name as MIDI always was). */
+  midiName: z.string().min(1).optional(),
 })
 export type StageLink = z.infer<typeof StageLinkSchema>
 
@@ -879,4 +882,41 @@ export function mapPlays(map: StageMap, deviceId: string, capability: Capability
   if (front && front !== deviceId && appsOf(device).includes(front)) return false
   const ids = new Set(DEFAULT_VIRTUAL_OUTPUTS.filter((v) => v.capability === capability).map((v) => v.id))
   return effectiveRouting(device, setup).some((c) => c.from.kind === 'virtual' && ids.has(c.from.virtualPortId) && c.to.kind === 'port')
+}
+
+/** Klick, Track and Ansagen - decided by mapPlays, not by mapRoute. */
+export const BUILT_IN_OUTPUT_CAPABILITIES: readonly CapabilityId[] = DEFAULT_VIRTUAL_OUTPUTS.map((v) => v.capability)
+
+/**
+ * Where the map sends a virtual port (a Logical Device - "Kemper") in the active setup (docs/31 §6
+ * step 2, part 2, 2026-11-07): the app that executes it - the device whose matrix routes it to one
+ * of its ports, the one in front of several apps there, or the Stage-Server - and the MIDI port
+ * name on the cable from that port, if one is set. `app: null`: the map routes it nowhere, nobody
+ * sends. Null without a map - the old binding applies.
+ */
+export function mapRoute(map: StageMap, virtualPortId: string, frontApp: Readonly<Record<string, string>> = {}): { app: string | null; midiName: string | null } | null {
+  const setup = activeSetup(map)
+  if (!setup) return null
+  for (const box of map.equipment) {
+    if ((box.kind !== 'stageboard' && box.kind !== 'stage-server') || !setup.positions[box.id]) continue
+    const cross = effectiveRouting(box, setup).find((c) => c.from.kind === 'virtual' && c.from.virtualPortId === virtualPortId && c.to.kind === 'port')
+    if (!cross || cross.to.kind !== 'port') continue
+    const portId = cross.to.portId
+    const apps = appsOf(box)
+    const app = box.kind === 'stage-server' ? SERVER_EXECUTION_TARGET : frontApp[box.id] && apps.includes(frontApp[box.id]!) ? frontApp[box.id]! : (box.deviceId ?? apps[0] ?? null)
+    const cable = setup.links.find((l) => (l.from.equipmentId === box.id && l.from.portId === portId) || (l.to.equipmentId === box.id && l.to.portId === portId))
+    return { app, midiName: cable?.midiName ?? null }
+  }
+  return { app: null, midiName: null }
+}
+
+/** The Logical Devices as the map says: every one but Klick/Track/Ansagen executes where mapRoute
+ * sends it. Without a map, as stored. */
+export function routedLogicalDevices<T extends { id: string; capability: string; executionTarget: string | null }>(devices: readonly T[], map: StageMap, frontApp: Readonly<Record<string, string>> = {}): T[] {
+  if (!activeSetup(map)) return [...devices]
+  return devices.map((d) => {
+    if (BUILT_IN_OUTPUT_CAPABILITIES.includes(d.capability as CapabilityId)) return d
+    const route = mapRoute(map, d.id, frontApp)
+    return route ? { ...d, executionTarget: route.app } : d
+  })
 }

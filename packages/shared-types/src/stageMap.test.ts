@@ -19,6 +19,8 @@ import {
   channelNumber,
   numberPorts,
   mapPlays,
+  mapRoute,
+  routedLogicalDevices,
   joinDevices,
   separateApp,
   appsOf,
@@ -352,5 +354,30 @@ describe('several apps on one device (Marco, 2026-11-07)', () => {
     const laptop = equipmentFrom(BUILTIN_MODELS.find((m) => m.id === 'tablet')!, 'device:laptop', 'Laptop', { deviceId: 'laptop' })
     const server = equipmentFrom(BUILTIN_MODELS.find((m) => m.id === 'stage-server')!, 'server', 'Stage-Server')
     expect(appsOf(joinDevices(laptop, server))).toEqual(['laptop', 'server'])
+  })
+})
+
+describe('plugins follow the map (docs/31 §6 step 2, part 2, 2026-11-07)', () => {
+  const kemperModel = BUILTIN_MODELS.find((m) => m.id === 'amp-modeller')!
+  const withKemper = () => {
+    const map = defaultStageMap([{ id: 'redmi', name: 'Redmi' }, { id: 'fire', name: 'Fire' }])
+    map.equipment.push(equipmentFrom(kemperModel, 'kemper', 'Kemper'))
+    map.setups[0]!.positions.kemper = { x: 0, y: 0 }
+    return map
+  }
+
+  it('the Redmi routes "Kemper" to its USB, a cable to the Kemper names the port: the Redmi sends, on that port', () => {
+    const map = withKemper()
+    map.setups[0]!.routing['device:redmi'] = [{ from: { kind: 'virtual', virtualPortId: 'ld-kemper' }, to: { kind: 'port', portId: 'usb' } }]
+    map.setups[0]!.links.push({ id: 'usb', from: { equipmentId: 'device:redmi', portId: 'usb' }, to: { equipmentId: 'kemper', portId: 'usb' }, signals: ['midi'], midiName: 'Kemper Player' })
+    expect(mapRoute(map, 'ld-kemper')).toEqual({ app: 'redmi', midiName: 'Kemper Player' })
+    const lds = routedLogicalDevices([{ id: 'ld-kemper', capability: 'kemper-control', executionTarget: 'fire' }, { id: 'klick', capability: CAPABILITIES.clickTrack, executionTarget: 'fire' }], map)
+    expect(lds.map((d) => d.executionTarget)).toEqual(['redmi', 'fire'])
+  })
+
+  it('routed nowhere: nobody sends; no map: the stored binding', () => {
+    expect(mapRoute(withKemper(), 'ld-kemper')).toEqual({ app: null, midiName: null })
+    const stored = [{ id: 'ld-kemper', capability: 'kemper-control', executionTarget: 'fire' }]
+    expect(routedLogicalDevices(stored, { equipment: [], setups: [] })).toEqual(stored)
   })
 })

@@ -25,6 +25,14 @@ export async function getMidiOutputById(outputId: string, sendAt?: number): Prom
   return output && sendAt !== undefined ? scheduledOutput(output, sendAt) : output
 }
 
+/** The output with this name (the stage map names a cable's MIDI port so - Android hands out new
+ * ids after a replug, the name stays). */
+export async function getMidiOutputByName(name: string, sendAt?: number): Promise<MIDIOutput | null> {
+  const access = await getAccess()
+  const output = access ? ([...access.outputs.values()].find((o) => o.name === name) ?? null) : null
+  return output && sendAt !== undefined ? scheduledOutput(output, sendAt) : output
+}
+
 /** The connected MIDI outputs (id and name) - empty when WebMIDI is unsupported or denied. */
 export async function listMidiOutputs(): Promise<{ id: string; name: string }[]> {
   const access = await getAccess()

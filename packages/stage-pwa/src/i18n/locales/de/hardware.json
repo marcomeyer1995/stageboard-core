@@ -232,7 +232,13 @@
     "same": "Dasselbe Gerät wie …",
     "appsHere": "Apps auf diesem Gerät",
     "inFront": "spielt (vorne)",
-    "separate": "Abtrennen"
+    "separate": "Abtrennen",
+    "midiTitle": "MIDI-Port am anderen Ende",
+    "midiLabel": "So sieht dieses Gerät ihn",
+    "midiNone": "– keiner –",
+    "midiAbsent": "{{name}} (gerade nicht angesteckt)",
+    "midiPort": "MIDI: {{name}}",
+    "midiChoose": "MIDI-Port wählen"
   },
   "ports": {
     "title": "Anschlüsse: {{name}}",

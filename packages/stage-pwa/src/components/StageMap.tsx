@@ -46,6 +46,7 @@ import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { samePoint } from '../lib/matrixPoint'
 import { RoutingMatrix, type MatrixLine } from './RoutingMatrix'
 import { PortListDialog } from './PortListDialog'
+import { listMidiOutputs } from '../lib/webMidiOutput'
 import { StageWiring } from './StageWiring'
 import { AddRow, Badge, Button, IconButton, InfoHint, Segmented, Switch } from './ui'
 
@@ -59,6 +60,13 @@ const CLASS_STROKE: Record<SignalClass, string> = { sound: 'stroke-accent', midi
 
 /** Capabilities that are the built-in virtual outputs (DEFAULT_VIRTUAL_OUTPUTS) - their old
  * Logical Devices are not offered twice. */
+/** A cable with this MIDI port name - none: the name taken off. */
+function withMidiName(link: StageLink, name: string): StageLink {
+  const copy = { ...link }
+  delete copy.midiName
+  return name ? { ...copy, midiName: name } : copy
+}
+
 const BUILT_IN_CAPABILITIES: readonly string[] = [CAPABILITIES.clickTrack, CAPABILITIES.audioPlayback, CAPABILITIES.sectionAnnouncements]
 
 /** What a tap shows (Marco, 2026-11-06): a device its interfaces and matrix; a cable first its two
@@ -265,6 +273,20 @@ export function StageMap() {
     await updateSetup(setup.id, (s) => ({ ...s, links: [...s.links, link] }))
     setConnectFrom(null)
     setSelection({ kind: 'link', id: link.id, chain: false })
+    if (midiFromHere(link)) await chooseMidiName(link)
+  }
+
+  // MIDI leaving this app's own device (part 2, 2026-11-07): which of the ports this device sees is
+  // the far end - by name, as MIDI always was. Only here can the list be read.
+  const midiFromHere = (link: StageLink) => link.signals.includes('midi') && [link.from, link.to].some((end) => { const e = byId.get(end.equipmentId); return e?.kind === 'stageboard' && appsOf(e).includes(ownId) })
+  const chooseMidiName = async (link: StageLink) => {
+    if (!setup) return
+    const outputs = await listMidiOutputs()
+    const options = [{ value: '', label: t('map.midiNone') }, ...outputs.map((o) => ({ value: o.name, label: o.name })), ...(link.midiName && !outputs.some((o) => o.name === link.midiName) ? [{ value: link.midiName, label: t('map.midiAbsent', { name: link.midiName }) }] : [])]
+    const answer = await promptFields(t('map.midiTitle'), [{ key: 'name', label: t('map.midiLabel'), type: 'radio', options, defaultValue: link.midiName ?? outputs[0]?.name ?? '' }], t('map.save'))
+    if (!answer) return
+    const name = answer.name
+    await updateSetup(setup.id, (s) => ({ ...s, links: s.links.map((l) => (l.id === link.id ? withMidiName(l, name) : l)) }))
   }
 
   // Pan, pinch and drag - pointer events in map coordinates.
@@ -750,6 +772,8 @@ export function StageMap() {
             onChain={() => setSelection({ kind: 'link', id: selectedLink.id, chain: true })}
             removable={canWireLink(selectedLink)}
             onRemove={() => removeLink(selectedLink)}
+            midiName={selectedLink.midiName ?? null}
+            onMidi={midiFromHere(selectedLink) ? () => void chooseMidiName(selectedLink) : null}
           />
         )}
 
@@ -793,6 +817,8 @@ function LinkPanel(props: {
   onChain: () => void
   removable: boolean
   onRemove: () => void
+  midiName: string | null
+  onMidi: (() => void) | null
 }) {
   const { t } = useTranslation('hardware')
   return (
@@ -803,6 +829,10 @@ function LinkPanel(props: {
         </span>
         {props.width > 1 && <Badge tone="neutral">{props.width === 2 ? t('map.stereo') : t('map.allChannels', { n: props.width })}</Badge>}
         {props.adapter && <Badge tone="warning">{t('map.adapter')}</Badge>}
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        {props.midiName && <span className="text-base">{t('map.midiPort', { name: props.midiName })}</span>}
+        {props.onMidi && <Button onClick={props.onMidi}>{t('map.midiChoose')}</Button>}
       </div>
       <div className="flex flex-col gap-1">
         <span className="text-base font-semibold">{t('map.onCable')}</span>

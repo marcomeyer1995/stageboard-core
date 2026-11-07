@@ -11,6 +11,9 @@ vi.mock('pouchdb-browser', () => ({
   },
 }))
 
+// The MIDI ports this tablet sees (WebMIDI isn't in happy-dom).
+vi.mock('../lib/webMidiOutput', async (importOriginal) => ({ ...(await importOriginal<object>()), listMidiOutputs: async () => [{ id: 'k1', name: 'Kemper Player' }] }))
+
 const { getDeviceId } = await import('../lib/deviceId')
 const { useDevicesStore } = await import('../store/useDevicesStore')
 const { useWorkspaceStore } = await import('../store/useWorkspaceStore')
@@ -130,6 +133,34 @@ describe('StageMap (docs/31 §7)', () => {
     const links = patch(useStageMapStore.getState().setups[0]!).links
     const link = links[links.length - 1]
     expect(link).toMatchObject({ from: { equipmentId: 'pult', portId: 'aux', channel: 1 }, to: { equipmentId: 'iem', portId: 'in', channel: 1 }, width: 2 })
+  })
+
+  it('MIDI from this tablet\'s USB to the Kemper: the port is picked from what this tablet sees and kept on the cable (part 2, 2026-11-07)', async () => {
+    setUp(true)
+    const kemper = equipmentFrom(BUILTIN_MODELS.find((m) => m.id === 'amp-modeller')!, 'kemper', 'Kemper')
+    useStageMapStore.setState((s) => ({ equipment: [...s.equipment, kemper], setups: s.setups.map((x) => ({ ...x, positions: { ...x.positions, kemper: { x: 900, y: 900 } } })) }))
+    render(
+      <>
+        <StageMap />
+        <DialogHost />
+      </>,
+    )
+    fireEvent.click(screen.getByRole('switch', { name: 'Bearbeiten' }))
+    tapNode('Redmi')
+    fireEvent.click(screen.getAllByRole('button', { name: 'Verbinden' }).find((b) => b.closest('li')?.textContent?.includes('USB-C'))!)
+    tapNode('Kemper')
+    // The Kemper takes MIDI on USB and on its DIN socket: USB.
+    await vi.waitFor(() => expect(screen.getByRole('radio', { name: 'USB' })).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('radio', { name: 'USB' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Verbinden' }))
+    await vi.waitFor(() => expect(screen.getByRole('radio', { name: 'Kemper Player' })).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('radio', { name: 'Kemper Player' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Speichern' }))
+    await vi.waitFor(() => expect(updateSetup).toHaveBeenCalledTimes(2))
+    // The cable first, then its MIDI port on it.
+    const [addCable, setName] = updateSetup.mock.calls.map((c) => c[1] as (s: StageSetup) => StageSetup)
+    const links = setName!(addCable!(useStageMapStore.getState().setups[0]!)).links
+    expect(links[links.length - 1]).toMatchObject({ from: { portId: 'usb' }, to: { equipmentId: 'kemper', portId: 'usb' }, midiName: 'Kemper Player' })
   })
 
   it('a placeholder tablet: added before it is registered, linked by the admin - the device the map added moves into it (2026-11-07)', async () => {
