@@ -46,6 +46,7 @@ import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { samePoint } from '../lib/matrixPoint'
 import { RoutingMatrix, type MatrixLine } from './RoutingMatrix'
 import { PortListDialog } from './PortListDialog'
+import { wheelZoomFactor } from '../lib/wheelZoom'
 import { listMidiOutputs } from '../lib/webMidiOutput'
 import { StageWiring } from './StageWiring'
 import { AddRow, Badge, Button, IconButton, InfoHint, Segmented, Switch } from './ui'
@@ -358,7 +359,7 @@ export function StageMap() {
     const h = (from.h / from.w) * w
     setView({ x: from.x + (from.w - w) / 2, y: from.y + (from.h - h) / 2, w, h })
   }
-  const onWheel = (event: React.WheelEvent) => zoomTo(viewBox, event.deltaY > 0 ? 1.15 : 1 / 1.15)
+  const onWheel = (event: React.WheelEvent) => zoomTo(viewBox, wheelZoomFactor(event.deltaY, event.deltaMode))
 
   const toggleFull = (next: boolean) => {
     setFull(next)
