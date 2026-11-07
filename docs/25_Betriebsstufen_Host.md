@@ -87,6 +87,20 @@ Ergebnis: **machbar.** Uhr gut (nativ), Live-Sync ausreichend; der erste Voll-Ab
 
 **Noch offen:** echter Lauf auf dem Laptop mit einer frischen Band und den Tablets; Umzug einer bestehenden Band von CouchDB (Replikation, die Daten liegen auf jedem Gerät); die Plugins auf der Karte in der App; dann der Android-Spike.
 
+## 6b. Offene Entscheidung: Konten auf einem Android-Host (2026-11-07, für Marco vorbereitet)
+
+Heute liegen die Konten (Name, Rollen, PIN nur als PBKDF2-Schlüssel) **nur auf dem Stage-Server** (`_users`, nur der Server-Admin liest sie). Ein Tablet kennt nur sein eigenes Login. Ein Tablet als Host kann die anderen also nicht prüfen. Möglichkeiten:
+
+| | Wie | Für | Gegen |
+|---|---|---|---|
+| **A Koppeln je Host** | Wer einem Android-Host beitritt, koppelt sich per QR-Code wie heute beim Stage-Server; der Host stellt eigene Logins aus (docs/25 §6.3) | sicher, nichts Neues an Geheimnissen auf den Geräten; passt zu „Band-Host“ ohne Server | jedes Gerät einmal neu koppeln, wenn der Host wechselt |
+| **B Umzug vom Server** | Solange der alte Stage-Server erreichbar ist, gibt er die Konten der Band an den neuen Host (Admin-Aktion) | kein Neu-Koppeln | geht nur mit dem alten Server; kein Ausweg, wenn er ausfällt |
+| **C Konten in den Banddaten** | Die PIN-Schlüssel liegen in einem Dokument der Band, jedes Gerät hat sie, jedes kann Host werden | Host-Wechsel jederzeit, auch bei Ausfall | jedes Gerät hätte alle PIN-Schlüssel – bei 4-stelligen PINs offline in Sekunden zu erraten; nur mit langen Geräte-Schlüsseln statt PINs vertretbar |
+
+**Vorschlag:** A als Grundlage (sicher, einfach), dazu B für den bequemen Umzug vom Stage-Server. C nur, falls „Host fällt mitten im Gig aus, ein anderes Gerät übernimmt“ (§8) wichtig wird – dann mit Geräte-Schlüsseln, nie mit PIN-Schlüsseln.
+
+**Außerdem offen für den Android-Host:** Hotspot (Android erlaubt einer App einen eigenen „Local-only“-Hotspot ohne Internet, mit zufälligem Namen/Passwort – trennt aber oft das normale WLAN, darum nicht ferngetestet), Vordergrund-Dienst (Host weiter bei gesperrtem Bildschirm, derselbe Baustein wie N1, #712).
+
 ## 7. Vorgeschlagene Reihenfolge
 
 1. Dieses Konzept ausarbeiten und docs/02 auf die Stufen umstellen (Entscheidung zu Kern-Prinzip 1).
