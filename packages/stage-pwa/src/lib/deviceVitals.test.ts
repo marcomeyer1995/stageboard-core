@@ -47,10 +47,16 @@ describe('audioClockVitals', () => {
 
 describe('countsAsStall', () => {
   it('the layout after a rotation is not a hang', () => {
-    expect(countsAsStall(10_300, [10_200])).toBe(false)
-    expect(countsAsStall(12_100, [10_200])).toBe(false)
-    expect(countsAsStall(13_000, [10_200])).toBe(true)
-    expect(countsAsStall(5000, [])).toBe(true)
+    expect(countsAsStall(10_300, 250, [10_200])).toBe(false)
+    expect(countsAsStall(12_100, 250, [10_200])).toBe(false)
+    expect(countsAsStall(13_000, 250, [10_200])).toBe(true)
+    expect(countsAsStall(5000, 250, [])).toBe(true)
+  })
+
+  it('the frame the resize fired in is the rotation, however early it started (Redmi, 208 ms, 2026-11-07)', () => {
+    expect(countsAsStall(10_000, 208, [10_170])).toBe(false)
+    // Over before the resize came: a hang of its own.
+    expect(countsAsStall(9_000, 208, [10_170])).toBe(true)
   })
 })
 

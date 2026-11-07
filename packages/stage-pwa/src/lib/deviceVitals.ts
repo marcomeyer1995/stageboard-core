@@ -131,9 +131,14 @@ export function audioClockVitals(samples: readonly { perf: number; ctxMs: number
   return { pct: Math.round(pct * 100) / 100, losses, worstLossMs }
 }
 
-/** Whether a long frame starting at `at` (performance time) is a hang, not the layout after a rotation. */
-export function countsAsStall(at: number, relayoutTimes: readonly number[]): boolean {
-  return !relayoutTimes.some((r) => at >= r - 100 && at <= r + RELAYOUT_GRACE_MS)
+/**
+ * Whether a long frame from `at` lasting `ms` (performance time) is a hang, not the layout after a
+ * rotation. The resize fires inside the long frame it causes, often well after its start (Redmi
+ * 2026-11-07: a 208-ms frame, its resize handlers late in it) - so a frame still running when the
+ * resize came counts as the rotation too.
+ */
+export function countsAsStall(at: number, ms: number, relayoutTimes: readonly number[]): boolean {
+  return !relayoutTimes.some((r) => at + ms >= r - 100 && at <= r + RELAYOUT_GRACE_MS)
 }
 
 export interface Assessment {
@@ -240,8 +245,9 @@ export function startDeviceVitals(): void {
       }
       window.addEventListener('resize', relayout)
       window.addEventListener('orientationchange', relayout)
+      window.visualViewport?.addEventListener('resize', relayout)
       new PerformanceObserver((list) => {
-        for (const entry of list.getEntries()) if (countsAsStall(entry.startTime, relayouts)) frames.push({ at: entry.startTime, ms: entry.duration })
+        for (const entry of list.getEntries()) if (countsAsStall(entry.startTime, entry.duration, relayouts)) frames.push({ at: entry.startTime, ms: entry.duration })
       }).observe({ type })
     }
   }
