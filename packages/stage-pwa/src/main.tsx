@@ -11,6 +11,8 @@ import { installConsoleCapture } from './lib/debugLog'
 import { startLongFrameMonitor } from './lib/longFrameMonitor'
 import { startDeviceVitals } from './lib/deviceVitals'
 import { startLeadCheck } from './lib/leadCheck'
+// Spike Android as host (docs/25): window.__sbStartLocalHost() over the debug connection.
+import './lib/localHostSpike'
 
 initTheme()
 lockViewport()

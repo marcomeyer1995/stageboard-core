@@ -66,6 +66,19 @@ Wie sich das mit den fünf Hardware-Stufen aus docs/02 zusammenfügt, ist offen 
 - Stage-Server: `STAGEBOARD_DB=builtin` startet sie im Prozess, Daten als LevelDB-Dateien (`STAGEBOARD_DB_DIR`, sonst `<STAGEBOARD_STATE_DIR>/database`), lauscht wo CouchDB lauschen würde (127.0.0.1:5984, `STAGEBOARD_DB_PORT`) – `couch.ts`, der `/db`-Proxy und die Kommandozeilen-Werkzeuge bleiben unverändert. Ohne Schalter weiter CouchDB.
 - `GET /server/capabilities`: Plattform, Datenbank, je Server-Plugin „läuft hier“ oder was fehlt (demucs, piper, chrome, yt-dlp).
 
+**Probe mit echten Daten (2026-11-07, Marco unterwegs):** die echte CouchDB (3.5.2) nur lesend in einen Test-Server im eingebauten Modus kopiert – Konten 69/69, SOAT 16/16, Abadschendaler 9.748/9.748 Dokumente in 4 s. CouchDB speichert Passwörter mit 600.000 PBKDF2-Runden (gleiches Format) – geprüfte Anmeldungen werden darum 5 min gemerkt. Mit einem Test-Mitglied nur in der Kopie: frisches Tablet zieht die Band in 4,2 s über `/db`, Live-Änderung 46–62 ms, Profil-Änderung eines Mitglieds abgewiesen.
+
+**Spike Android als Host (Branch `spike/android-host`, 2026-11-07):** ein nativer Webserver in der Dev-App (`LocalHostPlugin.java`, Java-ServerSocket, ein Faden je Verbindung) beantwortet `/time` selbst und reicht alles andere an `sync-host` in der App über die Band-Datenbank, die sie schon hat. Vom Laptop über das Heim-WLAN gemessen, Redmi als Host:
+
+| | Redmi | Laptop (zum Vergleich) |
+|---|---|---|
+| frisches Tablet zieht die ganze Band (9.748 Dok.) | **52,7 s** | 4,2 s |
+| Live-Änderung A → Host → B | **121 ms** Median, max 186 | 46–62 ms |
+| `/time` Rundlauf | **16 ms** Median, p95 35 ms | – |
+| Streuung des Uhr-Versatzes | **3,2 ms** | ±4 ms (docs/29) |
+
+Ergebnis: **machbar.** Uhr gut (nativ), Live-Sync ausreichend; der erste Voll-Abgleich ist 12× langsamer – vermutlich die Abkürzungen des Spikes: neue Verbindung je Anfrage, Daten als Base64 durch die App-Brücke, Lesen aus IndexedDB in der WebView. Nächstes: Verbindungen offen halten, größere Pakete, Lesen evtl. nativ; Push (SSE) für Play; Konten/Zugriff (couch-host statt Token); Hotspot und Vordergrund-Dienst.
+
 **Noch offen:** echter Lauf auf dem Laptop mit einer frischen Band und den Tablets; Umzug einer bestehenden Band von CouchDB (Replikation, die Daten liegen auf jedem Gerät); die Plugins auf der Karte in der App; dann der Android-Spike.
 
 ## 7. Vorgeschlagene Reihenfolge
