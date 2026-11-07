@@ -52,6 +52,11 @@ export const STALL_MS = 200
  * expected and not a hang (2026-11-06: "App hängt" after every rotation). Frames this soon after
  * one don't count. */
 export const RELAYOUT_GRACE_MS = 2000
+/** A rotation or unlocking stops the WebView's audio clock for a moment and delays the band clock's
+ * next samples - both real, both caused by the person, neither a fault (2026-11-07: "Audio-Uhr
+ * unruhig" and "Bandzeit unsicher" after every rotation). A loss this close to one doesn't count,
+ * and the band clock isn't called unsure for SETTLE_MS after it. */
+export const SETTLE_MS = 30_000
 const NATIVE_READ_MS = 10_000
 const MINUTE_MS = 60_000
 /** Reserve below this is close to dropouts (nativeOutput.ts TIGHT_LEAD_MS). */
@@ -84,7 +89,7 @@ export interface VitalsSnapshot {
   /** Whether this browser reports long frames at all. */
   framesWatched: boolean
   uptimeMs: number
-  clock: { offsetMs: number; uncertaintyMs: number | null; rttMs: number | null; ageMs: number | null }
+  clock: { offsetMs: number; uncertaintyMs: number | null; rttMs: number | null; ageMs: number | null; settling?: boolean }
 }
 
 /**
@@ -94,7 +99,7 @@ export interface VitalsSnapshot {
  * A loss counts only if the clock STAYS behind: the lowest lag of the 3 s after it against the 3 s
  * before (2026-11-06: "Audio-Uhr unruhig" came and went with nothing lost).
  */
-export function audioClockVitals(samples: readonly { perf: number; ctxMs: number }[], now: number): AudioClockVitals | null {
+export function audioClockVitals(samples: readonly { perf: number; ctxMs: number }[], now: number, upsets: readonly number[] = []): AudioClockVitals | null {
   const first = samples[0]
   if (!first) return null
   const seconds: { t: number; lag: number; n: number }[] = []
@@ -114,6 +119,8 @@ export function audioClockVitals(samples: readonly { perf: number; ctxMs: number
   for (let i = LOSS_SPAN_S; i + LOSS_SPAN_S <= floors.length; i++) {
     const lost = lowest(i, i + LOSS_SPAN_S) - lowest(i - LOSS_SPAN_S, i)
     if (lost <= CLOCK_LOSS_MS) continue
+    // A rotation or an unlock (SETTLE_MS) - the clock stood, but nothing is wrong with the device.
+    if (upsets.some((r) => Math.abs(floors[i]!.t * 1000 - r) <= (LOSS_SPAN_S + 1) * 1000)) continue
     if (floors[i]!.t * 1000 >= now - MINUTE_MS) {
       losses++
       worstLossMs = Math.max(worstLossMs, Math.round(lost))
@@ -160,7 +167,7 @@ export function assessVitals(v: Pick<VitalsSnapshot, 'audio' | 'audioClock' | 'n
   if (v.native?.lowMemory) errors.push('memoryLow')
   else if (v.native && v.native.availMb < Math.max(v.native.thresholdMb * 2, v.native.totalMb * 0.1)) warnings.push('memoryTight')
   if (v.stallsPerMin > 0) warnings.push('stalls')
-  if (v.clock.ageMs !== null && (v.clock.ageMs > CLOCK_STALE_MS || (v.clock.uncertaintyMs ?? 0) > CLOCK_UNSURE_MS)) warnings.push('clockUnsure')
+  if (v.clock.ageMs !== null && (v.clock.ageMs > CLOCK_STALE_MS || (!v.clock.settling && (v.clock.uncertaintyMs ?? 0) > CLOCK_UNSURE_MS))) warnings.push('clockUnsure')
   const issues = [...errors, ...warnings]
   return { level: errors.length > 0 ? 'error' : warnings.length > 0 ? 'warning' : 'ok', issues }
 }
@@ -180,6 +187,7 @@ export function summarizeVitals(v: VitalsSnapshot): DeviceVitalsSummary {
 
 const clockSamples: { perf: number; ctxMs: number }[] = []
 const frames: { at: number; ms: number }[] = []
+/** Rotations and unlocks (performance time) - see RELAYOUT_GRACE_MS and SETTLE_MS. */
 const relayouts: number[] = []
 let framesWatched = false
 let native: VitalsSnapshot['native'] = null
@@ -197,7 +205,7 @@ export function vitalsSnapshot(): VitalsSnapshot {
   return {
     at: wall,
     audio: nativeOutputHealth(),
-    audioClock: audioClockVitals(clockSamples, now),
+    audioClock: audioClockVitals(clockSamples, now, relayouts),
     native,
     jsHeapMb: heap ? Math.round(heap.usedJSHeapSize / 1048576) : null,
     jsHeapLimitMb: heap ? Math.round(heap.jsHeapSizeLimit / 1048576) : null,
@@ -205,7 +213,13 @@ export function vitalsSnapshot(): VitalsSnapshot {
     worstFrameMs: Math.round(Math.max(0, ...frames.map((f) => f.ms))),
     framesWatched,
     uptimeMs: native?.uptimeMs ?? now,
-    clock: { offsetMs: sync.offsetMs, uncertaintyMs: sync.jitterMs, rttMs: sync.rttMs, ageMs: sync.lastSyncedAt === null ? null : wall - sync.lastSyncedAt },
+    clock: {
+      offsetMs: sync.offsetMs,
+      uncertaintyMs: sync.jitterMs,
+      rttMs: sync.rttMs,
+      ageMs: sync.lastSyncedAt === null ? null : wall - sync.lastSyncedAt,
+      settling: relayouts.some((r) => now - r < SETTLE_MS),
+    },
   }
 }
 
@@ -235,17 +249,22 @@ export function startDeviceVitals(): void {
     clockSamples.push({ perf, ctxMs: ctx.currentTime * 1000 })
     while (clockSamples.length > 0 && clockSamples[0]!.perf < perf - MINUTE_MS) clockSamples.shift()
   }, CLOCK_SAMPLE_MS)
+  const relayout = () => {
+    relayouts.push(performance.now())
+    while (relayouts.length > 10) relayouts.shift()
+  }
+  window.addEventListener('resize', relayout)
+  window.addEventListener('orientationchange', relayout)
+  window.visualViewport?.addEventListener('resize', relayout)
+  // Locked: the reads stop counting (a hidden page reads its clock seldom); unlocked: like a rotation.
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') clockSamples.length = 0
+    else relayout()
+  })
   if (typeof PerformanceObserver !== 'undefined') {
     const type = PerformanceObserver.supportedEntryTypes?.includes('long-animation-frame') ? 'long-animation-frame' : PerformanceObserver.supportedEntryTypes?.includes('longtask') ? 'longtask' : null
     if (type) {
       framesWatched = true
-      const relayout = () => {
-        relayouts.push(performance.now())
-        while (relayouts.length > 10) relayouts.shift()
-      }
-      window.addEventListener('resize', relayout)
-      window.addEventListener('orientationchange', relayout)
-      window.visualViewport?.addEventListener('resize', relayout)
       new PerformanceObserver((list) => {
         for (const entry of list.getEntries()) if (countsAsStall(entry.startTime, entry.duration, relayouts)) frames.push({ at: entry.startTime, ms: entry.duration })
       }).observe({ type })

@@ -43,6 +43,12 @@ describe('audioClockVitals', () => {
     expect(v?.losses).toBe(2)
     expect(v?.worstLossMs).toBe(120)
   })
+
+  it('a rotation or an unlock is no loss - the clock stood, nothing is wrong (2026-11-07)', () => {
+    const reads = clock(1, 0, [{ atS: 12, ms: 500 }, { atS: 25, ms: 90 }])
+    expect(audioClockVitals(reads, 40_000, [12_100])?.losses).toBe(1)
+    expect(audioClockVitals(reads, 40_000, [12_100, 24_800])?.losses).toBe(0)
+  })
 })
 
 describe('countsAsStall', () => {
@@ -88,6 +94,8 @@ describe('assessVitals', () => {
     expect(assessVitals({ ...CLEAN, clock: { ...CLEAN.clock, ageMs: 60_000 } }).issues).toEqual([])
     expect(assessVitals({ ...CLEAN, clock: { ...CLEAN.clock, ageMs: 180_000 } }).issues).toEqual(['clockUnsure'])
     expect(assessVitals({ ...CLEAN, clock: { ...CLEAN.clock, uncertaintyMs: 8 } }).issues).toEqual(['clockUnsure'])
+    // Just after a rotation or unlocking the first samples are slow - not yet unsure.
+    expect(assessVitals({ ...CLEAN, clock: { ...CLEAN.clock, uncertaintyMs: 8, settling: true } }).issues).toEqual([])
   })
 
   it('a browser without the app: no memory, no band clock yet - nothing to complain about', () => {
