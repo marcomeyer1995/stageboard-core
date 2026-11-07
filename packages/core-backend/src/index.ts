@@ -12,6 +12,7 @@ import { fileURLToPath } from 'node:url'
 import cors from '@fastify/cors'
 import httpProxy from '@fastify/http-proxy'
 import { startBuiltinCouch } from './builtinCouch.js'
+import { hostCapabilities } from './hostCapabilities.js'
 import fastifyStatic from '@fastify/static'
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify'
 import {
@@ -1740,6 +1741,9 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
       return reply.status(200).send({ ok: false, error: serverMessage('backup.statusUnreadable').message, errorCode: 'backup.statusUnreadable' })
     }
   })
+
+  // What this host can run - the map offers server plugins by it (docs/25 §6, 2026-11-07).
+  app.get('/server/capabilities', async () => hostCapabilities())
 
   app.get('/server/active-workspace', async (_request, reply) =>
     reply.status(200).send({ activeWorkspaceId: workspaceHardware.getActiveWorkspaceId() }),
