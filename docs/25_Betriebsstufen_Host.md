@@ -77,6 +77,12 @@ Wie sich das mit den fünf Hardware-Stufen aus docs/02 zusammenfügt, ist offen 
 | `/time` Rundlauf | **16 ms** Median, p95 35 ms | – |
 | Streuung des Uhr-Versatzes | **3,2 ms** | ±4 ms (docs/29) |
 
+**Weiter am Spike (2026-11-07 abends):**
+- Verbindungen offen halten (keep-alive) und JSON als Text statt Base64 durch die Brücke: Voll-Abgleich 52,7 → 42 s, Live 121 → 92 ms; größere Pakete (500/1000) 35 s.
+- Gemessen *in* der App: die Zeit steckt in der Datenbank der WebView selbst (IndexedDB) – Änderungen 137 ms je 100, Dokumente holen 123 ms je 100; Brücke und Netz nur 25–50 ms je Anfrage. Ein neues Tablet wartet über einen Android-Host also einmal ~35–40 s; danach laufen nur Änderungen. Weitere Hebel bei Bedarf: alte Revisionen kürzen (show-state trägt eine lange Revisions-Geschichte), oder eine native Datenbank auf dem Host.
+- **Live-Kanäle nativ:** Play-Signal und Schalter (show-state/switch-state: Push → Stream, SSE) leitet der Java-Server selbst weiter, ohne WebView – Median 10–13 ms. Nach Pausen ≥ 1 s bis 125 ms: **WLAN-Stromsparen** des Redmi. Mit einer **WLAN-Sperre im Low-Latency-Modus** (App-Sperre, keine Einstellung) während Host-Betrieb: 1 s Pause 11,5 ms Median / max 19 ms, 3 s Pause 12 / max 23 ms.
+- **Vorschlag daraus für alle Geräte:** dasselbe Stromsparen trifft jedes Tablet beim *Empfangen* des Play-Signals (bis ~125 ms). Eine WLAN-Sperre im Gig-Modus könnte das Play-Signal auf jedem Gerät pünktlicher machen – eigener Schritt, mit Marco klären.
+
 Ergebnis: **machbar.** Uhr gut (nativ), Live-Sync ausreichend; der erste Voll-Abgleich ist 12× langsamer – vermutlich die Abkürzungen des Spikes: neue Verbindung je Anfrage, Daten als Base64 durch die App-Brücke, Lesen aus IndexedDB in der WebView. Nächstes: Verbindungen offen halten, größere Pakete, Lesen evtl. nativ; Push (SSE) für Play; Konten/Zugriff (couch-host statt Token); Hotspot und Vordergrund-Dienst.
 
 **Noch offen:** echter Lauf auf dem Laptop mit einer frischen Band und den Tablets; Umzug einer bestehenden Band von CouchDB (Replikation, die Daten liegen auf jedem Gerät); die Plugins auf der Karte in der App; dann der Android-Spike.
