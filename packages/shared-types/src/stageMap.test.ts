@@ -375,6 +375,12 @@ describe('plugins follow the map (docs/31 §6 step 2, part 2, 2026-11-07)', () =
     expect(lds.map((d) => d.executionTarget)).toEqual(['redmi', 'fire'])
   })
 
+  it('an input (a pedal on the Fire\'s USB) runs where the matrix takes it in', () => {
+    const map = withKemper()
+    map.setups[0]!.routing['device:fire'] = [{ from: { kind: 'port', portId: 'usb' }, to: { kind: 'virtual', virtualPortId: 'ld-pedal' } }]
+    expect(mapRoute(map, 'ld-pedal')).toEqual({ app: 'fire', midiName: null })
+  })
+
   it('routed nowhere: nobody sends; no map: the stored binding', () => {
     expect(mapRoute(withKemper(), 'ld-kemper')).toEqual({ app: null, midiName: null })
     const stored = [{ id: 'ld-kemper', capability: 'kemper-control', executionTarget: 'fire' }]

@@ -899,9 +899,13 @@ export function mapRoute(map: StageMap, virtualPortId: string, frontApp: Readonl
   if (!setup) return null
   for (const box of map.equipment) {
     if ((box.kind !== 'stageboard' && box.kind !== 'stage-server') || !setup.positions[box.id]) continue
-    const cross = effectiveRouting(box, setup).find((c) => c.from.kind === 'virtual' && c.from.virtualPortId === virtualPortId && c.to.kind === 'port')
-    if (!cross || cross.to.kind !== 'port') continue
-    const portId = cross.to.portId
+    // An output ("Kemper") is routed onto a port; an input ("Pedal") from one.
+    const routing = effectiveRouting(box, setup)
+    const out = routing.find((c) => c.from.kind === 'virtual' && c.from.virtualPortId === virtualPortId && c.to.kind === 'port')
+    const inp = routing.find((c) => c.to.kind === 'virtual' && c.to.virtualPortId === virtualPortId && c.from.kind === 'port')
+    const point = out?.to ?? inp?.from
+    if (!point || point.kind !== 'port') continue
+    const portId = point.portId
     const apps = appsOf(box)
     const app = box.kind === 'stage-server' ? SERVER_EXECUTION_TARGET : frontApp[box.id] && apps.includes(frontApp[box.id]!) ? frontApp[box.id]! : (box.deviceId ?? apps[0] ?? null)
     const cable = setup.links.find((l) => (l.from.equipmentId === box.id && l.from.portId === portId) || (l.to.equipmentId === box.id && l.to.portId === portId))
