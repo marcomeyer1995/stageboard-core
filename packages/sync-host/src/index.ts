@@ -186,7 +186,9 @@ async function attachment(db: SyncDatabase, id: string, attachmentId: string, me
   }
   if (method === 'PUT') {
     const body = request.body as { data: Uint8Array; contentType: string }
-    const blob = typeof Blob !== 'undefined' ? new Blob([body.data as BlobPart], { type: body.contentType }) : body.data
+    // PouchDB in Node takes a Buffer, in the browser/WebView a Blob.
+    const nodeBuffer = (globalThis as { Buffer?: { from: (d: Uint8Array) => Uint8Array } }).Buffer
+    const blob = nodeBuffer ? nodeBuffer.from(body.data) : new Blob([body.data as BlobPart], { type: body.contentType })
     return json(201, await db.putAttachment(id, attachmentId, request.query.rev ?? '', blob as PouchDB.Core.AttachmentData, body.contentType))
   }
   if (method === 'DELETE') return json(200, await db.removeAttachment(id, attachmentId, request.query.rev ?? ''))

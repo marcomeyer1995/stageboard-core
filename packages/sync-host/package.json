@@ -19,5 +19,15 @@
     "pouchdb-replication": "^9.0.0",
     "typescript": "~5.6.2",
     "vitest": "^4.1.11"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./couch-host": {
+      "types": "./dist/couchHost.d.ts",
+      "default": "./dist/couchHost.js"
+    }
   }
 }
