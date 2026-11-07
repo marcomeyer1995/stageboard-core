@@ -48,6 +48,8 @@ Anlass: die gebaute Wege-Liste (PR #705) war Marco zu wenig – er will die **dy
 | Fehlende Ausrüstung | neu: In-Ear-**Empfänger** (die Funkstrecke vom Sender ist eine eigene Linie), Funkmikro Sender/Empfänger, DI-Box, Stagebox/Splitter, Kopfhörerverstärker, Instrumenten-Amp, Mikrofon, Instrument |
 | Geräte, die noch nicht registriert sind | als **Platzhalter** auf die Karte stellen („nicht registriert“); der **Admin verbindet** ihn später von Hand mit dem echten Gerät – was die Karte für dieses Gerät schon selbst angelegt hatte, geht in den Platzhalter über |
 | Alte Geräte (Linux-PC) | neue Geräte kommen weiter von selbst auf die Karte; vom Admin **von der Bühne genommen** bleibt ein Gerät dort weg, bis es wieder platziert wird (so gebaut) |
+| Wer spielt (Schritt 2, Teil 1) | im Gig spielt ein Tablet Klick, Track und Ansagen genau dann, wenn seine **Matrix im aktiven Aufbau** sie auf einen Anschluss legt; nicht platziert = spielt nichts; ohne Karte die alten Regeln. Aktiver Aufbau bis zur Wahl im Gig: „Standard“. Die alten Haken je Tablet weichen einem Hinweis |
+| Mehrere Apps auf einem Gerät | ein Kasten = **ein physisches Gerät**; Release-App, Dev-App, Chrome und der Stage-Server sind **Apps darauf**, vom Admin zusammengeführt („Dasselbe Gerät wie …“, wieder „Abtrennen“) – keine App erkennt das von selbst. Von mehreren Apps spielt **nur die, die zuletzt nach vorne kam** |
 | Vollbild | Dialoge über der Karte (eigene Ebene `z-page`, docs/15); seitliches Verschieben wechselt nicht den Tab; Dialoge mit Textfeld in der App mittig |
 
 ## 1. Was der Bühnenplan ist
