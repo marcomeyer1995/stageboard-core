@@ -338,10 +338,31 @@ export function nativeOutputNow(ctx: AudioContext): number | null {
  * moves as the audio clock runs off the wall clock (the Redmi −247 ppm, docs/29 §11). */
 export function nativeOutputAudioPerWall(ctx: AudioContext): number | null {
   if (!pipe || pipe.ctx !== ctx || pipe.line === null || pipe.delayMs === null) return null
-  const first = pipe.history[0]
-  const last = pipe.history[pipe.history.length - 1]
+  return lineAudioPerWall(pipe.history)
+}
+
+/** Audio seconds per wall-clock second from the line's history - 1 until a third of the window is
+ * in, never further off than MAX_LINE_SLOPE (a real audio clock never is). */
+export function lineAudioPerWall(history: readonly { at: number; line: number }[]): number {
+  const first = history[0]
+  const last = history[history.length - 1]
   if (!first || !last || last.at - first.at < RATE_WINDOW_MS / 3) return 1
-  return 1 - (last.line - first.line) / (last.at - first.at)
+  const slope = (last.line - first.line) / (last.at - first.at)
+  return 1 - Math.max(-MAX_LINE_SLOPE, Math.min(MAX_LINE_SLOPE, slope))
+}
+
+/**
+ * Adds a line reading; a jump starts the history anew (Marco, 2026-11-07). The Redmi's screen was
+ * locked 11 s: the WebView's clock stood still, the line moved on by seconds, and over the 30-s
+ * window that read as an audio clock 8 % slow - the track played 8 % fast (more than a semitone
+ * high) and restarted every few seconds until the jump left the window. A rotation (0.5 s) did the
+ * same at ~1.7 %.
+ */
+export function pushLine(history: { at: number; line: number }[], at: number, line: number): void {
+  const last = history[history.length - 1]
+  if (last && Math.abs(line - last.line) > LINE_JUMP_MS) history.length = 0
+  history.push({ at, line })
+  while (history.length > 0 && history[0]!.at < at - RATE_WINDOW_MS) history.shift()
 }
 
 /** From scheduling to hearing while the native output is on - replaces the stored latency. */
@@ -351,8 +372,7 @@ export function nativeOutputDelayMs(): number | null {
 
 function onLine(p: Pipe, at: number, line: number): void {
   p.line = line
-  p.history.push({ at, line })
-  while (p.history.length > 0 && p.history[0]!.at < at - RATE_WINDOW_MS) p.history.shift()
+  pushLine(p.history, at, line)
 }
 
 async function attach(ctx: AudioContext): Promise<void> {
