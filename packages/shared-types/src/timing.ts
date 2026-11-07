@@ -75,6 +75,28 @@ export type LatencyProfile = z.infer<typeof LatencyProfileSchema>
 export const AudioRouteSchema = z.enum(['speaker', 'wired', 'bluetooth', 'usb', 'unknown'])
 export type AudioRoute = z.infer<typeof AudioRouteSchema>
 
+/**
+ * Abgleich nach Gehör (docs/21 §4): while a session runs, the reference device and the target click
+ * on the same beats of the band clock and nothing else; whoever stands at the listening position
+ * moves the target's latency value until the two clicks merge. Band-wide (one document), so any
+ * device can run it for any other. Times are band time (server ms).
+ */
+export const AlignmentSessionSchema = z.object({
+  id: z.string().min(1),
+  referenceDeviceId: z.string().min(1),
+  targetDeviceId: z.string().min(1),
+  /** The first beat; every `periodMs` after it another. */
+  startedAt: z.number(),
+  periodMs: z.number().positive(),
+  /** Stops by itself then, should nobody end it. */
+  endsAt: z.number(),
+  /** Set by the target: the profile output its scheduler uses now (AUDIO_OUTPUT or NATIVE_AUDIO_OUTPUT) and its route. */
+  targetOutput: z.string().optional(),
+  targetRoute: AudioRouteSchema.optional(),
+})
+export type AlignmentSession = z.infer<typeof AlignmentSessionSchema>
+export const ALIGNMENT_SESSION_ID = 'current'
+
 /** The `output` of a profile for a device's own audio (click, backing track) - every other output
  * is a Logical Device id. */
 export const AUDIO_OUTPUT = 'audio'

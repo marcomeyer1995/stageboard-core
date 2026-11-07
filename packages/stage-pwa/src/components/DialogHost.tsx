@@ -3,6 +3,8 @@ import { useId, useState } from 'react'
 import { type DialogField, useDialogStore } from '../store/useDialogStore'
 import { useBackHandler } from '../lib/backNavigation'
 import { useSettledVisualViewport } from '../lib/useVisualViewport'
+import { useSettledTouchKeyboardOpen } from '../lib/useTouchKeyboardOpen'
+import { isNativeApp } from '../lib/native'
 import { Button, CheckRow, choiceRow } from './ui'
 import { INPUT } from './ui/styles'
 
@@ -22,6 +24,11 @@ import { INPUT } from './ui/styles'
  * 2026-10-04) report the full 800 px height with the keyboard open, and the VirtualKeyboard API
  * reports nothing there either. Where the browser does shrink the visual viewport, the overlay
  * follows it as well.
+ *
+ * In the app, and wherever the visible area is known to have shrunk for the keyboard, a typed
+ * dialog sits in the middle of what is left (Marco, 2026-11-07: "Neuer Aufbau" stuck to the very top
+ * of the tablet looked broken) - only a browser that lays the keyboard over the page unannounced
+ * keeps it at the top.
  */
 /** Whether the dialog asks for typed input - those open at the top (see DialogHost). */
 function typesText(request: NonNullable<ReturnType<typeof useDialogStore.getState>['request']>): boolean {
@@ -38,6 +45,7 @@ export function DialogHost() {
   const resolveUnsaved = useDialogStore((state) => state.resolveUnsaved)
   useBackHandler(request ? cancel : null)
   const visible = useSettledVisualViewport()
+  const keyboardShown = useSettledTouchKeyboardOpen()
   const titleId = useId()
 
   if (!request) return null
@@ -47,7 +55,7 @@ export function DialogHost() {
       role="presentation"
       data-testid="dialog-host"
       className={`fixed inset-x-0 top-0 z-alert flex h-dvh justify-center overflow-y-auto bg-scrim/60 sb-pad-safe ${
-        typesText(request) ? 'items-start' : 'items-center'
+        typesText(request) && !isNativeApp() && !keyboardShown ? 'items-start' : 'items-center'
       }`}
       style={visible ? { top: visible.offsetTop, height: visible.height } : undefined}
       onKeyDown={(e) => {
