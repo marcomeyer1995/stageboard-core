@@ -36,6 +36,16 @@ Anlass: die gebaute Wege-Liste (PR #705) war Marco zu wenig – er will die **dy
 | Umstieg | **leer anfangen, alte Verbindungs-Einstellungen entfallen** (wie beim starren Raster) |
 | Standard | statt unsichtbarem Verhalten eine **Standard-Karte**: hat eine Band keine, erzeugt die App sie aus den bekannten Geräten – **jedes Gerät spielt Klick, Track und Ansagen über den eigenen Lautsprecher für den, der darauf angemeldet ist**, **unabhängig vom Master** (ersetzt die heutige Gig-Regel „der Master spielt“); neue Geräte kommen genauso dazu; danach gewöhnliche Daten, von Hand korrigiert |
 
+## 0b. Entscheidungen (Marco, 2026-11-07) – nach dem ersten Test der Karte auf den Geräten
+
+| Frage | Entscheidung |
+|---|---|
+| Mischpult ohne Plugin-Modell | **„Einrichten“** am Pult (nur Admin): Mono-Eingänge (XLR/Kombi), Line/Stereo-Paare, Aux, Gruppen, Matrix, Kopfhörer, **USB-Audio über USB-B** (beide Richtungen; die meisten Pulte haben kein USB-C), Digital (Dante/AES50/Stagebox), USB-Stick, Netzwerk, MIDI DIN. Gespeichert **nur an diesem Pult**, kein Band-Modell. Kabel und Matrix-Punkte, die danach nicht mehr passen, gehen nach einer Rückfrage |
+| Fehlende Ausrüstung | neu: In-Ear-**Empfänger** (die Funkstrecke vom Sender ist eine eigene Linie), Funkmikro Sender/Empfänger, DI-Box, Stagebox/Splitter, Kopfhörerverstärker, Instrumenten-Amp, Mikrofon, Instrument |
+| Geräte, die noch nicht registriert sind | als **Platzhalter** auf die Karte stellen („nicht registriert“); der **Admin verbindet** ihn später von Hand mit dem echten Gerät – was die Karte für dieses Gerät schon selbst angelegt hatte, geht in den Platzhalter über |
+| Alte Geräte (Linux-PC) | neue Geräte kommen weiter von selbst auf die Karte; vom Admin **von der Bühne genommen** bleibt ein Gerät dort weg, bis es wieder platziert wird (so gebaut) |
+| Vollbild | Dialoge über der Karte (eigene Ebene `z-page`, docs/15); seitliches Verschieben wechselt nicht den Tab; Dialoge mit Textfeld in der App mittig |
+
 ## 1. Was der Bühnenplan ist
 
 Ein Bild der Bühne von oben, je Band: **wer steht wo, welches Gerät steht wo, was geht von wo nach wo, und wie gut ist jeder Weg eingemessen.** Er ist der eine Ort, an dem man den Aufbau sieht und ändert – statt verteilt über Bühnentechnik, Tablets & Handys, Latenz-Dialoge und Rig-Check.
