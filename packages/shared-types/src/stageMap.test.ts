@@ -19,6 +19,9 @@ import {
   channelNumber,
   numberPorts,
   mapPlays,
+  joinDevices,
+  separateApp,
+  appsOf,
   checkSetup,
   wiringList,
   signalFlows as flowsOf,
@@ -328,5 +331,26 @@ describe('the map decides who plays (docs/31 §6 step 2, 2026-11-07)', () => {
     expect(mapPlays(map, 'fire', CAPABILITIES.clickTrack)).toBe(false)
     expect(mapPlays(map, 'laptop', CAPABILITIES.clickTrack)).toBe(false)
     expect(mapPlays({ equipment: [], setups: [] }, 'redmi', CAPABILITIES.clickTrack)).toBeNull()
+  })
+})
+
+describe('several apps on one device (Marco, 2026-11-07)', () => {
+  it('the Dev app joined into the release app\'s box: one box, both apps, only the one in front plays', () => {
+    const map = defaultStageMap([{ id: 'redmi', name: 'Redmi' }, { id: 'redmi-dev', name: 'Redmi Dev' }])
+    const keep = map.equipment.find((e) => e.deviceId === 'redmi')!
+    const merge = map.equipment.find((e) => e.deviceId === 'redmi-dev')!
+    const joined = joinDevices(keep, merge)
+    expect(appsOf(joined)).toEqual(['redmi', 'redmi-dev'])
+    const after = { equipment: [...map.equipment.filter((e) => e.id !== merge.id && e.id !== keep.id), joined], setups: map.setups.map((s) => mergeEquipmentInSetup(s, merge.id, keep.id)) }
+    expect(mapPlays(after, 'redmi-dev', CAPABILITIES.clickTrack)).toBe(true)
+    expect(mapPlays(after, 'redmi-dev', CAPABILITIES.clickTrack, { [keep.id]: 'redmi' })).toBe(false)
+    expect(mapPlays(after, 'redmi', CAPABILITIES.clickTrack, { [keep.id]: 'redmi' })).toBe(true)
+    expect(appsOf(separateApp(joined, 'redmi-dev'))).toEqual(['redmi'])
+  })
+
+  it('the Stage-Server joins the laptop: the server is one of its apps', () => {
+    const laptop = equipmentFrom(BUILTIN_MODELS.find((m) => m.id === 'tablet')!, 'device:laptop', 'Laptop', { deviceId: 'laptop' })
+    const server = equipmentFrom(BUILTIN_MODELS.find((m) => m.id === 'stage-server')!, 'server', 'Stage-Server')
+    expect(appsOf(joinDevices(laptop, server))).toEqual(['laptop', 'server'])
   })
 })

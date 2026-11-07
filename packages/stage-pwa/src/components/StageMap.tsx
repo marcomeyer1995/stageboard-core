@@ -12,6 +12,10 @@ import {
   effectiveRouting,
   equipmentFrom,
   linkPlaceholder,
+  appsOf,
+  joinDevices,
+  separateApp,
+  SERVER_EXECUTION_TARGET,
   mergeEquipmentInSetup,
   portFit,
   pruneForPorts,
@@ -91,7 +95,7 @@ const portOf = (equipment: StageEquipment | undefined, portId: string): Port | u
  */
 export function StageMap() {
   const { t } = useTranslation('hardware')
-  const { equipment, setups, loaded, saveEquipment, removeEquipment, saveSetup, updateSetup, removeSetup } = useStageMapStore()
+  const { equipment, setups, front, loaded, saveEquipment, removeEquipment, saveSetup, updateSetup, removeSetup } = useStageMapStore()
   const devices = useDevicesStore((state) => state.devices)
   const devicesLoaded = useDevicesStore((state) => state.loaded)
   const logicalDevices = useLogicalDevicesStore((state) => state.devices)
@@ -399,6 +403,26 @@ export function StageMap() {
     for (const s of setups) await updateSetup(s.id, (cur) => mergeEquipmentInSetup(cur, merge, item.id))
     await removeEquipment(merge)
   }
+  // Several apps on one device (2026-11-07): the admin joins two boxes the map made apart - the
+  // Dev app into the release app's, the Stage-Server into the laptop's; the other's cables, place
+  // and matrix move into the box that stays.
+  const appName = (appId: string) => (appId === SERVER_EXECUTION_TARGET ? t('map.serverApp') : (devices.find((d) => d.id === appId)?.name ?? appId))
+  const sameDevice = async (item: StageEquipment) => {
+    const others = equipment.filter((e) => e.id !== item.id && (e.kind === 'stageboard' || e.kind === 'stage-server'))
+    if (others.length === 0) return
+    const options = others.map((e) => ({ value: e.id, label: e.name }))
+    const answer = await promptFields(t('map.sameTitle', { name: item.name }), [{ key: 'other', label: t('map.sameLabel'), type: 'radio', options, defaultValue: options[0]!.value }], t('map.join'))
+    const other = others.find((e) => e.id === answer?.other)
+    if (!other) return
+    // "This is the same device as that one": this one goes into that one - unless that one is the
+    // server, which goes into the box with the sockets.
+    const [keep, merge] = other.kind === 'stage-server' && item.kind === 'stageboard' ? [item, other] : [other, item]
+    await saveEquipment(joinDevices(keep, merge))
+    for (const s of setups) await updateSetup(s.id, (cur) => mergeEquipmentInSetup(cur, merge.id, keep.id))
+    await removeEquipment(merge.id)
+    setSelection({ kind: 'node', id: keep.id })
+  }
+  const separate = (item: StageEquipment, appId: string) => void saveEquipment(separateApp(item, appId))
   const renameEquipment = async (item: StageEquipment) => {
     const answer = await promptFields(t('map.rename'), [{ key: 'name', label: t('map.name'), defaultValue: item.name }], t('map.save'))
     const name = answer?.name?.trim()
@@ -629,6 +653,24 @@ export function StageMap() {
               <span className="text-base text-ink-muted">{subtitle(selectedNode)}</span>
               {selectedNode.deviceId === ownId && <Badge tone="accent">{t('stage.thisDevice')}</Badge>}
             </div>
+            {appsOf(selectedNode).length > 1 && (
+              <div className="flex flex-col gap-1">
+                <span className="text-base font-semibold">{t('map.appsHere')}</span>
+                {appsOf(selectedNode).map((appId) => (
+                  <div key={appId} className="flex flex-wrap items-center gap-2 text-base">
+                    <span className="min-w-0 flex-1">
+                      {appName(appId)}
+                      {front[selectedNode.id] === appId && ` · ${t('map.inFront')}`}
+                    </span>
+                    {canGear && appId !== selectedNode.deviceId && (
+                      <Button variant="quiet" onClick={() => separate(selectedNode, appId)}>
+                        {t('map.separate')}
+                      </Button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
             <ul className="flex flex-col gap-2">
               {selectedNode.ports.map((port) => {
                 const cables = setup.links.filter((l) => (l.from.equipmentId === selectedNode.id && l.from.portId === port.id) || (l.to.equipmentId === selectedNode.id && l.to.portId === port.id))
@@ -680,6 +722,7 @@ export function StageMap() {
                 </Button>
                 {selectedNode.kind !== 'stageboard' && selectedNode.kind !== 'person' && selectedNode.kind !== 'hall' && <Button onClick={() => setPortsFor(selectedNode)}>{t('map.setUp')}</Button>}
                 {selectedNode.kind === 'stageboard' && !selectedNode.deviceId && <Button onClick={() => void linkDevice(selectedNode)}>{t('map.link')}</Button>}
+                {(selectedNode.kind === 'stageboard' || selectedNode.kind === 'stage-server') && <Button onClick={() => void sameDevice(selectedNode)}>{t('map.same')}</Button>}
                 <Button onClick={() => void takeOffStage(selectedNode)}>{t('map.offStage')}</Button>
                 {selectedNode.kind !== 'stageboard' && (
                   <Button variant="danger" icon="delete" onClick={() => void deleteEquipment(selectedNode)}>

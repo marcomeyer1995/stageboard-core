@@ -41,6 +41,7 @@ import { useMasterHeartbeatReporter } from './lib/useMasterHeartbeatReporter'
 import { usePresenceReporter } from './lib/usePresenceReporter'
 import { useShowLogTracker } from './lib/useShowLogTracker'
 import { useRigCheckDriver, useRigCheckReporter } from './lib/rigCheck'
+import { useFrontAppClaim } from './lib/useFrontAppClaim'
 import { useRigCheckMeasurer } from './lib/rigCheckMeasure'
 import { useWakeLock } from './lib/useWakeLock'
 import { useWorkspaceResource } from './lib/useWorkspaceResource'
@@ -157,6 +158,8 @@ function App() {
   useBrowserOnlineStatus()
   useShowLogTracker()
   useRigCheckDriver()
+  // Several apps on one device: the one in front plays (stage map, 2026-11-07).
+  useFrontAppClaim()
   useRigCheckReporter()
   useRigCheckMeasurer()
 

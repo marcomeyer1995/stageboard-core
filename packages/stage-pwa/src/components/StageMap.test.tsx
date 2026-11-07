@@ -159,6 +159,26 @@ describe('StageMap (docs/31 §7)', () => {
     expect(updateSetup).toHaveBeenCalled()
   })
 
+  it('the Dev app is the same device as the release app: one box, both apps listed, the extra one can be separated (2026-11-07)', async () => {
+    setUp(true)
+    const removeEquipment = vi.fn().mockResolvedValue(undefined)
+    useStageMapStore.setState({ removeEquipment })
+    render(
+      <>
+        <StageMap />
+        <DialogHost />
+      </>,
+    )
+    fireEvent.click(screen.getByRole('switch', { name: 'Bearbeiten' }))
+    tapNode('Fire')
+    fireEvent.click(screen.getByRole('button', { name: 'Dasselbe Gerät wie …' }))
+    await vi.waitFor(() => expect(screen.getByRole('radio', { name: 'Redmi' })).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('radio', { name: 'Redmi' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Zusammenführen' }))
+    await vi.waitFor(() => expect(removeEquipment).toHaveBeenCalledWith('device:fire'))
+    expect(saveEquipment).toHaveBeenCalledWith(expect.objectContaining({ id: `device:${me}`, appIds: ['fire'] }))
+  })
+
   it('a member wires their own device but not the mixer; equipment stays with the admin', () => {
     setUp(false)
     render(<StageMap />)

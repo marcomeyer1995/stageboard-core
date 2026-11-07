@@ -72,7 +72,7 @@ export function useAnnouncementDriver(): void {
   const announcementRole = resolveBuiltInBinding(logicalDevices, CAPABILITIES.sectionAnnouncements, deviceId)
   const ownTarget = mode === 'gig' && announcementRole?.executionTarget && announcementRole.executionTarget !== SERVER_EXECUTION_TARGET ? announcementRole.executionTarget : null
   // The stage map decides in the Gig (docs/31 §6 step 2): Ansagen where the device's matrix routes them.
-  const mapSays = useStageMapStore((state) => (state.loaded ? mapPlays(state, deviceId, CAPABILITIES.sectionAnnouncements) : null))
+  const mapSays = useStageMapStore((state) => (state.loaded ? mapPlays(state, deviceId, CAPABILITIES.sectionAnnouncements, state.front) : null))
   const engine = mode === 'gig' && mapSays !== null ? (mapSays ? 'local-mine' : 'local-other') : ownTarget ? (ownTarget === deviceId ? 'local-mine' : 'local-other') : clickEngine
   const liveTempoAdjustPercent = useShowStateStore((state) => state.state.liveTempoAdjustPercent)
   const takeKey = useShowStateStore((state) => state.state.activeEntryStartedAt)

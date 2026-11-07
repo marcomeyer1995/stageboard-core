@@ -224,7 +224,15 @@
     "width": "How many channels?",
     "widthLabel": "Cable",
     "fromChannel": "From {{name}}",
-    "decidesBuiltIn": "Who plays click, track and announcements is set in the stage map above - in each tablet's matrix (default: every device on its speaker)."
+    "decidesBuiltIn": "Who plays click, track and announcements is set in the stage map above - in each tablet's matrix (default: every device on its speaker).",
+    "serverApp": "Stage-Server",
+    "sameTitle": "{{name}} is the same device as …",
+    "sameLabel": "Device",
+    "join": "Join",
+    "same": "Same device as …",
+    "appsHere": "Apps on this device",
+    "inFront": "plays (in front)",
+    "separate": "Separate"
   },
   "ports": {
     "title": "Ports: {{name}}",

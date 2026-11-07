@@ -47,7 +47,7 @@ export function useCapabilityRouting(capability: CapabilityId, mode: 'gig' | 'pr
   // The stage map decides who plays Klick and Track in the Gig (docs/31 §6 step 2, 2026-11-07):
   // the device's matrix in the active setup - not the roles, not the master. Without a map (or
   // before it loaded) the old rules above still apply.
-  const plays = useStageMapStore((state) => (state.loaded && builtIn ? mapPlays(state, deviceId, capability) : null))
+  const plays = useStageMapStore((state) => (state.loaded && builtIn ? mapPlays(state, deviceId, capability, state.front) : null))
   if (mode === 'gig' && plays !== null) return { engine: plays ? 'local-mine' : 'local-other', pluginId: null }
 
   return { engine, pluginId }

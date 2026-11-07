@@ -224,7 +224,15 @@
     "width": "Wie viele Kanäle?",
     "widthLabel": "Kabel",
     "fromChannel": "Von {{name}}",
-    "decidesBuiltIn": "Wer Klick, Track und Ansagen spielt, stellt die Bühnen-Karte oben ein - in der Matrix jedes Tablets (Standard: jedes Gerät über seinen Lautsprecher)."
+    "decidesBuiltIn": "Wer Klick, Track und Ansagen spielt, stellt die Bühnen-Karte oben ein - in der Matrix jedes Tablets (Standard: jedes Gerät über seinen Lautsprecher).",
+    "serverApp": "Stage-Server",
+    "sameTitle": "{{name}} ist dasselbe Gerät wie …",
+    "sameLabel": "Gerät",
+    "join": "Zusammenführen",
+    "same": "Dasselbe Gerät wie …",
+    "appsHere": "Apps auf diesem Gerät",
+    "inFront": "spielt (vorne)",
+    "separate": "Abtrennen"
   },
   "ports": {
     "title": "Anschlüsse: {{name}}",

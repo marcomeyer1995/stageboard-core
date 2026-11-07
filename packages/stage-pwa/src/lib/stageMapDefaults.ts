@@ -1,4 +1,4 @@
-import { addDeviceToMap, defaultStageMap, type StageEquipment, type StageMap, type StageSetup } from 'shared-types'
+import { addDeviceToMap, appsOf, defaultStageMap, type StageEquipment, type StageMap, type StageSetup } from 'shared-types'
 
 /** A device not seen for this long is no longer added to the map (an old tablet cluttered the
  * path list, 2026-11-05). */
@@ -24,7 +24,7 @@ export function stageMapDefaults(map: StageMap, devices: readonly { id: string; 
     const known = new Set(map.equipment.map((e) => e.id))
     return { equipment: fresh.equipment.filter((e) => !known.has(e.id)), newSetups: fresh.setups, addTo: [] }
   }
-  const missing = current.filter((d) => !map.equipment.some((e) => e.deviceId === d.id))
+  const missing = current.filter((d) => !map.equipment.some((e) => appsOf(e).includes(d.id)))
   let grown = map
   const addTo: StageMapDefaultWrites['addTo'] = []
   for (const device of missing) {

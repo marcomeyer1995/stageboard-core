@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { CAPABILITIES, type CapabilityId } from './capability.js'
+import { SERVER_EXECUTION_TARGET } from './executionTarget.js'
 
 /**
  * The stage map (docs/31 §0a, §7, §7a): the band's equipment with its physical ports, the cables
@@ -167,6 +168,10 @@ export const StageEquipmentSchema = z.object({
   routing: RoutingSchema.nullable().default(null),
   /** The StageBoard device this is (kind `stageboard`). */
   deviceId: z.string().min(1).nullable().default(null),
+  /** Further apps on the same hardware (Marco, 2026-11-07): the Dev app, Chrome, the Stage-Server
+   * (`server`) beside `deviceId` - one box, one set of sockets. Joined by hand ("Ist dasselbe Gerät
+   * wie …"): no app can tell by itself that another one runs on the same device. */
+  appIds: z.array(z.string().min(1)).optional(),
   /** Who this is (kind `person`). */
   listener: ListenerSchema.nullable().default(null),
 })
@@ -416,6 +421,28 @@ export function equipmentFrom(model: EquipmentModel, id: string, name: string, e
 }
 
 export const deviceEquipmentId = (deviceId: string): string => `device:${deviceId}`
+
+/** Every app on a box: its device, the further ones on the same hardware, and the Stage-Server when
+ * that box is the server itself. */
+export function appsOf(e: StageEquipment): string[] {
+  return [...(e.deviceId ? [e.deviceId] : []), ...(e.kind === 'stage-server' ? [SERVER_EXECUTION_TARGET] : []), ...(e.appIds ?? [])]
+}
+
+/**
+ * "Ist dasselbe Gerät wie …" (2026-11-07): box `merge` (an app the map put in a box of its own -
+ * the Dev app beside the release app, the Stage-Server beside Chrome on the laptop) goes into
+ * `keep`: its apps join, its cables, place and matrix move over where `keep` has none
+ * (mergeEquipmentInSetup), and it is removed.
+ */
+export function joinDevices(keep: StageEquipment, merge: StageEquipment): StageEquipment {
+  const apps = [...new Set([...appsOf(keep), ...appsOf(merge)])].filter((id) => id !== keep.deviceId)
+  return { ...keep, appIds: apps }
+}
+
+/** An app taken out of a box again - the map gives it a box of its own as for any new device. */
+export function separateApp(box: StageEquipment, appId: string): StageEquipment {
+  return { ...box, appIds: (box.appIds ?? []).filter((id) => id !== appId) }
+}
 export const signedInListenerId = (deviceId: string): string => `listener:${deviceId}`
 export const defaultLinkId = (deviceId: string): string => `default:${deviceId}`
 
@@ -426,7 +453,7 @@ export const defaultLinkId = (deviceId: string): string => `default:${deviceId}`
  */
 export function addDeviceToMap(map: StageMap, device: { id: string; name: string }): StageMap {
   const equipmentId = deviceEquipmentId(device.id)
-  if (map.equipment.some((e) => e.id === equipmentId || e.deviceId === device.id)) return map
+  if (map.equipment.some((e) => e.id === equipmentId || appsOf(e).includes(device.id))) return map
   const listenerId = signedInListenerId(device.id)
   const equipment = [
     ...map.equipment,
@@ -656,7 +683,7 @@ export function mergeEquipmentInSetup(setup: StageSetup, fromId: string, intoId:
 /** Links placeholder tablet `placeholder` to registered device `deviceId`: what to save, which
  * equipment the map made for that device on its own (to merge in and remove), or null. */
 export function linkPlaceholder(map: StageMap, placeholder: StageEquipment, deviceId: string): { linked: StageEquipment; merge: string | null } {
-  const own = map.equipment.find((e) => e.kind === 'stageboard' && e.deviceId === deviceId && e.id !== placeholder.id)
+  const own = map.equipment.find((e) => e.kind === 'stageboard' && appsOf(e).includes(deviceId) && e.id !== placeholder.id)
   return { linked: { ...placeholder, deviceId }, merge: own?.id ?? null }
 }
 
@@ -836,16 +863,20 @@ export function activeSetup(map: StageMap): StageSetup | null {
 }
 
 /**
- * Whether a StageBoard device plays a built-in output in the Gig - the map decides (docs/31 §6
- * step 2, Marco 2026-11-07): its matrix in the active setup routes the virtual output (Klick,
- * Track, Ansagen) to one of its ports. A device not placed in that setup plays nothing. Null
+ * Whether a StageBoard app plays a built-in output in the Gig - the map decides (docs/31 §6
+ * step 2, Marco 2026-11-07): the matrix of its device in the active setup routes the virtual
+ * output (Klick, Track, Ansagen) to one of its ports, and of several apps on that device it is the
+ * one in front (`frontApp`: box id → app). A device not placed in that setup plays nothing. Null
  * without a map - the old rules (roles, the master) still apply then.
  */
-export function mapPlays(map: StageMap, deviceId: string, capability: CapabilityId): boolean | null {
+export function mapPlays(map: StageMap, deviceId: string, capability: CapabilityId, frontApp: Readonly<Record<string, string>> = {}): boolean | null {
   const setup = activeSetup(map)
   if (!setup) return null
-  const device = map.equipment.find((e) => e.kind === 'stageboard' && e.deviceId === deviceId)
+  const device = map.equipment.find((e) => e.kind === 'stageboard' && appsOf(e).includes(deviceId))
   if (!device || !setup.positions[device.id]) return false
+  // Several apps on one device: only the one that came to the front last plays - no double click.
+  const front = frontApp[device.id]
+  if (front && front !== deviceId && appsOf(device).includes(front)) return false
   const ids = new Set(DEFAULT_VIRTUAL_OUTPUTS.filter((v) => v.capability === capability).map((v) => v.id))
   return effectiveRouting(device, setup).some((c) => c.from.kind === 'virtual' && ids.has(c.from.virtualPortId) && c.to.kind === 'port')
 }
