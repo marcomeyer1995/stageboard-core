@@ -72,12 +72,28 @@ function learnExtra(leadMinMs: number | undefined, appliedExtra: number): void {
     // Blocked storage: the reserve stays as it is.
   }
 }
-/** The render line is the earliest arrival of the last few seconds - a message is never early. */
-const LINE_WINDOW_MS = 5000
-/** How fast the line may follow a slow move (the audio clock against the wall clock, ppm). */
+/** The render line: a straight line through the earliest arrival of each second of the last minute
+ * (see the worker) - an arrival is never early, often late. */
+const FIT_WINDOW_MS = 60_000
+/** Until this many seconds are in, the line has no slope yet. */
+const MIN_FIT_SECONDS = 5
+/** Its height: the earliest of the seconds' earliest arrivals around the slope - an arrival is
+ * never early, so loaded seconds (late arrivals) can't lift it, and anything higher than the
+ * earliest let the line fall behind the WebView's own clock (the schedulers then clamped to
+ * `currentTime`, and the two disagreed by up to 10 ms from one song start to the next). */
+const EDGE_QUANTILE = 0
+/** For this long after the start the line takes the edge at once (see the worker). */
+const SETTLE_MS = 60_000
+/** A steeper slope than 0.2 % is not a clock but a failure. */
+const MAX_LINE_SLOPE = 0.002
+/** How fast the line is pulled to the edge on top of its slope. */
 const LINE_SLEW_MS_PER_S = 0.5
-/** A move larger than this is a new line (the context restarted, a long stall) - taken at once. */
-const LINE_JUMP_MS = 20
+/** A move larger than this is a new line (the context restarted, a long stall) - taken at once.
+ * Smaller ones are slewed: when the WebView's renderer stalls (the phone at a song start), its
+ * clock falls behind, but every frame still plays by its number at the right time - only the
+ * reserve shrinks. Jumping at 20 ms moved everything already scheduled by the stall (+22 ms on the
+ * phone, the click took 5 s to come back, 2026-11-05). */
+const LINE_JUMP_MS = 100
 /** The window the line's slope (the audio clock's rate) is read over. */
 const RATE_WINDOW_MS = 30_000
 /** How long to wait for the stream's first timestamp before choosing the delay. */
@@ -161,9 +177,21 @@ registerProcessor('sb-native-output', Tap)
 /** The worker: takes the chunks from the worklet, keeps the render line (the lower edge of the
  * arrivals - a chunk never arrives before it was rendered, often later) and sends each chunk with
  * the wall-clock time its frame 0 is to be heard over the loopback WebSocket. Reports the line to
- * the page, which schedules against it. */
+ * the page, which schedules against it.
+ *
+ * The edge is a straight line through the earliest arrival of each second over the last minute -
+ * slope by Theil-Sen (robust), height at the earliest residual - because the WebView's
+ * clock drifts against the wall clock (the Redmi by more than 0.5 ms/s: a line slewed at most that
+ * fast lagged ever further behind, 2026-11-05), and a few seconds of late arrivals (load at a song
+ * start) must not lift it. The line moves with that slope and is pulled to the edge slowly. */
 const WORKER_SOURCE = `
-let ws = null, rate = 48000, delayMs = null, line = null, lineAt = 0, arrivals = [], c = null
+let ws = null, rate = 48000, delayMs = null, line = null, lineAt = 0, startedAt = 0, buckets = [], slope = 0, fitAt = 0, c = null
+function theilSen(points) {
+  const s = []
+  for (let i = 0; i < points.length; i++) for (let j = i + 1; j < points.length; j++) s.push((points[j].min - points[i].min) / (points[j].t - points[i].t))
+  s.sort((a, b) => a - b)
+  return s.length ? s[Math.floor(s.length / 2)] : 0
+}
 onmessage = (e) => {
   const m = e.data
   if (m.type === 'init') {
@@ -177,11 +205,26 @@ onmessage = (e) => {
 }
 function chunk(first, pcm) {
   const now = Date.now(), frames = pcm.length / 2
-  arrivals.push({ at: now, v: now - (first + frames) * 1000 / rate })
-  while (arrivals.length > 0 && arrivals[0].at < now - c.lineWindowMs) arrivals.shift()
-  let edge = Infinity; for (const a of arrivals) if (a.v < edge) edge = a.v
-  if (line === null || Math.abs(edge - line) > c.lineJumpMs) line = edge
-  else { const step = c.lineSlewMsPerS * (now - lineAt) / 1000; line += Math.max(-step, Math.min(step, edge - line)) }
+  const v = now - (first + frames) * 1000 / rate
+  const second = Math.floor(now / 1000) * 1000, last = buckets[buckets.length - 1]
+  if (last && last.t === second) last.min = Math.min(last.min, v)
+  else buckets.push({ t: second, min: v })
+  while (buckets.length > 0 && buckets[0].t < now - c.fitWindowMs) buckets.shift()
+  if (buckets.length >= c.minBuckets && now - fitAt >= 500) {
+    fitAt = now
+    slope = Math.max(-c.maxSlope, Math.min(c.maxSlope, theilSen(buckets)))
+  }
+  const residuals = buckets.map((b) => b.min - slope * (b.t - now)).sort((a, b) => a - b)
+  const edge = residuals[Math.floor(c.edgeQuantile * (residuals.length - 1))]
+  if (line === null) startedAt = now
+  // In the first minute the line takes the edge as it is: the first arrivals came late under the
+  // start's load, the line began up to 40 ms late and was slewed back over a minute (Fire, 2026-11-05).
+  if (line === null || now - startedAt < c.settleMs || Math.abs(edge - line) > c.lineJumpMs) line = edge
+  else {
+    const dt = now - lineAt, step = c.lineSlewMsPerS * dt / 1000
+    line += slope * dt
+    line += Math.max(-step, Math.min(step, edge - line))
+  }
   lineAt = now
   postMessage({ type: 'line', at: now, line })
   if (delayMs === null || !ws || ws.readyState !== 1) return
@@ -290,7 +333,7 @@ async function attach(ctx: AudioContext): Promise<void> {
       }
     })
     const channel = new MessageChannel()
-    const constants = { lineWindowMs: LINE_WINDOW_MS, lineJumpMs: LINE_JUMP_MS, lineSlewMsPerS: LINE_SLEW_MS_PER_S }
+    const constants = { settleMs: SETTLE_MS, fitWindowMs: FIT_WINDOW_MS, minBuckets: MIN_FIT_SECONDS, maxSlope: MAX_LINE_SLOPE, edgeQuantile: EDGE_QUANTILE, lineJumpMs: LINE_JUMP_MS, lineSlewMsPerS: LINE_SLEW_MS_PER_S }
     worker.postMessage({ type: 'init', rate: ctx.sampleRate, url: `ws://127.0.0.1:${started.port}/${started.token}`, port: channel.port1, constants }, [channel.port1])
     tap.port.postMessage({ port: channel.port2 }, [channel.port2])
     await opened
