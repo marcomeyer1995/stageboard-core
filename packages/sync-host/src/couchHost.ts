@@ -175,7 +175,7 @@ export function createCouchHost(options: CouchHostOptions) {
 
   const sync = createSyncHost({ open: (name) => db(name), longpollMaxMs: options.longpollMaxMs })
 
-  return async (request: CouchHostRequest): Promise<SyncResponse> => {
+  const handle = async (request: CouchHostRequest): Promise<SyncResponse> => {
     const method = request.method.toUpperCase()
     const ctx = await whoIs(request.authorization)
     if (!ctx) return error(401, 'unauthorized', 'Name or password is incorrect.')
@@ -252,4 +252,11 @@ export function createCouchHost(options: CouchHostOptions) {
     }
     return sync(request)
   }
+
+  /** Closes every open database - before the host stops, so its files are released. */
+  const close = async () => {
+    await Promise.all([...opened.values()].map((d) => d.close().catch(() => undefined)))
+    opened.clear()
+  }
+  return Object.assign(handle, { close })
 }

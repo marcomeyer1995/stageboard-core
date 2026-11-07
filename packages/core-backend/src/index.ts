@@ -11,6 +11,7 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import cors from '@fastify/cors'
 import httpProxy from '@fastify/http-proxy'
+import { startBuiltinCouch } from './builtinCouch.js'
 import fastifyStatic from '@fastify/static'
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify'
 import {
@@ -1852,7 +1853,21 @@ function detectLanIp(): string | null {
 }
 
 async function main() {
+  // Without CouchDB (docs/25, Host step 1): STAGEBOARD_DB=builtin runs the small CouchDB from
+  // sync-host in this process, its data in LevelDB files, where CouchDB would listen - everything
+  // below talks to it as to CouchDB. Default: CouchDB as before.
+  const builtinDb =
+    process.env.STAGEBOARD_DB === 'builtin'
+      ? await startBuiltinCouch({
+          dataDir: process.env.STAGEBOARD_DB_DIR ?? join(process.env.STAGEBOARD_STATE_DIR ?? './data', 'database'),
+          user: process.env.COUCHDB_USER ?? 'admin',
+          password: process.env.COUCHDB_PASSWORD ?? 'admin',
+          port: Number(process.env.STAGEBOARD_DB_PORT ?? 5984),
+        })
+      : null
+  if (builtinDb) process.env.COUCHDB_URL = builtinDb.url
   const { app, lookupRegistry, workspaceHardware, pluginLog, couch, backups } = await buildApp()
+  if (builtinDb) app.log.info({ url: builtinDb.url }, 'Built-in database host (no CouchDB)')
   // Scheduled backups (daily time, USB medium plugged in) - checked every 30 s.
   backups.start()
 
