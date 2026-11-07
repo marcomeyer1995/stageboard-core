@@ -209,6 +209,31 @@
     "onCable": "Auf diesem Kabel",
     "nothingOnCable": "Kein Signal - nichts ist hierhin geroutet.",
     "showWay": "Ganzen Weg zeigen",
-    "reaches": "kommt an bei: {{who}}"
+    "reaches": "kommt an bei: {{who}}",
+    "setUp": "Einrichten"
+  },
+  "mixer": {
+    "title": "{{name}} einrichten",
+    "inputs": "Eingänge",
+    "mono": "Mono-Eingänge",
+    "monoConnector": "Buchse",
+    "combo": "Kombi (XLR/Klinke)",
+    "stereo": "Line/Stereo-Paare",
+    "outputs": "Ausgänge",
+    "main": "Main L/R ist immer da.",
+    "auxes": "Aux/Monitor-Wege",
+    "groups": "Gruppen",
+    "matrices": "Matrix-Ausgänge",
+    "headphones": "Kopfhörer-Ausgang",
+    "digital": "USB und digital",
+    "usb": "USB-Audio-Kanäle (USB-B)",
+    "usbInfo": "Kanäle zum und vom Computer oder Tablet über die USB-B-Buchse des Pults - beide Richtungen. 0 = kein USB-Audio.",
+    "dante": "Digital-Kanäle (Dante/AES50/Stagebox)",
+    "usbStick": "USB-Stick (Aufnahme/Wiedergabe)",
+    "control": "Steuerung",
+    "network": "Netzwerk (LAN/WLAN)",
+    "midi": "MIDI In/Out (DIN)",
+    "pruneConfirm": "Danach passen {{links}} Kabel und {{points}} Matrix-Punkte nicht mehr - sie werden entfernt.",
+    "pruneOk": "Einrichten und entfernen"
   }
 }

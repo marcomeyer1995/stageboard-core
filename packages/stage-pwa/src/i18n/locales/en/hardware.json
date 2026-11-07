@@ -209,6 +209,31 @@
     "onCable": "On this cable",
     "nothingOnCable": "No signal - nothing is routed here.",
     "showWay": "Show the whole way",
-    "reaches": "reaches: {{who}}"
+    "reaches": "reaches: {{who}}",
+    "setUp": "Set up"
+  },
+  "mixer": {
+    "title": "Set up {{name}}",
+    "inputs": "Inputs",
+    "mono": "Mono inputs",
+    "monoConnector": "Socket",
+    "combo": "Combo (XLR/jack)",
+    "stereo": "Line/stereo pairs",
+    "outputs": "Outputs",
+    "main": "Main L/R is always there.",
+    "auxes": "Aux/monitor sends",
+    "groups": "Groups",
+    "matrices": "Matrix outputs",
+    "headphones": "Headphone out",
+    "digital": "USB and digital",
+    "usb": "USB audio channels (USB-B)",
+    "usbInfo": "Channels to and from a computer or tablet over the desk's USB-B socket - both directions. 0 = no USB audio.",
+    "dante": "Digital channels (Dante/AES50/stagebox)",
+    "usbStick": "USB stick (record/play)",
+    "control": "Control",
+    "network": "Network (LAN/Wi-Fi)",
+    "midi": "MIDI In/Out (DIN)",
+    "pruneConfirm": "Afterwards {{links}} cables and {{points}} matrix points no longer fit - they will be removed.",
+    "pruneOk": "Set up and remove"
   }
 }

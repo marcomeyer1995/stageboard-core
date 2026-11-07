@@ -74,6 +74,7 @@ export const EquipmentKindSchema = z.enum([
   'midi-controller',
   'amp-modeller',
   'iem-sender',
+  'iem-receiver',
   'wedge',
   'pa',
   'light',
@@ -266,6 +267,9 @@ export const BUILTIN_MODELS: readonly EquipmentModel[] = [
     true,
   ),
   builtin('iem-sender', 'In-Ear-Sender', 'iem-sender', [port('in', 'Eingang', 'xlr-jack', ['audio'], 'in'), port('out', 'Funk', 'wireless', ['audio'], 'out')], fixed(via(at('in'), at('out')))),
+  // The beltpack (Marco, 2026-11-07): the radio link from the sender shows as its own line, then the
+  // earphones to the person.
+  builtin('iem-receiver', 'In-Ear-Empfänger', 'iem-receiver', [port('in', 'Funk', 'wireless', ['audio'], 'in'), port('phones', 'Ohrhörer', 'jack-3.5', ['audio'], 'out')], fixed(via(at('in'), at('phones')))),
   builtin('wedge', 'Monitor / Wedge', 'wedge', [port('in', 'Eingang', 'xlr-jack', ['audio'], 'in'), port('out', 'Schall', 'room', ['audio'], 'out')], fixed(via(at('in'), at('out')))),
   builtin('pa', 'PA', 'pa', [port('in', 'Eingang L/R', 'xlr', ['audio'], 'in'), port('out', 'Schall', 'room', ['audio'], 'out')], fixed(via(at('in'), at('out')))),
   builtin(
@@ -531,4 +535,94 @@ export function signalFlows(map: StageMap, setupId: string, virtualPorts: readon
     }
   }
   return flows
+}
+
+/**
+ * How a mixer is set up (Marco, 2026-11-07): as long as no plugin brings the real model of a desk,
+ * the admin sets up the generic one - counts of inputs and sends, USB audio, network, MIDI, digital
+ * links. Kept on this one mixer (its `ports`), not as a band model. Counts of 0 leave a connector out.
+ */
+export interface MixerSetup {
+  monoInputs: number
+  /** XLR only, or combo sockets (XLR and 6.3 mm jack). */
+  monoConnector: 'xlr' | 'xlr-jack'
+  /** Stereo/line inputs, in pairs. */
+  stereoInputs: number
+  auxes: number
+  groups: number
+  matrices: number
+  headphones: boolean
+  /** USB audio channels to and from a computer or tablet (USB-B) - most desks have no USB-C. */
+  usbChannels: number
+  usbStick: boolean
+  network: boolean
+  midiDin: boolean
+  /** Digital multichannel (Dante, AES50, stagebox). */
+  digitalChannels: number
+}
+
+export const MIXER_LIMITS = { inputs: 96, stereo: 16, sends: 32, usb: 128, digital: 128 } as const
+
+/** A port group of `count` channels - one plain port for 1, none for 0. */
+const group = (id: string, name: string, connector: Connector, signals: Signal[], direction: PortDirection, count: number): Port[] =>
+  count <= 0 ? [] : [port(id, name, connector, signals, direction, count >= 2 ? count : undefined)]
+
+export function mixerPorts(s: MixerSetup): Port[] {
+  return [
+    ...group('in', 'Eingang', s.monoConnector, ['audio'], 'in', s.monoInputs),
+    ...group('st', 'Line/Stereo', 'jack-6.3', ['audio'], 'in', s.stereoInputs * 2),
+    port('main', 'Main L/R', 'xlr', ['audio'], 'out'),
+    ...group('aux', 'Aux', 'xlr-jack', ['audio'], 'out', s.auxes),
+    ...group('group', 'Gruppe', 'xlr-jack', ['audio'], 'out', s.groups),
+    ...group('matrix', 'Matrix', 'xlr-jack', ['audio'], 'out', s.matrices),
+    ...(s.headphones ? [port('phones', 'Kopfhörer', 'jack-6.3', ['audio'], 'out')] : []),
+    ...group('usb', 'USB-Audio', 'usb-b', ['usb-audio', 'midi'], 'both', s.usbChannels),
+    ...(s.usbStick ? [port('usb-stick', 'USB-Stick', 'usb-a', ['audio'], 'both')] : []),
+    ...(s.network ? [port('net', 'Netzwerk', 'ethernet', ['net', 'midi'], 'both')] : []),
+    ...(s.midiDin ? [port('midi-in', 'MIDI In', 'din5', ['midi'], 'in'), port('midi-out', 'MIDI Out', 'din5', ['midi'], 'out')] : []),
+    ...group('digital', 'Digital (Dante/AES50)', 'ethernet', ['audio'], 'both', s.digitalChannels),
+  ]
+}
+
+/** The setup a mixer's ports stand for - the dialog starts from it. */
+export function mixerSetupOf(ports: readonly Port[]): MixerSetup {
+  const count = (id: string) => {
+    const p = ports.find((x) => x.id === id)
+    return p ? (p.channels ?? 1) : 0
+  }
+  const has = (id: string) => ports.some((x) => x.id === id)
+  return {
+    monoInputs: count('in'),
+    monoConnector: ports.find((p) => p.id === 'in')?.connector === 'xlr' ? 'xlr' : 'xlr-jack',
+    stereoInputs: Math.floor(count('st') / 2),
+    auxes: count('aux'),
+    groups: count('group'),
+    matrices: count('matrix'),
+    headphones: has('phones'),
+    usbChannels: count('usb'),
+    usbStick: has('usb-stick'),
+    network: has('net'),
+    midiDin: has('midi-in'),
+    digitalChannels: count('digital'),
+  }
+}
+
+/** Whether `point` on `ports` still exists (the port, and its channel within the group). */
+function pointExists(ports: readonly Port[], portId: string, channel: number | undefined): boolean {
+  const p = ports.find((x) => x.id === portId)
+  if (!p) return false
+  if (channel === undefined) return true
+  return p.channels !== undefined && channel <= p.channels
+}
+
+/** A setup without the cables and matrix points of `equipmentId` that its new `ports` no longer
+ * have - and how many went. */
+export function pruneForPorts(setup: StageSetup, equipmentId: string, ports: readonly Port[]): { setup: StageSetup; links: number; crosspoints: number } {
+  const endFits = (end: { equipmentId: string; portId: string; channel?: number }) => end.equipmentId !== equipmentId || pointExists(ports, end.portId, end.channel)
+  const links = setup.links.filter((l) => endFits(l.from) && endFits(l.to))
+  const own = setup.routing[equipmentId]
+  const pointFits = (pt: MatrixPoint) => pt.kind === 'virtual' || pointExists(ports, pt.portId, pt.channel)
+  const kept = own?.filter((c) => pointFits(c.from) && pointFits(c.to))
+  const routing = own ? { ...setup.routing, [equipmentId]: kept! } : setup.routing
+  return { setup: { ...setup, links, routing }, links: setup.links.length - links.length, crosspoints: (own?.length ?? 0) - (kept?.length ?? 0) }
 }

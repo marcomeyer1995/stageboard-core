@@ -14,6 +14,9 @@ import {
   type StageLink,
   type StageMap,
   type VirtualPort,
+  mixerPorts,
+  mixerSetupOf,
+  pruneForPorts,
 } from './stageMap.js'
 
 const model = (id: string) => BUILTIN_MODELS.find((m) => m.id === id)!
@@ -144,5 +147,53 @@ describe('routing and signal flows', () => {
     const pedal = signalFlows(map, 'club', VIRTUAL).find((f) => f.originEquipmentId === 'pedal')!
     expect(pedal.virtualInputs).toEqual([{ equipmentId: 'redmi', virtualPortId: 'pedal' }])
     expect(pedal.hops.map((h) => [h.from.equipmentId, h.to.equipmentId])).toEqual([['pedal', 'redmi']])
+  })
+})
+
+describe('mixer setup (Marco, 2026-11-07)', () => {
+  const generic = BUILTIN_MODELS.find((m) => m.id === 'mixer')!
+
+  it('reads the generic mixer and gives the same ports back', () => {
+    const setup = mixerSetupOf(generic.ports)
+    expect(setup).toMatchObject({ monoInputs: 16, auxes: 4, usbChannels: 0, network: false })
+    expect(mixerPorts(setup).map((p) => p.id)).toEqual(generic.ports.map((p) => p.id))
+  })
+
+  it('a digital desk: USB-B both ways, network, MIDI, stereo pairs, one group as a plain port', () => {
+    const ports = mixerPorts({ ...mixerSetupOf(generic.ports), monoInputs: 16, stereoInputs: 1, groups: 1, usbChannels: 18, network: true, midiDin: true, headphones: true })
+    expect(ports.find((p) => p.id === 'usb')).toMatchObject({ connector: 'usb-b', direction: 'both', channels: 18, signals: ['usb-audio', 'midi'] })
+    expect(ports.find((p) => p.id === 'st')?.channels).toBe(2)
+    expect(ports.find((p) => p.id === 'group')?.channels).toBeUndefined()
+    expect(ports.some((p) => p.id === 'midi-in') && ports.some((p) => p.id === 'midi-out') && ports.some((p) => p.id === 'phones')).toBe(true)
+    expect(mixerSetupOf(ports)).toMatchObject({ stereoInputs: 1, groups: 1, usbChannels: 18, network: true, midiDin: true, headphones: true })
+  })
+
+  it('fewer inputs drop the cables and matrix points that no longer fit - nothing else', () => {
+    const setup = {
+      id: 's',
+      name: 'Club',
+      positions: {},
+      links: [
+        { id: 'a', from: { equipmentId: 'tab', portId: 'headphones' }, to: { equipmentId: 'pult', portId: 'in', channel: 15 }, signals: ['audio' as const] },
+        { id: 'b', from: { equipmentId: 'tab', portId: 'headphones' }, to: { equipmentId: 'pult', portId: 'in', channel: 3 }, signals: ['audio' as const] },
+      ],
+      routing: { pult: [{ from: { kind: 'port' as const, portId: 'in', channel: 15 }, to: { kind: 'port' as const, portId: 'aux', channel: 1 } }] },
+    }
+    const ports = mixerPorts({ ...mixerSetupOf(generic.ports), monoInputs: 8 })
+    const pruned = pruneForPorts(setup, 'pult', ports)
+    expect(pruned.setup.links.map((l) => l.id)).toEqual(['b'])
+    expect(pruned).toMatchObject({ links: 1, crosspoints: 1 })
+  })
+})
+
+describe('in-ear receiver (Marco, 2026-11-07)', () => {
+  it('the radio link from the sender fits the receiver, its earphones fit a person', () => {
+    const model = (id: string) => BUILTIN_MODELS.find((m) => m.id === id)!
+    const out = model('iem-sender').ports.find((p) => p.id === 'out')!
+    const radio = model('iem-receiver').ports.find((p) => p.id === 'in')!
+    const phones = model('iem-receiver').ports.find((p) => p.id === 'phones')!
+    const ears = model('person').ports.find((p) => p.id === 'ears')!
+    expect(portFit(out, radio)).not.toBeNull()
+    expect(portFit(phones, ears)).not.toBeNull()
   })
 })

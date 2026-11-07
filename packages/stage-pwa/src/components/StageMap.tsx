@@ -7,12 +7,15 @@ import {
   DRIVER_KINDS,
   effectiveRouting,
   equipmentFrom,
+  mixerPorts,
   portFit,
+  pruneForPorts,
   SIGNAL_CLASS,
   signalFlows,
   virtualPortClass,
   virtualPortIsInput,
   type MatrixPoint,
+  type MixerSetup,
   type Port,
   type PortRef,
   type SignalClass,
@@ -34,6 +37,7 @@ import { useStageMapStore } from '../store/useStageMapStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { samePoint } from '../lib/matrixPoint'
 import { RoutingMatrix, type MatrixLine } from './RoutingMatrix'
+import { MixerSetupDialog } from './MixerSetupDialog'
 import { AddRow, Badge, Button, IconButton, InfoHint, Segmented, Switch } from './ui'
 
 /** The map's own coordinates - positions are stored in these. */
@@ -97,6 +101,7 @@ export function StageMap() {
 
   const [setupId, setSetupId] = useState<string | null>(null)
   const [selection, setSelection] = useState<Selection>(null)
+  const [mixerFor, setMixerFor] = useState<StageEquipment | null>(null)
   const [editing, setEditing] = useState(false)
   const [showPorts, setShowPorts] = useState(false)
   const [connectFrom, setConnectFrom] = useState<PortRef | null>(null)
@@ -324,6 +329,18 @@ export function StageMap() {
     if (!setup) return
     const at = { x: Math.round(viewBox.x + viewBox.w / 2), y: Math.round(viewBox.y + viewBox.h / 2) }
     void updateSetup(setup.id, (s) => ({ ...s, positions: { ...s.positions, [item.id]: at } }))
+  }
+  // Mischpult einrichten (2026-11-07): new ports on this mixer; cables and matrix points that no
+  // longer fit go - in every setup, after a confirm.
+  const setUpMixer = async (mixer: StageEquipment, s: MixerSetup) => {
+    const ports = mixerPorts(s)
+    const pruned = setups.map((x) => pruneForPorts(x, mixer.id, ports))
+    const links = pruned.reduce((n, p) => n + p.links, 0)
+    const points = pruned.reduce((n, p) => n + p.crosspoints, 0)
+    if (links + points > 0 && !(await confirm(t('mixer.pruneConfirm', { links, points }), { danger: true, confirmLabel: t('mixer.pruneOk') }))) return
+    setMixerFor(null)
+    await saveEquipment({ ...mixer, ports })
+    for (const [i, x] of setups.entries()) if (pruned[i]!.links + pruned[i]!.crosspoints > 0) await updateSetup(x.id, (cur) => pruneForPorts(cur, mixer.id, ports).setup)
   }
   const renameEquipment = async (item: StageEquipment) => {
     const answer = await promptFields(t('map.rename'), [{ key: 'name', label: t('map.name'), defaultValue: item.name }], t('map.save'))
@@ -604,6 +621,7 @@ export function StageMap() {
                 <Button icon="rename" onClick={() => void renameEquipment(selectedNode)}>
                   {t('map.rename')}
                 </Button>
+                {selectedNode.kind === 'mixer' && <Button onClick={() => setMixerFor(selectedNode)}>{t('map.setUp')}</Button>}
                 <Button onClick={() => void takeOffStage(selectedNode)}>{t('map.offStage')}</Button>
                 {selectedNode.kind !== 'stageboard' && (
                   <Button variant="danger" icon="delete" onClick={() => void deleteEquipment(selectedNode)}>
@@ -656,6 +674,7 @@ export function StageMap() {
           </div>
         )}
       </div>
+      {mixerFor && <MixerSetupDialog mixer={mixerFor} onClose={() => setMixerFor(null)} onSave={(m) => void setUpMixer(mixerFor, m)} />}
     </section>
   )
 }
