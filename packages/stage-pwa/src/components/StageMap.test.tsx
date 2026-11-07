@@ -77,6 +77,12 @@ describe('StageMap (docs/31 §7)', () => {
     expect(section).not.toHaveClass('z-takeover')
   })
 
+  it('panning sideways never switches the System tab (2026-11-07)', () => {
+    setUp(false)
+    const { container } = render(<StageMap />)
+    expect(container.querySelector('section')).toHaveAttribute('data-no-tab-swipe')
+  })
+
   it('a member wires their own device but not the mixer; equipment stays with the admin', () => {
     setUp(false)
     render(<StageMap />)
