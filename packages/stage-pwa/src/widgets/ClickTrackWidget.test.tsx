@@ -13,6 +13,8 @@ import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
 // (startClick/stopClick) no longer happens in this widget - see useClickOutputDriver.test.ts,
 // which owns that behavior now (found live, 2026-09-10: switching away from the Live tab used to
 // unmount this widget and silently stop the click mid-show).
+// No stage map loaded: the old rules (roles, the master) apply.
+vi.mock('../store/useStageMapStore', () => ({ useStageMapStore: (select: (state: unknown) => unknown) => select({ loaded: false, equipment: [], setups: [] }) }))
 vi.mock('../lib/showMode', () => {
   const show = vi.fn()
   // Widgets read the clock only where they show it (#457) - the same mocked show for every hook.

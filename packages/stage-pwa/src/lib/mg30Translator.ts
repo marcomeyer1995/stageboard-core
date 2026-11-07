@@ -1,9 +1,10 @@
 import i18n from '../i18n'
 import type { ShowControlResult } from 'shared-types'
 import { getDeviceId } from './deviceId'
+import { midiOutputFor } from './mapMidi'
 import type { Translator } from './clientTranslator'
 import { isWebMidiSupported } from './webMidi'
-import { getMidiOutputById, sendSysEx } from './webMidiOutput'
+import { sendSysEx } from './webMidiOutput'
 import { midiSendTime } from './midiSendTime'
 import { useDeviceTransportConfigStore } from '../store/useDeviceTransportConfigStore'
 import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
@@ -52,10 +53,8 @@ async function resolveMg30Output(logicalDeviceId?: string, sendAt?: number): Pro
   const config = useDeviceTransportConfigStore
     .getState()
     .configs.find((c) => c.deviceId === deviceId && c.logicalDeviceId === logicalDevice.id)
-  const outputId = config?.values.midiOutputId
-  if (!outputId) return null
-
-  const output = await getMidiOutputById(outputId, sendAt)
+  // The stage map's cable names the port; without one, the port set up on this device.
+  const output = await midiOutputFor(logicalDevice.id, config?.values.midiOutputId, sendAt)
   if (!output) return null
 
   const channel = Number(config?.values.midiChannel)

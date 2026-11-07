@@ -17,7 +17,7 @@
   "cues": {
     "title": "Geräte-Cues",
     "info": "Was jedes Gerät im Rig-Check bekommt - ein Befehl, gesendet in Takt 5 (Kurzcheck) bzw. an vier Stellen (voller Lauf). Gilt für die ganze Band, nur Admins ändern es. Neu gewählt wirkt es beim nächsten Vorbereiten.",
-    "none": "Kein Gerät mit fertigen Befehlen eingerichtet (Bühnentechnik). Der Rig-Check prüft dann Klick, Track, Bildschirme und Sprung.",
+    "none": "Kein Gerät mit fertigen Befehlen eingerichtet (Bühne). Der Rig-Check prüft dann Klick, Track, Bildschirme und Sprung.",
     "nothing": "nichts - bleibt unberührt",
     "change": "Ändern",
     "choose": "Wählen",
