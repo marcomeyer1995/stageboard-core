@@ -87,7 +87,7 @@ Ergebnis: **machbar.** Uhr gut (nativ), Live-Sync ausreichend; der erste Voll-Ab
 
 **Noch offen:** echter Lauf auf dem Laptop mit einer frischen Band und den Tablets; Umzug einer bestehenden Band von CouchDB (Replikation, die Daten liegen auf jedem Gerät); die Plugins auf der Karte in der App; dann der Android-Spike.
 
-## 6b. Offene Entscheidung: Konten auf einem Android-Host (2026-11-07, für Marco vorbereitet)
+## 6b. Konten auf einem Android-Host – entschieden: C (Marco, 2026-11-07)
 
 Heute liegen die Konten (Name, Rollen, PIN nur als PBKDF2-Schlüssel) **nur auf dem Stage-Server** (`_users`, nur der Server-Admin liest sie). Ein Tablet kennt nur sein eigenes Login. Ein Tablet als Host kann die anderen also nicht prüfen. Möglichkeiten:
 
@@ -97,7 +97,9 @@ Heute liegen die Konten (Name, Rollen, PIN nur als PBKDF2-Schlüssel) **nur auf 
 | **B Umzug vom Server** | Solange der alte Stage-Server erreichbar ist, gibt er die Konten der Band an den neuen Host (Admin-Aktion) | kein Neu-Koppeln | geht nur mit dem alten Server; kein Ausweg, wenn er ausfällt |
 | **C Konten in den Banddaten** | Die PIN-Schlüssel liegen in einem Dokument der Band, jedes Gerät hat sie, jedes kann Host werden | Host-Wechsel jederzeit, auch bei Ausfall | jedes Gerät hätte alle PIN-Schlüssel – bei 4-stelligen PINs offline in Sekunden zu erraten; nur mit langen Geräte-Schlüsseln statt PINs vertretbar |
 
-**Vorschlag:** A als Grundlage (sicher, einfach), dazu B für den bequemen Umzug vom Stage-Server. C nur, falls „Host fällt mitten im Gig aus, ein anderes Gerät übernimmt“ (§8) wichtig wird – dann mit Geräte-Schlüsseln, nie mit PIN-Schlüsseln.
+**Entschieden: C** (Marco, 2026-11-07) – jedes Gerät kann Host werden, auch wenn der bisherige mitten im Gig ausfällt. Bedingung: im Band-Dokument liegen nur Schlüssel **langer Geräte-Passwörter** (die meisten Tablet-Logins sind schon zufällige 24-Byte-Passwörter), **nie PIN-Schlüssel**. Admin-Konten, die sich mit PIN anmelden, bekommen dafür zusätzlich einen Geräte-Schlüssel; die PIN bleibt nur auf dem Stage-Server. (Bisheriger Vorschlag war A + B.)
+
+**Außerdem entschieden:** WLAN-Sperre gegen Stromsparen im Gig-Modus auf allen Tablets (#716, gemessen in §6a).
 
 **Außerdem offen für den Android-Host:** Hotspot (Android erlaubt einer App einen eigenen „Local-only“-Hotspot ohne Internet, mit zufälligem Namen/Passwort – trennt aber oft das normale WLAN, darum nicht ferngetestet), Vordergrund-Dienst (Host weiter bei gesperrtem Bildschirm, derselbe Baustein wie N1, #712).
 
