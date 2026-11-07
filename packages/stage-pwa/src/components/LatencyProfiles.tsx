@@ -9,6 +9,7 @@ import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
 import { audioOutputLatencyMs, routeLabel } from '../lib/latencyProfiles'
 import { LatencyCompensationSettings } from './LatencyCompensationSettings'
 import { NativeOutputSettings } from './NativeOutputSettings'
+import { AlignByEarDialog } from './AlignByEarDialog'
 import { Button, Dialog, Field, Select } from './ui'
 import { useTranslation } from 'react-i18next'
 
@@ -151,6 +152,7 @@ export function LatencyProfileDialog({ deviceId, deviceName, onClose }: { device
   const [output, setOutput] = useState(outputs[0]?.value ?? '')
   const [route, setRoute] = useState<AudioRoute>(deviceId === getDeviceId() ? currentRoute : 'speaker')
   const [value, setValue] = useState('')
+  const [aligning, setAligning] = useState(false)
   const latencyMs = Number(value.replace(',', '.'))
   const valid = value.trim() !== '' && Number.isFinite(latencyMs) && latencyMs >= 0 && latencyMs <= 2000
 
@@ -169,12 +171,20 @@ export function LatencyProfileDialog({ deviceId, deviceName, onClose }: { device
     setValue('')
   }
 
+  if (aligning) return <AlignByEarDialog targetDeviceId={deviceId} onClose={() => setAligning(false)} />
+
   return (
     <Dialog title={t('lat.title', { device: deviceName })} onClose={onClose}>
       <div className="flex flex-col gap-4">
         <p className="text-sm text-ink-muted">
           {t('lat.info')}
         </p>
+        {/* By ear against a reference device (docs/21 §4) - from any device, for any device. */}
+        {!isServer && (
+          <Button onClick={() => setAligning(true)} className="self-start">
+            {t('align.open')}
+          </Button>
+        )}
         {/* The on/off switch beside the values it uses (Marco, 2026-10-16 - it was alone in "Ton & Timing"). */}
         {deviceId === getDeviceId() && <NativeOutputSettings />}
         {deviceId === getDeviceId() && <LatencyCompensationSettings />}

@@ -1,4 +1,5 @@
 import { useSectionJumpDriver } from '../lib/sectionJump'
+import { useAlignmentDriver } from '../lib/useAlignmentDriver'
 import { useAnnouncementDriver } from '../lib/useAnnouncementDriver'
 import { useAudioOutputDriver } from '../lib/useAudioOutputDriver'
 import { useAutoStopDriver } from '../lib/useAutoStopDriver'
@@ -44,6 +45,8 @@ export function PlaybackDrivers({ footswitchActive }: { footswitchActive: boolea
   useStallMonitor()
   // Spoken section announcements next to the click (#63).
   useAnnouncementDriver()
+  // "Abgleich nach Gehör" (docs/21 §4): clicks here while a session names this device.
+  useAlignmentDriver()
   useAutoStopDriver()
   // Section jump and loop in the show (#479): folds passed jumps, queues a loop's way back.
   useSectionJumpDriver()
