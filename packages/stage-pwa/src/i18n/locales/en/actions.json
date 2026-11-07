@@ -100,7 +100,7 @@
   "noCommand": "No command chosen yet.",
   "changeCommand": "Change command",
   "chooseCommand": "Choose device and command",
-  "noDevices": "No device with ready-made commands set up (Stage gear) - e.g. Kemper Profiler, NUX MG-30, BOSS RC-500 or a mixer.",
+  "noDevices": "No device with ready-made commands set up (Stage) - e.g. Kemper Profiler, NUX MG-30, BOSS RC-500 or a mixer.",
   "likeCue": "Like a cue in the timeline. Anyone may trigger it, without being the master.",
   "controlDevice": "Control a device",
   "stepsInfo": "What the key does depends on the state the song is in right now (as in the status bar).",

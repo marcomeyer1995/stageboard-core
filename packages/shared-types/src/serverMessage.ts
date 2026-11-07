@@ -38,7 +38,7 @@ export const SERVER_MESSAGES_DE = {
   'stems.demucsMissing': 'Demucs ist auf dem Stage-Server nicht installiert (docs/03).',
   'osc.unknownCommand': 'Unbekannter OSC-Befehl: {{type}}',
   'osc.invalidAddress': 'Keine gültige OSC-Adresse: „{{address}}“',
-  'osc.noTarget': 'Für dieses OSC-Gerät fehlen Host und Port (Bühnentechnik).',
+  'osc.noTarget': 'Für dieses OSC-Gerät fehlen Host und Port (Bühne).',
   'osc.sendFailed': 'OSC an {{host}}:{{port}} fehlgeschlagen: {{error}}',
   'job.interrupted': 'Durch einen Neustart des Stage-Servers unterbrochen.',
   'job.variantGone': 'Die Song-Variante existiert nicht mehr.',

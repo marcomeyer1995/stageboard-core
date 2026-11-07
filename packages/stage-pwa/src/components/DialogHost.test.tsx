@@ -172,12 +172,14 @@ describe('DialogHost - destructive confirmation (#361)', () => {
   })
 
   it('covers only the visible area, so an on-screen keyboard cannot hide the dialog (#375)', () => {
-    const listeners: Record<string, () => void> = {}
+    // Every subscriber (the dialog's area and its keyboard check) gets the event.
+    const subscribers: Record<string, (() => void)[]> = {}
+    const listeners = { resize: () => subscribers.resize?.forEach((fn) => fn()) }
     const vv = {
       offsetTop: 0,
       height: 800,
       addEventListener: (type: string, fn: () => void) => {
-        listeners[type] = fn
+        ;(subscribers[type] ??= []).push(fn)
       },
       removeEventListener: () => {},
     }
@@ -201,7 +203,7 @@ describe('DialogHost - destructive confirmation (#361)', () => {
       vi.useRealTimers()
       expect(screen.getByTestId('dialog-host').style.height).toBe('420px')
       expect(screen.getByTestId('dialog-host').style.top).toBe('0px')
-      // A dialog with a text field opens at the top, out of the keyboard's way.
+      // No touchscreen here, so no keyboard known to have shrunk the area: at the top, out of its way.
       expect(screen.getByTestId('dialog-host').className).toContain('items-start')
     } finally {
       Object.defineProperty(window, 'visualViewport', { value: undefined, configurable: true })
@@ -214,6 +216,24 @@ describe('DialogHost - destructive confirmation (#361)', () => {
       void useDialogStore.getState().confirm('Wirklich?')
     })
     expect(screen.getByTestId('dialog-host').className).toContain('items-center')
+  })
+
+  it('a typing dialog stays at the top only where the keyboard might lie over the page unannounced', async () => {
+    const native = await import('../lib/native')
+    render(<DialogHost />)
+    act(() => {
+      void useDialogStore.getState().promptText('Neuer Aufbau')
+    })
+    // A browser without a shrunk area (Fire Silk): out of the keyboard's way.
+    expect(screen.getByTestId('dialog-host').className).toContain('items-start')
+    act(() => useDialogStore.getState().cancel())
+    // The app: Android shrinks the visible area for the keyboard - centred in it.
+    const spy = vi.spyOn(native, 'isNativeApp').mockReturnValue(true)
+    act(() => {
+      void useDialogStore.getState().promptText('Neuer Aufbau')
+    })
+    expect(screen.getByTestId('dialog-host').className).toContain('items-center')
+    spy.mockRestore()
   })
 
   it('is a real (alert)dialog named by its title - screen readers and the foot switch guard see it', () => {

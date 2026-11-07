@@ -100,7 +100,7 @@
   "noCommand": "Noch kein Befehl gewählt.",
   "changeCommand": "Befehl ändern",
   "chooseCommand": "Gerät und Befehl wählen",
-  "noDevices": "Kein Gerät mit fertigen Befehlen eingerichtet (Bühnentechnik) - z. B. Kemper Profiler, NUX MG-30, BOSS RC-500 oder ein Mischpult.",
+  "noDevices": "Kein Gerät mit fertigen Befehlen eingerichtet (Bühne) - z. B. Kemper Profiler, NUX MG-30, BOSS RC-500 oder ein Mischpult.",
   "likeCue": "Wie ein Cue in der Timeline. Darf jeder auslösen, auch ohne Master zu sein.",
   "controlDevice": "Gerät steuern",
   "stepsInfo": "Was die Taste tut, hängt davon ab, in welchem Zustand der Song gerade ist (wie in der Statusleiste).",

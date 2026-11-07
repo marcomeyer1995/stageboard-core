@@ -1,8 +1,9 @@
 import { CAPABILITIES, type LogicalDevice, type ShowControlResult, type DeviceTransportConfig } from 'shared-types'
 import type { Translator } from './clientTranslator'
 import { getDeviceId } from './deviceId'
+import { mapMidiName } from './mapMidi'
 import { MIDI_STOP } from './midiClock'
-import { getMidiOutputById, listMidiOutputs } from './webMidiOutput'
+import { getMidiOutputById, getMidiOutputByName, listMidiOutputs } from './webMidiOutput'
 import { useDeviceTransportConfigStore } from '../store/useDeviceTransportConfigStore'
 import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
 
@@ -18,6 +19,9 @@ export function myClockDevices(devices: readonly LogicalDevice[], deviceId = get
  * name stored next to it (`midiOutputIdName`): Android hands out new port ids after a replug.
  */
 export async function resolveClockOutput(logicalDeviceId: string, configs: readonly DeviceTransportConfig[]): Promise<MIDIOutput | null> {
+  // The stage map's cable names the port first (docs/31 §6 step 2, part 2).
+  const mapped = mapMidiName(logicalDeviceId)
+  if (mapped) return getMidiOutputByName(mapped)
   const config = configs.find((c) => c.deviceId === getDeviceId() && c.logicalDeviceId === logicalDeviceId)
   const id = config?.values.midiOutputId
   if (!id) return null

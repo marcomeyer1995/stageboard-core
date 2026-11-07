@@ -1,9 +1,10 @@
 import i18n from '../i18n'
 import type { ShowControlResult } from 'shared-types'
 import { getDeviceId } from './deviceId'
+import { midiOutputFor } from './mapMidi'
 import type { Translator } from './clientTranslator'
 import { KEMPER_CAPABILITY, KEMPER_CC, KEMPER_STOMP_CC as STOMP_CC, KEMPER_STOMP_CC_WITH_TAIL as STOMP_CC_WITH_TAIL } from './midiDeviceProtocols'
-import { getMidiOutputById, sendControlChange } from './webMidiOutput'
+import { sendControlChange } from './webMidiOutput'
 import { midiSendTime } from './midiSendTime'
 import { useDeviceTransportConfigStore } from '../store/useDeviceTransportConfigStore'
 import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
@@ -36,10 +37,8 @@ async function resolveKemperOutput(logicalDeviceId?: string, sendAt?: number): P
   const config = useDeviceTransportConfigStore
     .getState()
     .configs.find((c) => c.deviceId === deviceId && c.logicalDeviceId === logicalDevice.id)
-  const outputId = config?.values.midiOutputId
-  if (!outputId) return null
-
-  const output = await getMidiOutputById(outputId, sendAt)
+  // The stage map's cable names the port; without one, the port set up on this device.
+  const output = await midiOutputFor(logicalDevice.id, config?.values.midiOutputId, sendAt)
   if (!output) return null
 
   const channel = Number(config?.values.midiChannel)

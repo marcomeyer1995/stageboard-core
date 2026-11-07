@@ -67,6 +67,23 @@ Schwankung von Schlag zu Schlag 0,5–2 ms, keine Aussetzer bei Play/Stop. Lehre
 
 **Messfalle:** liegen die Klicks zusammen, verdecken sie sich im Mikrofon (der leisere wird nicht mehr erkannt). Zum Prüfen jedem Gerät einen bekannten Versatz geben (über die Profile), danach abziehen.
 
+### 2d. Von Song zu Song stabil (2026-11-05, PR #701)
+
+Gemessen mit Song-Starts im Gig (Mikrofon ab 1,5 s vor Play, jedes Gerät eigene Klick-Tonhöhe `sb:debug:click-hz`, Track stumm, Play über `__sbRunAction`), Uhr parallel über USB gegen die Wahrheit:
+
+- **Verschobene Klicks nach Play (Fire):** die native Ausgabe startete erst mit dem ersten Ton und brauchte ~0,5 s – die ersten Schläge lagen noch auf der WebView-Uhr. Jetzt Start beim App-Start (`useNativeOutputWarmup`).
+- **Die WebView-Uhr driftet:** `currentTime` läuft gegen die Wand-Uhr 0,8 ms/s (Redmi) bis 1,2 ms/s (Handy) langsamer, unter Last mehr. Die Zeitlinie lief mit höchstens 0,5 ms/s hinterher und sprang bei 20 ms. Jetzt: Gerade durch die früheste Ankunft jeder Sekunde der letzten Minute (Steigung Theil-Sen, Höhe an der frühesten – eine Ankunft ist nie zu früh); Sprung erst ab 100 ms; in der ersten Minute nach dem Start übernimmt sie die Kante sofort.
+- **Drift zwischen den Songs:** nicht die Uhr (über USB stabil), sondern die Tempo-Regelung: rein proportional brauchte sie zum Folgen eine bleibende Abweichung von 2–4 ms, die mit der Last wechselte. Jetzt PI (Integral 20 s, höchstens 0,4 %).
+- **Redmi-Zeitstempel** liegen immer wieder kurz ~5 ms daneben: als Sprung erst nach 500 ms.
+
+| 8 Song-Starts, gegen Redmi | vorher | nachher |
+|---|---|---|
+| Handy | −5 … −16 ms | −2 … −5 ms |
+| Laptop | −4 … −19 ms | −4 … −7 ms |
+| Fire | −4 … −11 ms | −4 … −5 ms |
+
+**Messfallen:** gleichzeitige Klicks verdecken sich im Mikrofon (Abhilfe: eigene Tonhöhen, bekannter Versatz); ein Lautsprecher direkt am Mikrofon auf 100 % übersteuert und klingt nach (Laptop für Messungen auf 40 %); Tablet-Lautstärke 0 schaltet nicht jedes Gerät stumm.
+
 Daraus:
 
 1. **Die Browser-Zeitangabe ist geräteabhängig verlässlich** – auf zwei von drei Geräten gut, auf dem Fire falsch. Das lässt sich in der App nicht reparieren, nur erkennen und ausgleichen.
@@ -111,13 +128,11 @@ Wie heute (#491, docs/21 §9): ein Weg spielt um seinen gemessenen Rest früher.
 
 ## 7. Offen
 
-- Handy: Schwankung von Schlag zu Schlag höher als bei den anderen (in einzelnen Aufnahmen 8–12 ms), Sprünge > 20 ms bei Play/Stop.
-- Fire: in einer Aufnahme einige verschobene Klicks in den ersten Sekunden nach Play.
-- Der Restausgleich (`audio-native`) gilt je Route – mit Kopfhörer braucht der Fire einen eigenen Wert.
-- Ein Redmi-Start blieb 30 s bei −20 ms (zu wenige schnelle Uhr-Anfragen während der Downloads).
+- Der Restausgleich (`audio-native`) gilt je Route – mit Kopfhörer braucht der Fire einen eigenen Wert (Abgleich nach Gehör, PR #700).
+- Ein Redmi-Start blieb 30 s bei −20 ms: während der Audio-Downloads nach dem Start kommen kaum schnelle Uhr-Anfragen durch (docs/11).
+- Zwischen Song-Starts bleiben ~3 ms Streuung; die Uhr-Synchronisation ist jetzt der größere Rest.
 
 - Oboe als Fremdbibliothek (Apache 2.0) oder AAudio direkt? Oboe bringt Rückfall auf OpenSL ES für Android < 8.1 und viele Geräte-Umgehungen – Vorschlag: Oboe.
 - Track-Daten in die native Engine: dekodiert über die Brücke (einfach, Speicher) oder nativ dekodieren (MediaCodec)?
 - Welche Pulte geben ihre Eingänge per USB/Netz so heraus, dass StageBoard sie lesen kann (USB-Audio class compliant vs. eigene Treiber/Protokolle)? Zuerst die Pulte, für die es schon Plugins gibt (CQ-18T, Ui24R).
-- Warum weicht der Uhr-Versatz des Redmi je App-Start um bis zu 25 ms ab (§2a)? Mit nativem Audio ist das der größte verbleibende Fehler.
 - Was zeigt die App, wenn kein Weg auf einem Gerät stimmt (der Fire-WebView-Fall)? Vorschlag: rotes „Ausgang ungenau“ in Bühnentechnik mit der gemessenen Schwankung, Empfehlung eines anderen Wegs.

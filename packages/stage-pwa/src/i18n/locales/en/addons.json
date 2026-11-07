@@ -1,12 +1,12 @@
 {
   "extensions": {
     "title": "Add-ons",
-    "text": "Software without a device of its own for the whole band, e.g. speech output, announcements or stem separation - devices are under Stage gear. Installed add-ons apply on every tablet and the Stage server; disabled ones disappear from the widget library.",
+    "text": "Software without a device of its own for the whole band, e.g. speech output, announcements or stem separation - devices are under Stage. Installed add-ons apply on every tablet and the Stage server; disabled ones disappear from the widget library.",
     "empty": "No add-on installed yet."
   },
   "drivers": {
     "title": "Drivers",
-    "text": "So that StageBoard can control a device (amp, mixer, looper, MIDI). Normally invisible: “New device” in Stage gear installs the matching one, and removing the last device offers to remove it. Here for troubleshooting only.",
+    "text": "So that StageBoard can control a device (amp, mixer, looper, MIDI). Normally invisible: “New device” in Stage installs the matching one, and removing the last device offers to remove it. Here for troubleshooting only.",
     "empty": "No driver installed yet."
   },
   "test": {

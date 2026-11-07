@@ -103,11 +103,13 @@ export default {
         form: 'var(--sb-h-form)',
         prep: 'var(--sb-h-prep)',
       },
-      // Fixed layer scale (docs/15 §5) instead of free z-values per file: content < bars <
-      // menus < dialogs < alerts (DialogHost's confirm above any dialog) < flash < takeover.
+      // Fixed layer scale (docs/15 §5) instead of free z-values per file: content < bars < page
+      // (a view gone full screen - its dialogs must still open above it) < menus < dialogs <
+      // alerts (DialogHost's confirm above any dialog) < flash < takeover.
       zIndex: {
         content: '10',
         bars: '20',
+        page: '30',
         menu: '40',
         dialog: '50',
         alert: '55',
