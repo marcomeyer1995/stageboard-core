@@ -10,6 +10,7 @@
     "paused": "Pause",
     "finished": "Beendet",
     "audioError": "Audio-Fehler",
+    "audioFallback": "Ton: Notbetrieb",
     "syncError": "Sync-Fehler",
     "offline": "Offline",
     "noMaster": "Kein Master",

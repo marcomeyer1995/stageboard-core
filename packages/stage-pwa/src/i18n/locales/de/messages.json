@@ -13,7 +13,7 @@
   "newDeviceTitle": "Neues Gerät erkannt",
   "createDevice": "Gerät erstellen",
   "whichRole": "Welche Rolle soll dieses Gerät spielen?",
-  "noTablet": "Hängt an keinem Gerät - in Bühnentechnik ein Tablet wählen",
+  "noTablet": "Hängt an keinem Gerät - in „Bühne“ ein Tablet wählen",
   "deviceGone": "Gerät nicht gefunden (gelöscht?)",
   "noExecutor": "Kein Plugin oder Gerät führt diesen Cue aus",
   "noTrackForSong": "Kein Track für diesen Song",

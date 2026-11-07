@@ -16,6 +16,11 @@ export function getSharedAudioContext(): AudioContext {
   return context
 }
 
+/** The context if one exists - for watching it (deviceVitals.ts) without creating one. */
+export function peekSharedAudioContext(): AudioContext | null {
+  return context
+}
+
 /** Who currently needs the output awake ('track', 'click'). */
 const holders = new Set<string>()
 let keepAlive: { osc: OscillatorNode; gain: GainNode } | null = null

@@ -16,7 +16,7 @@
   "notPossible": "Aktion nicht möglich - keine Admin-Rechte oder Stage-Server nicht erreichbar.",
   "forgetConfirm": "„{{name}}“ aus der Liste entfernen? Kein Blockieren: startet das Gerät die App wieder, erscheint es erneut.",
   "remove": "Entfernen",
-  "inUse": "„{{name}}“ wird noch in der Bühnentechnik verwendet - erst dort ein anderes Gerät wählen.",
+  "inUse": "„{{name}}“ wird noch in „Bühne“ verwendet - erst dort ein anderes Gerät wählen.",
   "blocked": "„{{name}}“ wurde inzwischen blockiert - ein blockiertes Gerät bleibt in der Liste.",
   "skipNote": " {{count}} weitere bleiben, weil Hardware sie verwendet.",
   "forgetInactiveConfirm": "{{count}} inaktive Geräte aus der Liste entfernen? Blockierte Geräte und dieses Gerät bleiben.{{note}}",
@@ -47,7 +47,7 @@
   "appOpen": "App offen",
   "appClosed": "App geschlossen / nicht gemeldet",
   "noData": "Noch keine Diagnosedaten von diesem Gerät.",
-  "inUseBy": "In Verwendung: {{list}} - im Tab Bühnentechnik ein anderes Gerät wählen, dann lässt es sich entfernen.",
+  "inUseBy": "In Verwendung: {{list}} - im Tab Bühne ein anderes Gerät wählen, dann lässt es sich entfernen.",
   "src": {
     "measured": "gemessen",
     "manual": "von Hand",
@@ -84,6 +84,31 @@
     "msPlaceholder": "z. B. 70",
     "save": "Speichern"
   },
+  "align": {
+    "open": "Nach Gehör abgleichen…",
+    "title": "Nach Gehör abgleichen: {{device}}",
+    "info": "Ein Referenzgerät und dieses Gerät klicken gleichzeitig auf der Bandzeit, sonst nichts. Stell dich an deinen Hörplatz (In-Ear, hinter dem Schlagzeug, im Saal) und verschiebe den Wert, bis beide Klicks zu einem verschmelzen.",
+    "reference": "Referenzgerät",
+    "start": "Abgleich starten",
+    "running": "Läuft gegen {{reference}}.",
+    "waiting": "Warte auf das Gerät… (App dort geöffnet?)",
+    "value": "Wert jetzt: {{ms}} ms ({{route}})",
+    "direction": "Mehr = dieses Gerät klingt früher, weniger = später. Jede Änderung gilt nach etwa einer Sekunde.",
+    "mark": "Grenze merken (Flam gerade hörbar)",
+    "middle": "Mitte übernehmen: {{ms}} ms",
+    "marks": "Gemerkt: {{marks}} ms",
+    "stop": "Abgleich beenden",
+    "micStart": "Live messen (Mikrofon dieses Geräts)",
+    "micFailed": "Kein Mikrofon - Zugriff erlaubt?",
+    "micListening": "Höre zu… (beide Klicks müssen hörbar sein)",
+    "micTogether": "{{device}} liegt auf der Referenz (unter 1 ms).",
+    "micLate": "{{device}} klingt {{ms}} ms zu spät → Wert erhöhen (+)",
+    "micEarly": "{{device}} klingt {{ms}} ms zu früh → Wert verringern (−)",
+    "micApply": "Vorschlag übernehmen: {{ms}} ms",
+    "range": "Tiefer Klick = Referenz, hoher Klick = dieses Gerät, der erste Schlag im Takt lauter. Der Wert bleibt höchstens {{ms}} ms vom Startwert entfernt.",
+    "laneReference": "Referenz: {{device}} (tiefer Klick, {{hz}} Hz)",
+    "laneTarget": "{{device}} (hoher Klick, {{hz}} Hz) - unter die Referenz schieben"
+  },
   "native": {
     "label": "Native Tonausgabe (Android)",
     "on": "An: gehört {{ms}} ms nach dem Abspielen - genau, ohne gespeicherte Latenz.",
@@ -97,7 +122,8 @@
     "stored": "{{ms}} ms für {{route}}",
     "none": "kein Wert für {{route}} - unten eintragen",
     "now": "Jetzt: {{status}}.",
-    "info": "Klick und Backing-Track starten um die gemessene Latenz dieses Ausgabewegs früher, damit sie auf dem Schlag klingen."
+    "info": "Klick und Backing-Track starten um die gemessene Latenz dieses Ausgabewegs früher, damit sie auf dem Schlag klingen.",
+    "nativeOn": "die native Tonausgabe ist an - sie braucht diesen Wert nicht, nur „Ton über die native Ausgabe“ (Nach Gehör abgleichen)"
   },
   "backup": {
     "minutes": "vor {{n}} Min.",
@@ -107,5 +133,29 @@
     "failed": "Backup fehlgeschlagen{{when}}: {{error}}",
     "last": "Letztes Backup {{when}}",
     "stale": " - älter als zwei Tage"
+  },
+  "audioOut": {
+    "webview": "Ton über die WebView",
+    "native": "Ton nativ, sauber ({{ms}} ms)",
+    "dropouts": "Ton: {{ms}} ms Aussetzer in der letzten Minute",
+    "jumps_one": "Ton: {{count}} Sprung in der letzten Minute",
+    "jumps_other": "Ton: {{count}} Sprünge in der letzten Minute",
+    "tight": "Ton: Reserve knapp ({{ms}} ms)",
+    "fellBack": "Ton im Notbetrieb über die WebView - die native Ausgabe verlor Ton"
+  },
+  "vitals": {
+    "ok": "Zustand gut",
+    "uptime": "läuft seit {{h}} h",
+    "memFree": "{{mb}} MB frei",
+    "issue": {
+      "audioFallback": "Ton im Notbetrieb",
+      "audioMissing": "Ton-Aussetzer",
+      "audioClock": "Audio-Uhr unruhig",
+      "audioTight": "Ton-Reserve knapp",
+      "memoryLow": "Speicher voll",
+      "memoryTight": "Speicher knapp",
+      "stalls": "App hängt",
+      "clockUnsure": "Bandzeit unsicher"
+    }
   }
 }

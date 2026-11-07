@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react'
-import { CAPABILITIES, SERVER_EXECUTION_TARGET } from 'shared-types'
+import { CAPABILITIES, mapPlays, SERVER_EXECUTION_TARGET } from 'shared-types'
 import { create } from 'zustand'
 import { announcementsDue, sectionAnnouncements, type Announcement } from './announcements'
 import { sharedAudioClock } from './audioClock'
@@ -16,6 +16,7 @@ import { resolveBuiltInBinding } from './hardwareRouting'
 import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
 import { usePluginsStore } from '../store/usePluginsStore'
 import { useShowStateStore } from '../store/useShowStateStore'
+import { useStageMapStore } from '../store/useStageMapStore'
 import { sourceOutput } from './audioMix'
 import { playbackLookup } from './playbackCues'
 import { usePracticeStateStore } from '../store/usePracticeStateStore'
@@ -70,7 +71,9 @@ export function useAnnouncementDriver(): void {
   const logicalDevices = useLogicalDevicesStore((state) => state.devices)
   const announcementRole = resolveBuiltInBinding(logicalDevices, CAPABILITIES.sectionAnnouncements, deviceId)
   const ownTarget = mode === 'gig' && announcementRole?.executionTarget && announcementRole.executionTarget !== SERVER_EXECUTION_TARGET ? announcementRole.executionTarget : null
-  const engine = ownTarget ? (ownTarget === deviceId ? 'local-mine' : 'local-other') : clickEngine
+  // The stage map decides in the Gig (docs/31 §6 step 2): Ansagen where the device's matrix routes them.
+  const mapSays = useStageMapStore((state) => (state.loaded ? mapPlays(state, deviceId, CAPABILITIES.sectionAnnouncements, state.front) : null))
+  const engine = mode === 'gig' && mapSays !== null ? (mapSays ? 'local-mine' : 'local-other') : ownTarget ? (ownTarget === deviceId ? 'local-mine' : 'local-other') : clickEngine
   const liveTempoAdjustPercent = useShowStateStore((state) => state.state.liveTempoAdjustPercent)
   const takeKey = useShowStateStore((state) => state.state.activeEntryStartedAt)
   const outputLatencyMs = useAudioOutputLatencyMs()
