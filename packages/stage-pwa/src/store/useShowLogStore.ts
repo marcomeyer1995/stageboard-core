@@ -1,5 +1,5 @@
 import { coalesced } from '../lib/coalesced'
-import type { LocalChangesHandle } from '../lib/localChanges'
+import type { LocalChange, LocalChangesHandle } from '../lib/localChanges'
 import { create } from 'zustand'
 import { randomId } from '../lib/id'
 import { ShowLogEventSchema, type ShowLogEvent } from 'shared-types'
@@ -90,13 +90,35 @@ async function refreshProtections(set: (partial: Partial<ShowLogState>) => void)
   set({ protectedShowIds: docs.map((doc) => doc.id) })
 }
 
-async function refresh(set: (partial: Partial<ShowLogState>) => void) {
+async function readAll(): Promise<ShowLogEvent[]> {
   const docs = await getAllShowLogEvents()
-  const events = docs
+  return docs
     .map(toShowLogEvent)
     .filter((event): event is ShowLogEvent => event !== null)
     .sort((a, b) => a.at - b.at)
-  set({ events })
+}
+
+/**
+ * The log with these changes applied - each one carries its document, so nothing is read back.
+ * Was a full re-read per change: with 12,600 events that cost ~600 ms on the Fire for every cue
+ * fired, once per bar in a song with cues, and the click lost the beat in each stall (2026-11-06).
+ * Kept sorted by time; an event is usually the newest, so it goes in from the end.
+ */
+export function applyShowLogChanges(events: readonly ShowLogEvent[], changes: readonly LocalChange<ShowLogEventDoc>[]): ShowLogEvent[] {
+  const next = [...events]
+  for (const change of changes) {
+    // `showlog:<id>` - a deletion carries no fields, only its document id.
+    const id = change.id.slice(change.id.indexOf(':') + 1)
+    const at = next.findIndex((event) => event.id === id)
+    if (at >= 0) next.splice(at, 1)
+    if (change.deleted || !change.doc) continue
+    const event = toShowLogEvent(change.doc)
+    if (!event) continue
+    let i = next.length
+    while (i > 0 && next[i - 1]!.at > event.at) i--
+    next.splice(i, 0, event)
+  }
+  return next
 }
 
 export const useShowLogStore = create<ShowLogState>((set, get) => ({
@@ -112,11 +134,29 @@ export const useShowLogStore = create<ShowLogState>((set, get) => ({
     switchShowProtectionWorkspace(workspaceId)
     set({ events: [], loaded: false, protectedShowIds: [] })
 
-    await Promise.all([refresh(set), refreshProtections(set)])
-    set({ loaded: true })
-
+    // Listening before the first read: a change that lands while it runs is applied on top of it
+    // (applying is idempotent - an event already read is replaced by the same one).
+    let pending: LocalChange<ShowLogEventDoc>[] = []
+    let flushQueued = false
     changesHandle = showLogChanges()
-    changesHandle.on('change', coalesced(() => refresh(set)))
+    changesHandle.on('change', (change) => {
+      pending.push(change as LocalChange<ShowLogEventDoc>)
+      if (!get().loaded || flushQueued) return
+      // A burst (bulk delete of a show, replication catching up) becomes one update.
+      flushQueued = true
+      queueMicrotask(() => {
+        flushQueued = false
+        const batch = pending
+        pending = []
+        if (batch.length > 0) set({ events: applyShowLogChanges(get().events, batch) })
+      })
+    })
+    const handle = changesHandle
+    const [events] = await Promise.all([readAll(), refreshProtections(set)])
+    if (changesHandle !== handle) return
+    const early = pending
+    pending = []
+    set({ events: applyShowLogChanges(events, early), loaded: true })
     const protections = showProtectionChanges()
     protections.on('change', coalesced(() => refreshProtections(set)))
     protectionHandle = protections

@@ -1,5 +1,6 @@
 import { useEffect, useMemo } from 'react'
 import { cacheKey } from './audioCache'
+import { clockLockedFirst, isClockLockedFirst } from './clockSync'
 import { scheduleReconcileAudioCache } from './audioStorageManager'
 import { resolveTrackForEntry } from './computeQueue'
 import { useQueue } from './queue'
@@ -49,6 +50,18 @@ export function useAudioSyncReconciler(workspaceId: string) {
   }, [currentVariant?.id, currentTrack?.id, stemKeys, rigCheckKey])
 
   useEffect(() => {
-    scheduleReconcileAudioCache(mode, variants, activeSetlist, pinnedSongIds, alwaysKeepKeys, stemMode)
+    // At app start the clock locks first: downloads on the same connection hold up the time requests.
+    const reconcile = () => scheduleReconcileAudioCache(mode, variants, activeSetlist, pinnedSongIds, alwaysKeepKeys, stemMode)
+    if (isClockLockedFirst()) {
+      reconcile()
+      return
+    }
+    let cancelled = false
+    void clockLockedFirst().then(() => {
+      if (!cancelled) reconcile()
+    })
+    return () => {
+      cancelled = true
+    }
   }, [workspaceId, mode, stemMode, variants, activeSetlist, pinnedSongIds, alwaysKeepKeys])
 }

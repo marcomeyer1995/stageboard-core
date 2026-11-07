@@ -1,12 +1,12 @@
 {
   "extensions": {
     "title": "Add-ons",
-    "text": "Software ohne eigenes Gerät für die ganze Band, z. B. Sprachausgabe, Ansagen oder Spuren trennen - Geräte stehen unter Bühnentechnik. Installierte Add-ons gelten auf allen Tablets und dem Stage-Server; deaktivierte verschwinden aus der Widget-Bibliothek.",
+    "text": "Software ohne eigenes Gerät für die ganze Band, z. B. Sprachausgabe, Ansagen oder Spuren trennen - Geräte stehen unter „Bühne“. Installierte Add-ons gelten auf allen Tablets und dem Stage-Server; deaktivierte verschwinden aus der Widget-Bibliothek.",
     "empty": "Noch kein Add-on installiert."
   },
   "drivers": {
     "title": "Treiber",
-    "text": "Damit StageBoard ein Gerät steuern kann (Amp, Mischpult, Looper, MIDI). Normalerweise unsichtbar: „Neues Gerät“ in der Bühnentechnik installiert den passenden mit, beim Entfernen des letzten Geräts wird er zum Entfernen angeboten. Hier nur zur Fehlersuche.",
+    "text": "Damit StageBoard ein Gerät steuern kann (Amp, Mischpult, Looper, MIDI). Normalerweise unsichtbar: „Neues Gerät“ in „Bühne“ installiert den passenden mit, beim Entfernen des letzten Geräts wird er zum Entfernen angeboten. Hier nur zur Fehlersuche.",
     "empty": "Noch kein Treiber installiert."
   },
   "test": {

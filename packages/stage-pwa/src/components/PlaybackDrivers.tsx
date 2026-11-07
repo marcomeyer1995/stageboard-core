@@ -1,5 +1,7 @@
 import { useSectionJumpDriver } from '../lib/sectionJump'
+import { useAlignmentDriver } from '../lib/useAlignmentDriver'
 import { useAnnouncementDriver } from '../lib/useAnnouncementDriver'
+import { useNativeOutputWarmup } from '../lib/useNativeOutputWarmup'
 import { useAudioOutputDriver } from '../lib/useAudioOutputDriver'
 import { useAutoStopDriver } from '../lib/useAutoStopDriver'
 import { useClickOutputDriver } from '../lib/useClickOutputDriver'
@@ -28,6 +30,8 @@ import { useTrackDurationBackfill } from '../lib/useTrackDurationBackfill'
  * load effect running first (FrameDrivers, a child, runs its effects first).
  */
 export function PlaybackDrivers({ footswitchActive }: { footswitchActive: boolean }) {
+  // The native output runs from the start, so the first beats of the first song already use it.
+  useNativeOutputWarmup()
   // Bluetooth foot switch / keyboard (#27): only on the dashboards, not while arranging them.
   useFootswitch(footswitchActive)
   // Buttons of MIDI controllers plugged in here (#547): the same actions as pedal keys.
@@ -44,6 +48,8 @@ export function PlaybackDrivers({ footswitchActive }: { footswitchActive: boolea
   useStallMonitor()
   // Spoken section announcements next to the click (#63).
   useAnnouncementDriver()
+  // "Abgleich nach Gehör" (docs/21 §4): clicks here while a session names this device.
+  useAlignmentDriver()
   useAutoStopDriver()
   // Section jump and loop in the show (#479): folds passed jumps, queues a loop's way back.
   useSectionJumpDriver()

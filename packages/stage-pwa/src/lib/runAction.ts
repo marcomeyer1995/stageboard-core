@@ -251,3 +251,11 @@ async function runPlayback(op: Extract<Action, { kind: 'playback' }>['op'], show
   }
   return null
 }
+
+/** Debug (measurements over USB, docs/29 §7): run an action as a pedal would, e.g.
+ * `__sbRunAction({ kind: 'show', op: 'play-pause' })`. */
+if (typeof window !== 'undefined')
+  (window as unknown as { __sbRunAction: (action: Action) => Promise<string | null> }).__sbRunAction = async (action) => {
+    const show = latestTrackedShow()
+    return show ? runAction(action, show) : 'no show yet'
+  }

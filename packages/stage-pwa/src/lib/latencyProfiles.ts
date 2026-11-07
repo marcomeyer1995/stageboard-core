@@ -27,8 +27,9 @@ export function audioOutputLatencyMs(profiles: readonly LatencyProfileDoc[], dev
 }
 
 /** With the native output on (docs/30): its own delay plus what is heard later than AAudio reports,
- * stored per route (NATIVE_AUDIO_OUTPUT) - with compensation switched off only the delay. */
+ * stored per route (NATIVE_AUDIO_OUTPUT) - with compensation switched off only the delay. The stored
+ * part may be negative (aligned by ear against a reference that is itself late, docs/21 §4). */
 export function nativeOutputLatencyMs(delayMs: number, profiles: readonly LatencyProfileDoc[], deviceId: string, route: AudioRoute, on: boolean): number {
   if (!on) return delayMs
-  return delayMs + Math.max(0, findLatencyProfile(profiles, deviceId, NATIVE_AUDIO_OUTPUT, route)?.latencyMs ?? 0)
+  return Math.max(0, delayMs + (findLatencyProfile(profiles, deviceId, NATIVE_AUDIO_OUTPUT, route)?.latencyMs ?? 0))
 }
