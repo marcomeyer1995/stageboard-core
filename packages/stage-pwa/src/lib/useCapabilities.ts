@@ -3,19 +3,20 @@ import { CAPABILITIES, type CapabilityId } from 'shared-types'
 import { resolveCapabilities, type CapabilityStatus } from './capabilities'
 import { reportClientHealth } from './reportClientHealth'
 import { useMidiTrigger } from './useMidiTrigger'
-import { useNow } from './useNow'
+import { useServerNow } from './useNow'
 import { usePluginsStore } from '../store/usePluginsStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 
 /**
- * Live capability status for the dashboard. `useNow` is what makes a heartbeat that goes
+ * Live capability status for the dashboard. `useServerNow` is what makes a heartbeat that goes
  * stale grey the widget out on its own, without a reload.
  */
 export function useCapabilities(): Map<CapabilityId, CapabilityStatus> {
   const installed = usePluginsStore((state) => state.installed)
   const health = usePluginsStore((state) => state.health)
   const { status: midiStatus } = useMidiTrigger()
-  const now = useNow()
+  // Heartbeats carry the Stage-Server's time - compared in band time, not this device's clock.
+  const now = useServerNow()
   const workspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
 
   const clientProbes = useMemo<Record<CapabilityId, boolean>>(

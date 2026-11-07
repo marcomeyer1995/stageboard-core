@@ -355,4 +355,48 @@ describe('trackedSync', () => {
       expect(useSyncStore.getState().streams['example-stream']).toBe('active')
     })
   })
+
+  describe('activeGraceMs (2026-11-06: the symbol must not toggle during a show)', () => {
+    const status = () => useSyncStore.getState().streams.workspace
+    async function started() {
+      const { db, emit } = fakeLocalDb()
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      trackedSync('workspace', db as any, {} as any, { isNoiseDocId: (id) => id.startsWith('showlog:'), activeGraceMs: 1500 })
+      await flush()
+      emit('paused')
+      return emit
+    }
+
+    it('a run of only status documents never shows as syncing', async () => {
+      const emit = await started()
+      vi.useFakeTimers()
+      emit('active')
+      emit('change', changeInfo(['showlog:cue-1'], { direction: 'push' }))
+      vi.advanceTimersByTime(200)
+      emit('paused')
+      vi.advanceTimersByTime(5000)
+      vi.useRealTimers()
+      expect(status()).toBe('paused')
+    })
+
+    it('a real document shows at once', async () => {
+      const emit = await started()
+      vi.useFakeTimers()
+      emit('active')
+      emit('change', changeInfo(['songs:1']))
+      vi.useRealTimers()
+      expect(status()).toBe('active')
+    })
+
+    it('a run that stays busy longer than the grace shows - something is really on its way', async () => {
+      const emit = await started()
+      vi.useFakeTimers()
+      emit('active')
+      vi.advanceTimersByTime(1499)
+      expect(status()).toBe('paused')
+      vi.advanceTimersByTime(1)
+      vi.useRealTimers()
+      expect(status()).toBe('active')
+    })
+  })
 })
