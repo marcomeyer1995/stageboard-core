@@ -34,6 +34,8 @@ function toInstallation(doc: PluginInstallationDoc): PluginInstallation {
 interface PluginsState {
   installed: PluginInstallation[]
   health: PluginHealth
+  /** The first status from the Stage-Server has arrived - before that `health` is only the empty default. */
+  healthReceived: boolean
   loaded: boolean
   init: (workspaceId: string) => Promise<void>
   install: (installation: PluginInstallation) => Promise<void>
@@ -54,6 +56,7 @@ async function refresh(set: (partial: Partial<PluginsState>) => void) {
 export const usePluginsStore = create<PluginsState>((set, get) => ({
   installed: [],
   health: DEFAULT_PLUGIN_HEALTH,
+  healthReceived: false,
   loaded: false,
   init: async (workspaceId) => {
     changesHandle?.cancel()
@@ -61,7 +64,7 @@ export const usePluginsStore = create<PluginsState>((set, get) => ({
     unsubscribeHealth?.()
     unsubscribeHealth = null
     switchPluginsWorkspace(workspaceId)
-    set({ installed: [], health: DEFAULT_PLUGIN_HEALTH, loaded: false })
+    set({ installed: [], health: DEFAULT_PLUGIN_HEALTH, healthReceived: false, loaded: false })
 
     await refresh(set)
     set({ loaded: true })
@@ -69,7 +72,7 @@ export const usePluginsStore = create<PluginsState>((set, get) => ({
     changesHandle = pluginsChanges()
     changesHandle.on('change', coalesced(() => refresh(set)))
 
-    unsubscribeHealth = subscribeToPluginHealth(workspaceId, (health) => set({ health }))
+    unsubscribeHealth = subscribeToPluginHealth(workspaceId, (health) => set({ health, healthReceived: true }))
   },
   install: async (installation) => {
     await putPlugin(installation)
