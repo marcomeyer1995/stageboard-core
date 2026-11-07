@@ -6,6 +6,7 @@ import { randomId } from './id'
 import { clickTimeline } from './beatGrid'
 import { barMsAt, countInLeadMs, LIVE_TEMPO_ADJUST_LIMIT_PERCENT } from './metronome'
 import { ARMED_TRANSPORT, computeActiveMs, computePlayedMs, transportOf, pause as pauseTransport, play as playTransport, PLAY_LEAD_MS, type PlayOptions, type TransportState } from './playbackTransport'
+import { freshStartMs } from './playLead'
 import { finalizeSongPlay, LENGTH_MARGIN_MS, shouldStartNewShow, UNKNOWN_LENGTH_CAP_MS } from './showLogTracking'
 import { songDurationMs, stoppedNearEnd } from './entryDuration'
 import { plannedPauseAfterMs } from './festivalClock'
@@ -189,15 +190,16 @@ export async function playSong(opts: PlayOptions = {}): Promise<void> {
   const isNewTake = state.playbackStatus === 'stopped'
   const seedCountIn = isNewTake && !opts.skipCountIn && currentSong !== null
   const activeSong = currentArrangement
-  // Ahead-of-time start (docs/00 §4, #468): song time 0 lies at least PLAY_LEAD_MS in the future,
-  // so every device - this one included - learns about Play before it must sound and can start
-  // track and click exactly on 0. Started "now", the Web Audio track came in 165 ms into the song.
+  // Ahead-of-time start (docs/00 §4, #468): the first sound lies the band's Play lead in the future
+  // (playLead.ts), so every device - this one included - learns about Play before it must sound and
+  // can start track and click exactly on time. Started "now", the Web Audio track came in 165 ms into
+  // the song. The lead goes before the count-in, not before song time 0: with a count-in longer
+  // than the lead its first click was due the moment Play was pressed (2026-11-06).
   const seededTransport: TransportState =
     seedCountIn && activeSong
       ? {
           ...currentTransport(state),
-          accumulatedMs: Math.min(
-            -PLAY_LEAD_MS,
+          accumulatedMs: freshStartMs(
             countInLeadMs(
               clickTimeline({
                 beatGrid: currentVariant?.beatGrid,

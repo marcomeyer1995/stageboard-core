@@ -297,5 +297,15 @@
     "cables": "Cables",
     "none": "No cables in this setup yet.",
     "y": "Y cable"
+  },
+  "lead": {
+    "title": "Lead on Play",
+    "explainLabel": "Explanation: lead on Play",
+    "explain": "This long after Play is pressed a new song (with its count-in) starts on every device at once. Each device needs the time for the Play to arrive plus its audio output's delay. With too short a lead, click and announcement come late on that device at the start. Every device measures at each Play what it would have needed - it shows here when that was more.",
+    "label": "Lead",
+    "value": "Lead: {{ms}} ms",
+    "tooShort": "{{name}} last needed {{ms}} ms - raise the lead to at least {{suggest}} ms.",
+    "enough": "Enough: at most {{ms}} ms needed ({{name}}).",
+    "notMeasured": "Not measured yet - every device checks at the next Play."
   }
 }

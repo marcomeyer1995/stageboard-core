@@ -1,6 +1,7 @@
 import { isSongEntry, isTransitionEntry } from 'shared-types'
 import { cachedQueue, computeQueue, resolveTrackForEntry, type Queue } from './computeQueue'
-import { PLAY_LEAD_MS, type PlayOptions } from './playbackTransport'
+import { type PlayOptions } from './playbackTransport'
+import { freshStartMs, playLeadMs } from './playLead'
 import { clickTimeline } from './beatGrid'
 import { barMsAt, countInLeadMs } from './metronome'
 import {
@@ -135,11 +136,12 @@ export async function practicePlaySong(opts: PlayOptions = {}): Promise<void> {
   if (isFreshStart) takeJumpMs = 0
   const seedCountIn = isFreshStart && !opts.skipCountIn && currentSong !== null
   const activeSong = currentArrangement
-  // Song time 0 lies at least PLAY_LEAD_MS ahead, as in Gig mode (queue.ts): the Web Audio track
-  // and stems (useStemPlaybackDriver.ts) need that long to schedule their start - started "now",
-  // the first ~0.4 s of the song was skipped (Fire and Xiaomi, 2026-10-15).
+  // The first sound lies the Play lead ahead, as in Gig mode (queue.ts): the Web Audio track and
+  // stems (useStemPlaybackDriver.ts) need that long to schedule their start - started "now", the
+  // first ~0.4 s of the song was skipped (Fire and Xiaomi, 2026-10-15). Before the count-in, not
+  // before song time 0 (2026-11-06).
   const seededMs = seedCountIn && activeSong
-    ? Math.min(-PLAY_LEAD_MS, countInLeadMs(
+    ? freshStartMs(countInLeadMs(
         clickTimeline({
           beatGrid: currentVariant?.beatGrid,
           bpm: activeSong.bpm,
@@ -179,13 +181,13 @@ export function practiceLoopContext(): { entryId: string; variantId: string; tra
   return { entryId: currentEntry.id, variantId: currentVariant.id, trackId: track.id }
 }
 
-/** Plays the loop trainer's range (#683): from PLAY_LEAD_MS before `startMs` (the Web Audio
+/** Plays the loop trainer's range (#683): from the Play lead before `startMs` (the Web Audio
  * engine needs that lead to schedule, as at any start), at the first pass's speed; the section-jump driver loops it and changes the speed per pass. The
  * `<audio>` element stays quiet - its fallback can't play slowed, the Web Audio engine does. */
 export function practiceBeginTrainerLoop(startMs: number, endMs: number, rates: number[]): void {
   clearScheduledAudioStart()
   const rate = rates[0] ?? 1
-  const from = startMs - PLAY_LEAD_MS * rate
+  const from = startMs - playLeadMs() * rate
   jumpPosition(from)
   pauseLocalTrack()
   const start = { ...ARMED_TRANSPORT, accumulatedMs: from, ...(rate !== 1 ? { rate } : {}) }

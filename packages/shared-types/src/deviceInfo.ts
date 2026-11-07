@@ -89,6 +89,9 @@ export const DeviceInfoEntrySchema = z.object({
   audioOutput: AudioOutputHealthSchema.nullable().optional(),
   /** The device's condition (DeviceVitalsSummarySchema) - absent from older apps. */
   vitals: DeviceVitalsSummarySchema.nullable().optional(),
+  /** The Play lead this device needed at its last fresh song start, ms (stage-pwa lib/playLead.ts) -
+   * absent from older apps. The Bühne tab warns when it is more than the band's setting. */
+  leadNeededMs: z.number().int().nonnegative().nullable().optional(),
 })
 export type DeviceInfoEntry = z.infer<typeof DeviceInfoEntrySchema>
 
@@ -122,5 +125,6 @@ export const DeviceInfoReportSchema = z.object({
   syncStatus: z.enum(['idle', 'syncing', 'offline', 'error']),
   audioOutput: AudioOutputHealthSchema.nullable().optional(),
   vitals: DeviceVitalsSummarySchema.nullable().optional(),
+  leadNeededMs: z.number().int().nonnegative().nullable().optional(),
 })
 export type DeviceInfoReport = z.infer<typeof DeviceInfoReportSchema>
