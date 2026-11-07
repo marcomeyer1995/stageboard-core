@@ -1,4 +1,5 @@
 import { registerPlugin } from '@capacitor/core'
+import type { AudioOutputHealth } from 'shared-types'
 import { create } from 'zustand'
 import { isNativeApp } from './native'
 
@@ -99,6 +100,8 @@ const RATE_WINDOW_MS = 30_000
 /** How long to wait for the stream's first timestamp before choosing the delay. */
 const LATENCY_WAIT_MS = 400
 const STATUS_INTERVAL_MS = 2000
+/** The health the device reports (nativeOutputHealth) looks back this far. */
+const HEALTH_WINDOW_MS = 60_000
 
 export type NativeOutputState = 'off' | 'starting' | 'on' | 'failed'
 
@@ -252,6 +255,28 @@ interface Pipe {
 }
 
 let pipe: Pipe | null = null
+/** The native output's counters over the last HEALTH_WINDOW_MS (status polls). */
+const healthSamples: { at: number; missing: number; jumps: number; leadMinMs: number | null }[] = []
+
+/**
+ * This device's audio output health for the Geräte tab (docs/30): native or WebView, the delay,
+ * and over the last minute the audio missing, the hard jumps and the smallest reserve. Null in a
+ * browser (no native output to watch).
+ */
+export function nativeOutputHealth(): AudioOutputHealth | null {
+  if (!nativeOutputAvailable()) return null
+  if (!pipe || pipe.delayMs === null) return { path: 'webview', delayMs: null, missingMs: 0, jumps: 0, leadMinMs: null }
+  const first = healthSamples[0]
+  const last = healthSamples[healthSamples.length - 1]
+  const leads = healthSamples.map((h) => h.leadMinMs).filter((v): v is number => v !== null && v >= 0)
+  return {
+    path: 'native',
+    delayMs: pipe.delayMs,
+    missingMs: first && last ? Math.round(((last.missing - first.missing) * 1000) / pipe.rate) : 0,
+    jumps: first && last ? Math.max(0, last.jumps - first.jumps) : 0,
+    leadMinMs: leads.length > 0 ? Math.round(Math.min(...leads)) : null,
+  }
+}
 /** Per context: the one node every source ends in - to the speaker, or to the tap. */
 const masters = new Map<AudioContext, GainNode>()
 
@@ -347,9 +372,14 @@ async function attach(ctx: AudioContext): Promise<void> {
     worker.postMessage({ type: 'delay', delayMs: p.delayMs })
     rewire(ctx, tap)
     useNativeOutputStore.setState({ state: 'on', delayMs: p.delayMs, status })
+    const startedAt = Date.now()
+    healthSamples.length = 0
     p.timer = setInterval(() => {
       void NativeOutput.status().then((s) => {
         learnExtra(s.leadMinMs, extra)
+        // The first minute settles on purpose (the line takes the edge at once) - not a fault.
+        if (Date.now() - startedAt >= SETTLE_MS) healthSamples.push({ at: Date.now(), missing: s.missing ?? 0, jumps: s.jumps ?? 0, leadMinMs: s.leadMinMs ?? null })
+        while (healthSamples.length > 0 && healthSamples[0]!.at < Date.now() - HEALTH_WINDOW_MS) healthSamples.shift()
         useNativeOutputStore.setState({ status: s })
       }, () => {})
     }, STATUS_INTERVAL_MS)
@@ -394,4 +424,4 @@ export function __resetNativeOutputForTests(): void {
   current = null
 }
 
-if (typeof window !== 'undefined') (window as unknown as { __sbNativeOutput: unknown }).__sbNativeOutput = { state: () => useNativeOutputStore.getState(), now: () => (pipe ? { line: pipe.line, delayMs: pipe.delayMs, rate: pipe.rate } : null) }
+if (typeof window !== 'undefined') (window as unknown as { __sbNativeOutput: unknown }).__sbNativeOutput = { state: () => useNativeOutputStore.getState(), health: () => nativeOutputHealth(), now: () => (pipe ? { line: pipe.line, delayMs: pipe.delayMs, rate: pipe.rate } : null) }

@@ -71,6 +71,17 @@ describe('DeviceLedgerView', () => {
     expect(screen.getByText('Noch keine Geräte registriert.')).toBeInTheDocument()
   })
 
+  it('shows how cleanly the native audio output played over the last minute (docs/30)', () => {
+    const native = { path: 'native' as const, delayMs: 504, missingMs: 0, jumps: 0, leadMinMs: 160 }
+    useDeviceInfoStore.setState({ deviceInfo: { devices: { 'device-1': { ...DEVICE_INFO_ENTRY, audioOutput: native } } } })
+    const { unmount } = render(<DeviceLedgerView />)
+    expect(screen.getByText('Ton nativ, sauber (504 ms)')).toBeInTheDocument()
+    unmount()
+    useDeviceInfoStore.setState({ deviceInfo: { devices: { 'device-1': { ...DEVICE_INFO_ENTRY, audioOutput: { ...native, missingMs: 120 } } } } })
+    render(<DeviceLedgerView />)
+    expect(screen.getByText('Ton: 120 ms Aussetzer in der letzten Minute')).toBeInTheDocument()
+  })
+
   it('renders a device with its live diagnostic info', () => {
     render(<DeviceLedgerView />)
 
