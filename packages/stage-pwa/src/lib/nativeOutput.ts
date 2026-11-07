@@ -1,6 +1,8 @@
 import { registerPlugin } from '@capacitor/core'
+import type { AudioOutputHealth } from 'shared-types'
 import { create } from 'zustand'
 import { isNativeApp } from './native'
+import { audible, FALLBACK_SPAN_MS, FALLBACK_WINDOW_MS, missingInWindowMs, quietUntil, shouldFallBack, SOUND_LEVEL, trackLossEpisodes, type MissingSample } from './nativeOutputFallback'
 
 /**
  * Native audio output (docs/30, Marco 2026-11-05: "pipe the mix"). Everything keeps playing on the
@@ -72,17 +74,37 @@ function learnExtra(leadMinMs: number | undefined, appliedExtra: number): void {
     // Blocked storage: the reserve stays as it is.
   }
 }
-/** The render line is the earliest arrival of the last few seconds - a message is never early. */
-const LINE_WINDOW_MS = 5000
-/** How fast the line may follow a slow move (the audio clock against the wall clock, ppm). */
+/** The render line: a straight line through the earliest arrival of each second of the last minute
+ * (see the worker) - an arrival is never early, often late. */
+const FIT_WINDOW_MS = 60_000
+/** Until this many seconds are in, the line has no slope yet. */
+const MIN_FIT_SECONDS = 5
+/** Its height: the earliest of the seconds' earliest arrivals around the slope - an arrival is
+ * never early, so loaded seconds (late arrivals) can't lift it, and anything higher than the
+ * earliest let the line fall behind the WebView's own clock (the schedulers then clamped to
+ * `currentTime`, and the two disagreed by up to 10 ms from one song start to the next). */
+const EDGE_QUANTILE = 0
+/** For this long after the start the line takes the edge at once (see the worker). */
+const SETTLE_MS = 60_000
+/** A steeper slope than 0.2 % is not a clock but a failure. */
+const MAX_LINE_SLOPE = 0.002
+/** How fast the line is pulled to the edge on top of its slope. */
 const LINE_SLEW_MS_PER_S = 0.5
-/** A move larger than this is a new line (the context restarted, a long stall) - taken at once. */
-const LINE_JUMP_MS = 20
+/** A move larger than this is a new line (the context restarted, a long stall) - taken at once.
+ * Smaller ones are slewed: when the WebView's renderer stalls (the phone at a song start), its
+ * clock falls behind, but every frame still plays by its number at the right time - only the
+ * reserve shrinks. Jumping at 20 ms moved everything already scheduled by the stall (+22 ms on the
+ * phone, the click took 5 s to come back, 2026-11-05). */
+const LINE_JUMP_MS = 100
+/** All arrivals this long past the line by more than LINE_JUMP_MS: a lasting shift (see the worker). */
+const SHIFT_HOLD_MS = 2000
 /** The window the line's slope (the audio clock's rate) is read over. */
 const RATE_WINDOW_MS = 30_000
 /** How long to wait for the stream's first timestamp before choosing the delay. */
 const LATENCY_WAIT_MS = 400
 const STATUS_INTERVAL_MS = 2000
+/** The health the device reports (nativeOutputHealth) looks back this far. */
+const HEALTH_WINDOW_MS = 60_000
 
 export type NativeOutputState = 'off' | 'starting' | 'on' | 'failed'
 
@@ -94,6 +116,9 @@ interface NativeOutputStore {
   delayMs: number | null
   status: NativeOutputStatus | null
   error: string | null
+  /** The native output lost too much audio and this device plays through the WebView instead,
+   * until the app restarts (nativeOutputFallback.ts) - the stored switch stays on. */
+  fellBack: { at: number; missingMs: number } | null
   setWanted: (wanted: boolean) => void
 }
 
@@ -113,6 +138,7 @@ export const useNativeOutputStore = create<NativeOutputStore>((set) => ({
   delayMs: null,
   status: null,
   error: null,
+  fellBack: null,
   setWanted: (wanted) => {
     try {
       localStorage.setItem(SWITCH_KEY, wanted ? '1' : '0')
@@ -161,9 +187,21 @@ registerProcessor('sb-native-output', Tap)
 /** The worker: takes the chunks from the worklet, keeps the render line (the lower edge of the
  * arrivals - a chunk never arrives before it was rendered, often later) and sends each chunk with
  * the wall-clock time its frame 0 is to be heard over the loopback WebSocket. Reports the line to
- * the page, which schedules against it. */
+ * the page, which schedules against it.
+ *
+ * The edge is a straight line through the earliest arrival of each second over the last minute -
+ * slope by Theil-Sen (robust), height at the earliest residual - because the WebView's
+ * clock drifts against the wall clock (the Redmi by more than 0.5 ms/s: a line slewed at most that
+ * fast lagged ever further behind, 2026-11-05), and a few seconds of late arrivals (load at a song
+ * start) must not lift it. The line moves with that slope and is pulled to the edge slowly. */
 const WORKER_SOURCE = `
-let ws = null, rate = 48000, delayMs = null, line = null, lineAt = 0, arrivals = [], c = null
+let ws = null, rate = 48000, delayMs = null, line = null, lineAt = 0, startedAt = 0, buckets = [], slope = 0, fitAt = 0, c = null, aboveSince = null, aboveMin = 0, soundAt = -Infinity
+function theilSen(points) {
+  const s = []
+  for (let i = 0; i < points.length; i++) for (let j = i + 1; j < points.length; j++) s.push((points[j].min - points[i].min) / (points[j].t - points[i].t))
+  s.sort((a, b) => a - b)
+  return s.length ? s[Math.floor(s.length / 2)] : 0
+}
 onmessage = (e) => {
   const m = e.data
   if (m.type === 'init') {
@@ -177,11 +215,37 @@ onmessage = (e) => {
 }
 function chunk(first, pcm) {
   const now = Date.now(), frames = pcm.length / 2
-  arrivals.push({ at: now, v: now - (first + frames) * 1000 / rate })
-  while (arrivals.length > 0 && arrivals[0].at < now - c.lineWindowMs) arrivals.shift()
-  let edge = Infinity; for (const a of arrivals) if (a.v < edge) edge = a.v
-  if (line === null || Math.abs(edge - line) > c.lineJumpMs) line = edge
-  else { const step = c.lineSlewMsPerS * (now - lineAt) / 1000; line += Math.max(-step, Math.min(step, edge - line)) }
+  // Sound in the mix - at most once a second (nativeOutputFallback.ts: a gap in silence does not count).
+  if (now - soundAt >= 1000) {
+    for (let i = 0; i < pcm.length; i++) if (pcm[i] > c.soundLevel || pcm[i] < -c.soundLevel) { soundAt = now; postMessage({ type: 'sound', at: now }); break }
+  }
+  const v = now - (first + frames) * 1000 / rate
+  // Every arrival held far behind the line: the WebView's clock lost time for good (a rotation on
+  // the Redmi stopped it ~0.5 s, 2026-11-06) - the edge of the last minute is from before and would
+  // keep the line there for a minute, every frame "late". Start the fit again from the shift.
+  if (line !== null && v - line > c.lineJumpMs) {
+    if (aboveSince === null) { aboveSince = now; aboveMin = v } else aboveMin = Math.min(aboveMin, v)
+    if (now - aboveSince >= c.shiftHoldMs) { buckets = [{ t: Math.floor(now / 1000) * 1000, min: aboveMin }]; line = aboveMin; aboveSince = null }
+  } else aboveSince = null
+  const second = Math.floor(now / 1000) * 1000, last = buckets[buckets.length - 1]
+  if (last && last.t === second) last.min = Math.min(last.min, v)
+  else buckets.push({ t: second, min: v })
+  while (buckets.length > 0 && buckets[0].t < now - c.fitWindowMs) buckets.shift()
+  if (buckets.length >= c.minBuckets && now - fitAt >= 500) {
+    fitAt = now
+    slope = Math.max(-c.maxSlope, Math.min(c.maxSlope, theilSen(buckets)))
+  }
+  const residuals = buckets.map((b) => b.min - slope * (b.t - now)).sort((a, b) => a - b)
+  const edge = residuals[Math.floor(c.edgeQuantile * (residuals.length - 1))]
+  if (line === null) startedAt = now
+  // In the first minute the line takes the edge as it is: the first arrivals came late under the
+  // start's load, the line began up to 40 ms late and was slewed back over a minute (Fire, 2026-11-05).
+  if (line === null || now - startedAt < c.settleMs || Math.abs(edge - line) > c.lineJumpMs) line = edge
+  else {
+    const dt = now - lineAt, step = c.lineSlewMsPerS * dt / 1000
+    line += slope * dt
+    line += Math.max(-step, Math.min(step, edge - line))
+  }
   lineAt = now
   postMessage({ type: 'line', at: now, line })
   if (delayMs === null || !ws || ws.readyState !== 1) return
@@ -191,6 +255,11 @@ function chunk(first, pcm) {
   ws.send(msg)
 }
 `
+
+const WORKER_CONSTANTS = { settleMs: SETTLE_MS, fitWindowMs: FIT_WINDOW_MS, minBuckets: MIN_FIT_SECONDS, maxSlope: MAX_LINE_SLOPE, edgeQuantile: EDGE_QUANTILE, lineJumpMs: LINE_JUMP_MS, lineSlewMsPerS: LINE_SLEW_MS_PER_S, shiftHoldMs: SHIFT_HOLD_MS, soundLevel: SOUND_LEVEL }
+
+/** Test-only: the worker's source and constants, to run it with simulated arrivals. */
+export const __nativeOutputWorkerForTests = { source: WORKER_SOURCE, constants: WORKER_CONSTANTS }
 
 interface Pipe {
   ctx: AudioContext
@@ -205,10 +274,36 @@ interface Pipe {
   /** The line over the last RATE_WINDOW_MS, for its slope. */
   history: { at: number; line: number }[]
   timer: ReturnType<typeof setInterval> | null
+  /** Stops watching the page's visibility (the lock grace, nativeOutputFallback.ts). */
+  unwatch: (() => void) | null
+  /** When the mix last carried sound (from the worker) - gaps in silence don't count. */
+  soundAt: number | null
   closed: boolean
 }
 
 let pipe: Pipe | null = null
+/** The native output's counters over the last HEALTH_WINDOW_MS (status polls). */
+const healthSamples: { at: number; missing: number; jumps: number; leadMinMs: number | null }[] = []
+
+/**
+ * This device's audio output health for the Geräte tab (docs/30): native or WebView, the delay,
+ * and over the last minute the audio missing, the hard jumps and the smallest reserve. Null in a
+ * browser (no native output to watch).
+ */
+export function nativeOutputHealth(): AudioOutputHealth | null {
+  if (!nativeOutputAvailable()) return null
+  if (!pipe || pipe.delayMs === null) return { path: 'webview', delayMs: null, missingMs: 0, jumps: 0, leadMinMs: null, fellBack: useNativeOutputStore.getState().fellBack !== null }
+  const first = healthSamples[0]
+  const last = healthSamples[healthSamples.length - 1]
+  const leads = healthSamples.map((h) => h.leadMinMs).filter((v): v is number => v !== null && v >= 0)
+  return {
+    path: 'native',
+    delayMs: pipe.delayMs,
+    missingMs: first && last ? Math.round(((last.missing - first.missing) * 1000) / pipe.rate) : 0,
+    jumps: first && last ? Math.max(0, last.jumps - first.jumps) : 0,
+    leadMinMs: leads.length > 0 ? Math.round(Math.min(...leads)) : null,
+  }
+}
 /** Per context: the one node every source ends in - to the speaker, or to the tap. */
 const masters = new Map<AudioContext, GainNode>()
 
@@ -243,10 +338,31 @@ export function nativeOutputNow(ctx: AudioContext): number | null {
  * moves as the audio clock runs off the wall clock (the Redmi −247 ppm, docs/29 §11). */
 export function nativeOutputAudioPerWall(ctx: AudioContext): number | null {
   if (!pipe || pipe.ctx !== ctx || pipe.line === null || pipe.delayMs === null) return null
-  const first = pipe.history[0]
-  const last = pipe.history[pipe.history.length - 1]
+  return lineAudioPerWall(pipe.history)
+}
+
+/** Audio seconds per wall-clock second from the line's history - 1 until a third of the window is
+ * in, never further off than MAX_LINE_SLOPE (a real audio clock never is). */
+export function lineAudioPerWall(history: readonly { at: number; line: number }[]): number {
+  const first = history[0]
+  const last = history[history.length - 1]
   if (!first || !last || last.at - first.at < RATE_WINDOW_MS / 3) return 1
-  return 1 - (last.line - first.line) / (last.at - first.at)
+  const slope = (last.line - first.line) / (last.at - first.at)
+  return 1 - Math.max(-MAX_LINE_SLOPE, Math.min(MAX_LINE_SLOPE, slope))
+}
+
+/**
+ * Adds a line reading; a jump starts the history anew (Marco, 2026-11-07). The Redmi's screen was
+ * locked 11 s: the WebView's clock stood still, the line moved on by seconds, and over the 30-s
+ * window that read as an audio clock 8 % slow - the track played 8 % fast (more than a semitone
+ * high) and restarted every few seconds until the jump left the window. A rotation (0.5 s) did the
+ * same at ~1.7 %.
+ */
+export function pushLine(history: { at: number; line: number }[], at: number, line: number): void {
+  const last = history[history.length - 1]
+  if (last && Math.abs(line - last.line) > LINE_JUMP_MS) history.length = 0
+  history.push({ at, line })
+  while (history.length > 0 && history[0]!.at < at - RATE_WINDOW_MS) history.shift()
 }
 
 /** From scheduling to hearing while the native output is on - replaces the stored latency. */
@@ -256,8 +372,7 @@ export function nativeOutputDelayMs(): number | null {
 
 function onLine(p: Pipe, at: number, line: number): void {
   p.line = line
-  p.history.push({ at, line })
-  while (p.history.length > 0 && p.history[0]!.at < at - RATE_WINDOW_MS) p.history.shift()
+  pushLine(p.history, at, line)
 }
 
 async function attach(ctx: AudioContext): Promise<void> {
@@ -278,19 +393,20 @@ async function attach(ctx: AudioContext): Promise<void> {
     const workerUrl = URL.createObjectURL(new Blob([WORKER_SOURCE], { type: 'text/javascript' }))
     const worker = new Worker(workerUrl)
     URL.revokeObjectURL(workerUrl)
-    const p: Pipe = { ctx, tap, worker, silent, rate: ctx.sampleRate, chunk, delayMs: null, line: null, history: [], timer: null, closed: false }
+    const p: Pipe = { ctx, tap, worker, silent, rate: ctx.sampleRate, chunk, delayMs: null, line: null, history: [], timer: null, unwatch: null, soundAt: null, closed: false }
     pipe = p
     const started = await NativeOutput.start({ sampleRate: ctx.sampleRate })
     if (!started.started) throw new Error(started.error ?? 'start')
     const opened = new Promise<void>((resolve, reject) => {
       worker.onmessage = (e: MessageEvent<{ type: string; at: number; line: number }>) => {
         if (e.data.type === 'line') onLine(p, e.data.at, e.data.line)
+        else if (e.data.type === 'sound') p.soundAt = e.data.at
         else if (e.data.type === 'open') resolve()
         else if (e.data.type === 'closed') reject(new Error('connection closed'))
       }
     })
     const channel = new MessageChannel()
-    const constants = { lineWindowMs: LINE_WINDOW_MS, lineJumpMs: LINE_JUMP_MS, lineSlewMsPerS: LINE_SLEW_MS_PER_S }
+    const constants = WORKER_CONSTANTS
     worker.postMessage({ type: 'init', rate: ctx.sampleRate, url: `ws://127.0.0.1:${started.port}/${started.token}`, port: channel.port1, constants }, [channel.port1])
     tap.port.postMessage({ port: channel.port2 }, [channel.port2])
     await opened
@@ -303,10 +419,47 @@ async function attach(ctx: AudioContext): Promise<void> {
     p.delayMs = Math.round(status.latencyMs + TRANSPORT_MS + Math.max(0, ctx.baseLatency * 1000 - 20) + extra)
     worker.postMessage({ type: 'delay', delayMs: p.delayMs })
     rewire(ctx, tap)
-    useNativeOutputStore.setState({ state: 'on', delayMs: p.delayMs, status })
+    useNativeOutputStore.setState({ state: 'on', delayMs: p.delayMs, status, fellBack: null })
+    const startedAt = Date.now()
+    healthSamples.length = 0
+    const recent: MissingSample[] = []
+    let quiet = quietUntil(document.visibilityState === 'hidden', Date.now())
+    const onVisibility = () => {
+      quiet = quietUntil(document.visibilityState === 'hidden', Date.now())
+    }
+    document.addEventListener('visibilitychange', onVisibility)
+    p.unwatch = () => document.removeEventListener('visibilitychange', onVisibility)
+    let episodes: number[] = []
+    let lost: { at: number; ms: number }[] = []
     p.timer = setInterval(() => {
       void NativeOutput.status().then((s) => {
+        if (p.closed) return
+        const now = Date.now()
+        // Screen locked, or just unlocked: what goes missing is the lock, not the output - no loss,
+        // no health sample, and no bigger reserve learned from it. Nothing sounding: a gap is inaudible.
+        if (now < quiet || !audible(p.soundAt, now)) {
+          recent.length = 0
+          healthSamples.length = 0
+          useNativeOutputStore.setState({ status: s })
+          return
+        }
         learnExtra(s.leadMinMs, extra)
+        recent.push({ at: now, missing: s.missing ?? 0 })
+        while (recent.length > 0 && recent[0]!.at < now - FALLBACK_WINDOW_MS) recent.shift()
+        const tracked = trackLossEpisodes(episodes, recent, now, p.rate, startedAt)
+        episodes = tracked.episodes
+        if (tracked.started) {
+          const ms = Math.round(missingInWindowMs(recent, now, p.rate))
+          lost = [...lost.filter((l) => l.at >= now - FALLBACK_SPAN_MS), { at: now, ms }]
+          console.warn(`[native-output] ${ms} ms audio missing in ${FALLBACK_WINDOW_MS / 1000} s (${episodes.length}. time in ${FALLBACK_SPAN_MS / 60_000} min)`)
+        }
+        if (shouldFallBack(episodes)) {
+          fallBack(lost.reduce((sum, l) => sum + l.ms, 0), episodes.length)
+          return
+        }
+        // The first minute settles on purpose (the line takes the edge at once) - not a fault.
+        if (Date.now() - startedAt >= SETTLE_MS) healthSamples.push({ at: Date.now(), missing: s.missing ?? 0, jumps: s.jumps ?? 0, leadMinMs: s.leadMinMs ?? null })
+        while (healthSamples.length > 0 && healthSamples[0]!.at < Date.now() - HEALTH_WINDOW_MS) healthSamples.shift()
         useNativeOutputStore.setState({ status: s })
       }, () => {})
     }, STATUS_INTERVAL_MS)
@@ -316,12 +469,20 @@ async function attach(ctx: AudioContext): Promise<void> {
   }
 }
 
+/** Back to the WebView's own output for the rest of this app run (nativeOutputFallback.ts). */
+function fallBack(missingMs: number, times: number): void {
+  console.error(`[native-output] audio missing ${times} times in ${FALLBACK_SPAN_MS / 60_000} min (${missingMs} ms) - switched to the WebView's output until the app restarts`)
+  detach()
+  useNativeOutputStore.setState({ fellBack: { at: Date.now(), missingMs } })
+}
+
 function detach(): void {
   const p = pipe
   if (!p) return
   pipe = null
   p.closed = true
   if (p.timer) clearInterval(p.timer)
+  p.unwatch?.()
   rewire(p.ctx, null)
   p.worker.postMessage({ type: 'close' })
   p.tap.disconnect()
@@ -351,4 +512,4 @@ export function __resetNativeOutputForTests(): void {
   current = null
 }
 
-if (typeof window !== 'undefined') (window as unknown as { __sbNativeOutput: unknown }).__sbNativeOutput = { state: () => useNativeOutputStore.getState(), now: () => (pipe ? { line: pipe.line, delayMs: pipe.delayMs, rate: pipe.rate } : null) }
+if (typeof window !== 'undefined') (window as unknown as { __sbNativeOutput: unknown }).__sbNativeOutput = { state: () => useNativeOutputStore.getState(), health: () => nativeOutputHealth(), now: () => (pipe ? { line: pipe.line, delayMs: pipe.delayMs, rate: pipe.rate } : null) }

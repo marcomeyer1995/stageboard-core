@@ -41,6 +41,7 @@ import { useMasterHeartbeatReporter } from './lib/useMasterHeartbeatReporter'
 import { usePresenceReporter } from './lib/usePresenceReporter'
 import { useShowLogTracker } from './lib/useShowLogTracker'
 import { useRigCheckDriver, useRigCheckReporter } from './lib/rigCheck'
+import { useFrontAppClaim } from './lib/useFrontAppClaim'
 import { useRigCheckMeasurer } from './lib/rigCheckMeasure'
 import { useWakeLock } from './lib/useWakeLock'
 import { useWorkspaceResource } from './lib/useWorkspaceResource'
@@ -57,7 +58,9 @@ import { useSavedLoopsStore } from './store/useSavedLoopsStore'
 import { useSwitchesStore } from './store/useSwitchesStore'
 import { useMidiControllerRulesStore } from './store/useMidiControllerRulesStore'
 import { useOscInputRulesStore } from './store/useOscInputRulesStore'
+import { useAlignmentStore } from './store/useAlignmentStore'
 import { useLatencyProfilesStore } from './store/useLatencyProfilesStore'
+import { useStageMapStore } from './store/useStageMapStore'
 import { useAudioRouteStore } from './store/useAudioRouteStore'
 import { useLogicalDevicesStore } from './store/useLogicalDevicesStore'
 import { usePluginsStore } from './store/usePluginsStore'
@@ -155,6 +158,8 @@ function App() {
   useBrowserOnlineStatus()
   useShowLogTracker()
   useRigCheckDriver()
+  // Several apps on one device: the one in front plays (stage map, 2026-11-07).
+  useFrontAppClaim()
   useRigCheckReporter()
   useRigCheckMeasurer()
 
@@ -188,6 +193,8 @@ function App() {
   useWorkspaceResource(useLogicalDevicesStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(useDeviceTransportConfigStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(useLatencyProfilesStore((state) => state.init), noopStart, activeWorkspaceId)
+  useWorkspaceResource(useStageMapStore((state) => state.init), noopStart, activeWorkspaceId)
+  useWorkspaceResource(useAlignmentStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(useMidiControllerRulesStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(useOscInputRulesStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(useSwitchesStore((state) => state.init), noopStart, activeWorkspaceId)

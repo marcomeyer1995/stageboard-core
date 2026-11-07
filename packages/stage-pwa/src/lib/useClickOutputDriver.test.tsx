@@ -1,6 +1,6 @@
 import { act, render } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { CAPABILITIES, SERVER_EXECUTION_TARGET } from 'shared-types'
+import { CAPABILITIES, defaultStageMap, SERVER_EXECUTION_TARGET } from 'shared-types'
 import type { LogicalDevice, PluginInstallation, Song } from 'shared-types'
 import { useClickOutputDriver } from './useClickOutputDriver'
 import { startClick, stopClick } from './clickEngine'
@@ -14,6 +14,9 @@ import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
 // 2026-09-10: switching away from the Live tab used to unmount ClickTrackWidget and silently
 // stop the click mid-show). Mock clickEngine.ts since happy-dom (vitest.config.ts) has no real
 // AudioContext.
+// The stage map (docs/31 §6 step 2): not loaded by default - the old rules (roles, the master) apply.
+const stageMap = vi.hoisted(() => ({ current: { loaded: false, equipment: [], setups: [] } as unknown }))
+vi.mock('../store/useStageMapStore', () => ({ useStageMapStore: (select: (state: unknown) => unknown) => select(stageMap.current) }))
 vi.mock('./sharedAudioContext', () => ({ holdAudioOutputAwake: vi.fn(), getSharedAudioContext: vi.fn() }))
 vi.mock('./showMode', () => {
   const show = vi.fn()
@@ -92,6 +95,7 @@ function DriverHost() {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  stageMap.current = { loaded: false, equipment: [], setups: [] }
   vi.mocked(useShowStateStore).mockImplementation((selector) =>
     selector({ state: {}, deviceId: DEVICE_ID, isMaster: false, claimMaster: vi.fn(), applyPatch: vi.fn(), init: vi.fn() } as never),
   )
@@ -100,6 +104,24 @@ beforeEach(() => {
 })
 
 describe('useClickOutputDriver', () => {
+  it('with a stage map the map decides, not the role: the default map plays on this device (2026-11-07)', () => {
+    mockLogicalDevices([{ id: CLICK_LOGICAL_DEVICE_ID, name: 'Klick', capability: CAPABILITIES.clickTrack, pluginId: null, executionTarget: 'some-other-tablet' }])
+    stageMap.current = { loaded: true, ...defaultStageMap([{ id: DEVICE_ID, name: 'Laptop' }]) }
+    mockShowMode({ currentSong: song(true), elapsedMs: 0, playbackStatus: 'playing' })
+    render(<DriverHost />)
+    expect(startClick).toHaveBeenCalled()
+  })
+
+  it('a matrix without Klick plays no click, whatever the role says', () => {
+    mockLogicalDevices([{ id: CLICK_LOGICAL_DEVICE_ID, name: 'Klick', capability: CAPABILITIES.clickTrack, pluginId: null, executionTarget: DEVICE_ID }])
+    const map = defaultStageMap([{ id: DEVICE_ID, name: 'Laptop' }])
+    map.setups[0]!.routing[`device:${DEVICE_ID}`] = [{ from: { kind: 'virtual', virtualPortId: 'track' }, to: { kind: 'port', portId: 'speaker' } }]
+    stageMap.current = { loaded: true, ...map }
+    mockShowMode({ currentSong: song(true), elapsedMs: 0, playbackStatus: 'playing' })
+    render(<DriverHost />)
+    expect(startClick).not.toHaveBeenCalled()
+  })
+
   it('starts the click engine when this device is the bound output, click is enabled, and the song is playing', () => {
     mockLogicalDevices([
       { id: CLICK_LOGICAL_DEVICE_ID, name: 'Klick', capability: CAPABILITIES.clickTrack, pluginId: null, executionTarget: DEVICE_ID },

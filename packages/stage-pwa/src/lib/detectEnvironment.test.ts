@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { detectEnvironment } from './detectEnvironment'
+
+const native = vi.hoisted(() => ({ app: false }))
+vi.mock('./native', () => ({ isNativeApp: () => native.app }))
+
+const { detectEnvironment } = await import('./detectEnvironment')
 
 function stubMatchMedia(standalone: boolean) {
   vi.stubGlobal(
@@ -10,20 +14,28 @@ function stubMatchMedia(standalone: boolean) {
 
 afterEach(() => {
   vi.unstubAllGlobals()
+  native.app = false
   // @ts-expect-error - test-only cleanup of a property this suite adds to the real window.
   delete window.Capacitor
 })
 
 describe('detectEnvironment', () => {
-  it('returns "native" when window.Capacitor is present, regardless of display-mode', () => {
+  it('returns "native" in the native app, regardless of display-mode', () => {
     stubMatchMedia(false)
-    // @ts-expect-error - a native wrapper injects this global; the actual shape doesn't matter here.
-    window.Capacitor = {}
+    native.app = true
 
     expect(detectEnvironment()).toBe('native')
   })
 
-  it('returns "pwa" when display-mode is standalone and no Capacitor global exists', () => {
+  it('a browser stays a browser although the web build defines window.Capacitor (2026-11-05)', () => {
+    stubMatchMedia(false)
+    // @ts-expect-error - @capacitor/core defines this global in every browser, too.
+    window.Capacitor = {}
+
+    expect(detectEnvironment()).toBe('browser')
+  })
+
+  it('returns "pwa" when display-mode is standalone outside the native app', () => {
     stubMatchMedia(true)
 
     expect(detectEnvironment()).toBe('pwa')

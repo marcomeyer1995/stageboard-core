@@ -13,7 +13,7 @@
   "newDeviceTitle": "New device detected",
   "createDevice": "Create device",
   "whichRole": "Which role should this device play?",
-  "noTablet": "Not attached to any device - choose a tablet in Stage gear",
+  "noTablet": "Not attached to any device - choose a tablet in Stage",
   "deviceGone": "Device not found (deleted?)",
   "noExecutor": "No plug-in or device runs this cue",
   "noTrackForSong": "No track for this song",

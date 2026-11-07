@@ -13,7 +13,7 @@ import type { SyncStatus } from '../store/useSyncStore'
 export type StatusBarKind = 'ready' | 'count-in' | 'playing' | 'loop' | 'paused' | 'finished' | 'fault'
 
 /** The word for the state - a key into the `statusbar` texts (state.*), translated where shown (#456). */
-export type StatusBarLabel = 'ready' | 'countIn' | 'playing' | 'loop' | 'paused' | 'finished' | 'audioError' | 'syncError' | 'offline' | 'noMaster' | 'variantDeleted' | 'noDefaultVariant'
+export type StatusBarLabel = 'ready' | 'countIn' | 'playing' | 'loop' | 'paused' | 'finished' | 'audioError' | 'audioFallback' | 'syncError' | 'offline' | 'noMaster' | 'variantDeleted' | 'noDefaultVariant'
 
 export interface StatusBarState {
   kind: StatusBarKind
@@ -32,6 +32,9 @@ export interface StatusBarInput {
   syncStatus: SyncStatus
   /** The local audio driver's current error, if any. */
   audioError: string | null
+  /** The native output lost audio and the device plays through the WebView until the app restarts
+   * (nativeOutputFallback.ts) - the sound is clean again, but the band must know (Marco, 2026-11-06). */
+  audioFallback?: boolean
   /** The current song's variant is missing (Queue.currentVariantIssue) - nothing plays, and no
    * other variant in its place (Marco, 2026-10-18), so the band must see why. */
   variantIssue?: VariantIssue | null
@@ -44,6 +47,7 @@ export interface StatusBarInput {
  * Offline only counts in Gig mode - Solo Üben runs fine without the Stage-Server. */
 export function statusBarState(input: StatusBarInput): StatusBarState {
   if (input.audioError) return { kind: 'fault', label: 'audioError' }
+  if (input.audioFallback) return { kind: 'fault', label: 'audioFallback' }
   if (input.syncStatus === 'error') return { kind: 'fault', label: 'syncError' }
   if (input.mode === 'gig' && input.syncStatus === 'offline') return { kind: 'fault', label: 'offline' }
   if (input.mode === 'gig' && input.noMaster) return { kind: 'fault', label: 'noMaster' }

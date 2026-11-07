@@ -30,6 +30,7 @@ import { clickTimeline } from '../lib/beatGrid'
 import { Icon, type IconName } from './Icon'
 import { stageVariantLabel } from '../lib/variantLabel'
 import { stopLoopTrainer, useTrainerLoop } from '../lib/loopTrainer'
+import { useNativeOutputStore } from '../lib/nativeOutput'
 
 /** Gap between the bar's items (gap-3) when the browser can't tell - part of each item's room. */
 const GAP_PX = 12
@@ -134,6 +135,7 @@ export function StatusBar({
   const syncStatus = useSyncStore((state) => deriveSyncStatus(state.streams, state.browserOffline))
   const holdsToken = useShowStateStore((state) => state.holdsToken)
   const audioError = useLocalAudioOutputStore((state) => state.error)
+  const audioFallback = useNativeOutputStore((state) => state.fellBack !== null)
   const profile = useActiveProfile()
   const now = useNow(1000)
   const { t, i18n } = useTranslation(['statusbar', 'common'])
@@ -193,6 +195,7 @@ export function StatusBar({
     noMaster,
     syncStatus,
     audioError,
+    audioFallback,
     variantIssue: queue.currentVariantIssue,
   })
   const flash = state.kind === 'count-in' && clock.flash
