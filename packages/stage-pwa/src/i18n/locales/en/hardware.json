@@ -307,5 +307,14 @@
     "tooShort": "{{name}} last needed {{ms}} ms - raise the lead to at least {{suggest}} ms.",
     "enough": "Enough: at most {{ms}} ms needed ({{name}}).",
     "notMeasured": "Not measured yet - every device checks at the next Play."
+  },
+  "hostPlugins": {
+    "title": "Server plugins on this host",
+    "unknown": "This Stage-Server doesn't report yet what it can run (older version).",
+    "installed": "installed",
+    "cannot": "can't run on this host - needs {{needs}}",
+    "install": "Install",
+    "remove": "Remove",
+    "removeConfirm": "Remove {{name}} from the Stage-Server?"
   }
 }
