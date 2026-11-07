@@ -721,6 +721,18 @@ describe('Fastify routes', () => {
       expect(entry.syncStatus).toBe('syncing')
     })
 
+    it('passes the audio output health and the device condition through', async () => {
+      const vitals = { level: 'error', issues: ['audioMissing', 'memoryTight'], memAvailMb: 250, audioClockPct: -0.5, stallsPerMin: 3, uptimeMin: 1050 }
+      await app.inject({
+        method: 'POST',
+        url: '/workspaces/band-a/device-info/report',
+        payload: { deviceId: 'device-1', os: 'Android', environment: 'native', syncStatus: 'idle', audioOutput: { path: 'webview', delayMs: null, missingMs: 0, jumps: 0, leadMinMs: null, fellBack: true }, vitals },
+      })
+      const entry = getDeviceInfoSnapshot('band-a').devices['device-1']
+      expect(entry.audioOutput?.fellBack).toBe(true)
+      expect(entry.vitals).toEqual(vitals)
+    })
+
     it('rejects a body missing required fields', async () => {
       const response = await app.inject({
         method: 'POST',

@@ -140,6 +140,22 @@
     "dropouts": "Sound: {{ms}} ms of dropouts in the last minute",
     "jumps_one": "Sound: {{count}} jump in the last minute",
     "jumps_other": "Sound: {{count}} jumps in the last minute",
-    "tight": "Sound: reserve tight ({{ms}} ms)"
+    "tight": "Sound: reserve tight ({{ms}} ms)",
+    "fellBack": "Sound on fallback through the WebView - the native output lost audio"
+  },
+  "vitals": {
+    "ok": "Condition good",
+    "uptime": "running for {{h}} h",
+    "memFree": "{{mb}} MB free",
+    "issue": {
+      "audioFallback": "Sound on fallback",
+      "audioMissing": "Sound dropouts",
+      "audioClock": "Audio clock unsteady",
+      "audioTight": "Sound reserve tight",
+      "memoryLow": "Memory full",
+      "memoryTight": "Memory tight",
+      "stalls": "App stalls",
+      "clockUnsure": "Band time unsure"
+    }
   }
 }

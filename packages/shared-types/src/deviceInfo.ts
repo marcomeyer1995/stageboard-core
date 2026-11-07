@@ -26,8 +26,35 @@ export const AudioOutputHealthSchema = z.object({
   jumps: z.number().int().nonnegative(),
   /** The smallest reserve seen in the last minute, ms (native output only). */
   leadMinMs: z.number().nullable(),
+  /** The native output lost audio and this device switched itself to the WebView's output until
+   * the app restarts (Marco, 2026-11-06) - absent from older apps. */
+  fellBack: z.boolean().optional(),
 })
 export type AudioOutputHealth = z.infer<typeof AudioOutputHealthSchema>
+
+/** What a device's own condition check found (stage-pwa lib/deviceVitals.ts), worst first. */
+export const VITALS_ISSUES = ['audioFallback', 'audioMissing', 'audioClock', 'audioTight', 'memoryLow', 'memoryTight', 'stalls', 'clockUnsure'] as const
+export const VitalsIssueSchema = z.enum(VITALS_ISSUES)
+export type VitalsIssue = z.infer<typeof VitalsIssueSchema>
+
+/**
+ * A device's condition in short, for the Geräte tab (Marco, 2026-11-06: the phone played with 20 %
+ * of its audio missing after 17 h and nobody saw it). The full detail stays on the device
+ * (Diagnose); this is the traffic light plus the few numbers that tell why.
+ */
+export const DeviceVitalsSummarySchema = z.object({
+  level: z.enum(['ok', 'warning', 'error']),
+  issues: z.array(VitalsIssueSchema),
+  /** Free memory of the device, MB (Android app only). */
+  memAvailMb: z.number().nullable(),
+  /** How far the WebView's audio clock runs from real time, % (negative = slower). */
+  audioClockPct: z.number().nullable(),
+  /** Frames of 200 ms and more in the last minute. */
+  stallsPerMin: z.number().int().nonnegative(),
+  /** How long the app process (or, in a browser, the page) runs, minutes. */
+  uptimeMin: z.number().int().nonnegative(),
+})
+export type DeviceVitalsSummary = z.infer<typeof DeviceVitalsSummarySchema>
 
 export const DeviceInfoEntrySchema = z.object({
   /** Stamped server-side from the TCP connection (Fastify's `request.ip`) on every report -
@@ -60,6 +87,8 @@ export const DeviceInfoEntrySchema = z.object({
   hostname: z.string().nullable(),
   /** The audio output's health (AudioOutputHealthSchema) - absent from older apps. */
   audioOutput: AudioOutputHealthSchema.nullable().optional(),
+  /** The device's condition (DeviceVitalsSummarySchema) - absent from older apps. */
+  vitals: DeviceVitalsSummarySchema.nullable().optional(),
 })
 export type DeviceInfoEntry = z.infer<typeof DeviceInfoEntrySchema>
 
@@ -92,5 +121,6 @@ export const DeviceInfoReportSchema = z.object({
   environment: z.enum(['browser', 'pwa', 'native']),
   syncStatus: z.enum(['idle', 'syncing', 'offline', 'error']),
   audioOutput: AudioOutputHealthSchema.nullable().optional(),
+  vitals: DeviceVitalsSummarySchema.nullable().optional(),
 })
 export type DeviceInfoReport = z.infer<typeof DeviceInfoReportSchema>
