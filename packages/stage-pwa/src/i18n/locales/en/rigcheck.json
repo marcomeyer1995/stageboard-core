@@ -17,7 +17,7 @@
   "cues": {
     "title": "Device cues",
     "info": "What each device gets in the rig check - one command, sent in bar 5 (quick check) or at four places (full run). Applies to the whole band, only admins change it. A new choice takes effect at the next Prepare.",
-    "none": "No device with ready-made commands set up (Stage gear). The rig check then checks click, track, screens and the jump.",
+    "none": "No device with ready-made commands set up (Stage). The rig check then checks click, track, screens and the jump.",
     "nothing": "nothing - left alone",
     "change": "Change",
     "choose": "Choose",

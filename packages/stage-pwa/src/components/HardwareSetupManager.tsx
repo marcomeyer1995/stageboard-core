@@ -1,3 +1,4 @@
+import { StagePathList } from './StagePathList'
 import { useEffect, useState } from 'react'
 import { CAPABILITIES, SERVER_EXECUTION_TARGET, type LogicalDevice } from 'shared-types'
 import { getDeviceId } from '../lib/deviceId'
@@ -168,6 +169,9 @@ export function HardwareSetupManager() {
           text={t('explain')}
         />
       </div>
+
+      {/* Die Wege mit ihrer Korrektur (docs/31, Schritt 1) - Abgleichen am Weg statt über Geräte → Latenz… */}
+      <StagePathList />
 
       <div className="mb-6">
         <DeviceList onEdit={setEditing} onAdd={openBlankWizard} />

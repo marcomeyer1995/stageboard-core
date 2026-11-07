@@ -70,7 +70,7 @@ describe('OSC plugin', () => {
   it('fails with a reason the Nachbericht can show - no host/port, a bad address, an unknown command', async () => {
     const plugin = createOscPlugin()
     plugin.init(context())
-    expect(await plugin.trigger({ type: 'osc.send', payload: { address: '/x' }, logicalDeviceId: 'qlc' })).toEqual({ status: 'error', message: 'Für dieses OSC-Gerät fehlen Host und Port (Bühnentechnik).', messageCode: 'osc.noTarget' })
+    expect(await plugin.trigger({ type: 'osc.send', payload: { address: '/x' }, logicalDeviceId: 'qlc' })).toEqual({ status: 'error', message: 'Für dieses OSC-Gerät fehlen Host und Port (Bühne).', messageCode: 'osc.noTarget' })
     setOscTargetResolver(async () => ({ host: '127.0.0.1', port: 9 }))
     expect(await plugin.trigger({ type: 'osc.send', payload: { address: 'x y' } })).toMatchObject({ status: 'error', message: 'Keine gültige OSC-Adresse: „x y“', messageCode: 'osc.invalidAddress', messageParams: { address: 'x y' } })
     expect(await plugin.trigger({ type: 'kemper.tuner' })).toMatchObject({ status: 'error' })

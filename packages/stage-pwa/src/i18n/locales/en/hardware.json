@@ -16,8 +16,8 @@
   "driverUnused": "No device needs the driver “{{driver}}” any more. Remove it too?",
   "removeDriver": "Remove driver",
   "newDevice": "New device",
-  "title": "Stage gear",
-  "explainLabel": "Explanation: stage gear",
+  "title": "Stage",
+  "explainLabel": "Explanation: Stage",
   "explain": "Every device of the band and where it is connected. At the top click, backing track and announcements - built in, only the playing device can be chosen. Below amp, mixer, looper and the like, each with its type and the tablet it hangs on.",
   "out": {
     "click": "Click",
@@ -130,5 +130,22 @@
   "builtIn": {
     "playsOn": "{{label}} - plays on",
     "noneChosen": "None chosen: {{fallback}}"
+  },
+  "stage": {
+    "title": "Paths",
+    "explainLabel": "What are paths?",
+    "explain": "Every physical path from a device to the ear - its own sound over speaker, headphones or USB, and every device a tablet drives - has exactly one latency correction. ● measured, ◐ by hand, ○ missing. Align it where the path matters most (the click at the drums).",
+    "server": "Stage-Server",
+    "thisDevice": "This device",
+    "sound": "Sound · {{route}}",
+    "noPaths": "No paths yet - this device plays nothing.",
+    "viewOnly": "Without a profile view only - choose who you are first.",
+    "align": "Align",
+    "value": "Value…",
+    "state": {
+      "measured": "measured",
+      "manual": "by hand",
+      "missing": "missing"
+    }
   }
 }

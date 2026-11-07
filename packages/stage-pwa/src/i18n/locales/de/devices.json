@@ -16,7 +16,7 @@
   "notPossible": "Aktion nicht möglich - keine Admin-Rechte oder Stage-Server nicht erreichbar.",
   "forgetConfirm": "„{{name}}“ aus der Liste entfernen? Kein Blockieren: startet das Gerät die App wieder, erscheint es erneut.",
   "remove": "Entfernen",
-  "inUse": "„{{name}}“ wird noch in der Bühnentechnik verwendet - erst dort ein anderes Gerät wählen.",
+  "inUse": "„{{name}}“ wird noch in „Bühne“ verwendet - erst dort ein anderes Gerät wählen.",
   "blocked": "„{{name}}“ wurde inzwischen blockiert - ein blockiertes Gerät bleibt in der Liste.",
   "skipNote": " {{count}} weitere bleiben, weil Hardware sie verwendet.",
   "forgetInactiveConfirm": "{{count}} inaktive Geräte aus der Liste entfernen? Blockierte Geräte und dieses Gerät bleiben.{{note}}",
@@ -47,7 +47,7 @@
   "appOpen": "App offen",
   "appClosed": "App geschlossen / nicht gemeldet",
   "noData": "Noch keine Diagnosedaten von diesem Gerät.",
-  "inUseBy": "In Verwendung: {{list}} - im Tab Bühnentechnik ein anderes Gerät wählen, dann lässt es sich entfernen.",
+  "inUseBy": "In Verwendung: {{list}} - im Tab Bühne ein anderes Gerät wählen, dann lässt es sich entfernen.",
   "src": {
     "measured": "gemessen",
     "manual": "von Hand",
