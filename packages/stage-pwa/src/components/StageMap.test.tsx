@@ -22,6 +22,7 @@ const { useProfilesStore } = await import('../store/useProfilesStore')
 const { usePresenceStore } = await import('../store/usePresenceStore')
 const { useStageMapStore } = await import('../store/useStageMapStore')
 const { StageMap } = await import('./StageMap')
+const { wheelZoomFactor } = await import('../lib/wheelZoom')
 const { DialogHost } = await import('./DialogHost')
 
 const me = getDeviceId()
@@ -61,6 +62,16 @@ beforeEach(() => {
 })
 
 describe('StageMap (docs/31 §7)', () => {
+  it('zooms in proportion to the wheel: a mouse notch ~15 %, a touchpad\'s small steps gently (2026-11-07)', () => {
+    expect(wheelZoomFactor(100)).toBeCloseTo(1.15, 2)
+    expect(wheelZoomFactor(-100)).toBeCloseTo(1 / 1.15, 2)
+    expect(wheelZoomFactor(4)).toBeCloseTo(1.0056, 3)
+    // A line-mode wheel (Firefox) counts like pixels; one event is capped.
+    expect(wheelZoomFactor(3, 1)).toBeCloseTo(wheelZoomFactor(48), 5)
+    expect(wheelZoomFactor(5000)).toBe(wheelZoomFactor(100))
+  })
+
+
   it('every cable is labelled with the signals its matrices route over it - and opening the map writes nothing', () => {
     setUp(false)
     render(<StageMap />)
