@@ -40,7 +40,7 @@
   "osc": {
     "unknownCommand": "Unbekannter OSC-Befehl: {{type}}",
     "invalidAddress": "Keine gültige OSC-Adresse: „{{address}}“",
-    "noTarget": "Für dieses OSC-Gerät fehlen Host und Port (Bühnentechnik).",
+    "noTarget": "Für dieses OSC-Gerät fehlen Host und Port (Bühne).",
     "sendFailed": "OSC an {{host}}:{{port}} fehlgeschlagen: {{error}}"
   },
   "job": {

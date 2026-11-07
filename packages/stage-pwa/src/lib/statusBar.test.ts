@@ -29,6 +29,7 @@ describe('statusBarState', () => {
 
   it('shows faults - and only faults - in red, ahead of the transport state', () => {
     expect(statusBarState({ ...base, playbackStatus: 'playing', audioError: 'kaputt' })).toEqual({ kind: 'fault', label: 'audioError' })
+    expect(statusBarState({ ...base, playbackStatus: 'playing', audioFallback: true })).toEqual({ kind: 'fault', label: 'audioFallback' })
     expect(statusBarState({ ...base, syncStatus: 'error' }).label).toBe('syncError')
     expect(statusBarState({ ...base, syncStatus: 'offline' }).label).toBe('offline')
     expect(statusBarState({ ...base, noMaster: true }).label).toBe('noMaster')

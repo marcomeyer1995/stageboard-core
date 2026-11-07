@@ -1,8 +1,10 @@
 import { useEffect } from 'react'
 import { deriveSyncStatus, useSyncStore } from '../store/useSyncStore'
 import { detectEnvironment } from './detectEnvironment'
+import { summarizeVitals, vitalsSnapshot } from './deviceVitals'
 import { getDeviceId } from './deviceId'
 import { guessDeviceName } from './guessDeviceName'
+import { nativeOutputHealth } from './nativeOutput'
 import { reportDeviceInfo } from './reportDeviceInfo'
 import { useLeadNeededStore } from './leadCheck'
 
@@ -33,6 +35,8 @@ export function useDeviceInfoReporter(workspaceId: string): void {
         os: guessDeviceName(),
         environment: detectEnvironment(),
         syncStatus: deriveSyncStatus(useSyncStore.getState().streams, useSyncStore.getState().browserOffline),
+        audioOutput: nativeOutputHealth(),
+        vitals: summarizeVitals(vitalsSnapshot()),
         leadNeededMs: useLeadNeededStore.getState().neededMs,
       })
     report()

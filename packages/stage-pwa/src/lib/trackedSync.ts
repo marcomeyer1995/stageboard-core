@@ -37,6 +37,13 @@ export interface TrackedSyncOptions {
    * 'active'.
    */
   isNoiseDocId?: (id: string) => boolean
+  /**
+   * How long a replication may be busy before the indicator says so - PouchDB fires 'active'
+   * before its batch is known, so a noise-only batch (a Play, a show-log entry) would still flash
+   * "Synchronisiere…" for a moment (Marco, 2026-11-06: the symbol must not toggle during a show).
+   * A batch with a real document reports at once. 0 = report 'active' immediately.
+   */
+  activeGraceMs?: number
 }
 
 /**
@@ -84,19 +91,29 @@ export function trackedSync<T extends object>(
         // deliberately treated as "not active" for the queue/status, but it is NOT a real
         // end-of-run for progress purposes (see the 'change' handler), so clearing progress
         // must not live here.
+        let graceTimer: ReturnType<typeof setTimeout> | null = null
         const report = (status: 'active' | 'paused' | 'offline' | 'error') => {
+          if (graceTimer !== null) {
+            clearTimeout(graceTimer)
+            graceTimer = null
+          }
           setStreamStatus(name, status)
           if (status !== 'active') settle()
         }
+        const graceMs = options.activeGraceMs ?? 0
 
         report('active')
 
         sync
-          .on('active', () => report('active'))
+          .on('active', () => {
+            if (graceMs === 0) report('active')
+            else if (graceTimer === null) graceTimer = setTimeout(() => report('active'), graceMs)
+          })
           .on('change', (info) => {
             const docs = info.change.docs
             const isNoiseOnly = docs.length > 0 && docs.every((doc) => options.isNoiseDocId?.(doc._id) ?? false)
-            report(isNoiseOnly ? 'paused' : 'active')
+            // A noise-only batch while the grace runs leaves the timer: more may follow in the run.
+            if (!(isNoiseOnly && graceTimer !== null)) report(isNoiseOnly ? 'paused' : 'active')
 
             // Only ever meaningfully noisy for a stream that legitimately writes very often
             // (isNoiseDocId) - for everything else, seeing exactly which doc ids came down
@@ -151,6 +168,8 @@ export function trackedSync<T extends object>(
           // gone for good at that point, so it should stop contributing to the aggregate
           // status rather than linger at whatever it last reported.
           .on('complete', () => {
+            if (graceTimer !== null) clearTimeout(graceTimer)
+            graceTimer = null
             clearStream(name)
             clearStreamProgress(name)
             settle()

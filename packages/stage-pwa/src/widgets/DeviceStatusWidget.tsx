@@ -5,7 +5,7 @@ import { Select } from '../components/ui'
 import { CAPABILITIES, type CapabilityId } from 'shared-types'
 import { pluginProviding, pluginStatus, type CapabilityStatus } from '../lib/capabilities'
 import { useMidiTrigger } from '../lib/useMidiTrigger'
-import { useNow } from '../lib/useNow'
+import { useServerNow } from '../lib/useNow'
 import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
 import { usePluginsStore } from '../store/usePluginsStore'
 import { useContentFontSizeStore } from '../store/useContentFontSizeStore'
@@ -45,7 +45,8 @@ export function DeviceStatusWidget({ config }: { config: DeviceStatusConfig }) {
   const installed = usePluginsStore((s) => s.installed)
   const health = usePluginsStore((s) => s.health)
   const { status: midiStatus } = useMidiTrigger()
-  const now = useNow()
+  // In band time: `lastSeenAt` is the Stage-Server's clock (useServerNow).
+  const now = useServerNow()
 
   const device = devices.find((d) => d.id === config.logicalDeviceId) ?? null
 

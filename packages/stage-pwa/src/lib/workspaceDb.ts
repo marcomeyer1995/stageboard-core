@@ -98,6 +98,21 @@ export function getWorkspaceDb<T extends object = Record<string, unknown>>(
  * only ever comes into existence via scripts/setup-couchdb.sh or core-backend's
  * `POST /workspaces` route, both of which run with admin credentials.
  */
+/**
+ * Documents that are status, not saved work (Marco, 2026-11-06: "everything which does not need
+ * to be saved, which is sent and reported as status"): the running show (Play/Pause/song), its log
+ * for the Nachbericht, background job progress, an align-by-ear session (#700). They replicate like
+ * everything else, but the sync indicator stays calm for them - it is about the Bibliothek and the
+ * settings arriving on every device.
+ */
+const STATUS_KINDS: ReadonlySet<string> = new Set(['show-state', 'showlog', 'async-jobs', 'alignment-session'])
+const STATUS_GRACE_MS = 1500
+
+export function isStatusDocId(id: string): boolean {
+  const colon = id.indexOf(':')
+  return STATUS_KINDS.has(colon < 0 ? id : id.slice(0, colon))
+}
+
 export function startWorkspaceSync(
   workspaceId: string,
   auth: { username: string; password: string },
@@ -107,6 +122,6 @@ export function startWorkspaceSync(
 
   const localDb = getWorkspaceDb(workspaceId)
   const remoteDb = new PouchDB(url, { auth })
-  syncHandle = trackedSync('workspace', localDb, remoteDb)
+  syncHandle = trackedSync('workspace', localDb, remoteDb, { isNoiseDocId: isStatusDocId, activeGraceMs: STATUS_GRACE_MS })
   return syncHandle
 }

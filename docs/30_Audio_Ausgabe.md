@@ -67,6 +67,23 @@ Schwankung von Schlag zu Schlag 0,5–2 ms, keine Aussetzer bei Play/Stop. Lehre
 
 **Messfalle:** liegen die Klicks zusammen, verdecken sie sich im Mikrofon (der leisere wird nicht mehr erkannt). Zum Prüfen jedem Gerät einen bekannten Versatz geben (über die Profile), danach abziehen.
 
+### 2d. Von Song zu Song stabil (2026-11-05, PR #701)
+
+Gemessen mit Song-Starts im Gig (Mikrofon ab 1,5 s vor Play, jedes Gerät eigene Klick-Tonhöhe `sb:debug:click-hz`, Track stumm, Play über `__sbRunAction`), Uhr parallel über USB gegen die Wahrheit:
+
+- **Verschobene Klicks nach Play (Fire):** die native Ausgabe startete erst mit dem ersten Ton und brauchte ~0,5 s – die ersten Schläge lagen noch auf der WebView-Uhr. Jetzt Start beim App-Start (`useNativeOutputWarmup`).
+- **Die WebView-Uhr driftet:** `currentTime` läuft gegen die Wand-Uhr 0,8 ms/s (Redmi) bis 1,2 ms/s (Handy) langsamer, unter Last mehr. Die Zeitlinie lief mit höchstens 0,5 ms/s hinterher und sprang bei 20 ms. Jetzt: Gerade durch die früheste Ankunft jeder Sekunde der letzten Minute (Steigung Theil-Sen, Höhe an der frühesten – eine Ankunft ist nie zu früh); Sprung erst ab 100 ms; in der ersten Minute nach dem Start übernimmt sie die Kante sofort.
+- **Drift zwischen den Songs:** nicht die Uhr (über USB stabil), sondern die Tempo-Regelung: rein proportional brauchte sie zum Folgen eine bleibende Abweichung von 2–4 ms, die mit der Last wechselte. Jetzt PI (Integral 20 s, höchstens 0,4 %).
+- **Redmi-Zeitstempel** liegen immer wieder kurz ~5 ms daneben: als Sprung erst nach 500 ms.
+
+| 8 Song-Starts, gegen Redmi | vorher | nachher |
+|---|---|---|
+| Handy | −5 … −16 ms | −2 … −5 ms |
+| Laptop | −4 … −19 ms | −4 … −7 ms |
+| Fire | −4 … −11 ms | −4 … −5 ms |
+
+**Messfallen:** gleichzeitige Klicks verdecken sich im Mikrofon (Abhilfe: eigene Tonhöhen, bekannter Versatz); ein Lautsprecher direkt am Mikrofon auf 100 % übersteuert und klingt nach (Laptop für Messungen auf 40 %); Tablet-Lautstärke 0 schaltet nicht jedes Gerät stumm.
+
 Daraus:
 
 1. **Die Browser-Zeitangabe ist geräteabhängig verlässlich** – auf zwei von drei Geräten gut, auf dem Fire falsch. Das lässt sich in der App nicht reparieren, nur erkennen und ausgleichen.
@@ -113,11 +130,66 @@ Wie heute (#491, docs/21 §9): ein Weg spielt um seinen gemessenen Rest früher.
 
 - Handy: Schwankung von Schlag zu Schlag höher als bei den anderen (in einzelnen Aufnahmen 8–12 ms), Sprünge > 20 ms bei Play/Stop.
 - Fire: in einer Aufnahme einige verschobene Klicks in den ersten Sekunden nach Play.
-- Der Restausgleich (`audio-native`) gilt je Route – mit Kopfhörer braucht der Fire einen eigenen Wert.
-- Ein Redmi-Start blieb 30 s bei −20 ms (zu wenige schnelle Uhr-Anfragen während der Downloads).
+- Der Restausgleich (`audio-native`) gilt je Route – mit Kopfhörer braucht der Fire einen eigenen Wert (Abgleich nach Gehör, PR #700).
+- Ein Redmi-Start blieb 30 s bei −20 ms: während der Audio-Downloads nach dem Start kommen kaum schnelle Uhr-Anfragen durch (docs/11).
+- Zwischen Song-Starts bleiben ~3 ms Streuung; die Uhr-Synchronisation ist jetzt der größere Rest.
+- **Idee (Marco, 2026-11-06: nur notieren):** Die gelernte Extra-Reserve der nativen Ausgabe (`sb:audio:native-output-extra`) wächst nur (+50 ms je knappem Moment) und schrumpft nie – Drehen, Sperren, der 17-h-Lauf haben sie dauerhaft erhöht (Handy 200 ms, Redmi 150 ms, Fire 50 ms). Im Dauerlauf 2026-11-06 (1 h) blieb trotzdem immer Reserve übrig: kleinste Fire 149 ms, Redmi 131 ms, Handy 235 ms. Vorschlag: nach 30 min sauberem Spielen beim nächsten Start 50 ms weniger, nie unter 0. Gewinn: kürzerer Play-Vorlauf, kürzeres Warten von MIDI/Licht auf den Ton. Risiko: Pendeln bei Geräten, die selten knapp werden.
 
 - Oboe als Fremdbibliothek (Apache 2.0) oder AAudio direkt? Oboe bringt Rückfall auf OpenSL ES für Android < 8.1 und viele Geräte-Umgehungen – Vorschlag: Oboe.
 - Track-Daten in die native Engine: dekodiert über die Brücke (einfach, Speicher) oder nativ dekodieren (MediaCodec)?
 - Welche Pulte geben ihre Eingänge per USB/Netz so heraus, dass StageBoard sie lesen kann (USB-Audio class compliant vs. eigene Treiber/Protokolle)? Zuerst die Pulte, für die es schon Plugins gibt (CQ-18T, Ui24R).
-- Warum weicht der Uhr-Versatz des Redmi je App-Start um bis zu 25 ms ab (§2a)? Mit nativem Audio ist das der größte verbleibende Fehler.
 - Was zeigt die App, wenn kein Weg auf einem Gerät stimmt (der Fire-WebView-Fall)? Vorschlag: rotes „Ausgang ungenau“ in Bühnentechnik mit der gemessenen Schwankung, Empfehlung eines anderen Wegs.
+
+## 8. Native Engine statt Pipe (Konzept, 2026-11-06, kein Beschluss)
+
+Heute rechnet die **WebView** den Ton (Track, Stems, Klick, Ansagen, Mischung), die native Ausgabe spielt nur das fertige Ergebnis zur richtigen Zeit (§2b, „pipe“). Eine **native Engine** würde den Ton selbst im App-Prozess rechnen (C++, Oboe/AAudio-Callback); die WebView schickt nur noch Befehle („Song X, Start bei Band-Zeit T, Klick 120 %, Sprung zu Teil B“). §3 beschreibt das schon als Ziel; im November wurde bewusst zuerst die Pipe gebaut.
+
+### 8a. Anlass
+
+Alle Fehler eines Tages (2026-11-06) kamen aus dem Rechnen in der WebView, keiner aus der Ausgabe:
+
+| Gerät | was | Folge |
+|---|---|---|
+| Handy nach 17 h | WebView rechnete 0,2–0,6 % langsamer als Echtzeit, Hänger bis 128 ms | 20 % Ton fehlte |
+| Handy, Wärmedrosselung | ganzes System 2,6 s still | 1,6 s Ton fehlte |
+| Redmi, Drehen | Audio-Uhr der WebView ~0,5 s angehalten | Linie eine Minute falsch (behoben, PR #708) |
+| Redmi, Sperre | Seite verborgen, danach Nachliefern | Klick und Ansagen stehen absichtlich, danach Aussetzer |
+| Fire | Hauptfaden 600 ms je Takt blockiert (Show-Log, PR #709) | Betonung fehlte jeden Takt |
+| alle | Pipe braucht 281–483 ms Verzögerung | Vorlauf nach Play 800 ms (PR #710) |
+
+### 8b. Was nativ besser wäre
+
+- **Läuft weiter bei gesperrtem Bildschirm/im Hintergrund** (mit einem Vordergrund-Dienst und Benachrichtigung) – z. B. das Handy in der Tasche als In-Ear-Zuspieler.
+- **Unabhängig von WebView, Darstellung, JavaScript und Speicherbereinigung:** ein Audio-Faden mit höchster Priorität; Drehen, ein voller Bildschirm oder ein blockierter Hauptfaden halten ihn nicht auf.
+- **Kleine Verzögerung:** ~20–40 ms statt 281–483 ms – der Vorlauf nach Play könnte auf ~200–300 ms sinken.
+- **Nichts zu schätzen:** der Ton wird direkt auf die Uhr der Ausgabe gelegt; die Zeitlinie (Schätzung der WebView-Uhr, die 0,1–0,6 % abweicht) entfällt.
+- **Mehrere Ausgänge** (Klick ins In-Ear, Track zur PA über ein USB-Interface, docs/28, docs/31) direkt möglich.
+
+### 8c. Was es kostet
+
+- **Großer Umbau:** alles, was die Web-Audio-Engine heute kann, braucht eine native Fassung – Dekodieren, Zeitdehnung (Loop-Trainer, Tempo; Signalsmith gibt es in C++), Stems, Teil-Sprünge mit Überblendung, Mischung, Ansagen.
+- **Zwei Engines:** Laptop, Browser und später iOS behalten Web Audio. Beide müssen sich gleich verhalten – mehr Tests, mehr Möglichkeiten für Unterschiede.
+- **Nur Android** zuerst, schwerer zu testen als der Web-Code.
+
+### 8d. Vorschlag: in Stufen, das Zeitkritischste zuerst
+
+1. **N1 – Klick und Ansagen nativ.** Klein und am zeitkritischsten. Je Song bekommt die native Seite einmal den Plan: Schlagzeiten aus dem Raster in Band-Zeit, Betonungen, Stummschaltungen, die Ansage-Clips (WAV) mit ihren Zeiten, die Pegel; danach nur Ereignisse (Play, Pause, Sprung, Tempo). Der Track kommt weiter über die Pipe und wird nativ dazugemischt – ein Ausgang. Damit: Klick und Ansagen unabhängig von allen Hängern oben, auch bei gesperrtem Bildschirm.
+2. **N2 – Track und Stems nativ,** wenn N1 auf der Bühne trägt: Dekodieren (MediaCodec oder dekodiert über die Brücke), Zeitdehnung, Sprünge. Danach entfällt die Pipe.
+3. **N3 – mehrere Ausgänge** nach der Bühnenkarte (docs/31) und dem eigenen USB-Treiber (docs/28).
+
+Was bleibt: die Band-Zeit (docs/29), der Ausgleich je Weg (§5, docs/31), Web Audio für Browser und iOS, die Geräteprüfung (§4).
+
+### 8e. Wie geprüft wird
+
+- **Zeitstempel-Mitschnitt** wie am 2026-11-06 (jeder Klick, jede Ansage in Band-Zeit auf allen Geräten): N1 mindestens so genau wie die Pipe.
+- **Störtests:** Drehen, Sperren, Wärme (lange laufen lassen), schwerer Bildschirm (Bibliothek scrollen), 3 h am Stück – kein fehlender Klick.
+- **Gleiche Ergebnisse beider Engines:** derselbe Plan offline in beiden gerechnet, Klickzeiten und Pegel verglichen (Testvektoren im Repo).
+
+### 8f. Entschieden (Marco, 2026-11-06)
+
+- **Bei gesperrtem Bildschirm spielt es weiter.** Mit der WebView geht das nicht sauber – im Hintergrund bekommt sie nur noch vereinzelte Timer-Takte, daher stoppt der Klick dort heute absichtlich (lieber synchron als unsauber). Weiterspielen kommt also mit **N1** (Klick und Ansagen nativ); Android verlangt dafür einen Vordergrund-Dienst mit sichtbarer Benachrichtigung („StageBoard spielt“). Bis dahin bleibt das heutige Verhalten.
+
+### 8g. Offen
+
+- Läuft die Uhr-Synchronisation bei gesperrtem Bildschirm weiter (nativ), oder reicht der letzte Stand (Drift ~0,3 ms pro Minute)?
+- Aufwand N1 grob: Plan-Format und Brücke, Mischer mit Klick-Synthese und Clip-Wiedergabe, Wechsel Web Audio ↔ nativ, Tests – geschätzt 1–2 Wochen; N2 deutlich mehr.

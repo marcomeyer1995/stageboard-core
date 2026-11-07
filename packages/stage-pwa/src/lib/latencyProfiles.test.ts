@@ -35,4 +35,9 @@ describe('latency profiles (#491)', () => {
     expect(nativeOutputLatencyMs(454, profiles, 'fire', 'wired', true)).toBe(454)
     expect(nativeOutputLatencyMs(454, profiles, 'fire', 'speaker', false)).toBe(454)
   })
+
+  it('native output: a negative stored part makes it later, never below zero in total (aligned by ear)', () => {
+    expect(nativeOutputLatencyMs(231, [profile('redmi', NATIVE_AUDIO_OUTPUT, 'speaker', -12)], 'redmi', 'speaker', true)).toBe(219)
+    expect(nativeOutputLatencyMs(20, [profile('redmi', NATIVE_AUDIO_OUTPUT, 'speaker', -50)], 'redmi', 'speaker', true)).toBe(0)
+  })
 })

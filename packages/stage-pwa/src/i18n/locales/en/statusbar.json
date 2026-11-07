@@ -10,6 +10,7 @@
     "paused": "Paused",
     "finished": "Finished",
     "audioError": "Audio error",
+    "audioFallback": "Sound: fallback",
     "syncError": "Sync error",
     "offline": "Offline",
     "noMaster": "No master",
