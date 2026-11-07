@@ -306,6 +306,38 @@ export function getServerTime(): number {
 
 if (typeof window !== 'undefined') (window as unknown as { __sbClockSync: unknown }).__sbClockSync = { appliedAt: () => appliedAt(Date.now()), estimate: () => estimateFromWindow(window_, Date.now()), samples: () => window_.length }
 
+/** How long the audio downloads wait at most for the clock to lock first (clockLockedFirst). */
+const CLOCK_FIRST_MAX_WAIT_MS = 15_000
+let clockFirst: Promise<void> | null = null
+let clockFirstDone = false
+
+/** Whether clockLockedFirst() has resolved already (always without a Stage-Server, and in tests). */
+export function isClockLockedFirst(): boolean {
+  return clockFirstDone || import.meta.env.MODE === 'test' || !getStageServerUrl()
+}
+
+/**
+ * Resolves once the window gives an estimate from clean samples - or after CLOCK_FIRST_MAX_WAIT_MS.
+ * The audio downloads at app start wait for it: they share the connection with the time requests,
+ * which then took 0.3-3 s and came back off by up to 350 ms, even the fast ones by 12-14 ms -
+ * the Redmi's band time sat 12 ms off for 55 s, until the downloads were done (2026-11-05).
+ */
+export function clockLockedFirst(): Promise<void> {
+  if (import.meta.env.MODE === 'test' || !getStageServerUrl()) return Promise.resolve()
+  clockFirst ??= new Promise((resolve) => {
+    const started = Date.now()
+    const check = () => {
+      if (estimateFromWindow(window_, Date.now()) || Date.now() - started > CLOCK_FIRST_MAX_WAIT_MS) {
+        clockSyncLog('clock locked first', { afterMs: Date.now() - started })
+        clockFirstDone = true
+        resolve()
+      } else setTimeout(check, 250)
+    }
+    check()
+  })
+  return clockFirst
+}
+
 /** Test-only reset - production code never needs to clear the sync state explicitly. */
 export function __resetClockSyncForTests(): void {
   offsetHistory = []
