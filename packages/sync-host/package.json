@@ -1,0 +1,33 @@
+{
+  "name": "sync-host",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "^26.2.0",
+    "@types/pouchdb-adapter-memory": "^6.1.6",
+    "@types/pouchdb-core": "^7.0.15",
+    "pouchdb-adapter-http": "^9.0.0",
+    "pouchdb-adapter-memory": "^9.0.0",
+    "pouchdb-core": "^9.0.0",
+    "pouchdb-replication": "^9.0.0",
+    "typescript": "~5.6.2",
+    "vitest": "^4.1.11"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./couch-host": {
+      "types": "./dist/couchHost.d.ts",
+      "default": "./dist/couchHost.js"
+    }
+  }
+}

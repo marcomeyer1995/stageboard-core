@@ -1,6 +1,6 @@
 # Betriebsstufen: StageBoard ohne festen Stage-Server
 
-Grundidee, Stand 2026-10-28, mit Marco besprochen am 2026-10-27/28. **Noch kein Beschluss** - nur die Richtung; Ausarbeitung folgt später. Ergänzt [docs/02](02_Ausbaustufen_Konzept.md) (Hardware-Matrix) und berührt Kern-Prinzip 1 in CLAUDE.md („Der Stage-Server ist das Herzstück“).
+Grundidee, Stand 2026-10-28, mit Marco besprochen am 2026-10-27/28. Seit 2026-11-07 entschieden und begonnen: §6a. Ergänzt [docs/02](02_Ausbaustufen_Konzept.md) (Hardware-Matrix) und berührt Kern-Prinzip 1 in CLAUDE.md („Der Stage-Server ist das Herzstück“).
 
 ## 1. Warum
 
@@ -52,6 +52,21 @@ Wie sich das mit den fünf Hardware-Stufen aus docs/02 zusammenfügt, ist offen 
 2. **Host meldet seine Fähigkeiten**, die App zeigt fehlende Add-ons statt Fehlern.
 3. **Zertifikate je Host**: die Android-App pinnt heute das Zertifikat des einen Stage-Servers; mit wechselndem Host braucht es eine Kopplung beim Beitreten (z. B. QR-Code).
 4. **Netz ohne Router**: Hotspot des Host-Geräts; Erkennung über mDNS oder die Adresse aus dem QR-Code.
+
+## 6a. Entscheidungen und Stand (Marco, 2026-11-07)
+
+| Frage | Entscheidung |
+|---|---|
+| Reihenfolge | zuerst alle offenen PRs mergen und ausrollen (erledigt: main e78f86b, App 1.580), dann **Server ohne CouchDB**, dann **Spike Android als Host auf dem Redmi** |
+| Wie ohne CouchDB | **eigenes kleines Modul** `packages/sync-host` in reinem TypeScript über PouchDB – nicht express-pouchdb (seit 2019 ungepflegt, PouchDB 7) und nicht Node auf Android (nodejs-mobile steht bei Node 18, der Fastify-5-Server braucht ≥ 20). Dasselbe Modul läuft auf dem Laptop (Fastify) und später in der Android-App (nativer Webserver → Modul in der App über die PouchDB, die sie schon hat) |
+| Server-Plugins auf der Karte | Download-Werkzeug, Stems, Piper usw. erscheinen am Host auf der Bühnen-Karte und sind dort installierbar, **wo der Host sie ausführen kann** (Linux/Windows ja, Android nein, grau „läuft auf diesem Host nicht“). Der Host meldet das (`GET /server/capabilities`) |
+
+**Gebaut (Branch `feat/sync-host`):**
+- `sync-host`: das Replikationsprotokoll (Info, Änderungs-Feed auch long-poll, `_revs_diff`, `_bulk_docs`, `_bulk_get`, `_all_docs`, Checkpoints, Dokumente, Anhänge) und darüber eine **kleine CouchDB** – Server-Admin, Konten nur als PBKDF2-Schlüssel (WebCrypto), `_session`, `_security` (CouchDB-3-Regeln), die `validate_doc_update`-Funktionen der Band bei jedem Schreiben (auch Replikation), Bandliste, Datenbanken anlegen/löschen. Getestet mit echter PouchDB-Replikation über HTTP und mit dem **unveränderten** `couch.ts`.
+- Stage-Server: `STAGEBOARD_DB=builtin` startet sie im Prozess, Daten als LevelDB-Dateien (`STAGEBOARD_DB_DIR`, sonst `<STAGEBOARD_STATE_DIR>/database`), lauscht wo CouchDB lauschen würde (127.0.0.1:5984, `STAGEBOARD_DB_PORT`) – `couch.ts`, der `/db`-Proxy und die Kommandozeilen-Werkzeuge bleiben unverändert. Ohne Schalter weiter CouchDB.
+- `GET /server/capabilities`: Plattform, Datenbank, je Server-Plugin „läuft hier“ oder was fehlt (demucs, piper, chrome, yt-dlp).
+
+**Noch offen:** echter Lauf auf dem Laptop mit einer frischen Band und den Tablets; Umzug einer bestehenden Band von CouchDB (Replikation, die Daten liegen auf jedem Gerät); die Plugins auf der Karte in der App; dann der Android-Spike.
 
 ## 7. Vorgeschlagene Reihenfolge
 
