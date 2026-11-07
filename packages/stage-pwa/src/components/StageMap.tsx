@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import {
   BUILTIN_MODELS,
   CAPABILITIES,
+  channelNumber,
   DEFAULT_VIRTUAL_OUTPUTS,
   DRIVER_KINDS,
   effectiveRouting,
@@ -187,7 +188,7 @@ export function StageMap() {
   const portLabel = (ref: PortRef) => {
     const port = portOf(byId.get(ref.equipmentId), ref.portId)
     const item = byId.get(ref.equipmentId)
-    return `${item ? title(item) : '?'} · ${port?.name ?? ref.portId}${ref.channel === undefined ? '' : ` ${ref.channel}`}`
+    return `${item ? title(item) : '?'} · ${port?.name ?? ref.portId}${ref.channel === undefined ? '' : ` ${channelNumber(port, ref.channel)}`}`
   }
 
   // Connect: candidate targets are equipment with a port that fits.
@@ -208,7 +209,7 @@ export function StageMap() {
     if (fits.length === 0) return
     const options = fits.flatMap(({ port, reverse }) =>
       port.channels
-        ? Array.from({ length: port.channels }, (_, i) => ({ value: `${port.id}#${i + 1}#${reverse ? 1 : 0}`, label: `${port.name} ${i + 1}` }))
+        ? Array.from({ length: port.channels }, (_, i) => ({ value: `${port.id}#${i + 1}#${reverse ? 1 : 0}`, label: `${port.name} ${channelNumber(port, i + 1)}` }))
         : [{ value: `${port.id}##${reverse ? 1 : 0}`, label: port.name }],
     )
     let picked = options.length === 1 ? options[0]!.value : null
@@ -421,7 +422,7 @@ export function StageMap() {
     const lines = (ports: Port[]): MatrixLine[] =>
       ports.flatMap((p) =>
         p.channels
-          ? Array.from({ length: p.channels }, (_, i) => ({ key: `${p.id}#${i + 1}`, label: `${p.name} ${i + 1}`, point: { kind: 'port' as const, portId: p.id, channel: i + 1 } }))
+          ? Array.from({ length: p.channels }, (_, i) => ({ key: `${p.id}#${i + 1}`, label: `${p.name} ${channelNumber(p, i + 1)}`, point: { kind: 'port' as const, portId: p.id, channel: i + 1 } }))
           : [{ key: p.id, label: p.name, point: { kind: 'port' as const, portId: p.id } }],
       )
     const virtualLines = (input: boolean): MatrixLine[] =>
@@ -548,7 +549,7 @@ export function StageMap() {
               )}
               {portText && (
                 <text x={mid.x} y={mid.y + 16} textAnchor="middle" className="fill-ink-muted text-[15px]" style={{ paintOrder: 'stroke' }} stroke="rgb(var(--sb-surface))" strokeWidth={5}>
-                  {`${portOf(byId.get(l.from.equipmentId), l.from.portId)?.name ?? ''} → ${portOf(byId.get(l.to.equipmentId), l.to.portId)?.name ?? ''}${l.to.channel ? ` ${l.to.channel}` : ''}`}
+                  {`${portOf(byId.get(l.from.equipmentId), l.from.portId)?.name ?? ''} → ${portOf(byId.get(l.to.equipmentId), l.to.portId)?.name ?? ''}${l.to.channel ? ` ${channelNumber(portOf(byId.get(l.to.equipmentId), l.to.portId), l.to.channel)}` : ''}`}
                 </text>
               )}
             </g>

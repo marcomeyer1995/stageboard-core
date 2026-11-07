@@ -1,17 +1,21 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { MIXER_LIMITS, mixerSetupOf, type MixerSetup, type StageEquipment } from 'shared-types'
-import { Button, Dialog, Segmented, Stepper, Switch } from './ui'
+import { Button, Dialog, Stepper, Switch } from './ui'
 
 /**
- * "Mischpult einrichten" (Marco, 2026-11-07): the admin sets up a mixer that no plugin knows -
- * inputs, sends, USB audio, network, MIDI, digital links. Saved on this mixer only; what no longer
- * fits (a cable on input 20 of now 16) is dropped by the caller after a confirm.
+ * "Mischpult einrichten" (Marco, 2026-11-07): the admin sets up a mixer that no plugin knows, as
+ * precisely as the desk is - combo and XLR inputs counted apart (the Ui24R: 10 and 10), several
+ * headphone outs, USB channels to and from the desk counted apart. Saved on this mixer only; what no
+ * longer fits (a cable on input 20 of now 16) is dropped by the caller after a confirm.
  */
 export function MixerSetupDialog({ mixer, onSave, onClose }: { mixer: StageEquipment; onSave: (setup: MixerSetup) => void; onClose: () => void }) {
   const { t } = useTranslation('hardware')
   const [s, setS] = useState<MixerSetup>(() => mixerSetupOf(mixer.ports))
   const set = <K extends keyof MixerSetup>(key: K) => (value: MixerSetup[K]) => setS((prev) => ({ ...prev, [key]: value }))
+  const count = (key: 'comboInputs' | 'xlrInputs' | 'stereoInputs' | 'auxes' | 'groups' | 'matrices' | 'headphones' | 'usbIn' | 'usbOut' | 'digitalChannels', max: number, info?: string) => (
+    <Stepper label={t(`mixer.${key}`)} info={info} unit="" value={s[key]} min={0} max={max} onChange={set(key)} />
+  )
   return (
     <Dialog
       title={t('mixer.title', { name: mixer.name })}
@@ -29,28 +33,21 @@ export function MixerSetupDialog({ mixer, onSave, onClose }: { mixer: StageEquip
       }
     >
       <h3 className="text-base font-bold text-ink">{t('mixer.inputs')}</h3>
-      <Stepper label={t('mixer.mono')} unit="" value={s.monoInputs} min={0} max={MIXER_LIMITS.inputs} onChange={set('monoInputs')} />
-      <Segmented
-        label={t('mixer.monoConnector')}
-        value={s.monoConnector}
-        onChange={set('monoConnector')}
-        options={[
-          { value: 'xlr-jack', label: t('mixer.combo') },
-          { value: 'xlr', label: 'XLR' },
-        ]}
-      />
-      <Stepper label={t('mixer.stereo')} unit="" value={s.stereoInputs} min={0} max={MIXER_LIMITS.stereo} onChange={set('stereoInputs')} />
+      {count('comboInputs', MIXER_LIMITS.inputs)}
+      {count('xlrInputs', MIXER_LIMITS.inputs, t('mixer.numbering'))}
+      {count('stereoInputs', MIXER_LIMITS.stereo)}
 
       <h3 className="text-base font-bold text-ink">{t('mixer.outputs')}</h3>
       <p className="text-base text-ink-muted">{t('mixer.main')}</p>
-      <Stepper label={t('mixer.auxes')} unit="" value={s.auxes} min={0} max={MIXER_LIMITS.sends} onChange={set('auxes')} />
-      <Stepper label={t('mixer.groups')} unit="" value={s.groups} min={0} max={MIXER_LIMITS.sends} onChange={set('groups')} />
-      <Stepper label={t('mixer.matrices')} unit="" value={s.matrices} min={0} max={MIXER_LIMITS.sends} onChange={set('matrices')} />
-      <Switch label={t('mixer.headphones')} checked={s.headphones} onChange={set('headphones')} />
+      {count('auxes', MIXER_LIMITS.sends)}
+      {count('groups', MIXER_LIMITS.sends)}
+      {count('matrices', MIXER_LIMITS.sends)}
+      {count('headphones', MIXER_LIMITS.headphones)}
 
       <h3 className="text-base font-bold text-ink">{t('mixer.digital')}</h3>
-      <Stepper label={t('mixer.usb')} info={t('mixer.usbInfo')} unit="" value={s.usbChannels} min={0} max={MIXER_LIMITS.usb} onChange={set('usbChannels')} />
-      <Stepper label={t('mixer.dante')} unit="" value={s.digitalChannels} min={0} max={MIXER_LIMITS.digital} onChange={set('digitalChannels')} />
+      {count('usbIn', MIXER_LIMITS.usb, t('mixer.usbInfo'))}
+      {count('usbOut', MIXER_LIMITS.usb)}
+      {count('digitalChannels', MIXER_LIMITS.digital)}
       <Switch label={t('mixer.usbStick')} checked={s.usbStick} onChange={set('usbStick')} />
 
       <h3 className="text-base font-bold text-ink">{t('mixer.control')}</h3>

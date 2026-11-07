@@ -62,6 +62,8 @@ export const PortSchema = z.object({
   signals: z.array(SignalSchema).min(1),
   direction: PortDirectionSchema,
   channels: z.number().int().min(2).max(128).optional(),
+  /** The desk's number of channel 1 of this group ("XLR 11–20" after 10 combo inputs) - labels only. */
+  firstChannel: z.number().int().min(1).max(256).optional(),
 })
 export type Port = z.infer<typeof PortSchema>
 
@@ -580,21 +582,25 @@ export function signalFlows(map: StageMap, setupId: string, virtualPorts: readon
 
 /**
  * How a mixer is set up (Marco, 2026-11-07): as long as no plugin brings the real model of a desk,
- * the admin sets up the generic one - counts of inputs and sends, USB audio, network, MIDI, digital
- * links. Kept on this one mixer (its `ports`), not as a band model. Counts of 0 leave a connector out.
+ * the admin sets up the generic one, precisely - a desk like the Ui24R has 10 combo and 10 XLR
+ * inputs, several headphone outs, and USB with different channel counts each way. Kept on this one
+ * mixer (its `ports`), not as a band model. Counts of 0 leave a connector out.
  */
 export interface MixerSetup {
-  monoInputs: number
-  /** XLR only, or combo sockets (XLR and 6.3 mm jack). */
-  monoConnector: 'xlr' | 'xlr-jack'
+  /** Combo sockets (XLR and 6.3 mm jack), numbered first on the desk. */
+  comboInputs: number
+  /** Pure XLR inputs, numbered after the combo ones. */
+  xlrInputs: number
   /** Stereo/line inputs, in pairs. */
   stereoInputs: number
   auxes: number
   groups: number
   matrices: number
-  headphones: boolean
-  /** USB audio channels to and from a computer or tablet (USB-B) - most desks have no USB-C. */
-  usbChannels: number
+  headphones: number
+  /** USB audio over the desk's USB-B socket (most desks have no USB-C): channels to the desk
+   * (a tablet's track on desk channels) and from it (a recording) - shown as two ports of one socket. */
+  usbIn: number
+  usbOut: number
   usbStick: boolean
   network: boolean
   midiDin: boolean
@@ -602,22 +608,27 @@ export interface MixerSetup {
   digitalChannels: number
 }
 
-export const MIXER_LIMITS = { inputs: 96, stereo: 16, sends: 32, usb: 128, digital: 128 } as const
+export const MIXER_LIMITS = { inputs: 96, stereo: 16, sends: 32, headphones: 8, usb: 128, digital: 128 } as const
 
 /** A port group of `count` channels - one plain port for 1, none for 0. */
-const group = (id: string, name: string, connector: Connector, signals: Signal[], direction: PortDirection, count: number): Port[] =>
-  count <= 0 ? [] : [port(id, name, connector, signals, direction, count >= 2 ? count : undefined)]
+const group = (id: string, name: string, connector: Connector, signals: Signal[], direction: PortDirection, count: number, firstChannel = 1): Port[] => {
+  if (count <= 0) return []
+  const p = port(id, name, connector, signals, direction, count >= 2 ? count : undefined)
+  return [firstChannel > 1 ? { ...p, firstChannel } : p]
+}
 
 export function mixerPorts(s: MixerSetup): Port[] {
   return [
-    ...group('in', 'Eingang', s.monoConnector, ['audio'], 'in', s.monoInputs),
+    ...group('in', 'Eingang', 'xlr-jack', ['audio'], 'in', s.comboInputs),
+    ...group('in-xlr', 'Eingang', 'xlr', ['audio'], 'in', s.xlrInputs, s.comboInputs + 1),
     ...group('st', 'Line/Stereo', 'jack-6.3', ['audio'], 'in', s.stereoInputs * 2),
     port('main', 'Main L/R', 'xlr', ['audio'], 'out'),
     ...group('aux', 'Aux', 'xlr-jack', ['audio'], 'out', s.auxes),
     ...group('group', 'Gruppe', 'xlr-jack', ['audio'], 'out', s.groups),
     ...group('matrix', 'Matrix', 'xlr-jack', ['audio'], 'out', s.matrices),
-    ...(s.headphones ? [port('phones', 'Kopfhörer', 'jack-6.3', ['audio'], 'out')] : []),
-    ...group('usb', 'USB-Audio', 'usb-b', ['usb-audio', 'midi'], 'both', s.usbChannels),
+    ...group('phones', 'Kopfhörer', 'jack-6.3', ['audio'], 'out', s.headphones),
+    ...group('usb-in', 'USB zum Pult', 'usb-b', ['usb-audio', 'midi'], 'in', s.usbIn),
+    ...group('usb-out', 'USB vom Pult', 'usb-b', ['usb-audio', 'midi'], 'out', s.usbOut),
     ...(s.usbStick ? [port('usb-stick', 'USB-Stick', 'usb-a', ['audio'], 'both')] : []),
     ...(s.network ? [port('net', 'Netzwerk', 'ethernet', ['net', 'midi'], 'both')] : []),
     ...(s.midiDin ? [port('midi-in', 'MIDI In', 'din5', ['midi'], 'in'), port('midi-out', 'MIDI Out', 'din5', ['midi'], 'out')] : []),
@@ -625,27 +636,37 @@ export function mixerPorts(s: MixerSetup): Port[] {
   ]
 }
 
-/** The setup a mixer's ports stand for - the dialog starts from it. */
+/** The setup a mixer's ports stand for - the dialog starts from it (also a mixer set up before the
+ * counts were split: its one input group by its socket, one USB port both ways). */
 export function mixerSetupOf(ports: readonly Port[]): MixerSetup {
+  const find = (id: string) => ports.find((x) => x.id === id)
   const count = (id: string) => {
-    const p = ports.find((x) => x.id === id)
+    const p = find(id)
     return p ? (p.channels ?? 1) : 0
   }
   const has = (id: string) => ports.some((x) => x.id === id)
+  const inXlr = find('in')?.connector === 'xlr'
   return {
-    monoInputs: count('in'),
-    monoConnector: ports.find((p) => p.id === 'in')?.connector === 'xlr' ? 'xlr' : 'xlr-jack',
+    comboInputs: inXlr ? 0 : count('in'),
+    xlrInputs: count('in-xlr') + (inXlr ? count('in') : 0),
     stereoInputs: Math.floor(count('st') / 2),
     auxes: count('aux'),
     groups: count('group'),
     matrices: count('matrix'),
-    headphones: has('phones'),
-    usbChannels: count('usb'),
+    headphones: count('phones'),
+    usbIn: count('usb-in') || count('usb'),
+    usbOut: count('usb-out') || count('usb'),
     usbStick: has('usb-stick'),
     network: has('net'),
     midiDin: has('midi-in'),
     digitalChannels: count('digital'),
   }
+}
+
+/** The number a channel of a port group has on the device ("Eingang 11" for channel 1 of the XLR
+ * inputs after 10 combo ones). */
+export function channelNumber(port: Port | undefined, channel: number): number {
+  return (port?.firstChannel ?? 1) + channel - 1
 }
 
 /** Whether `point` on `ports` still exists (the port, and its channel within the group). */

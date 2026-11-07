@@ -17,6 +17,7 @@ import {
   mixerPorts,
   mixerSetupOf,
   pruneForPorts,
+  channelNumber,
   linkPlaceholder,
   mergeEquipmentInSetup,
 } from './stageMap.js'
@@ -157,17 +158,29 @@ describe('mixer setup (Marco, 2026-11-07)', () => {
 
   it('reads the generic mixer and gives the same ports back', () => {
     const setup = mixerSetupOf(generic.ports)
-    expect(setup).toMatchObject({ monoInputs: 16, auxes: 4, usbChannels: 0, network: false })
+    expect(setup).toMatchObject({ comboInputs: 16, xlrInputs: 0, auxes: 4, usbIn: 0, usbOut: 0, headphones: 0, network: false })
     expect(mixerPorts(setup).map((p) => p.id)).toEqual(generic.ports.map((p) => p.id))
   })
 
-  it('a digital desk: USB-B both ways, network, MIDI, stereo pairs, one group as a plain port', () => {
-    const ports = mixerPorts({ ...mixerSetupOf(generic.ports), monoInputs: 16, stereoInputs: 1, groups: 1, usbChannels: 18, network: true, midiDin: true, headphones: true })
-    expect(ports.find((p) => p.id === 'usb')).toMatchObject({ connector: 'usb-b', direction: 'both', channels: 18, signals: ['usb-audio', 'midi'] })
-    expect(ports.find((p) => p.id === 'st')?.channels).toBe(2)
+  it('a Ui24R: 10 combo then 10 XLR numbered 11-20, two headphone outs, USB with its own count each way', () => {
+    const setup = { ...mixerSetupOf(generic.ports), comboInputs: 10, xlrInputs: 10, headphones: 2, usbIn: 2, usbOut: 22, network: true, midiDin: true, stereoInputs: 1, groups: 1 }
+    const ports = mixerPorts(setup)
+    const xlr = ports.find((p) => p.id === 'in-xlr')!
+    expect(xlr).toMatchObject({ connector: 'xlr', channels: 10, firstChannel: 11 })
+    expect(channelNumber(xlr, 1)).toBe(11)
+    expect(ports.find((p) => p.id === 'in')).toMatchObject({ connector: 'xlr-jack', channels: 10 })
+    expect(ports.find((p) => p.id === 'usb-in')).toMatchObject({ connector: 'usb-b', direction: 'in', channels: 2 })
+    expect(ports.find((p) => p.id === 'usb-out')).toMatchObject({ connector: 'usb-b', direction: 'out', channels: 22 })
+    expect(ports.find((p) => p.id === 'phones')?.channels).toBe(2)
     expect(ports.find((p) => p.id === 'group')?.channels).toBeUndefined()
-    expect(ports.some((p) => p.id === 'midi-in') && ports.some((p) => p.id === 'midi-out') && ports.some((p) => p.id === 'phones')).toBe(true)
-    expect(mixerSetupOf(ports)).toMatchObject({ stereoInputs: 1, groups: 1, usbChannels: 18, network: true, midiDin: true, headphones: true })
+    expect(mixerSetupOf(ports)).toEqual(setup)
+  })
+
+  it('a tablet plugs into the desk\'s USB-B both ways', () => {
+    const tabletUsb = BUILTIN_MODELS.find((m) => m.id === 'tablet')!.ports.find((p) => p.id === 'usb')!
+    const ports = mixerPorts({ ...mixerSetupOf(generic.ports), usbIn: 2, usbOut: 2 })
+    expect(portFit(tabletUsb, ports.find((p) => p.id === 'usb-in')!)).not.toBeNull()
+    expect(portFit(ports.find((p) => p.id === 'usb-out')!, tabletUsb)).not.toBeNull()
   })
 
   it('fewer inputs drop the cables and matrix points that no longer fit - nothing else', () => {
@@ -181,7 +194,7 @@ describe('mixer setup (Marco, 2026-11-07)', () => {
       ],
       routing: { pult: [{ from: { kind: 'port' as const, portId: 'in', channel: 15 }, to: { kind: 'port' as const, portId: 'aux', channel: 1 } }] },
     }
-    const ports = mixerPorts({ ...mixerSetupOf(generic.ports), monoInputs: 8 })
+    const ports = mixerPorts({ ...mixerSetupOf(generic.ports), comboInputs: 8 })
     const pruned = pruneForPorts(setup, 'pult', ports)
     expect(pruned.setup.links.map((l) => l.id)).toEqual(['b'])
     expect(pruned).toMatchObject({ links: 1, crosspoints: 1 })
