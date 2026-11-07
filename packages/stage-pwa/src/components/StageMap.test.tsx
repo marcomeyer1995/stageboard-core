@@ -68,6 +68,15 @@ describe('StageMap (docs/31 §7)', () => {
     expect(saveEquipment).not.toHaveBeenCalled()
   })
 
+  it('full screen stays below dialogs - adding equipment opened hidden behind the map (2026-11-07)', () => {
+    setUp(true)
+    const { container } = render(<StageMap />)
+    fireEvent.click(screen.getByRole('button', { name: 'Vollbild' }))
+    const section = container.querySelector('section')!
+    expect(section).toHaveClass('z-page')
+    expect(section).not.toHaveClass('z-takeover')
+  })
+
   it('a member wires their own device but not the mixer; equipment stays with the admin', () => {
     setUp(false)
     render(<StageMap />)

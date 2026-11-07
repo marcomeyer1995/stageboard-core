@@ -431,7 +431,9 @@ export function StageMap() {
   }
 
   return (
-    <section className={full ? 'fixed inset-0 z-takeover flex flex-col bg-stage p-2' : 'mb-6'}>
+    // Full screen on the page layer, not takeover: adding equipment, copying a setup and every
+    // confirm open as dialogs - above takeover they would be hidden behind the map (2026-11-07).
+    <section className={full ? 'fixed inset-0 z-page flex flex-col bg-stage p-2' : 'mb-6'}>
       {!full && (
         <div className="mb-2 flex items-center gap-1">
           <h2 className="text-xl font-bold">{t('map.title')}</h2>
