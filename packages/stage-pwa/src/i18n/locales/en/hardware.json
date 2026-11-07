@@ -210,7 +210,12 @@
     "nothingOnCable": "No signal - nothing is routed here.",
     "showWay": "Show the whole way",
     "reaches": "reaches: {{who}}",
-    "setUp": "Set up"
+    "setUp": "Set up",
+    "placeholder": "not registered",
+    "placeholderModel": "Tablet / phone (not registered yet)",
+    "linkTitle": "Link {{name}} to a device",
+    "linkDevice": "Registered device",
+    "link": "Link to device"
   },
   "mixer": {
     "title": "Set up {{name}}",

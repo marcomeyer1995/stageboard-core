@@ -17,6 +17,8 @@ import {
   mixerPorts,
   mixerSetupOf,
   pruneForPorts,
+  linkPlaceholder,
+  mergeEquipmentInSetup,
 } from './stageMap.js'
 
 const model = (id: string) => BUILTIN_MODELS.find((m) => m.id === id)!
@@ -195,5 +197,51 @@ describe('in-ear receiver (Marco, 2026-11-07)', () => {
     const ears = model('person').ports.find((p) => p.id === 'ears')!
     expect(portFit(out, radio)).not.toBeNull()
     expect(portFit(phones, ears)).not.toBeNull()
+  })
+})
+
+describe('built-in equipment', () => {
+  it('every routing point names a port the model has, and a channel inside its group', () => {
+    for (const model of BUILTIN_MODELS) {
+      for (const c of model.routing?.default ?? []) {
+        for (const pt of [c.from, c.to]) {
+          if (pt.kind !== 'port') continue
+          const p = model.ports.find((x) => x.id === pt.portId)
+          expect(p, `${model.id}: ${pt.portId}`).toBeDefined()
+          if (pt.channel !== undefined) expect(pt.channel).toBeLessThanOrEqual(p!.channels ?? 0)
+        }
+      }
+    }
+  })
+
+  it('a guitar goes into a DI box, the DI box into the stagebox, the stagebox into the desk', () => {
+    const model = (id: string) => BUILTIN_MODELS.find((m) => m.id === id)!
+    const portOf = (id: string, portId: string) => model(id).ports.find((p) => p.id === portId)!
+    expect(portFit(portOf('instrument', 'out'), portOf('di-box', 'in'))).not.toBeNull()
+    expect(portFit(portOf('di-box', 'out'), portOf('stagebox', 'in'))).not.toBeNull()
+    expect(portFit(portOf('stagebox', 'out'), portOf('mixer', 'in'))).not.toBeNull()
+    expect(portFit(portOf('mic-receiver', 'out'), portOf('mixer', 'in'))).not.toBeNull()
+  })
+})
+
+describe('placeholder tablets (Marco, 2026-11-07)', () => {
+  it('linking takes over the device the map added on its own: its cable, position and matrix move to the placeholder', () => {
+    const map = defaultStageMap([{ id: 'kai', name: 'Tablet Kai' }])
+    const placeholder = equipmentFrom(BUILTIN_MODELS.find((m) => m.id === 'tablet')!, 'ph', 'Kai (geplant)')
+    map.equipment.push(placeholder)
+    map.setups[0]!.positions.ph = { x: 10, y: 10 }
+    const { linked, merge } = linkPlaceholder(map, placeholder, 'kai')
+    expect(linked.deviceId).toBe('kai')
+    expect(merge).toBe('device:kai')
+    const merged = mergeEquipmentInSetup(map.setups[0]!, merge!, 'ph')
+    expect(merged.positions.ph).toEqual({ x: 10, y: 10 })
+    expect(merged.positions['device:kai']).toBeUndefined()
+    expect(merged.links.map((l) => [l.from.equipmentId, l.to.equipmentId])).toEqual([['ph', 'listener:kai']])
+  })
+
+  it('a device not yet on the map: nothing to merge', () => {
+    const map = defaultStageMap([])
+    const placeholder = equipmentFrom(BUILTIN_MODELS.find((m) => m.id === 'tablet')!, 'ph', 'Kai (geplant)')
+    expect(linkPlaceholder(map, placeholder, 'kai').merge).toBeNull()
   })
 })

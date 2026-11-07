@@ -7,6 +7,8 @@ import {
   DRIVER_KINDS,
   effectiveRouting,
   equipmentFrom,
+  linkPlaceholder,
+  mergeEquipmentInSetup,
   mixerPorts,
   portFit,
   pruneForPorts,
@@ -146,7 +148,12 @@ export function StageMap() {
   const personName = (profileId: string | undefined) => people.find((p) => p.id === profileId)?.name ?? null
   const subtitle = (e: StageEquipment): string => {
     if (e.kind === 'stageboard' && e.deviceId) return personName(presence.devices[e.deviceId]?.profileId) ?? t('map.nobody')
-    if (e.listener?.kind === 'signed-in') return t('map.atDevice', { device: byId.get(`device:${e.listener.deviceId}`)?.name ?? '' })
+    if (e.kind === 'stageboard') return t('map.placeholder')
+    // By the device, not by id: a linked placeholder keeps its own id (2026-11-07).
+    if (e.listener?.kind === 'signed-in') {
+      const at = e.listener.deviceId
+      return t('map.atDevice', { device: equipment.find((x) => x.kind === 'stageboard' && x.deviceId === at)?.name ?? '' })
+    }
     if (e.listener?.kind === 'profile') return personName(e.listener.profileId) ?? e.name
     return BUILTIN_MODELS.find((m) => m.id === e.modelId)?.name ?? ''
   }
@@ -308,11 +315,12 @@ export function StageMap() {
   // Admin actions.
   const addEquipment = async () => {
     if (!setup) return
-    const models = BUILTIN_MODELS.filter((m) => m.kind !== 'stageboard')
+    // A tablet here is a placeholder: planned before it is registered, linked to it later (2026-11-07).
+    const models = BUILTIN_MODELS.filter((m) => m.kind !== 'stage-server')
     const answer = await promptFields(
       t('map.addTitle'),
       [
-        { key: 'model', label: t('map.model'), type: 'radio', options: models.map((m) => ({ value: m.id, label: m.name })), defaultValue: models[0]!.id },
+        { key: 'model', label: t('map.model'), type: 'radio', options: models.map((m) => ({ value: m.id, label: m.kind === 'stageboard' ? t('map.placeholderModel') : m.name })), defaultValue: models.find((m) => m.kind === 'mixer')!.id },
         { key: 'name', label: t('map.name') },
       ],
       t('map.add'),
@@ -341,6 +349,21 @@ export function StageMap() {
     setMixerFor(null)
     await saveEquipment({ ...mixer, ports })
     for (const [i, x] of setups.entries()) if (pruned[i]!.links + pruned[i]!.crosspoints > 0) await updateSetup(x.id, (cur) => pruneForPorts(cur, mixer.id, ports).setup)
+  }
+  // A placeholder tablet becomes the real device (2026-11-07, the admin links by hand): what the map
+  // had already added for that device on its own moves into it and goes.
+  const linkDevice = async (item: StageEquipment) => {
+    const taken = new Set(equipment.filter((e) => e.kind === 'stageboard' && e.deviceId && e.id !== `device:${e.deviceId}`).map((e) => e.deviceId))
+    const options = devices.filter((d) => !d.revoked && !taken.has(d.id)).map((d) => ({ value: d.id, label: d.name }))
+    if (options.length === 0) return
+    const answer = await promptFields(t('map.linkTitle', { name: item.name }), [{ key: 'device', label: t('map.linkDevice'), type: 'radio', options, defaultValue: options[0]!.value }], t('map.link'))
+    if (!answer?.device) return
+    const { linked, merge } = linkPlaceholder({ equipment, setups }, item, answer.device)
+    // The placeholder first: until it carries the device id, the map would add the device again.
+    await saveEquipment(linked)
+    if (!merge) return
+    for (const s of setups) await updateSetup(s.id, (cur) => mergeEquipmentInSetup(cur, merge, item.id))
+    await removeEquipment(merge)
   }
   const renameEquipment = async (item: StageEquipment) => {
     const answer = await promptFields(t('map.rename'), [{ key: 'name', label: t('map.name'), defaultValue: item.name }], t('map.save'))
@@ -622,6 +645,7 @@ export function StageMap() {
                   {t('map.rename')}
                 </Button>
                 {selectedNode.kind === 'mixer' && <Button onClick={() => setMixerFor(selectedNode)}>{t('map.setUp')}</Button>}
+                {selectedNode.kind === 'stageboard' && !selectedNode.deviceId && <Button onClick={() => void linkDevice(selectedNode)}>{t('map.link')}</Button>}
                 <Button onClick={() => void takeOffStage(selectedNode)}>{t('map.offStage')}</Button>
                 {selectedNode.kind !== 'stageboard' && (
                   <Button variant="danger" icon="delete" onClick={() => void deleteEquipment(selectedNode)}>

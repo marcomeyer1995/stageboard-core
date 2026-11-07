@@ -75,6 +75,14 @@ export const EquipmentKindSchema = z.enum([
   'amp-modeller',
   'iem-sender',
   'iem-receiver',
+  'mic-sender',
+  'mic-receiver',
+  'di-box',
+  'stagebox',
+  'headphone-amp',
+  'instrument-amp',
+  'microphone',
+  'instrument',
   'wedge',
   'pa',
   'light',
@@ -270,6 +278,39 @@ export const BUILTIN_MODELS: readonly EquipmentModel[] = [
   // The beltpack (Marco, 2026-11-07): the radio link from the sender shows as its own line, then the
   // earphones to the person.
   builtin('iem-receiver', 'In-Ear-Empfänger', 'iem-receiver', [port('in', 'Funk', 'wireless', ['audio'], 'in'), port('phones', 'Ohrhörer', 'jack-3.5', ['audio'], 'out')], fixed(via(at('in'), at('phones')))),
+  // More gear on the stage (Marco, 2026-11-07): sources, wireless mics, DI and stagebox, amps.
+  builtin('microphone', 'Mikrofon', 'microphone', [port('out', 'Ausgang', 'xlr', ['audio'], 'out')], null),
+  builtin('instrument', 'Instrument', 'instrument', [port('out', 'Ausgang', 'jack-6.3', ['audio'], 'out')], null),
+  builtin('mic-sender', 'Funkmikro (Sender)', 'mic-sender', [port('in', 'Kapsel/Eingang', 'jack-3.5', ['audio'], 'in'), port('out', 'Funk', 'wireless', ['audio'], 'out')], fixed(via(at('in'), at('out')))),
+  builtin('mic-receiver', 'Funkmikro (Empfänger)', 'mic-receiver', [port('in', 'Funk', 'wireless', ['audio'], 'in'), port('out', 'Ausgang', 'xlr', ['audio'], 'out')], fixed(via(at('in'), at('out')))),
+  builtin(
+    'di-box',
+    'DI-Box',
+    'di-box',
+    [port('in', 'Eingang', 'jack-6.3', ['audio'], 'in'), port('thru', 'Thru', 'jack-6.3', ['audio'], 'out'), port('out', 'Ausgang', 'xlr', ['audio'], 'out')],
+    fixed(via(at('in'), at('out')), via(at('in'), at('thru'))),
+  ),
+  builtin(
+    'stagebox',
+    'Stagebox / Splitter',
+    'stagebox',
+    [port('in', 'Eingang', 'xlr-jack', ['audio'], 'in', 16), port('out', 'Multicore', 'xlr', ['audio'], 'out', 16)],
+    fixed(...Array.from({ length: 16 }, (_, i) => via(at('in', i + 1), at('out', i + 1)))),
+  ),
+  builtin(
+    'headphone-amp',
+    'Kopfhörerverstärker',
+    'headphone-amp',
+    [port('in', 'Eingang', 'jack-6.3', ['audio'], 'in'), port('out', 'Kopfhörer', 'jack-6.3', ['audio'], 'out', 4)],
+    fixed(...Array.from({ length: 4 }, (_, i) => via(at('in'), at('out', i + 1)))),
+  ),
+  builtin(
+    'instrument-amp',
+    'Instrumenten-Amp',
+    'instrument-amp',
+    [port('in', 'Eingang', 'jack-6.3', ['audio'], 'in'), port('line', 'Line Out', 'xlr', ['audio'], 'out'), port('out', 'Schall', 'room', ['audio'], 'out')],
+    fixed(via(at('in'), at('out')), via(at('in'), at('line'))),
+  ),
   builtin('wedge', 'Monitor / Wedge', 'wedge', [port('in', 'Eingang', 'xlr-jack', ['audio'], 'in'), port('out', 'Schall', 'room', ['audio'], 'out')], fixed(via(at('in'), at('out')))),
   builtin('pa', 'PA', 'pa', [port('in', 'Eingang L/R', 'xlr', ['audio'], 'in'), port('out', 'Schall', 'room', ['audio'], 'out')], fixed(via(at('in'), at('out')))),
   builtin(
@@ -625,4 +666,32 @@ export function pruneForPorts(setup: StageSetup, equipmentId: string, ports: rea
   const kept = own?.filter((c) => pointFits(c.from) && pointFits(c.to))
   const routing = own ? { ...setup.routing, [equipmentId]: kept! } : setup.routing
   return { setup: { ...setup, links, routing }, links: setup.links.length - links.length, crosspoints: (own?.length ?? 0) - (kept?.length ?? 0) }
+}
+
+/**
+ * A setup with `fromId`'s place taken by `intoId` (Marco, 2026-11-07: a placeholder tablet linked
+ * to the real device, which the map had already added on its own): its cables move over (a cable
+ * the placeholder already has stays once), its position and matrix only where the placeholder has
+ * none.
+ */
+export function mergeEquipmentInSetup(setup: StageSetup, fromId: string, intoId: string): StageSetup {
+  const swap = (end: PortRef): PortRef => (end.equipmentId === fromId ? { ...end, equipmentId: intoId } : end)
+  const key = (l: StageLink) => JSON.stringify([l.from, l.to])
+  const links: StageLink[] = []
+  for (const l of setup.links.map((x) => ({ ...x, from: swap(x.from), to: swap(x.to) }))) if (!links.some((x) => key(x) === key(l))) links.push(l)
+  const { [fromId]: fromPos, ...positions } = setup.positions
+  const { [fromId]: fromRouting, ...routing } = setup.routing
+  return {
+    ...setup,
+    links,
+    positions: positions[intoId] || !fromPos ? positions : { ...positions, [intoId]: fromPos },
+    routing: routing[intoId] || !fromRouting ? routing : { ...routing, [intoId]: fromRouting },
+  }
+}
+
+/** Links placeholder tablet `placeholder` to registered device `deviceId`: what to save, which
+ * equipment the map made for that device on its own (to merge in and remove), or null. */
+export function linkPlaceholder(map: StageMap, placeholder: StageEquipment, deviceId: string): { linked: StageEquipment; merge: string | null } {
+  const own = map.equipment.find((e) => e.kind === 'stageboard' && e.deviceId === deviceId && e.id !== placeholder.id)
+  return { linked: { ...placeholder, deviceId }, merge: own?.id ?? null }
 }

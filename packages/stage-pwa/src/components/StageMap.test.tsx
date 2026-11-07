@@ -19,6 +19,7 @@ const { useProfilesStore } = await import('../store/useProfilesStore')
 const { usePresenceStore } = await import('../store/usePresenceStore')
 const { useStageMapStore } = await import('../store/useStageMapStore')
 const { StageMap } = await import('./StageMap')
+const { DialogHost } = await import('./DialogHost')
 
 const me = getDeviceId()
 const updateSetup = vi.fn().mockResolvedValue(undefined)
@@ -98,6 +99,33 @@ describe('StageMap (docs/31 §7)', () => {
     expect(saved.ports.map((p) => p.id)).toEqual(['in', 'main', 'aux', 'net'])
     // Nothing on the map stopped fitting - no cable touched.
     expect(updateSetup).not.toHaveBeenCalled()
+  })
+
+  it('a placeholder tablet: added before it is registered, linked by the admin - the device the map added moves into it (2026-11-07)', async () => {
+    setUp(true)
+    const tablet = BUILTIN_MODELS.find((m) => m.id === 'tablet')!
+    const placeholder = { ...equipmentFrom(tablet, 'ph', 'Kai geplant') }
+    useStageMapStore.setState((s) => ({ equipment: [...s.equipment, placeholder], setups: s.setups.map((x) => ({ ...x, positions: { ...x.positions, ph: { x: 900, y: 600 } } })) }))
+    const removeEquipment = vi.fn().mockResolvedValue(undefined)
+    useStageMapStore.setState({ removeEquipment })
+    render(
+      <>
+        <StageMap />
+        <DialogHost />
+      </>,
+    )
+    expect(screen.getByText('nicht registriert')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('switch', { name: 'Bearbeiten' }))
+    tapNode('Kai geplant')
+    fireEvent.click(screen.getByRole('button', { name: 'Mit Gerät verbinden' }))
+    // Fire is registered and was added to the map on its own.
+    await vi.waitFor(() => expect(screen.getByRole('radio', { name: 'Fire' })).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('radio', { name: 'Fire' }))
+    const linkButtons = screen.getAllByRole('button', { name: 'Mit Gerät verbinden' })
+    fireEvent.click(linkButtons[linkButtons.length - 1]!)
+    await vi.waitFor(() => expect(removeEquipment).toHaveBeenCalledWith('device:fire'))
+    expect(saveEquipment).toHaveBeenCalledWith(expect.objectContaining({ id: 'ph', deviceId: 'fire' }))
+    expect(updateSetup).toHaveBeenCalled()
   })
 
   it('a member wires their own device but not the mixer; equipment stays with the admin', () => {

@@ -210,7 +210,12 @@
     "nothingOnCable": "Kein Signal - nichts ist hierhin geroutet.",
     "showWay": "Ganzen Weg zeigen",
     "reaches": "kommt an bei: {{who}}",
-    "setUp": "Einrichten"
+    "setUp": "Einrichten",
+    "placeholder": "nicht registriert",
+    "placeholderModel": "Tablet / Handy (noch nicht registriert)",
+    "linkTitle": "{{name}} mit Gerät verbinden",
+    "linkDevice": "Registriertes Gerät",
+    "link": "Mit Gerät verbinden"
   },
   "mixer": {
     "title": "{{name}} einrichten",
