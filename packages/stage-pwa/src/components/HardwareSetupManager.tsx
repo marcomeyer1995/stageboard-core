@@ -1,3 +1,4 @@
+import { StageMap } from './StageMap'
 import { StagePathList } from './StagePathList'
 import { useEffect, useState } from 'react'
 import { CAPABILITIES, SERVER_EXECUTION_TARGET, type LogicalDevice } from 'shared-types'
@@ -20,6 +21,7 @@ import { OSC_INPUT_CAPABILITY } from '../lib/oscInput'
 import { pluginKind, pluginName } from '../lib/pluginCatalog'
 import { ActionMenu, AddRow, InfoHint } from './ui'
 import { useTranslation } from 'react-i18next'
+import { useStageMapStore } from '../store/useStageMapStore'
 
 /**
  * Every configured Logical Device, guided setup for adding/editing one via `DeviceSetupWizard`.
@@ -30,6 +32,9 @@ import { useTranslation } from 'react-i18next'
  */
 function DeviceList({ onEdit, onAdd }: { onEdit: (device: LogicalDevice) => void; onAdd: () => void }) {
   const { t } = useTranslation('hardware')
+  // With a stage map the map decides who plays Klick, Track and Ansagen (docs/31 §6 step 2) - the
+  // old per-tablet roles would do nothing, so they make way for a pointer to it.
+  const mapDecides = useStageMapStore((state) => state.loaded && state.setups.length > 0)
   const allDevices = useLogicalDevicesStore((state) => state.devices)
   // Klick, Backing-Track and Ansagen are the fixed first rows (BuiltInOutputs).
   const builtIn = builtInRoles(allDevices)
@@ -60,7 +65,7 @@ function DeviceList({ onEdit, onAdd }: { onEdit: (device: LogicalDevice) => void
 
   return (
     <div className="flex flex-col gap-2">
-      <BuiltInOutputs />
+      {mapDecides ? <p className="rounded-control border border-line bg-surface px-3 py-2 text-base text-ink-muted">{t('map.decidesBuiltIn')}</p> : <BuiltInOutputs />}
       {devices.map((device) => {
         const complete = Boolean(device.pluginId && device.executionTarget)
         const usage = findLogicalDeviceUsage(device.id, variants, songs)
@@ -171,6 +176,7 @@ export function HardwareSetupManager() {
       </div>
 
       {/* Die Wege mit ihrer Korrektur (docs/31, Schritt 1) - Abgleichen am Weg statt über Geräte → Latenz… */}
+      <StageMap />
       <StagePathList />
 
       <div className="mb-6">

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { CAPABILITIES } from './capability.js'
 import {
   addDeviceToMap,
   BUILTIN_MODELS,
@@ -14,6 +15,20 @@ import {
   type StageLink,
   type StageMap,
   type VirtualPort,
+  pruneForPorts,
+  channelNumber,
+  numberPorts,
+  mapPlays,
+  mapRoute,
+  routedLogicalDevices,
+  joinDevices,
+  separateApp,
+  appsOf,
+  checkSetup,
+  wiringList,
+  signalFlows as flowsOf,
+  linkPlaceholder,
+  mergeEquipmentInSetup,
 } from './stageMap.js'
 
 const model = (id: string) => BUILTIN_MODELS.find((m) => m.id === id)!
@@ -116,7 +131,11 @@ describe('routing and signal flows', () => {
   it('a fixed routing ignores what a setup says; a free one starts from its default', () => {
     const map = stage([], { iem: [] })
     const setup = map.setups[0]!
-    expect(effectiveRouting(map.equipment.find((e) => e.id === 'iem')!, setup)).toEqual([{ from: { kind: 'port', portId: 'in' }, to: { kind: 'port', portId: 'out' } }])
+    // The in-ear sender's two inputs (L/R) both go on air.
+    expect(effectiveRouting(map.equipment.find((e) => e.id === 'iem')!, setup)).toEqual([
+      { from: { kind: 'port', portId: 'in', channel: 1 }, to: { kind: 'port', portId: 'out' } },
+      { from: { kind: 'port', portId: 'in', channel: 2 }, to: { kind: 'port', portId: 'out' } },
+    ])
     expect(effectiveRouting(map.equipment.find((e) => e.id === 'redmi')!, setup).map((c) => (c.from as { virtualPortId: string }).virtualPortId)).toEqual(['klick', 'track', 'ansagen'])
   })
 
@@ -144,5 +163,227 @@ describe('routing and signal flows', () => {
     const pedal = signalFlows(map, 'club', VIRTUAL).find((f) => f.originEquipmentId === 'pedal')!
     expect(pedal.virtualInputs).toEqual([{ equipmentId: 'redmi', virtualPortId: 'pedal' }])
     expect(pedal.hops.map((h) => [h.from.equipmentId, h.to.equipmentId])).toEqual([['pedal', 'redmi']])
+  })
+})
+
+describe('changing a port list (Marco, 2026-11-07)', () => {
+  it('fewer inputs drop the cables and matrix points that no longer fit - nothing else', () => {
+    const setup = {
+      id: 's',
+      name: 'Club',
+      positions: {},
+      links: [
+        { id: 'a', from: { equipmentId: 'tab', portId: 'headphones' }, to: { equipmentId: 'pult', portId: 'in', channel: 15 }, signals: ['audio' as const] },
+        { id: 'b', from: { equipmentId: 'tab', portId: 'headphones' }, to: { equipmentId: 'pult', portId: 'in', channel: 3 }, signals: ['audio' as const] },
+      ],
+      routing: { pult: [{ from: { kind: 'port' as const, portId: 'in', channel: 15 }, to: { kind: 'port' as const, portId: 'aux', channel: 1 } }] },
+    }
+    const ports = [
+      { id: 'in', name: 'Eingang', connector: 'xlr-jack' as const, signals: ['audio' as const], direction: 'in' as const, channels: 8 },
+      { id: 'aux', name: 'Aux', connector: 'jack-6.3-ts' as const, signals: ['audio' as const], direction: 'out' as const, channels: 6 },
+    ]
+    const pruned = pruneForPorts(setup, 'pult', ports)
+    expect(pruned.setup.links.map((l) => l.id)).toEqual(['b'])
+    expect(pruned).toMatchObject({ links: 1, crosspoints: 1 })
+  })
+
+  it('channel numbers follow the desk', () => {
+    const [, xlr] = numberPorts([
+      { id: 'in', name: 'Eingang', connector: 'xlr-jack', signals: ['audio'], direction: 'in', channels: 10 },
+      { id: 'in-xlr', name: 'Eingang', connector: 'xlr', signals: ['audio'], direction: 'in', channels: 10 },
+    ])
+    expect(channelNumber(xlr, 1)).toBe(11)
+  })
+})
+
+describe('in-ear receiver (Marco, 2026-11-07)', () => {
+  it('the radio link from the sender fits the receiver, its earphones fit a person', () => {
+    const model = (id: string) => BUILTIN_MODELS.find((m) => m.id === id)!
+    const out = model('iem-sender').ports.find((p) => p.id === 'out')!
+    const radio = model('iem-receiver').ports.find((p) => p.id === 'in')!
+    const phones = model('iem-receiver').ports.find((p) => p.id === 'phones')!
+    const ears = model('person').ports.find((p) => p.id === 'ears')!
+    expect(portFit(out, radio)).not.toBeNull()
+    expect(portFit(phones, ears)).not.toBeNull()
+  })
+})
+
+describe('built-in equipment', () => {
+  it('every routing point names a port the model has, and a channel inside its group', () => {
+    for (const model of BUILTIN_MODELS) {
+      for (const c of model.routing?.default ?? []) {
+        for (const pt of [c.from, c.to]) {
+          if (pt.kind !== 'port') continue
+          const p = model.ports.find((x) => x.id === pt.portId)
+          expect(p, `${model.id}: ${pt.portId}`).toBeDefined()
+          if (pt.channel !== undefined) expect(pt.channel).toBeLessThanOrEqual(p!.channels ?? 0)
+        }
+      }
+    }
+  })
+
+  it('a guitar goes into a DI box, the DI box into the stagebox, the stagebox into the desk', () => {
+    const model = (id: string) => BUILTIN_MODELS.find((m) => m.id === id)!
+    const portOf = (id: string, portId: string) => model(id).ports.find((p) => p.id === portId)!
+    expect(portFit(portOf('instrument', 'out'), portOf('di-box', 'in'))).not.toBeNull()
+    expect(portFit(portOf('di-box', 'out'), portOf('stagebox', 'in'))).not.toBeNull()
+    expect(portFit(portOf('stagebox', 'out'), portOf('mixer', 'in'))).not.toBeNull()
+    expect(portFit(portOf('mic-receiver', 'out'), portOf('mixer', 'in'))).not.toBeNull()
+  })
+})
+
+describe('placeholder tablets (Marco, 2026-11-07)', () => {
+  it('linking takes over the device the map added on its own: its cable, position and matrix move to the placeholder', () => {
+    const map = defaultStageMap([{ id: 'kai', name: 'Tablet Kai' }])
+    const placeholder = equipmentFrom(BUILTIN_MODELS.find((m) => m.id === 'tablet')!, 'ph', 'Kai (geplant)')
+    map.equipment.push(placeholder)
+    map.setups[0]!.positions.ph = { x: 10, y: 10 }
+    const { linked, merge } = linkPlaceholder(map, placeholder, 'kai')
+    expect(linked.deviceId).toBe('kai')
+    expect(merge).toBe('device:kai')
+    const merged = mergeEquipmentInSetup(map.setups[0]!, merge!, 'ph')
+    expect(merged.positions.ph).toEqual({ x: 10, y: 10 })
+    expect(merged.positions['device:kai']).toBeUndefined()
+    expect(merged.links.map((l) => [l.from.equipmentId, l.to.equipmentId])).toEqual([['ph', 'listener:kai']])
+  })
+
+  it('a device not yet on the map: nothing to merge', () => {
+    const map = defaultStageMap([])
+    const placeholder = equipmentFrom(BUILTIN_MODELS.find((m) => m.id === 'tablet')!, 'ph', 'Kai (geplant)')
+    expect(linkPlaceholder(map, placeholder, 'kai').merge).toBeNull()
+  })
+})
+
+describe('free port list (Marco, 2026-11-07)', () => {
+  it('numbers groups of the same name on, like the desk', () => {
+    const ports = numberPorts([
+      { id: 'a', name: 'Eingang', connector: 'xlr-jack', signals: ['audio'], direction: 'in', channels: 10 },
+      { id: 'b', name: 'Eingang', connector: 'xlr', signals: ['audio'], direction: 'in', channels: 10 },
+      { id: 'c', name: 'Aux', connector: 'jack-6.3-ts', signals: ['audio'], direction: 'out', channels: 6 },
+    ])
+    expect(ports.map((p) => p.firstChannel)).toEqual([undefined, 11, undefined])
+  })
+
+  it('a mono jack (TS) Aux out takes a jack cable and a combo socket - like the CQ-18T', () => {
+    const aux = { id: 'aux', name: 'Aux', connector: 'jack-6.3-ts' as const, signals: ['audio' as const], direction: 'out' as const, channels: 6 }
+    const wedge = BUILTIN_MODELS.find((m) => m.id === 'wedge')!.ports.find((p) => p.id === 'in')!
+    expect(portFit(aux, wedge)?.adapter).toBe(false)
+  })
+})
+
+describe('channels, checks and the wiring list (Marco, 2026-11-07)', () => {
+  const model = (id: string) => BUILTIN_MODELS.find((m) => m.id === id)!
+  const build = (links: StageLink[]): StageMap => {
+    const pult = equipmentFrom(model('mixer'), 'pult', 'Pult')
+    const iem = equipmentFrom(model('iem-sender'), 'iem', 'IEM Kai')
+    const wedge = equipmentFrom(model('wedge'), 'wedge', 'Wedge')
+    const at = { x: 0, y: 0 }
+    return { equipment: [pult, iem, wedge], setups: [{ id: 's', name: 'Club', positions: { pult: at, iem: at, wedge: at }, links, routing: {} }] }
+  }
+
+  it('Aux 1-2 in stereo into the in-ear sender: one line, two cables on the list, both inputs taken', () => {
+    const map = build([{ id: 'st', from: { equipmentId: 'pult', portId: 'aux', channel: 1 }, to: { equipmentId: 'iem', portId: 'in', channel: 1 }, signals: ['audio'], width: 2 }])
+    const cables = wiringList(map, 's')
+    expect(cables.map((c) => [c.number, c.from.channel, c.to.channel])).toEqual([
+      [1, 1, 1],
+      [2, 2, 2],
+    ])
+    const { issues, use } = checkSetup(map, 's')
+    expect(issues).toEqual([])
+    expect(use.find((u) => u.equipmentId === 'pult' && u.portId === 'aux')).toMatchObject({ used: 2, total: 4 })
+    expect(use.find((u) => u.equipmentId === 'iem' && u.portId === 'in')).toMatchObject({ used: 2, total: 2 })
+  })
+
+  it('a second cable on a taken channel is red; stereo into a mono wedge is too wide', () => {
+    const map = build([
+      { id: 'a', from: { equipmentId: 'pult', portId: 'aux', channel: 1 }, to: { equipmentId: 'iem', portId: 'in', channel: 1 }, signals: ['audio'] },
+      { id: 'b', from: { equipmentId: 'pult', portId: 'aux', channel: 1 }, to: { equipmentId: 'iem', portId: 'in', channel: 2 }, signals: ['audio'] },
+      { id: 'c', from: { equipmentId: 'pult', portId: 'aux', channel: 3 }, to: { equipmentId: 'wedge', portId: 'in' }, signals: ['audio'], width: 2 },
+    ])
+    const { issues } = checkSetup(map, 's')
+    expect(issues).toContainEqual({ kind: 'double', equipmentId: 'pult', portId: 'aux', channel: 1, linkIds: ['a', 'b'] })
+    expect(issues).toContainEqual({ kind: 'width', linkId: 'c', equipmentId: 'wedge', portId: 'in', width: 2, capacity: 1 })
+  })
+
+  it('a stereo jack onto two desk channels is one Y cable', () => {
+    const tablet = equipmentFrom(model('tablet'), 'tab', 'Redmi', { deviceId: 'r' })
+    const map = build([{ id: 'y', from: { equipmentId: 'tab', portId: 'headphones' }, to: { equipmentId: 'pult', portId: 'in', channel: 15 }, signals: ['audio'], width: 2 }])
+    map.equipment.push(tablet)
+    map.setups[0]!.positions.tab = { x: 0, y: 0 }
+    expect(wiringList(map, 's').map((c) => c.y)).toEqual([true])
+    // A speaker to whoever listens is no cable.
+    map.setups[0]!.links.push({ id: 'ear', from: { equipmentId: 'tab', portId: 'speaker' }, to: { equipmentId: 'wedge', portId: 'in' }, signals: ['audio'] })
+    expect(wiringList(map, 's')).toHaveLength(1)
+    expect(checkSetup(map, 's').use.find((u) => u.portId === 'in' && u.equipmentId === 'pult')).toMatchObject({ used: 2, total: 16 })
+  })
+})
+
+describe('the map decides who plays (docs/31 §6 step 2, 2026-11-07)', () => {
+  it('the default map: every device plays Klick, Track and Ansagen on its speaker', () => {
+    const map = defaultStageMap([{ id: 'redmi', name: 'Redmi' }, { id: 'fire', name: 'Fire' }])
+    for (const id of ['redmi', 'fire']) for (const c of [CAPABILITIES.clickTrack, CAPABILITIES.audioPlayback, CAPABILITIES.sectionAnnouncements]) expect(mapPlays(map, id, c)).toBe(true)
+  })
+
+  it('a device whose matrix routes only the click plays only the click; one off the stage plays nothing; no map: the old rules', () => {
+    const map = defaultStageMap([{ id: 'redmi', name: 'Redmi' }, { id: 'fire', name: 'Fire' }])
+    map.setups[0]!.routing['device:redmi'] = [{ from: { kind: 'virtual', virtualPortId: 'klick' }, to: { kind: 'port', portId: 'headphones' } }]
+    delete map.setups[0]!.positions['device:fire']
+    expect(mapPlays(map, 'redmi', CAPABILITIES.clickTrack)).toBe(true)
+    expect(mapPlays(map, 'redmi', CAPABILITIES.audioPlayback)).toBe(false)
+    expect(mapPlays(map, 'fire', CAPABILITIES.clickTrack)).toBe(false)
+    expect(mapPlays(map, 'laptop', CAPABILITIES.clickTrack)).toBe(false)
+    expect(mapPlays({ equipment: [], setups: [] }, 'redmi', CAPABILITIES.clickTrack)).toBeNull()
+  })
+})
+
+describe('several apps on one device (Marco, 2026-11-07)', () => {
+  it('the Dev app joined into the release app\'s box: one box, both apps, only the one in front plays', () => {
+    const map = defaultStageMap([{ id: 'redmi', name: 'Redmi' }, { id: 'redmi-dev', name: 'Redmi Dev' }])
+    const keep = map.equipment.find((e) => e.deviceId === 'redmi')!
+    const merge = map.equipment.find((e) => e.deviceId === 'redmi-dev')!
+    const joined = joinDevices(keep, merge)
+    expect(appsOf(joined)).toEqual(['redmi', 'redmi-dev'])
+    const after = { equipment: [...map.equipment.filter((e) => e.id !== merge.id && e.id !== keep.id), joined], setups: map.setups.map((s) => mergeEquipmentInSetup(s, merge.id, keep.id)) }
+    expect(mapPlays(after, 'redmi-dev', CAPABILITIES.clickTrack)).toBe(true)
+    expect(mapPlays(after, 'redmi-dev', CAPABILITIES.clickTrack, { [keep.id]: 'redmi' })).toBe(false)
+    expect(mapPlays(after, 'redmi', CAPABILITIES.clickTrack, { [keep.id]: 'redmi' })).toBe(true)
+    expect(appsOf(separateApp(joined, 'redmi-dev'))).toEqual(['redmi'])
+  })
+
+  it('the Stage-Server joins the laptop: the server is one of its apps', () => {
+    const laptop = equipmentFrom(BUILTIN_MODELS.find((m) => m.id === 'tablet')!, 'device:laptop', 'Laptop', { deviceId: 'laptop' })
+    const server = equipmentFrom(BUILTIN_MODELS.find((m) => m.id === 'stage-server')!, 'server', 'Stage-Server')
+    expect(appsOf(joinDevices(laptop, server))).toEqual(['laptop', 'server'])
+  })
+})
+
+describe('plugins follow the map (docs/31 §6 step 2, part 2, 2026-11-07)', () => {
+  const kemperModel = BUILTIN_MODELS.find((m) => m.id === 'amp-modeller')!
+  const withKemper = () => {
+    const map = defaultStageMap([{ id: 'redmi', name: 'Redmi' }, { id: 'fire', name: 'Fire' }])
+    map.equipment.push(equipmentFrom(kemperModel, 'kemper', 'Kemper'))
+    map.setups[0]!.positions.kemper = { x: 0, y: 0 }
+    return map
+  }
+
+  it('the Redmi routes "Kemper" to its USB, a cable to the Kemper names the port: the Redmi sends, on that port', () => {
+    const map = withKemper()
+    map.setups[0]!.routing['device:redmi'] = [{ from: { kind: 'virtual', virtualPortId: 'ld-kemper' }, to: { kind: 'port', portId: 'usb' } }]
+    map.setups[0]!.links.push({ id: 'usb', from: { equipmentId: 'device:redmi', portId: 'usb' }, to: { equipmentId: 'kemper', portId: 'usb' }, signals: ['midi'], midiName: 'Kemper Player' })
+    expect(mapRoute(map, 'ld-kemper')).toEqual({ app: 'redmi', midiName: 'Kemper Player' })
+    const lds = routedLogicalDevices([{ id: 'ld-kemper', capability: 'kemper-control', executionTarget: 'fire' }, { id: 'klick', capability: CAPABILITIES.clickTrack, executionTarget: 'fire' }], map)
+    expect(lds.map((d) => d.executionTarget)).toEqual(['redmi', 'fire'])
+  })
+
+  it('an input (a pedal on the Fire\'s USB) runs where the matrix takes it in', () => {
+    const map = withKemper()
+    map.setups[0]!.routing['device:fire'] = [{ from: { kind: 'port', portId: 'usb' }, to: { kind: 'virtual', virtualPortId: 'ld-pedal' } }]
+    expect(mapRoute(map, 'ld-pedal')).toEqual({ app: 'fire', midiName: null })
+  })
+
+  it('routed nowhere: nobody sends; no map: the stored binding', () => {
+    expect(mapRoute(withKemper(), 'ld-kemper')).toEqual({ app: null, midiName: null })
+    const stored = [{ id: 'ld-kemper', capability: 'kemper-control', executionTarget: 'fire' }]
+    expect(routedLogicalDevices(stored, { equipment: [], setups: [] })).toEqual(stored)
   })
 })

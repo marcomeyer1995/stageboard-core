@@ -95,7 +95,7 @@ Neue semantische Tokens in `src/index.css`, in allen fünf Themes definiert, in 
 | `--sb-h-show` | Show-Aktionen | 72 px (= `--sb-touch-primary`) |
 | `--sb-h-stage` | Bühnen-Bedienelemente | 56 px (= `--sb-touch`) |
 | `--sb-h-form` | Formular-Bedienelemente | 48 px |
-| Ebenen | feste z-Stufen als Tailwind-Klassen `z-content` 10 · `z-bars` 20 · `z-menu` 40 · `z-dialog` 50 · `z-alert` 55 · `z-flash` 58 · `z-takeover` 60 (`tailwind.config.js`, kein CSS-Token) | ersetzt die freien z-Werte |
+| Ebenen | feste z-Stufen als Tailwind-Klassen `z-content` 10 · `z-bars` 20 · `z-page` 30 (eine Ansicht im Vollbild, ihre Dialoge darüber) · `z-menu` 40 · `z-dialog` 50 · `z-alert` 55 · `z-flash` 58 · `z-takeover` 60 (`tailwind.config.js`, kein CSS-Token) | ersetzt die freien z-Werte |
 
 **Bedeutungsfarben (2026-10-08):** Fehler, Warnung, OK und Info, die Zustände der Statusleiste, die Blitzmeldung, die Abdunklung hinter Dialogen und die Vollbild-Alarme kommen ebenfalls aus Tokens. Vorher standen sie als Tailwind-Palette (`text-red-500`, `bg-amber-500` …) in 52 Dateien, und kein Theme konnte sie ändern.
 

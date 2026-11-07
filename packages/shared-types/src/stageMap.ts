@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { CAPABILITIES, type CapabilityId } from './capability.js'
+import { SERVER_EXECUTION_TARGET } from './executionTarget.js'
 
 /**
  * The stage map (docs/31 §0a, §7, §7a): the band's equipment with its physical ports, the cables
@@ -38,7 +39,10 @@ export const ConnectorSchema = z.enum([
   'usb-c',
   'xlr',
   'jack-6.3',
+  /** 6.3 mm mono/unbalanced (TS) - the CQ-18T's Aux outs (Marco, 2026-11-07); `jack-6.3` is TRS. */
+  'jack-6.3-ts',
   'jack-3.5',
+  'rca',
   'xlr-jack',
   'ethernet',
   'dmx',
@@ -62,6 +66,10 @@ export const PortSchema = z.object({
   signals: z.array(SignalSchema).min(1),
   direction: PortDirectionSchema,
   channels: z.number().int().min(2).max(128).optional(),
+  /** One socket carrying left and right (Main L/R, a headphone jack) - a stereo cable fits it whole. */
+  stereo: z.boolean().optional(),
+  /** The desk's number of channel 1 of this group ("XLR 11–20" after 10 combo inputs) - labels only. */
+  firstChannel: z.number().int().min(1).max(256).optional(),
 })
 export type Port = z.infer<typeof PortSchema>
 
@@ -74,6 +82,15 @@ export const EquipmentKindSchema = z.enum([
   'midi-controller',
   'amp-modeller',
   'iem-sender',
+  'iem-receiver',
+  'mic-sender',
+  'mic-receiver',
+  'di-box',
+  'stagebox',
+  'headphone-amp',
+  'instrument-amp',
+  'microphone',
+  'instrument',
   'wedge',
   'pa',
   'light',
@@ -151,6 +168,10 @@ export const StageEquipmentSchema = z.object({
   routing: RoutingSchema.nullable().default(null),
   /** The StageBoard device this is (kind `stageboard`). */
   deviceId: z.string().min(1).nullable().default(null),
+  /** Further apps on the same hardware (Marco, 2026-11-07): the Dev app, Chrome, the Stage-Server
+   * (`server`) beside `deviceId` - one box, one set of sockets. Joined by hand ("Ist dasselbe Gerät
+   * wie …"): no app can tell by itself that another one runs on the same device. */
+  appIds: z.array(z.string().min(1)).optional(),
   /** Who this is (kind `person`). */
   listener: ListenerSchema.nullable().default(null),
 })
@@ -171,6 +192,12 @@ export const StageLinkSchema = z.object({
   from: PortRefSchema,
   to: PortRefSchema,
   signals: z.array(SignalSchema).min(1),
+  /** Channels the cable carries (Marco, 2026-11-07): 1 mono, 2 stereo (Aux 1-2 into an in-ear
+   * sender's L/R), more for a multicore - from each end's `channel` on. Absent: 1. */
+  width: z.number().int().min(1).max(128).optional(),
+  /** The MIDI port this cable reaches, by the name the sending app sees it ("Kemper Player") - set
+   * by the device's owner when wiring (docs/31 §7, resolved by name as MIDI always was). */
+  midiName: z.string().min(1).optional(),
 })
 export type StageLink = z.infer<typeof StageLinkSchema>
 
@@ -194,6 +221,9 @@ export type StageMap = z.infer<typeof StageMapSchema>
 
 const port = (id: string, name: string, connector: Connector, signals: Signal[], direction: PortDirection, channels?: number): Port =>
   channels === undefined ? { id, name, connector, signals, direction } : { id, name, connector, signals, direction, channels }
+
+/** A single socket carrying left and right. */
+const stereo = (p: Port): Port => ({ ...p, stereo: true })
 
 const at = (portId: string, channel?: number): MatrixPoint => (channel === undefined ? { kind: 'port', portId } : { kind: 'port', portId, channel })
 const via = (from: MatrixPoint, to: MatrixPoint): Crosspoint => ({ from, to })
@@ -231,9 +261,9 @@ export const BUILTIN_MODELS: readonly EquipmentModel[] = [
     'stageboard',
     [
       port('speaker', 'Lautsprecher', 'builtin', ['audio'], 'out'),
-      port('headphones', 'Kopfhörer', 'jack-3.5', ['audio'], 'out'),
+      stereo(port('headphones', 'Kopfhörer', 'jack-3.5', ['audio'], 'out')),
       port('usb', 'USB-C', 'usb-c', ['usb-audio', 'midi'], 'both'),
-      port('bluetooth', 'Bluetooth', 'wireless', ['audio'], 'out'),
+      stereo(port('bluetooth', 'Bluetooth', 'wireless', ['audio'], 'out')),
       port('bt-midi', 'Bluetooth-MIDI', 'wireless', ['midi'], 'both'),
       port('wifi-midi', 'WLAN-MIDI', 'wireless', ['midi'], 'both'),
     ],
@@ -245,7 +275,7 @@ export const BUILTIN_MODELS: readonly EquipmentModel[] = [
     'mixer',
     'Mischpult',
     'mixer',
-    [port('in', 'Eingang', 'xlr-jack', ['audio'], 'in', 16), port('main', 'Main L/R', 'xlr', ['audio'], 'out'), port('aux', 'Aux', 'xlr-jack', ['audio'], 'out', 4)],
+    [port('in', 'Eingang', 'xlr-jack', ['audio'], 'in', 16), port('main', 'Main L/R', 'xlr', ['audio'], 'out', 2), port('aux', 'Aux', 'xlr-jack', ['audio'], 'out', 4)],
     free(),
   ),
   builtin(
@@ -265,7 +295,50 @@ export const BUILTIN_MODELS: readonly EquipmentModel[] = [
     fixed(via(at('midi-in'), at('main')), via(at('usb'), at('main'))),
     true,
   ),
-  builtin('iem-sender', 'In-Ear-Sender', 'iem-sender', [port('in', 'Eingang', 'xlr-jack', ['audio'], 'in'), port('out', 'Funk', 'wireless', ['audio'], 'out')], fixed(via(at('in'), at('out')))),
+  // Two mono inputs (L/R): one channel for a mono mix, both for stereo (Marco, 2026-11-07).
+  builtin(
+    'iem-sender',
+    'In-Ear-Sender',
+    'iem-sender',
+    [port('in', 'Eingang', 'xlr-jack', ['audio'], 'in', 2), stereo(port('out', 'Funk', 'wireless', ['audio'], 'out'))],
+    fixed(via(at('in', 1), at('out')), via(at('in', 2), at('out'))),
+  ),
+  // The beltpack (Marco, 2026-11-07): the radio link from the sender shows as its own line, then the
+  // earphones to the person.
+  builtin('iem-receiver', 'In-Ear-Empfänger', 'iem-receiver', [port('in', 'Funk', 'wireless', ['audio'], 'in'), stereo(port('phones', 'Ohrhörer', 'jack-3.5', ['audio'], 'out'))], fixed(via(at('in'), at('phones')))),
+  // More gear on the stage (Marco, 2026-11-07): sources, wireless mics, DI and stagebox, amps.
+  builtin('microphone', 'Mikrofon', 'microphone', [port('out', 'Ausgang', 'xlr', ['audio'], 'out')], null),
+  builtin('instrument', 'Instrument', 'instrument', [port('out', 'Ausgang', 'jack-6.3', ['audio'], 'out')], null),
+  builtin('mic-sender', 'Funkmikro (Sender)', 'mic-sender', [port('in', 'Kapsel/Eingang', 'jack-3.5', ['audio'], 'in'), port('out', 'Funk', 'wireless', ['audio'], 'out')], fixed(via(at('in'), at('out')))),
+  builtin('mic-receiver', 'Funkmikro (Empfänger)', 'mic-receiver', [port('in', 'Funk', 'wireless', ['audio'], 'in'), port('out', 'Ausgang', 'xlr', ['audio'], 'out')], fixed(via(at('in'), at('out')))),
+  builtin(
+    'di-box',
+    'DI-Box',
+    'di-box',
+    [port('in', 'Eingang', 'jack-6.3', ['audio'], 'in'), port('thru', 'Thru', 'jack-6.3', ['audio'], 'out'), port('out', 'Ausgang', 'xlr', ['audio'], 'out')],
+    fixed(via(at('in'), at('out')), via(at('in'), at('thru'))),
+  ),
+  builtin(
+    'stagebox',
+    'Stagebox / Splitter',
+    'stagebox',
+    [port('in', 'Eingang', 'xlr-jack', ['audio'], 'in', 16), port('out', 'Multicore', 'xlr', ['audio'], 'out', 16)],
+    fixed(...Array.from({ length: 16 }, (_, i) => via(at('in', i + 1), at('out', i + 1)))),
+  ),
+  builtin(
+    'headphone-amp',
+    'Kopfhörerverstärker',
+    'headphone-amp',
+    [port('in', 'Eingang', 'jack-6.3', ['audio'], 'in'), port('out', 'Kopfhörer', 'jack-6.3', ['audio'], 'out', 4)],
+    fixed(...Array.from({ length: 4 }, (_, i) => via(at('in'), at('out', i + 1)))),
+  ),
+  builtin(
+    'instrument-amp',
+    'Instrumenten-Amp',
+    'instrument-amp',
+    [port('in', 'Eingang', 'jack-6.3', ['audio'], 'in'), port('line', 'Line Out', 'xlr', ['audio'], 'out'), port('out', 'Schall', 'room', ['audio'], 'out')],
+    fixed(via(at('in'), at('out')), via(at('in'), at('line'))),
+  ),
   builtin('wedge', 'Monitor / Wedge', 'wedge', [port('in', 'Eingang', 'xlr-jack', ['audio'], 'in'), port('out', 'Schall', 'room', ['audio'], 'out')], fixed(via(at('in'), at('out')))),
   builtin('pa', 'PA', 'pa', [port('in', 'Eingang L/R', 'xlr', ['audio'], 'in'), port('out', 'Schall', 'room', ['audio'], 'out')], fixed(via(at('in'), at('out')))),
   builtin(
@@ -286,8 +359,11 @@ const USB_CONNECTORS: readonly Connector[] = ['usb-a', 'usb-b', 'usb-c']
 function connectorsFit(from: Connector, to: Connector): boolean {
   if (from === to || SOFT_CONNECTORS.includes(from) || SOFT_CONNECTORS.includes(to)) return true
   if (USB_CONNECTORS.includes(from) && USB_CONNECTORS.includes(to)) return true
+  // TS and TRS are the same 6.3 mm plug.
+  const jack = (c: Connector) => c === 'jack-6.3' || c === 'jack-6.3-ts'
+  if (jack(from) && jack(to)) return true
   // A combo socket takes XLR and a 6.3 mm jack - a 3.5 mm plug still needs an adapter.
-  if (to === 'xlr-jack' || from === 'xlr-jack') return [from, to].every((c) => c === 'xlr' || c === 'jack-6.3' || c === 'xlr-jack')
+  if (to === 'xlr-jack' || from === 'xlr-jack') return [from, to].every((c) => c === 'xlr' || jack(c) || c === 'xlr-jack')
   return false
 }
 
@@ -348,6 +424,28 @@ export function equipmentFrom(model: EquipmentModel, id: string, name: string, e
 }
 
 export const deviceEquipmentId = (deviceId: string): string => `device:${deviceId}`
+
+/** Every app on a box: its device, the further ones on the same hardware, and the Stage-Server when
+ * that box is the server itself. */
+export function appsOf(e: StageEquipment): string[] {
+  return [...(e.deviceId ? [e.deviceId] : []), ...(e.kind === 'stage-server' ? [SERVER_EXECUTION_TARGET] : []), ...(e.appIds ?? [])]
+}
+
+/**
+ * "Ist dasselbe Gerät wie …" (2026-11-07): box `merge` (an app the map put in a box of its own -
+ * the Dev app beside the release app, the Stage-Server beside Chrome on the laptop) goes into
+ * `keep`: its apps join, its cables, place and matrix move over where `keep` has none
+ * (mergeEquipmentInSetup), and it is removed.
+ */
+export function joinDevices(keep: StageEquipment, merge: StageEquipment): StageEquipment {
+  const apps = [...new Set([...appsOf(keep), ...appsOf(merge)])].filter((id) => id !== keep.deviceId)
+  return { ...keep, appIds: apps }
+}
+
+/** An app taken out of a box again - the map gives it a box of its own as for any new device. */
+export function separateApp(box: StageEquipment, appId: string): StageEquipment {
+  return { ...box, appIds: (box.appIds ?? []).filter((id) => id !== appId) }
+}
 export const signedInListenerId = (deviceId: string): string => `listener:${deviceId}`
 export const defaultLinkId = (deviceId: string): string => `default:${deviceId}`
 
@@ -358,7 +456,7 @@ export const defaultLinkId = (deviceId: string): string => `default:${deviceId}`
  */
 export function addDeviceToMap(map: StageMap, device: { id: string; name: string }): StageMap {
   const equipmentId = deviceEquipmentId(device.id)
-  if (map.equipment.some((e) => e.id === equipmentId || e.deviceId === device.id)) return map
+  if (map.equipment.some((e) => e.id === equipmentId || appsOf(e).includes(device.id))) return map
   const listenerId = signedInListenerId(device.id)
   const equipment = [
     ...map.equipment,
@@ -447,21 +545,26 @@ export function signalFlows(map: StageMap, setupId: string, virtualPorts: readon
   const flows: SignalFlow[] = []
 
   // Cables leaving `equipment` at (port, channel) that can carry `cls` away from it.
+  // A cable `width` channels wide carries channel `mine.channel + k` to `theirs.channel + k`.
   const cablesOut = (equipment: StageEquipment, portId: string, channel: number | undefined, cls: SignalClass) => {
     const out: { link: StageLink; from: PortRef; to: PortRef }[] = []
     for (const link of setup.links) {
       if (!link.signals.some((s) => SIGNAL_CLASS[s] === cls)) continue
+      const width = link.width ?? 1
       for (const [mine, theirs] of [
         [link.from, link.to],
         [link.to, link.from],
       ] as const) {
         if (mine.equipmentId !== equipment.id || mine.portId !== portId) continue
-        if (channel !== undefined && mine.channel !== undefined && mine.channel !== channel) continue
+        if (channel !== undefined && mine.channel !== undefined && (channel < mine.channel || channel >= mine.channel + width)) continue
         const myPort = equipment.ports.find((p) => p.id === portId)
         const other = byId.get(theirs.equipmentId)
         const theirPort = other?.ports.find((p) => p.id === theirs.portId)
         if (!myPort || !theirPort || myPort.direction === 'in' || theirPort.direction === 'out') continue
-        out.push({ link, from: mine, to: theirs })
+        if (theirs.channel === undefined) out.push({ link, from: mine, to: theirs })
+        else if (channel !== undefined && mine.channel !== undefined) out.push({ link, from: { ...mine, channel }, to: { ...theirs, channel: theirs.channel + channel - mine.channel } })
+        // The whole port (a stereo jack) onto a group: every channel the cable is wide.
+        else for (let k = 0; k < width; k++) out.push({ link, from: mine, to: { ...theirs, channel: theirs.channel + k } })
       }
     }
     return out
@@ -473,7 +576,7 @@ export function signalFlows(map: StageMap, setupId: string, virtualPorts: readon
     while (queue.length > 0) {
       const { equipment, portId, channel, cls } = queue.shift()!
       for (const cable of cablesOut(equipment, portId, channel, cls)) {
-        const visit = `${cable.link.id}>${cable.to.equipmentId}:${cls}`
+        const visit = `${cable.link.id}>${cable.to.equipmentId}#${cable.to.channel ?? ''}:${cls}`
         if (seen.has(visit)) continue
         seen.add(visit)
         const target = byId.get(cable.to.equipmentId)
@@ -531,4 +634,293 @@ export function signalFlows(map: StageMap, setupId: string, virtualPorts: readon
     }
   }
   return flows
+}
+
+/** The number a channel of a port group has on the device ("Eingang 11" for channel 1 of the XLR
+ * inputs after 10 combo ones). */
+export function channelNumber(port: Port | undefined, channel: number): number {
+  return (port?.firstChannel ?? 1) + channel - 1
+}
+
+/** Whether `point` on `ports` still exists (the port, and its channel within the group). */
+function pointExists(ports: readonly Port[], portId: string, channel: number | undefined): boolean {
+  const p = ports.find((x) => x.id === portId)
+  if (!p) return false
+  if (channel === undefined) return true
+  return p.channels !== undefined && channel <= p.channels
+}
+
+/** A setup without the cables and matrix points of `equipmentId` that its new `ports` no longer
+ * have - and how many went. */
+export function pruneForPorts(setup: StageSetup, equipmentId: string, ports: readonly Port[]): { setup: StageSetup; links: number; crosspoints: number } {
+  const endFits = (end: { equipmentId: string; portId: string; channel?: number }) => end.equipmentId !== equipmentId || pointExists(ports, end.portId, end.channel)
+  const links = setup.links.filter((l) => endFits(l.from) && endFits(l.to))
+  const own = setup.routing[equipmentId]
+  const pointFits = (pt: MatrixPoint) => pt.kind === 'virtual' || pointExists(ports, pt.portId, pt.channel)
+  const kept = own?.filter((c) => pointFits(c.from) && pointFits(c.to))
+  const routing = own ? { ...setup.routing, [equipmentId]: kept! } : setup.routing
+  return { setup: { ...setup, links, routing }, links: setup.links.length - links.length, crosspoints: (own?.length ?? 0) - (kept?.length ?? 0) }
+}
+
+/**
+ * A setup with `fromId`'s place taken by `intoId` (Marco, 2026-11-07: a placeholder tablet linked
+ * to the real device, which the map had already added on its own): its cables move over (a cable
+ * the placeholder already has stays once), its position and matrix only where the placeholder has
+ * none.
+ */
+export function mergeEquipmentInSetup(setup: StageSetup, fromId: string, intoId: string): StageSetup {
+  const swap = (end: PortRef): PortRef => (end.equipmentId === fromId ? { ...end, equipmentId: intoId } : end)
+  const key = (l: StageLink) => JSON.stringify([l.from, l.to])
+  const links: StageLink[] = []
+  for (const l of setup.links.map((x) => ({ ...x, from: swap(x.from), to: swap(x.to) }))) if (!links.some((x) => key(x) === key(l))) links.push(l)
+  const { [fromId]: fromPos, ...positions } = setup.positions
+  const { [fromId]: fromRouting, ...routing } = setup.routing
+  return {
+    ...setup,
+    links,
+    positions: positions[intoId] || !fromPos ? positions : { ...positions, [intoId]: fromPos },
+    routing: routing[intoId] || !fromRouting ? routing : { ...routing, [intoId]: fromRouting },
+  }
+}
+
+/** Links placeholder tablet `placeholder` to registered device `deviceId`: what to save, which
+ * equipment the map made for that device on its own (to merge in and remove), or null. */
+export function linkPlaceholder(map: StageMap, placeholder: StageEquipment, deviceId: string): { linked: StageEquipment; merge: string | null } {
+  const own = map.equipment.find((e) => e.kind === 'stageboard' && appsOf(e).includes(deviceId) && e.id !== placeholder.id)
+  return { linked: { ...placeholder, deviceId }, merge: own?.id ?? null }
+}
+
+/**
+ * The desk's numbering over port groups (Marco, 2026-11-07): consecutive groups of the same name and
+ * direction count on - "Eingang" 10 combo then "Eingang" 10 XLR are inputs 1-10 and 11-20.
+ */
+export function numberPorts(ports: readonly Port[]): Port[] {
+  const out: Port[] = []
+  for (const p of ports) {
+    const { firstChannel: _old, ...plain } = p
+    const prev = out[out.length - 1]
+    if (prev && prev.name === p.name && prev.direction === p.direction) {
+      const first = (prev.firstChannel ?? 1) + (prev.channels ?? 1)
+      out.push({ ...plain, firstChannel: first })
+    } else out.push(plain)
+  }
+  return out
+}
+
+/** What a port carries, chosen by the person - signals follow from it. */
+export const PORT_SIGNALS = {
+  audio: ['audio'],
+  'usb-audio': ['usb-audio', 'midi'],
+  midi: ['midi'],
+  net: ['net', 'midi'],
+  dmx: ['dmx'],
+} as const satisfies Record<string, readonly Signal[]>
+export type PortSignalKind = keyof typeof PORT_SIGNALS
+
+export function portSignalKind(port: Pick<Port, 'signals'>): PortSignalKind {
+  const s = port.signals
+  if (s.includes('usb-audio')) return 'usb-audio'
+  if (s.includes('net')) return 'net'
+  if (s.includes('dmx')) return 'dmx'
+  if (s.includes('audio')) return 'audio'
+  return 'midi'
+}
+
+/** The signal a connector usually carries - the default when one is picked. */
+export function defaultSignalKind(connector: Connector): PortSignalKind {
+  if (connector === 'usb-a' || connector === 'usb-b' || connector === 'usb-c') return 'usb-audio'
+  if (connector === 'din5') return 'midi'
+  if (connector === 'ethernet') return 'net'
+  if (connector === 'dmx') return 'dmx'
+  return 'audio'
+}
+
+/** Channels a port takes from its `channel` on: the rest of its group, or 2 for a stereo socket. */
+export function portCapacity(port: Port, channel: number | undefined): number {
+  if (port.channels !== undefined) return port.channels - (channel ?? 1) + 1
+  return port.stereo ? 2 : 1
+}
+
+/** Soft connectors share freely - a radio link or a speaker reaches many. */
+const SHARED_CONNECTORS: readonly Connector[] = ['wireless', 'room', 'builtin', 'ear', 'eye']
+
+export type StageIssue =
+  | { kind: 'double'; equipmentId: string; portId: string; channel: number | undefined; linkIds: string[] }
+  | { kind: 'width'; linkId: string; equipmentId: string; portId: string; width: number; capacity: number }
+  | { kind: 'mono-of-stereo'; linkId: string; equipmentId: string; portId: string }
+  | { kind: 'adapter'; linkId: string }
+
+export interface PortUse {
+  equipmentId: string
+  portId: string
+  name: string
+  direction: PortDirection
+  used: number
+  total: number
+}
+
+/** The channels a cable end occupies: one per channel of its width, or the whole socket. */
+function occupied(end: PortRef, width: number, port: Port): (number | undefined)[] {
+  if (end.channel === undefined) return port.channels === undefined ? [undefined] : Array.from({ length: Math.min(width, port.channels) }, (_, k) => k + 1)
+  return Array.from({ length: width }, (_, k) => end.channel! + k)
+}
+
+/**
+ * The checks for technicians (Marco, 2026-11-07): a socket or channel with two cables (a real plug
+ * takes one - radio and sound are shared), a cable wider than where it lands (stereo into one mono
+ * input), only one side of a stereo socket taken, plugs that need an adapter - and per port how many
+ * channels are in use.
+ */
+export function checkSetup(map: StageMap, setupId: string): { issues: StageIssue[]; use: PortUse[] } {
+  const setup = map.setups.find((s) => s.id === setupId)
+  if (!setup) return { issues: [], use: [] }
+  const byId = new Map(map.equipment.map((e) => [e.id, e]))
+  const issues: StageIssue[] = []
+  const taken = new Map<string, string[]>()
+  for (const link of setup.links) {
+    const width = link.width ?? 1
+    const ends = [link.from, link.to].map((end) => ({ end, port: byId.get(end.equipmentId)?.ports.find((p) => p.id === end.portId) }))
+    for (const { end, port } of ends) {
+      if (!port) continue
+      const capacity = portCapacity(port, end.channel)
+      if (width > capacity) issues.push({ kind: 'width', linkId: link.id, equipmentId: end.equipmentId, portId: end.portId, width, capacity })
+      else if (width === 1 && port.stereo && port.channels === undefined) issues.push({ kind: 'mono-of-stereo', linkId: link.id, equipmentId: end.equipmentId, portId: end.portId })
+      if (SHARED_CONNECTORS.includes(port.connector)) continue
+      for (const ch of occupied(end, width, port)) {
+        const key = `${end.equipmentId}|${end.portId}|${ch ?? ''}`
+        taken.set(key, [...(taken.get(key) ?? []), link.id])
+      }
+    }
+    const [a, b] = ends
+    if (a!.port && b!.port) {
+      const fit = portFit(a!.port, b!.port) ?? portFit(b!.port, a!.port)
+      if (fit?.adapter) issues.push({ kind: 'adapter', linkId: link.id })
+    }
+  }
+  for (const [key, linkIds] of taken) {
+    if (linkIds.length < 2) continue
+    const [equipmentId, portId, ch] = key.split('|') as [string, string, string]
+    issues.push({ kind: 'double', equipmentId, portId, channel: ch === '' ? undefined : Number(ch), linkIds })
+  }
+  const use: PortUse[] = []
+  for (const e of map.equipment) {
+    if (!setup.positions[e.id]) continue
+    for (const p of e.ports) {
+      if (SHARED_CONNECTORS.includes(p.connector)) continue
+      const total = p.channels ?? 1
+      const used = new Set([...taken.keys()].filter((k) => k.startsWith(`${e.id}|${p.id}|`))).size
+      use.push({ equipmentId: e.id, portId: p.id, name: p.name, direction: p.direction, used: Math.min(used, total), total })
+    }
+  }
+  return { issues, use }
+}
+
+export interface WiringCable {
+  /** Number on the list - one per physical cable. */
+  number: number
+  linkId: string
+  from: PortRef
+  to: PortRef
+  fromConnector: Connector
+  toConnector: Connector
+  adapter: boolean
+  /** One stereo socket split onto two channels (or two joined): a Y cable. */
+  y: boolean
+}
+
+/**
+ * The wiring list of a setup (Marco, 2026-11-07): every physical cable (no radio, no speaker to an
+ * ear), numbered - a stereo line
+ * between two groups is two cables (L and R), a stereo jack onto two channels one Y cable.
+ */
+export function wiringList(map: StageMap, setupId: string): WiringCable[] {
+  const setup = map.setups.find((s) => s.id === setupId)
+  if (!setup) return []
+  const byId = new Map(map.equipment.map((e) => [e.id, e]))
+  const name = (id: string) => byId.get(id)?.name ?? id
+  const links = [...setup.links].sort((a, b) => name(a.from.equipmentId).localeCompare(name(b.from.equipmentId)) || a.from.portId.localeCompare(b.from.portId) || (a.from.channel ?? 0) - (b.from.channel ?? 0))
+  const out: WiringCable[] = []
+  for (const link of links) {
+    const fromPort = byId.get(link.from.equipmentId)?.ports.find((p) => p.id === link.from.portId)
+    const toPort = byId.get(link.to.equipmentId)?.ports.find((p) => p.id === link.to.portId)
+    if (!fromPort || !toPort) continue
+    // Radio, a speaker to the ears: no cable to lay.
+    if (SHARED_CONNECTORS.includes(fromPort.connector) || SHARED_CONNECTORS.includes(toPort.connector)) continue
+    const fit = portFit(fromPort, toPort) ?? portFit(toPort, fromPort)
+    const base = { linkId: link.id, fromConnector: fromPort.connector, toConnector: toPort.connector, adapter: fit?.adapter ?? false }
+    const width = link.width ?? 1
+    const split = (end: PortRef, port: Port) => end.channel !== undefined || port.channels !== undefined
+    if (width > 1 && split(link.from, fromPort) && split(link.to, toPort)) {
+      for (let k = 0; k < width; k++) {
+        const at = (end: PortRef): PortRef => ({ ...end, channel: (end.channel ?? 1) + k })
+        out.push({ ...base, number: out.length + 1, from: at(link.from), to: at(link.to), y: false })
+      }
+    } else out.push({ ...base, number: out.length + 1, from: link.from, to: link.to, y: width > 1 && split(link.from, fromPort) !== split(link.to, toPort) })
+  }
+  return out
+}
+
+/** The setup a band plays by, until the Gig chooses one (docs/31 §6 step 5): "Standard", else the first. */
+export function activeSetup(map: StageMap): StageSetup | null {
+  return map.setups.find((s) => s.id === DEFAULT_SETUP_ID) ?? map.setups[0] ?? null
+}
+
+/**
+ * Whether a StageBoard app plays a built-in output in the Gig - the map decides (docs/31 §6
+ * step 2, Marco 2026-11-07): the matrix of its device in the active setup routes the virtual
+ * output (Klick, Track, Ansagen) to one of its ports, and of several apps on that device it is the
+ * one in front (`frontApp`: box id → app). A device not placed in that setup plays nothing. Null
+ * without a map - the old rules (roles, the master) still apply then.
+ */
+export function mapPlays(map: StageMap, deviceId: string, capability: CapabilityId, frontApp: Readonly<Record<string, string>> = {}): boolean | null {
+  const setup = activeSetup(map)
+  if (!setup) return null
+  const device = map.equipment.find((e) => e.kind === 'stageboard' && appsOf(e).includes(deviceId))
+  if (!device || !setup.positions[device.id]) return false
+  // Several apps on one device: only the one that came to the front last plays - no double click.
+  const front = frontApp[device.id]
+  if (front && front !== deviceId && appsOf(device).includes(front)) return false
+  const ids = new Set(DEFAULT_VIRTUAL_OUTPUTS.filter((v) => v.capability === capability).map((v) => v.id))
+  return effectiveRouting(device, setup).some((c) => c.from.kind === 'virtual' && ids.has(c.from.virtualPortId) && c.to.kind === 'port')
+}
+
+/** Klick, Track and Ansagen - decided by mapPlays, not by mapRoute. */
+export const BUILT_IN_OUTPUT_CAPABILITIES: readonly CapabilityId[] = DEFAULT_VIRTUAL_OUTPUTS.map((v) => v.capability)
+
+/**
+ * Where the map sends a virtual port (a Logical Device - "Kemper") in the active setup (docs/31 §6
+ * step 2, part 2, 2026-11-07): the app that executes it - the device whose matrix routes it to one
+ * of its ports, the one in front of several apps there, or the Stage-Server - and the MIDI port
+ * name on the cable from that port, if one is set. `app: null`: the map routes it nowhere, nobody
+ * sends. Null without a map - the old binding applies.
+ */
+export function mapRoute(map: StageMap, virtualPortId: string, frontApp: Readonly<Record<string, string>> = {}): { app: string | null; midiName: string | null } | null {
+  const setup = activeSetup(map)
+  if (!setup) return null
+  for (const box of map.equipment) {
+    if ((box.kind !== 'stageboard' && box.kind !== 'stage-server') || !setup.positions[box.id]) continue
+    // An output ("Kemper") is routed onto a port; an input ("Pedal") from one.
+    const routing = effectiveRouting(box, setup)
+    const out = routing.find((c) => c.from.kind === 'virtual' && c.from.virtualPortId === virtualPortId && c.to.kind === 'port')
+    const inp = routing.find((c) => c.to.kind === 'virtual' && c.to.virtualPortId === virtualPortId && c.from.kind === 'port')
+    const point = out?.to ?? inp?.from
+    if (!point || point.kind !== 'port') continue
+    const portId = point.portId
+    const apps = appsOf(box)
+    const app = box.kind === 'stage-server' ? SERVER_EXECUTION_TARGET : frontApp[box.id] && apps.includes(frontApp[box.id]!) ? frontApp[box.id]! : (box.deviceId ?? apps[0] ?? null)
+    const cable = setup.links.find((l) => (l.from.equipmentId === box.id && l.from.portId === portId) || (l.to.equipmentId === box.id && l.to.portId === portId))
+    return { app, midiName: cable?.midiName ?? null }
+  }
+  return { app: null, midiName: null }
+}
+
+/** The Logical Devices as the map says: every one but Klick/Track/Ansagen executes where mapRoute
+ * sends it. Without a map, as stored. */
+export function routedLogicalDevices<T extends { id: string; capability: string; executionTarget: string | null }>(devices: readonly T[], map: StageMap, frontApp: Readonly<Record<string, string>> = {}): T[] {
+  if (!activeSetup(map)) return [...devices]
+  return devices.map((d) => {
+    if (BUILT_IN_OUTPUT_CAPABILITIES.includes(d.capability as CapabilityId)) return d
+    const route = mapRoute(map, d.id, frontApp)
+    return route ? { ...d, executionTarget: route.app } : d
+  })
 }
