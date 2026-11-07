@@ -8,6 +8,7 @@ const CHUNK = 1920 // 40 ms
 function worker() {
   let now = 1_000_000
   const lines: { at: number; line: number }[] = []
+  const sounds: number[] = []
   const port: { onmessage: ((ev: { data: { first: number; pcm: Int16Array } }) => void) | null } = { onmessage: null }
   const run = new Function(
     'postMessage',
@@ -19,6 +20,7 @@ function worker() {
   const send = run(
     (m) => {
       if (m.type === 'line') lines.push({ at: m.at, line: m.line })
+      else if (m.type === 'sound') sounds.push(m.at)
     },
     class {
       readyState = 0
@@ -30,13 +32,27 @@ function worker() {
   const pcm = new Int16Array(CHUNK * 2)
   return {
     /** A chunk of frames [first, first + CHUNK) arriving at `at`. */
-    chunk(first: number, at: number) {
+    chunk(first: number, at: number, data: Int16Array = pcm) {
       now = at
-      port.onmessage!({ data: { first, pcm } })
+      port.onmessage!({ data: { first, pcm: data } })
     },
     lines,
+    sounds,
   }
 }
+
+describe('native output worker: sound in the mix', () => {
+  it('reports sound at most once a second, never for silence or noise below the level', () => {
+    const w = worker()
+    const quiet = new Int16Array(CHUNK * 2).fill(5)
+    const click = new Int16Array(CHUNK * 2)
+    click[100] = -4000
+    for (let i = 0; i < 25; i++) w.chunk(i * CHUNK, 1_000_000 + i * 40, i < 5 ? quiet : click)
+    expect(w.sounds).toEqual([1_000_200])
+    w.chunk(25 * CHUNK, 1_001_200, click)
+    expect(w.sounds).toEqual([1_000_200, 1_001_200])
+  })
+})
 
 describe('native output worker: the render line', () => {
   it('follows a lasting shift of the WebView clock within ~2 s - a rotation stopped it 0.5 s (Redmi, 2026-11-06)', () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { FALLBACK_GRACE_MS, LOCK_GRACE_MS, missingInWindowMs, quietUntil, shouldFallBack, trackLossEpisodes, type MissingSample } from './nativeOutputFallback'
+import { audible, FALLBACK_GRACE_MS, LOCK_GRACE_MS, missingInWindowMs, quietUntil, shouldFallBack, trackLossEpisodes, type MissingSample } from './nativeOutputFallback'
 
 const RATE = 48000
 
@@ -57,5 +57,11 @@ describe('nativeOutputFallback', () => {
   it('a locked screen does not count - hidden, and 5 s after unlocking', () => {
     expect(quietUntil(true, 1000)).toBe(Number.POSITIVE_INFINITY)
     expect(quietUntil(false, 1000)).toBe(1000 + LOCK_GRACE_MS)
+  })
+
+  it('a gap in silence does not count - the Fire idle for 5 h, 18 s missing at 06:26 (2026-11-07)', () => {
+    expect(audible(null, 1000)).toBe(false)
+    expect(audible(10_000, 20_000)).toBe(true)
+    expect(audible(10_000, 26_000)).toBe(false)
   })
 })

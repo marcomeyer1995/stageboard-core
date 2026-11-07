@@ -23,6 +23,22 @@ export const FALLBACK_SPAN_MS = 120_000
  */
 export const LOCK_GRACE_MS = 5000
 
+/**
+ * A gap in silence is inaudible (Marco, 2026-11-07): the Fire stood idle on Diagnose for five hours
+ * after a test, the WebView stopped delivering for ~18 s at 06:26 with no show playing, and the
+ * safeguard switched it to the WebView output - for the next gig, until a restart. Losses count only
+ * this soon after the mix last carried sound (the worker reports it, SOUND_LEVEL); a gap in a song
+ * has sound right before it.
+ */
+export const SOUND_RECENT_MS = 15_000
+/** Peak above which a chunk carries sound, int16 (~ -72 dBFS - the click, a track, an announcement). */
+export const SOUND_LEVEL = 8
+
+/** Whether losses count at `now`: sound in the mix within SOUND_RECENT_MS (`soundAt` its last time). */
+export function audible(soundAt: number | null, now: number): boolean {
+  return soundAt !== null && now - soundAt <= SOUND_RECENT_MS
+}
+
 /** Until when losses don't count, after the page became hidden (`hidden`) or visible again at `now`. */
 export function quietUntil(hidden: boolean, now: number): number {
   return hidden ? Number.POSITIVE_INFINITY : now + LOCK_GRACE_MS

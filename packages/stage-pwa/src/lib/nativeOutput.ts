@@ -2,7 +2,7 @@ import { registerPlugin } from '@capacitor/core'
 import type { AudioOutputHealth } from 'shared-types'
 import { create } from 'zustand'
 import { isNativeApp } from './native'
-import { FALLBACK_SPAN_MS, FALLBACK_WINDOW_MS, missingInWindowMs, quietUntil, shouldFallBack, trackLossEpisodes, type MissingSample } from './nativeOutputFallback'
+import { audible, FALLBACK_SPAN_MS, FALLBACK_WINDOW_MS, missingInWindowMs, quietUntil, shouldFallBack, SOUND_LEVEL, trackLossEpisodes, type MissingSample } from './nativeOutputFallback'
 
 /**
  * Native audio output (docs/30, Marco 2026-11-05: "pipe the mix"). Everything keeps playing on the
@@ -195,7 +195,7 @@ registerProcessor('sb-native-output', Tap)
  * fast lagged ever further behind, 2026-11-05), and a few seconds of late arrivals (load at a song
  * start) must not lift it. The line moves with that slope and is pulled to the edge slowly. */
 const WORKER_SOURCE = `
-let ws = null, rate = 48000, delayMs = null, line = null, lineAt = 0, startedAt = 0, buckets = [], slope = 0, fitAt = 0, c = null, aboveSince = null, aboveMin = 0
+let ws = null, rate = 48000, delayMs = null, line = null, lineAt = 0, startedAt = 0, buckets = [], slope = 0, fitAt = 0, c = null, aboveSince = null, aboveMin = 0, soundAt = -Infinity
 function theilSen(points) {
   const s = []
   for (let i = 0; i < points.length; i++) for (let j = i + 1; j < points.length; j++) s.push((points[j].min - points[i].min) / (points[j].t - points[i].t))
@@ -215,6 +215,10 @@ onmessage = (e) => {
 }
 function chunk(first, pcm) {
   const now = Date.now(), frames = pcm.length / 2
+  // Sound in the mix - at most once a second (nativeOutputFallback.ts: a gap in silence does not count).
+  if (now - soundAt >= 1000) {
+    for (let i = 0; i < pcm.length; i++) if (pcm[i] > c.soundLevel || pcm[i] < -c.soundLevel) { soundAt = now; postMessage({ type: 'sound', at: now }); break }
+  }
   const v = now - (first + frames) * 1000 / rate
   // Every arrival held far behind the line: the WebView's clock lost time for good (a rotation on
   // the Redmi stopped it ~0.5 s, 2026-11-06) - the edge of the last minute is from before and would
@@ -252,7 +256,7 @@ function chunk(first, pcm) {
 }
 `
 
-const WORKER_CONSTANTS = { settleMs: SETTLE_MS, fitWindowMs: FIT_WINDOW_MS, minBuckets: MIN_FIT_SECONDS, maxSlope: MAX_LINE_SLOPE, edgeQuantile: EDGE_QUANTILE, lineJumpMs: LINE_JUMP_MS, lineSlewMsPerS: LINE_SLEW_MS_PER_S, shiftHoldMs: SHIFT_HOLD_MS }
+const WORKER_CONSTANTS = { settleMs: SETTLE_MS, fitWindowMs: FIT_WINDOW_MS, minBuckets: MIN_FIT_SECONDS, maxSlope: MAX_LINE_SLOPE, edgeQuantile: EDGE_QUANTILE, lineJumpMs: LINE_JUMP_MS, lineSlewMsPerS: LINE_SLEW_MS_PER_S, shiftHoldMs: SHIFT_HOLD_MS, soundLevel: SOUND_LEVEL }
 
 /** Test-only: the worker's source and constants, to run it with simulated arrivals. */
 export const __nativeOutputWorkerForTests = { source: WORKER_SOURCE, constants: WORKER_CONSTANTS }
@@ -272,6 +276,8 @@ interface Pipe {
   timer: ReturnType<typeof setInterval> | null
   /** Stops watching the page's visibility (the lock grace, nativeOutputFallback.ts). */
   unwatch: (() => void) | null
+  /** When the mix last carried sound (from the worker) - gaps in silence don't count. */
+  soundAt: number | null
   closed: boolean
 }
 
@@ -367,13 +373,14 @@ async function attach(ctx: AudioContext): Promise<void> {
     const workerUrl = URL.createObjectURL(new Blob([WORKER_SOURCE], { type: 'text/javascript' }))
     const worker = new Worker(workerUrl)
     URL.revokeObjectURL(workerUrl)
-    const p: Pipe = { ctx, tap, worker, silent, rate: ctx.sampleRate, chunk, delayMs: null, line: null, history: [], timer: null, unwatch: null, closed: false }
+    const p: Pipe = { ctx, tap, worker, silent, rate: ctx.sampleRate, chunk, delayMs: null, line: null, history: [], timer: null, unwatch: null, soundAt: null, closed: false }
     pipe = p
     const started = await NativeOutput.start({ sampleRate: ctx.sampleRate })
     if (!started.started) throw new Error(started.error ?? 'start')
     const opened = new Promise<void>((resolve, reject) => {
       worker.onmessage = (e: MessageEvent<{ type: string; at: number; line: number }>) => {
         if (e.data.type === 'line') onLine(p, e.data.at, e.data.line)
+        else if (e.data.type === 'sound') p.soundAt = e.data.at
         else if (e.data.type === 'open') resolve()
         else if (e.data.type === 'closed') reject(new Error('connection closed'))
       }
@@ -409,8 +416,8 @@ async function attach(ctx: AudioContext): Promise<void> {
         if (p.closed) return
         const now = Date.now()
         // Screen locked, or just unlocked: what goes missing is the lock, not the output - no loss,
-        // no health sample, and no bigger reserve learned from it.
-        if (now < quiet) {
+        // no health sample, and no bigger reserve learned from it. Nothing sounding: a gap is inaudible.
+        if (now < quiet || !audible(p.soundAt, now)) {
           recent.length = 0
           healthSamples.length = 0
           useNativeOutputStore.setState({ status: s })
