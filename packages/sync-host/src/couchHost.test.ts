@@ -109,3 +109,21 @@ describe('couch-host: a small CouchDB for the Stage-Server without Docker (docs/
     expect(await (await call('/_all_dbs', { headers: admin })).json()).toEqual([])
   })
 })
+
+describe('accounts copied from CouchDB 3.5 (2026-11-07)', () => {
+  it("an account in CouchDB's own format (PBKDF2-SHA256, 600,000 rounds, hex salt as text) logs in", async () => {
+    const { pbkdf2Sync, randomBytes } = await import('node:crypto')
+    const salt = randomBytes(16).toString('hex')
+    const derived_key = pbkdf2Sync('pin-4711', salt, 600_000, 32, 'sha256').toString('hex')
+    // As CouchDB stores it - copied over by replication, no password field.
+    const doc = { _id: 'org.couchdb.user:copied', name: 'copied', roles: ['member'], type: 'user', password_scheme: 'pbkdf2', pbkdf2_prf: 'sha256', salt, iterations: 600_000, derived_key }
+    await call('/_users/_bulk_docs', { method: 'POST', headers: admin, body: JSON.stringify({ docs: [{ ...doc, _rev: '1-abc' }], new_edits: false }) })
+    const ok = await call('/_session', { headers: auth('copied', 'pin-4711') })
+    expect((await ok.json()).userCtx).toEqual({ name: 'copied', roles: ['member'] })
+    expect((await call('/_session', { headers: auth('copied', 'pin-0000') })).status).toBe(401)
+    // The second request doesn't pay the 600,000 rounds again.
+    const t0 = Date.now()
+    await call('/_session', { headers: auth('copied', 'pin-4711') })
+    expect(Date.now() - t0).toBeLessThan(50)
+  })
+})

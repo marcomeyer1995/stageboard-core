@@ -117,8 +117,22 @@ export function createCouchHost(options: CouchHostOptions) {
   }
   const exists = async (name: string) => name === USERS || (await options.catalog.list()).includes(name)
 
+  // A checked login is remembered for a while, like CouchDB does: an account copied from CouchDB has
+  // 600,000 PBKDF2 rounds - every sync request would otherwise wait for them. Forgotten when any
+  // account changes.
+  const verified = new Map<string, { ctx: UserCtx; until: number }>()
+  const VERIFIED_MS = 5 * 60_000
+
   /** Who is asking: the server admin, a user whose password checks out, or nobody. */
   const whoIs = async (authorization: string | undefined): Promise<UserCtx | null> => {
+    const known = authorization ? verified.get(authorization) : undefined
+    if (known && known.until > Date.now()) return known.ctx
+    const ctx = await checkLogin(authorization)
+    if (ctx && ctx.name !== null && authorization) verified.set(authorization, { ctx, until: Date.now() + VERIFIED_MS })
+    return ctx
+  }
+
+  const checkLogin = async (authorization: string | undefined): Promise<UserCtx | null> => {
     const creds = basicAuth(authorization)
     if (!creds) return { name: null, roles: [] }
     if (creds.user === options.admin.user) return same(creds.password, options.admin.password) ? { name: creds.user, roles: ['_admin'] } : null
@@ -211,6 +225,7 @@ export function createCouchHost(options: CouchHostOptions) {
     // Accounts: only the server admin reads and writes them; passwords are stored hashed.
     if (name === USERS) {
       if (!isServerAdmin(ctx)) return error(403, 'forbidden', 'Server admin only.')
+      if (method !== 'GET' && method !== 'HEAD') verified.clear()
       if (method === 'PUT' && second?.startsWith('org.couchdb.user:')) {
         const doc = await hashUser({ ...(request.body as Record<string, unknown>), _id: decodeURIComponent(second) })
         const existing = await db(USERS).get(String(doc._id)).catch(() => null)
