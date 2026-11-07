@@ -13,6 +13,8 @@ import { useShowStateStore } from '../store/useShowStateStore'
 
 // Same explicit-factory reasoning as useAudioOutputDriver.test.ts (which now owns the reactive
 // local-engine-driving behavior this widget used to run itself - see its own doc comment).
+// No stage map loaded: the old rules (roles, the master) apply.
+vi.mock('../store/useStageMapStore', () => ({ useStageMapStore: (select: (state: unknown) => unknown) => select({ loaded: false, equipment: [], setups: [] }) }))
 vi.mock('../lib/showMode', () => {
   const show = vi.fn()
   // Widgets read the clock only where they show it (#457) - the same mocked show for every hook.
