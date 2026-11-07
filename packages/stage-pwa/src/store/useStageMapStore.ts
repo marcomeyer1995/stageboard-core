@@ -45,6 +45,12 @@ export const useStageMapStore = create<StageMapState>((set) => ({
   saveEquipment: (equipment) => stageEquipmentDb.put(equipment),
   removeEquipment: (id) => stageEquipmentDb.remove(id),
   saveSetup: (setup) => stageSetupsDb.put(setup),
-  updateSetup: (id, patch) => stageSetupsDb.update(id, patch),
+  // Shown at once, then written: the change feed's refresh came a moment after the write, and a
+  // dropped device jumped back to where it was for that moment (2026-11-07). The refresh after the
+  // write brings the stored state (another device's change on top, or nothing if it failed).
+  updateSetup: async (id, patch) => {
+    set((state) => ({ setups: state.setups.map((s) => (s.id === id ? patch(s) : s)) }))
+    await stageSetupsDb.update(id, patch)
+  },
   removeSetup: (id) => stageSetupsDb.remove(id),
 }))
