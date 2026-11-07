@@ -217,7 +217,13 @@
     "linkDevice": "Registriertes Gerät",
     "link": "Mit Gerät verbinden",
     "pruneConfirm": "Danach passen {{links}} Kabel und {{points}} Matrix-Punkte nicht mehr - sie werden entfernt.",
-    "pruneOk": "Speichern und entfernen"
+    "pruneOk": "Speichern und entfernen",
+    "mono": "Mono (1 Kanal)",
+    "stereo": "Stereo",
+    "allChannels": "{{n}} Kanäle",
+    "width": "Wie viele Kanäle?",
+    "widthLabel": "Kabel",
+    "fromChannel": "Von {{name}}"
   },
   "ports": {
     "title": "Anschlüsse: {{name}}",
@@ -262,5 +268,19 @@
       "net": "Netzwerk/Steuerung",
       "dmx": "DMX"
     }
+  },
+  "wiring": {
+    "title": "Verkabelung ({{n}} Kabel)",
+    "allGood": "Keine Probleme: jeder Kanal hat höchstens ein Kabel, Mono und Stereo passen.",
+    "double": "{{where}}: {{n}} Kabel auf demselben Anschluss",
+    "width": "{{where}}: Kabel mit {{width}} Kanälen, dort ist Platz für {{capacity}}",
+    "monoOfStereo": "{{where}}: Stereo-Buchse nur mit einem Kanal belegt",
+    "channels": "Belegte Kanäle",
+    "used": "{{name}} {{used}}/{{total}}",
+    "adapters": "Adapter einpacken ({{n}})",
+    "adapterRow": "Kabel {{number}}: {{from}} → {{to}}",
+    "cables": "Kabel",
+    "none": "Noch keine Kabel in diesem Aufbau.",
+    "y": "Y-Kabel"
   }
 }

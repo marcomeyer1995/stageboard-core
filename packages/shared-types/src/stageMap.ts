@@ -65,6 +65,8 @@ export const PortSchema = z.object({
   signals: z.array(SignalSchema).min(1),
   direction: PortDirectionSchema,
   channels: z.number().int().min(2).max(128).optional(),
+  /** One socket carrying left and right (Main L/R, a headphone jack) - a stereo cable fits it whole. */
+  stereo: z.boolean().optional(),
   /** The desk's number of channel 1 of this group ("XLR 11–20" after 10 combo inputs) - labels only. */
   firstChannel: z.number().int().min(1).max(256).optional(),
 })
@@ -185,6 +187,9 @@ export const StageLinkSchema = z.object({
   from: PortRefSchema,
   to: PortRefSchema,
   signals: z.array(SignalSchema).min(1),
+  /** Channels the cable carries (Marco, 2026-11-07): 1 mono, 2 stereo (Aux 1-2 into an in-ear
+   * sender's L/R), more for a multicore - from each end's `channel` on. Absent: 1. */
+  width: z.number().int().min(1).max(128).optional(),
 })
 export type StageLink = z.infer<typeof StageLinkSchema>
 
@@ -208,6 +213,9 @@ export type StageMap = z.infer<typeof StageMapSchema>
 
 const port = (id: string, name: string, connector: Connector, signals: Signal[], direction: PortDirection, channels?: number): Port =>
   channels === undefined ? { id, name, connector, signals, direction } : { id, name, connector, signals, direction, channels }
+
+/** A single socket carrying left and right. */
+const stereo = (p: Port): Port => ({ ...p, stereo: true })
 
 const at = (portId: string, channel?: number): MatrixPoint => (channel === undefined ? { kind: 'port', portId } : { kind: 'port', portId, channel })
 const via = (from: MatrixPoint, to: MatrixPoint): Crosspoint => ({ from, to })
@@ -245,9 +253,9 @@ export const BUILTIN_MODELS: readonly EquipmentModel[] = [
     'stageboard',
     [
       port('speaker', 'Lautsprecher', 'builtin', ['audio'], 'out'),
-      port('headphones', 'Kopfhörer', 'jack-3.5', ['audio'], 'out'),
+      stereo(port('headphones', 'Kopfhörer', 'jack-3.5', ['audio'], 'out')),
       port('usb', 'USB-C', 'usb-c', ['usb-audio', 'midi'], 'both'),
-      port('bluetooth', 'Bluetooth', 'wireless', ['audio'], 'out'),
+      stereo(port('bluetooth', 'Bluetooth', 'wireless', ['audio'], 'out')),
       port('bt-midi', 'Bluetooth-MIDI', 'wireless', ['midi'], 'both'),
       port('wifi-midi', 'WLAN-MIDI', 'wireless', ['midi'], 'both'),
     ],
@@ -259,7 +267,7 @@ export const BUILTIN_MODELS: readonly EquipmentModel[] = [
     'mixer',
     'Mischpult',
     'mixer',
-    [port('in', 'Eingang', 'xlr-jack', ['audio'], 'in', 16), port('main', 'Main L/R', 'xlr', ['audio'], 'out'), port('aux', 'Aux', 'xlr-jack', ['audio'], 'out', 4)],
+    [port('in', 'Eingang', 'xlr-jack', ['audio'], 'in', 16), port('main', 'Main L/R', 'xlr', ['audio'], 'out', 2), port('aux', 'Aux', 'xlr-jack', ['audio'], 'out', 4)],
     free(),
   ),
   builtin(
@@ -279,10 +287,17 @@ export const BUILTIN_MODELS: readonly EquipmentModel[] = [
     fixed(via(at('midi-in'), at('main')), via(at('usb'), at('main'))),
     true,
   ),
-  builtin('iem-sender', 'In-Ear-Sender', 'iem-sender', [port('in', 'Eingang', 'xlr-jack', ['audio'], 'in'), port('out', 'Funk', 'wireless', ['audio'], 'out')], fixed(via(at('in'), at('out')))),
+  // Two mono inputs (L/R): one channel for a mono mix, both for stereo (Marco, 2026-11-07).
+  builtin(
+    'iem-sender',
+    'In-Ear-Sender',
+    'iem-sender',
+    [port('in', 'Eingang', 'xlr-jack', ['audio'], 'in', 2), stereo(port('out', 'Funk', 'wireless', ['audio'], 'out'))],
+    fixed(via(at('in', 1), at('out')), via(at('in', 2), at('out'))),
+  ),
   // The beltpack (Marco, 2026-11-07): the radio link from the sender shows as its own line, then the
   // earphones to the person.
-  builtin('iem-receiver', 'In-Ear-Empfänger', 'iem-receiver', [port('in', 'Funk', 'wireless', ['audio'], 'in'), port('phones', 'Ohrhörer', 'jack-3.5', ['audio'], 'out')], fixed(via(at('in'), at('phones')))),
+  builtin('iem-receiver', 'In-Ear-Empfänger', 'iem-receiver', [port('in', 'Funk', 'wireless', ['audio'], 'in'), stereo(port('phones', 'Ohrhörer', 'jack-3.5', ['audio'], 'out'))], fixed(via(at('in'), at('phones')))),
   // More gear on the stage (Marco, 2026-11-07): sources, wireless mics, DI and stagebox, amps.
   builtin('microphone', 'Mikrofon', 'microphone', [port('out', 'Ausgang', 'xlr', ['audio'], 'out')], null),
   builtin('instrument', 'Instrument', 'instrument', [port('out', 'Ausgang', 'jack-6.3', ['audio'], 'out')], null),
@@ -500,21 +515,26 @@ export function signalFlows(map: StageMap, setupId: string, virtualPorts: readon
   const flows: SignalFlow[] = []
 
   // Cables leaving `equipment` at (port, channel) that can carry `cls` away from it.
+  // A cable `width` channels wide carries channel `mine.channel + k` to `theirs.channel + k`.
   const cablesOut = (equipment: StageEquipment, portId: string, channel: number | undefined, cls: SignalClass) => {
     const out: { link: StageLink; from: PortRef; to: PortRef }[] = []
     for (const link of setup.links) {
       if (!link.signals.some((s) => SIGNAL_CLASS[s] === cls)) continue
+      const width = link.width ?? 1
       for (const [mine, theirs] of [
         [link.from, link.to],
         [link.to, link.from],
       ] as const) {
         if (mine.equipmentId !== equipment.id || mine.portId !== portId) continue
-        if (channel !== undefined && mine.channel !== undefined && mine.channel !== channel) continue
+        if (channel !== undefined && mine.channel !== undefined && (channel < mine.channel || channel >= mine.channel + width)) continue
         const myPort = equipment.ports.find((p) => p.id === portId)
         const other = byId.get(theirs.equipmentId)
         const theirPort = other?.ports.find((p) => p.id === theirs.portId)
         if (!myPort || !theirPort || myPort.direction === 'in' || theirPort.direction === 'out') continue
-        out.push({ link, from: mine, to: theirs })
+        if (theirs.channel === undefined) out.push({ link, from: mine, to: theirs })
+        else if (channel !== undefined && mine.channel !== undefined) out.push({ link, from: { ...mine, channel }, to: { ...theirs, channel: theirs.channel + channel - mine.channel } })
+        // The whole port (a stereo jack) onto a group: every channel the cable is wide.
+        else for (let k = 0; k < width; k++) out.push({ link, from: mine, to: { ...theirs, channel: theirs.channel + k } })
       }
     }
     return out
@@ -526,7 +546,7 @@ export function signalFlows(map: StageMap, setupId: string, virtualPorts: readon
     while (queue.length > 0) {
       const { equipment, portId, channel, cls } = queue.shift()!
       for (const cable of cablesOut(equipment, portId, channel, cls)) {
-        const visit = `${cable.link.id}>${cable.to.equipmentId}:${cls}`
+        const visit = `${cable.link.id}>${cable.to.equipmentId}#${cable.to.channel ?? ''}:${cls}`
         if (seen.has(visit)) continue
         seen.add(visit)
         const target = byId.get(cable.to.equipmentId)
@@ -683,4 +703,129 @@ export function defaultSignalKind(connector: Connector): PortSignalKind {
   if (connector === 'ethernet') return 'net'
   if (connector === 'dmx') return 'dmx'
   return 'audio'
+}
+
+/** Channels a port takes from its `channel` on: the rest of its group, or 2 for a stereo socket. */
+export function portCapacity(port: Port, channel: number | undefined): number {
+  if (port.channels !== undefined) return port.channels - (channel ?? 1) + 1
+  return port.stereo ? 2 : 1
+}
+
+/** Soft connectors share freely - a radio link or a speaker reaches many. */
+const SHARED_CONNECTORS: readonly Connector[] = ['wireless', 'room', 'builtin', 'ear', 'eye']
+
+export type StageIssue =
+  | { kind: 'double'; equipmentId: string; portId: string; channel: number | undefined; linkIds: string[] }
+  | { kind: 'width'; linkId: string; equipmentId: string; portId: string; width: number; capacity: number }
+  | { kind: 'mono-of-stereo'; linkId: string; equipmentId: string; portId: string }
+  | { kind: 'adapter'; linkId: string }
+
+export interface PortUse {
+  equipmentId: string
+  portId: string
+  name: string
+  direction: PortDirection
+  used: number
+  total: number
+}
+
+/** The channels a cable end occupies: one per channel of its width, or the whole socket. */
+function occupied(end: PortRef, width: number, port: Port): (number | undefined)[] {
+  if (end.channel === undefined) return port.channels === undefined ? [undefined] : Array.from({ length: Math.min(width, port.channels) }, (_, k) => k + 1)
+  return Array.from({ length: width }, (_, k) => end.channel! + k)
+}
+
+/**
+ * The checks for technicians (Marco, 2026-11-07): a socket or channel with two cables (a real plug
+ * takes one - radio and sound are shared), a cable wider than where it lands (stereo into one mono
+ * input), only one side of a stereo socket taken, plugs that need an adapter - and per port how many
+ * channels are in use.
+ */
+export function checkSetup(map: StageMap, setupId: string): { issues: StageIssue[]; use: PortUse[] } {
+  const setup = map.setups.find((s) => s.id === setupId)
+  if (!setup) return { issues: [], use: [] }
+  const byId = new Map(map.equipment.map((e) => [e.id, e]))
+  const issues: StageIssue[] = []
+  const taken = new Map<string, string[]>()
+  for (const link of setup.links) {
+    const width = link.width ?? 1
+    const ends = [link.from, link.to].map((end) => ({ end, port: byId.get(end.equipmentId)?.ports.find((p) => p.id === end.portId) }))
+    for (const { end, port } of ends) {
+      if (!port) continue
+      const capacity = portCapacity(port, end.channel)
+      if (width > capacity) issues.push({ kind: 'width', linkId: link.id, equipmentId: end.equipmentId, portId: end.portId, width, capacity })
+      else if (width === 1 && port.stereo && port.channels === undefined) issues.push({ kind: 'mono-of-stereo', linkId: link.id, equipmentId: end.equipmentId, portId: end.portId })
+      if (SHARED_CONNECTORS.includes(port.connector)) continue
+      for (const ch of occupied(end, width, port)) {
+        const key = `${end.equipmentId}|${end.portId}|${ch ?? ''}`
+        taken.set(key, [...(taken.get(key) ?? []), link.id])
+      }
+    }
+    const [a, b] = ends
+    if (a!.port && b!.port) {
+      const fit = portFit(a!.port, b!.port) ?? portFit(b!.port, a!.port)
+      if (fit?.adapter) issues.push({ kind: 'adapter', linkId: link.id })
+    }
+  }
+  for (const [key, linkIds] of taken) {
+    if (linkIds.length < 2) continue
+    const [equipmentId, portId, ch] = key.split('|') as [string, string, string]
+    issues.push({ kind: 'double', equipmentId, portId, channel: ch === '' ? undefined : Number(ch), linkIds })
+  }
+  const use: PortUse[] = []
+  for (const e of map.equipment) {
+    if (!setup.positions[e.id]) continue
+    for (const p of e.ports) {
+      if (SHARED_CONNECTORS.includes(p.connector)) continue
+      const total = p.channels ?? 1
+      const used = new Set([...taken.keys()].filter((k) => k.startsWith(`${e.id}|${p.id}|`))).size
+      use.push({ equipmentId: e.id, portId: p.id, name: p.name, direction: p.direction, used: Math.min(used, total), total })
+    }
+  }
+  return { issues, use }
+}
+
+export interface WiringCable {
+  /** Number on the list - one per physical cable. */
+  number: number
+  linkId: string
+  from: PortRef
+  to: PortRef
+  fromConnector: Connector
+  toConnector: Connector
+  adapter: boolean
+  /** One stereo socket split onto two channels (or two joined): a Y cable. */
+  y: boolean
+}
+
+/**
+ * The wiring list of a setup (Marco, 2026-11-07): every physical cable (no radio, no speaker to an
+ * ear), numbered - a stereo line
+ * between two groups is two cables (L and R), a stereo jack onto two channels one Y cable.
+ */
+export function wiringList(map: StageMap, setupId: string): WiringCable[] {
+  const setup = map.setups.find((s) => s.id === setupId)
+  if (!setup) return []
+  const byId = new Map(map.equipment.map((e) => [e.id, e]))
+  const name = (id: string) => byId.get(id)?.name ?? id
+  const links = [...setup.links].sort((a, b) => name(a.from.equipmentId).localeCompare(name(b.from.equipmentId)) || a.from.portId.localeCompare(b.from.portId) || (a.from.channel ?? 0) - (b.from.channel ?? 0))
+  const out: WiringCable[] = []
+  for (const link of links) {
+    const fromPort = byId.get(link.from.equipmentId)?.ports.find((p) => p.id === link.from.portId)
+    const toPort = byId.get(link.to.equipmentId)?.ports.find((p) => p.id === link.to.portId)
+    if (!fromPort || !toPort) continue
+    // Radio, a speaker to the ears: no cable to lay.
+    if (SHARED_CONNECTORS.includes(fromPort.connector) || SHARED_CONNECTORS.includes(toPort.connector)) continue
+    const fit = portFit(fromPort, toPort) ?? portFit(toPort, fromPort)
+    const base = { linkId: link.id, fromConnector: fromPort.connector, toConnector: toPort.connector, adapter: fit?.adapter ?? false }
+    const width = link.width ?? 1
+    const split = (end: PortRef, port: Port) => end.channel !== undefined || port.channels !== undefined
+    if (width > 1 && split(link.from, fromPort) && split(link.to, toPort)) {
+      for (let k = 0; k < width; k++) {
+        const at = (end: PortRef): PortRef => ({ ...end, channel: (end.channel ?? 1) + k })
+        out.push({ ...base, number: out.length + 1, from: at(link.from), to: at(link.to), y: false })
+      }
+    } else out.push({ ...base, number: out.length + 1, from: link.from, to: link.to, y: width > 1 && split(link.from, fromPort) !== split(link.to, toPort) })
+  }
+  return out
 }

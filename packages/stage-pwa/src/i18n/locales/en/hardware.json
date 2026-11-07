@@ -217,7 +217,13 @@
     "linkDevice": "Registered device",
     "link": "Link to device",
     "pruneConfirm": "Afterwards {{links}} cables and {{points}} matrix points no longer fit - they will be removed.",
-    "pruneOk": "Save and remove"
+    "pruneOk": "Save and remove",
+    "mono": "Mono (1 channel)",
+    "stereo": "Stereo",
+    "allChannels": "{{n}} channels",
+    "width": "How many channels?",
+    "widthLabel": "Cable",
+    "fromChannel": "From {{name}}"
   },
   "ports": {
     "title": "Ports: {{name}}",
@@ -262,5 +268,19 @@
       "net": "Network/control",
       "dmx": "DMX"
     }
+  },
+  "wiring": {
+    "title": "Wiring ({{n}} cables)",
+    "allGood": "No problems: every channel has at most one cable, mono and stereo fit.",
+    "double": "{{where}}: {{n}} cables on the same socket",
+    "width": "{{where}}: cable with {{width}} channels, room for {{capacity}}",
+    "monoOfStereo": "{{where}}: stereo socket used for one channel only",
+    "channels": "Channels in use",
+    "used": "{{name}} {{used}}/{{total}}",
+    "adapters": "Pack adapters ({{n}})",
+    "adapterRow": "Cable {{number}}: {{from}} → {{to}}",
+    "cables": "Cables",
+    "none": "No cables in this setup yet.",
+    "y": "Y cable"
   }
 }

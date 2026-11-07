@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { defaultStageMap, equipmentFrom, BUILTIN_MODELS } from 'shared-types'
+import { defaultStageMap, equipmentFrom, BUILTIN_MODELS, type StageSetup } from 'shared-types'
 
 // workspaceDb.ts constructs a real PouchDB at module load time - unavailable under happy-dom.
 vi.mock('pouchdb-browser', () => ({
@@ -104,6 +104,32 @@ describe('StageMap (docs/31 §7)', () => {
     expect(saved.ports[3]!.connector).toBe('jack-6.3-ts')
     // The cable on input 15 still fits - nothing on the map touched.
     expect(updateSetup).not.toHaveBeenCalled()
+  })
+
+  it('a stereo cable from Aux 1 of the desk into both inputs of the in-ear sender (2026-11-07)', async () => {
+    setUp(true)
+    const iem = equipmentFrom(BUILTIN_MODELS.find((m) => m.id === 'iem-sender')!, 'iem', 'IEM Kai')
+    useStageMapStore.setState((s) => ({ equipment: [...s.equipment, iem], setups: s.setups.map((x) => ({ ...x, positions: { ...x.positions, iem: { x: 700, y: 900 } } })) }))
+    render(
+      <>
+        <StageMap />
+        <DialogHost />
+      </>,
+    )
+    fireEvent.click(screen.getByRole('switch', { name: 'Bearbeiten' }))
+    tapNode('Pult')
+    fireEvent.click(screen.getAllByRole('button', { name: 'Verbinden' }).find((b) => b.closest('li')?.textContent?.includes('Aux'))!)
+    tapNode('IEM Kai')
+    await vi.waitFor(() => expect(screen.getByRole('radio', { name: 'Eingang 1' })).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: 'Verbinden' }))
+    await vi.waitFor(() => expect(screen.getByRole('radio', { name: 'Stereo' })).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('radio', { name: 'Stereo' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Verbinden' }))
+    await vi.waitFor(() => expect(updateSetup).toHaveBeenCalled())
+    const patch = updateSetup.mock.calls[0]![1] as (s: StageSetup) => StageSetup
+    const links = patch(useStageMapStore.getState().setups[0]!).links
+    const link = links[links.length - 1]
+    expect(link).toMatchObject({ from: { equipmentId: 'pult', portId: 'aux', channel: 1 }, to: { equipmentId: 'iem', portId: 'in', channel: 1 }, width: 2 })
   })
 
   it('a placeholder tablet: added before it is registered, linked by the admin - the device the map added moves into it (2026-11-07)', async () => {

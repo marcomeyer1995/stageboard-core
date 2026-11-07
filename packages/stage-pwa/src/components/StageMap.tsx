@@ -4,6 +4,9 @@ import {
   BUILTIN_MODELS,
   CAPABILITIES,
   channelNumber,
+  checkSetup,
+  portCapacity,
+  wiringList,
   DEFAULT_VIRTUAL_OUTPUTS,
   DRIVER_KINDS,
   effectiveRouting,
@@ -39,6 +42,7 @@ import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { samePoint } from '../lib/matrixPoint'
 import { RoutingMatrix, type MatrixLine } from './RoutingMatrix'
 import { PortListDialog } from './PortListDialog'
+import { StageWiring } from './StageWiring'
 import { AddRow, Badge, Button, IconButton, InfoHint, Segmented, Switch } from './ui'
 
 /** The map's own coordinates - positions are stored in these. */
@@ -173,6 +177,10 @@ export function StageMap() {
     [logicalDevices],
   )
   const flows = useMemo(() => (setup ? signalFlows({ equipment, setups }, setup.id, virtualPorts) : []), [equipment, setups, setup, virtualPorts])
+  // The technicians' checks and the wiring list (2026-11-07).
+  const check = useMemo(() => (setup ? checkSetup({ equipment, setups }, setup.id) : { issues: [], use: [] }), [equipment, setups, setup])
+  const cables = useMemo(() => (setup ? wiringList({ equipment, setups }, setup.id) : []), [equipment, setups, setup])
+  const badLinks = useMemo(() => new Set(check.issues.flatMap((i) => (i.kind === 'double' ? i.linkIds : i.kind === 'width' ? [i.linkId] : []))), [check])
   const flowsOn = (linkId: string) => flows.filter((f) => f.hops.some((h) => h.linkId === linkId))
 
   // Who may change what: the admin everything, everyone else the cables of their own device.
@@ -183,10 +191,16 @@ export function StageMap() {
   const canWireLink = (l: StageLink) => canWire(byId.get(l.from.equipmentId)) || canWire(byId.get(l.to.equipmentId))
   const canGear = editing && isAdmin
 
-  const portLabel = (ref: PortRef) => {
+  // A port and its channel - or its channels, for a cable wider than one ("Aux 1–2").
+  const refText = (ref: PortRef, width = 1) => {
     const port = portOf(byId.get(ref.equipmentId), ref.portId)
+    if (ref.channel === undefined) return port?.name ?? ref.portId
+    const first = channelNumber(port, ref.channel)
+    return `${port?.name ?? ref.portId} ${width > 1 ? `${first}–${first + width - 1}` : first}`
+  }
+  const portLabel = (ref: PortRef, width = 1) => {
     const item = byId.get(ref.equipmentId)
-    return `${item ? title(item) : '?'} · ${port?.name ?? ref.portId}${ref.channel === undefined ? '' : ` ${channelNumber(port, ref.channel)}`}`
+    return `${item ? title(item) : '?'} · ${refText(ref, width)}`
   }
 
   // Connect: candidate targets are equipment with a port that fits.
@@ -210,18 +224,40 @@ export function StageMap() {
         ? Array.from({ length: port.channels }, (_, i) => ({ value: `${port.id}#${i + 1}#${reverse ? 1 : 0}`, label: `${port.name} ${channelNumber(port, i + 1)}` }))
         : [{ value: `${port.id}##${reverse ? 1 : 0}`, label: port.name }],
     )
+    // Starting at a group (Aux 1-4): which of its channels - for the wiring list (2026-11-07).
+    const here = connectFrom.channel === undefined && connectPort.channels ? Array.from({ length: connectPort.channels }, (_, i) => ({ value: String(i + 1), label: `${connectPort.name} ${channelNumber(connectPort, i + 1)}` })) : null
     let picked = options.length === 1 ? options[0]!.value : null
-    if (!picked) {
-      const answer = await promptFields(t('map.pickPort', { name: target.name }), [{ key: 'port', label: t('map.port'), type: 'radio', options, defaultValue: options[0]!.value }], t('map.connect'))
-      picked = answer?.port ?? null
+    let hereChannel = here ? null : connectFrom.channel
+    if (!picked || here) {
+      const fields = [
+        ...(here ? [{ key: 'here', label: t('map.fromChannel', { name: title(byId.get(connectFrom.equipmentId)!) }), type: 'radio' as const, options: here, defaultValue: here[0]!.value }] : []),
+        ...(picked ? [] : [{ key: 'port', label: t('map.port'), type: 'radio' as const, options, defaultValue: options[0]!.value }]),
+      ]
+      const answer = await promptFields(t('map.pickPort', { name: target.name }), fields, t('map.connect'))
+      if (!answer) return
+      picked = picked ?? answer.port ?? null
+      if (here) hereChannel = Number(answer.here)
     }
     if (!picked) return
+    const start: PortRef = hereChannel ? { ...connectFrom, channel: hereChannel } : connectFrom
     const [portId, channel, reverse] = picked.split('#')
     const there: PortRef = channel ? { equipmentId: target.id, portId: portId!, channel: Number(channel) } : { equipmentId: target.id, portId: portId! }
-    const [from, to] = reverse === '1' ? [there, connectFrom] : [connectFrom, there]
-    const fit = portFit(portOf(byId.get(from.equipmentId), from.portId)!, portOf(byId.get(to.equipmentId), to.portId)!)
+    const [from, to] = reverse === '1' ? [there, start] : [start, there]
+    const fromPort = portOf(byId.get(from.equipmentId), from.portId)!
+    const toPort = portOf(byId.get(to.equipmentId), to.portId)!
+    const fit = portFit(fromPort, toPort)
     if (!fit) return
-    const link: StageLink = { id: crypto.randomUUID(), from, to, signals: fit.signals }
+    // Mono, stereo or a multicore (2026-11-07) - offered as far as both ends take it.
+    const room = Math.min(portCapacity(fromPort, from.channel), portCapacity(toPort, to.channel))
+    let width = 1
+    if (room >= 2) {
+      const widths = [{ value: '1', label: t('map.mono') }, { value: '2', label: t('map.stereo') }, ...(room >= 3 ? [{ value: String(room), label: t('map.allChannels', { n: room }) }] : [])]
+      const stereoish = (fromPort.stereo || toPort.stereo) ?? false
+      const answer = await promptFields(t('map.width'), [{ key: 'width', label: t('map.widthLabel'), type: 'radio', options: widths, defaultValue: stereoish ? '2' : '1' }], t('map.connect'))
+      if (!answer) return
+      width = Number(answer.width) || 1
+    }
+    const link: StageLink = { id: crypto.randomUUID(), from, to, signals: fit.signals, ...(width > 1 ? { width } : {}) }
     await updateSetup(setup.id, (s) => ({ ...s, links: [...s.links, link] }))
     setConnectFrom(null)
     setSelection({ kind: 'link', id: link.id, chain: false })
@@ -523,7 +559,7 @@ export function StageMap() {
           const portText = showPorts || highlighted.has(l.id)
           return (
             <g key={l.id} className={on ? '' : 'opacity-25'}>
-              <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} className={CLASS_STROKE[cls]} strokeWidth={selectedLink?.id === l.id ? 6 : 3} />
+              <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} className={badLinks.has(l.id) ? 'stroke-danger' : CLASS_STROKE[cls]} strokeWidth={selectedLink?.id === l.id ? 6 : 3} strokeDasharray={badLinks.has(l.id) ? '10 6' : undefined} />
               <line
                 x1={a.x}
                 y1={a.y}
@@ -546,7 +582,7 @@ export function StageMap() {
               )}
               {portText && (
                 <text x={mid.x} y={mid.y + 16} textAnchor="middle" className="fill-ink-muted text-[15px]" style={{ paintOrder: 'stroke' }} stroke="rgb(var(--sb-surface))" strokeWidth={5}>
-                  {`${portOf(byId.get(l.from.equipmentId), l.from.portId)?.name ?? ''} → ${portOf(byId.get(l.to.equipmentId), l.to.portId)?.name ?? ''}${l.to.channel ? ` ${channelNumber(portOf(byId.get(l.to.equipmentId), l.to.portId), l.to.channel)}` : ''}`}
+                  {`${refText(l.from, l.width)} → ${refText(l.to, l.width)}`}
                 </text>
               )}
             </g>
@@ -657,7 +693,8 @@ export function StageMap() {
 
         {selectedLink && (
           <LinkPanel
-            ends={[portLabel(selectedLink.from), portLabel(selectedLink.to)]}
+            ends={[portLabel(selectedLink.from, selectedLink.width), portLabel(selectedLink.to, selectedLink.width)]}
+            width={selectedLink.width ?? 1}
             twoWay={portOf(byId.get(selectedLink.from.equipmentId), selectedLink.from.portId)?.direction === 'both' && portOf(byId.get(selectedLink.to.equipmentId), selectedLink.to.portId)?.direction === 'both'}
             adapter={(() => {
               const a = portOf(byId.get(selectedLink.from.equipmentId), selectedLink.from.portId)
@@ -696,6 +733,7 @@ export function StageMap() {
           </div>
         )}
       </div>
+      {setup && !full && <StageWiring cables={cables} issues={check.issues} use={check.use} nameOf={(id) => { const e = byId.get(id); return e ? title(e) : id }} refText={refText} />}
       {portsFor && <PortListDialog item={portsFor} onClose={() => setPortsFor(null)} onSave={(ports) => void savePorts(portsFor, ports)} />}
     </section>
   )
@@ -703,6 +741,7 @@ export function StageMap() {
 
 function LinkPanel(props: {
   ends: [string, string]
+  width: number
   twoWay: boolean
   adapter: boolean
   signals: { key: string; label: string; selected: boolean }[]
@@ -719,6 +758,7 @@ function LinkPanel(props: {
         <span className="min-w-0 text-lg font-bold">
           {props.ends[0]} {props.twoWay ? '↔' : '→'} {props.ends[1]}
         </span>
+        {props.width > 1 && <Badge tone="neutral">{props.width === 2 ? t('map.stereo') : t('map.allChannels', { n: props.width })}</Badge>}
         {props.adapter && <Badge tone="warning">{t('map.adapter')}</Badge>}
       </div>
       <div className="flex flex-col gap-1">
