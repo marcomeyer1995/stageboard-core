@@ -1,5 +1,6 @@
 package de.stageboard.app;
 
+import android.content.Intent;
 import android.os.Build;
 import android.os.Process;
 import android.util.Base64;

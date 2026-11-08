@@ -336,6 +336,15 @@ async function attach(ctx: AudioContext): Promise<void> {
   const store = useNativeOutputStore.getState()
   if (pipe?.ctx === ctx || !nativeOutputAvailable()) return
   useNativeOutputStore.setState({ state: 'starting', error: null })
+  
+  // Start foreground service to keep native engine alive when screen is locked (docs/30 §8)
+  try {
+    await NativeOutput.startForegroundService()
+  } catch (e) {
+    // Service not available (older Android) - continue anyway
+    console.warn('Foreground service not started:', e)
+  }
+  
   try {
     const url = URL.createObjectURL(new Blob([TAP_SOURCE], { type: 'text/javascript' }))
     await ctx.audioWorklet.addModule(url)
@@ -404,6 +413,10 @@ function detach(): void {
   p.tap.disconnect()
   p.silent.disconnect()
   void NativeOutput.stop().catch(() => {})
+  
+  // Stop foreground service (docs/30 §8)
+  void NativeOutput.stopForegroundService().catch(() => {})
+  
   useNativeOutputStore.setState({ state: 'off', delayMs: null, status: null })
 }
 

@@ -1,12 +1,12 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest'
-import { PlaybackPlanner, type PlaybackPlan } from './playbackPlanner'
+import { describe, expect, it, vi, beforeEach, type Mock } from 'vitest'
+import { PlaybackPlanner, type PlaybackPlan, type ClickPayload, type AnnouncementPayload } from './playbackPlanner'
 
 describe('playbackPlanner', () => {
   let planner: PlaybackPlanner
-  let sendToNative: ReturnType<typeof vi.fn>
+  let sendToNative: Mock<(plans: PlaybackPlan[]) => Promise<void>>
 
   beforeEach(() => {
-    sendToNative = vi.fn().mockResolvedValue(undefined)
+    sendToNative = vi.fn<(plans: PlaybackPlan[]) => Promise<void>>().mockResolvedValue(undefined)
     planner = new PlaybackPlanner(sendToNative)
   })
 
@@ -20,7 +20,7 @@ describe('playbackPlanner', () => {
       planner.scheduleClick({ bandTimeMs: 1000, isDownbeat: true })
       const plan = planner.getPlanAt(0)
       expect(plan?.type).toBe('click')
-      expect(plan?.payload.isDownbeat).toBe(true)
+      expect((plan?.payload as ClickPayload)?.isDownbeat).toBe(true)
     })
 
     it('sorts plans by band time', () => {
@@ -44,7 +44,7 @@ describe('playbackPlanner', () => {
       planner.scheduleAnnouncement({ bandTimeMs: 5000, clipId: 'verse-1' })
       const plan = planner.getPlanAt(0)
       expect(plan?.type).toBe('announcement')
-      expect(plan?.payload.clipId).toBe('verse-1')
+      expect((plan?.payload as AnnouncementPayload)?.clipId).toBe('verse-1')
     })
   })
 
