@@ -2,6 +2,8 @@ import type { ClickTimeline } from './beatGrid'
 import { audioClockPrecise, audioPerWall, sharedAudioClock } from './audioClock'
 import { __resetSharedAudioContextForTests, getSharedAudioContext } from './sharedAudioContext'
 import { sourceOutput } from './audioMix'
+import { PlaybackPlanner } from './playbackPlanner'
+import { nativeOutputAvailable, useNativeOutputStore } from './nativeOutput'
 
 /** How far ahead (ms) each tick schedules oscillators - the standard "look-ahead scheduler"
  * window (per Chris Wilson's "A Tale of Two Clocks", the reference technique for precise Web
@@ -44,6 +46,8 @@ export interface ClickEngineState {
 }
 
 let intervalId: ReturnType<typeof setInterval> | null = null
+/** Native Engine N1: plans clicks for the native engine when the WebView is locked (docs/30 §8). */
+let playbackPlanner: PlaybackPlanner | null = null
 /** The next not-yet-scheduled beat (its number on the timeline) and its song time. On a rigid
  * grid (≥ 2 points) the time is read from the grid for every beat - exact, and a grid edited
  * while playing takes effect at once. With a single point the time advances by the live beat
@@ -225,7 +229,21 @@ function tick(getState: () => ClickEngineState): void {
       // still runs on until AUDIO_TIME_TOLERANCE_S.
       nextBeatAudioTime += Math.max(-DRIFT_STEP_S, Math.min(DRIFT_STEP_S, converted - nextBeatAudioTime))
     }
-    if (!clickOnAt || clickOnAt(nextBeatOnsetMs)) playClickAt(ctx, nextBeatAudioTime, timeline.beatInBar(nextBeat) === 0)
+    if (!clickOnAt || clickOnAt(nextBeatOnsetMs)) {
+      // Native Engine N1: send click to native engine if active (docs/30 §8)
+      if (playbackPlanner && nativeOutputAvailable() && useNativeOutputStore.getState().state === 'on') {
+        // Calculate band time (when the click should be heard)
+        const bandTimeMs = Date.now() + (nextBeatAudioTime - audioNow) * 1000
+        const isDownbeat = timeline.beatInBar(nextBeat) === 0
+        playbackPlanner.scheduleClick({ bandTimeMs, isDownbeat })
+        
+        // Send upcoming plans to native engine (2s lookahead)
+        void playbackPlanner.sendUpcoming(Date.now(), 2000).catch(() => {})
+      } else {
+        // WebView fallback: synthesize click in browser
+        playClickAt(ctx, nextBeatAudioTime, timeline.beatInBar(nextBeat) === 0)
+      }
+    }
     const beatMs = timeline.periodAfter(nextBeat)
     nextBeat++
     nextBeatOnsetMs += beatMs
@@ -246,6 +264,27 @@ export function startClick(getState: () => ClickEngineState): void {
   // AudioContext can start `suspended` until a user gesture resumes it (autoplay policy) -
   // resume() is a safe no-op if it's already running.
   void getAudioContext().resume()
+  
+  // Native Engine N1: initialize playback planner if native output is available (docs/30 §8)
+  if (nativeOutputAvailable()) {
+    playbackPlanner = new PlaybackPlanner(async (plans) => {
+      // Convert plans to native format and send via bridge
+      const nativePlans = plans.map((p) => ({
+        bandTimeMs: p.bandTimeMs,
+        type: p.type,
+        payload: JSON.stringify(p.payload),
+        gain: p.gain,
+      }))
+      // Send to native engine (fire-and-forget, errors are caught)
+      try {
+        const { NativeOutput } = await import('./nativeOutput')
+        await NativeOutput.sendPlaybackPlan(nativePlans)
+      } catch {
+        // Bridge not available - continue with WebView fallback
+      }
+    })
+  }
+  
   intervalId = setInterval(() => tick(getState), TICK_INTERVAL_MS)
 }
 
@@ -260,6 +299,12 @@ export function stopClick(): void {
   lastTickElapsedMs = null
   crossedJump = null
   scheduledTimeline = null
+  
+  // Native Engine N1: clean up playback planner (docs/30 §8)
+  if (playbackPlanner) {
+    playbackPlanner.clear()
+    playbackPlanner = null
+  }
 }
 
 /** Test-only escape hatch - vitest's jsdom environment has no real AudioContext, and the module

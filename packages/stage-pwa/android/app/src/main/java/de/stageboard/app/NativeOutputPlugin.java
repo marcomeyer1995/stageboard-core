@@ -224,6 +224,14 @@ public class NativeOutputPlugin extends Plugin {
         call.resolve();
     }
 
+    /** Sends playback plans (clicks, announcements) to the native engine for lock-screen playback. */
+    @PluginMethod
+    public void sendPlaybackPlan(PluginCall call) {
+        // TODO: Forward to native C++ engine (playback_plan.cpp)
+        // For now, just acknowledge - the native engine integration is in progress
+        call.resolve();
+    }
+
     private void stopPlaybackService() {
         Intent intent = new Intent(getContext(), PlaybackService.class);
         getContext().stopService(intent);

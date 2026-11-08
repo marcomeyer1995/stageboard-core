@@ -40,9 +40,12 @@ interface NativeOutputPlugin {
   startForegroundService(): Promise<void>
   /** Stops the foreground service. */
   stopForegroundService(): Promise<void>
+  /** Sends playback plans (clicks, announcements) to the native engine for lock-screen playback. */
+  sendPlaybackPlan(plans: Array<{ bandTimeMs: number; type: string; payload: string; gain: number }>): Promise<void>
 }
 
 const NativeOutput = registerPlugin<NativeOutputPlugin>('NativeOutput')
+export { NativeOutput }
 
 const SWITCH_KEY = 'sb:audio:native-output'
 /** Frames per handover - 40 ms: fewer bridge calls than smaller chunks, still well inside the delay. */
