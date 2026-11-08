@@ -244,3 +244,5 @@ async function changes(db: SyncDatabase, method: string, request: SyncRequest, l
   const lastSeq = next.length > 0 ? next[next.length - 1]!.seq : now.last_seq
   return json(200, { results: next, last_seq: lastSeq })
 }
+
+export { createHostLogin, HOST_ACCOUNTS_DOC_ID, type HostAccount, type HostLogin, type HostLoginOptions } from './hostLogin.js'

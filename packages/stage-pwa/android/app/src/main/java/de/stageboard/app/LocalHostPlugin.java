@@ -32,7 +32,8 @@ import java.util.concurrent.atomic.AtomicLong;
  * (`/time`) is answered here, natively; every other request goes to sync-host in the WebView,
  * over the band database the app already holds, and its answer comes back through respond().
  * Plain HTTP/1.1, one thread per connection, kept alive for the next request - enough to measure
- * sync and clock over Wi-Fi. Access: Basic auth with the spike's own token.
+ * sync and clock over Wi-Fi. Access: the band's device logins (docs/25 §6b, C) - checked in the
+ * app against the band's `host-accounts`; for the live channels the answer is remembered here.
  */
 @CapacitorPlugin(name = "LocalHost")
 public class LocalHostPlugin extends Plugin {
@@ -40,7 +41,9 @@ public class LocalHostPlugin extends Plugin {
     /** Wi-Fi power saving delayed a push after a pause by up to 125 ms (spike, 2026-11-07) - while
      * this device is the host, its Wi-Fi stays in low-latency mode (an app lock, no setting). */
     private android.net.wifi.WifiManager.WifiLock wifiLock;
-    private String expectedAuth;
+    /** Live-channel logins the app accepted, per "<band db>\n<Authorization>" - until when. */
+    private final Map<String, Long> allowed = new ConcurrentHashMap<>();
+    private static final long REMEMBER_MS = 5 * 60_000;
     private final AtomicLong nextId = new AtomicLong();
     private final Map<Long, Pending> pending = new ConcurrentHashMap<>();
     /** Live channels (Play, switches): per "<band>/<topic>" the open streams - relayed natively,
@@ -58,9 +61,7 @@ public class LocalHostPlugin extends Plugin {
     @PluginMethod
     public void start(PluginCall call) {
         int port = call.getInt("port", 5985);
-        String user = call.getString("user", "host");
-        String password = call.getString("password", "");
-        expectedAuth = "Basic " + Base64.encodeToString((user + ":" + password).getBytes(StandardCharsets.UTF_8), Base64.NO_WRAP);
+        allowed.clear();
         try {
             if (server != null) server.close();
             server = new ServerSocket(port, 64);
@@ -180,31 +181,48 @@ public class LocalHostPlugin extends Plugin {
             write(out, 200, "application/json", ("{\"serverTime\":" + System.currentTimeMillis() + "}").getBytes(StandardCharsets.UTF_8), keepAlive);
             return keepAlive;
         }
-        if (!expectedAuth.equals(headers.get("authorization"))) {
-            write(out, 401, "application/json", "{\"error\":\"unauthorized\"}".getBytes(StandardCharsets.UTF_8), keepAlive);
-            return keepAlive;
-        }
+        String authorization = headers.get("authorization");
         java.util.regex.Matcher live = LIVE.matcher(path);
-        if (live.matches()) return relay(live.group(1) + "/" + live.group(2), live.group(3), method, body, out, keepAlive);
+        if (live.matches()) {
+            // The app checks the login once, then the channel runs natively.
+            String band = "stageboard-" + live.group(1);
+            String key = band + "\n" + authorization;
+            Long until = allowed.get(key);
+            if (until == null || until < System.currentTimeMillis()) {
+                Pending check = ask("GET", "/_host-login/" + band, "", "", authorization, new byte[0]);
+                if (check.status != 200) {
+                    write(out, 401, "application/json", "{\"error\":\"unauthorized\"}".getBytes(StandardCharsets.UTF_8), keepAlive);
+                    return keepAlive;
+                }
+                allowed.put(key, System.currentTimeMillis() + REMEMBER_MS);
+            }
+            return relay(live.group(1) + "/" + live.group(2), live.group(3), method, body, out, keepAlive);
+        }
 
+        Pending p = ask(method, path, query, headers.getOrDefault("content-type", ""), authorization, body);
+        write(out, p.status, p.contentType, p.body, keepAlive);
+        return keepAlive;
+    }
+
+    /** Hands a request to the app (sync-host and the login check live there) and waits for its answer. */
+    private Pending ask(String method, String path, String query, String contentType, String authorization, byte[] body) throws InterruptedException {
         long id = nextId.incrementAndGet();
         Pending p = new Pending();
         pending.put(id, p);
-        String contentType = headers.getOrDefault("content-type", "");
         JSObject req = new JSObject();
         req.put("id", String.valueOf(id));
         req.put("method", method);
         req.put("path", path);
         req.put("query", query);
         req.put("contentType", contentType);
+        if (authorization != null) req.put("authorization", authorization);
         // JSON as text through the bridge, only binary as Base64.
         if (contentType.isEmpty() || contentType.contains("json")) req.put("text", new String(body, StandardCharsets.UTF_8));
         else req.put("body", Base64.encodeToString(body, Base64.NO_WRAP));
         notifyListeners("request", req);
         p.done.await(75, TimeUnit.SECONDS);
         pending.remove(id);
-        write(out, p.status, p.contentType, p.body, keepAlive);
-        return keepAlive;
+        return p;
     }
 
     /** A live channel: GET …/stream stays open and gets every push as an SSE event; POST …/push

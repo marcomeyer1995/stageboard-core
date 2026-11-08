@@ -1,4 +1,5 @@
 import { createSyncHost, type SyncDatabase, type SyncRequest, type SyncResponse } from './index.js'
+import { basicCredentials, hex, pbkdf2, same } from './passwords.js'
 
 /**
  * A small CouchDB for StageBoard's own needs (docs/25, Host step 1, 2026-11-07): what core-backend's
@@ -44,23 +45,6 @@ const ITERATIONS = 10_000
 const json = (status: number, body: unknown): SyncResponse => ({ status, body })
 const error = (status: number, name: string, reason: string): SyncResponse => json(status, { error: name, reason })
 
-const hex = (bytes: ArrayBuffer) => [...new Uint8Array(bytes)].map((b) => b.toString(16).padStart(2, '0')).join('')
-
-async function pbkdf2(password: string, salt: string, iterations: number): Promise<string> {
-  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveBits'])
-  const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', salt: new TextEncoder().encode(salt), iterations, hash: 'SHA-256' }, key, 256)
-  return hex(bits)
-}
-
-/** Constant-time string comparison - a password check must not tell how much matched. */
-function same(a: string, b: string): boolean {
-  if (a.length !== b.length) return false
-  let diff = 0
-  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i)
-  return diff === 0
-}
-
-/** A user document as stored: never the password, only its derived key (CouchDB does the same). */
 async function hashUser(doc: Record<string, unknown>): Promise<Record<string, unknown>> {
   if (typeof doc.password !== 'string') return doc
   const salt = hex(crypto.getRandomValues(new Uint8Array(16)).buffer)
@@ -68,17 +52,6 @@ async function hashUser(doc: Record<string, unknown>): Promise<Record<string, un
   const { password: _plain, ...rest } = doc
   void _plain
   return { ...rest, password_scheme: 'pbkdf2', pbkdf2_prf: 'sha256', iterations: ITERATIONS, salt, derived_key }
-}
-
-function basicAuth(header: string | undefined): { user: string; password: string } | null {
-  if (!header?.startsWith('Basic ')) return null
-  try {
-    const decoded = atob(header.slice(6))
-    const at = decoded.indexOf(':')
-    return at < 0 ? null : { user: decoded.slice(0, at), password: decoded.slice(at + 1) }
-  } catch {
-    return null
-  }
 }
 
 const isServerAdmin = (ctx: UserCtx) => ctx.roles.includes('_admin')
@@ -133,14 +106,14 @@ export function createCouchHost(options: CouchHostOptions) {
   }
 
   const checkLogin = async (authorization: string | undefined): Promise<UserCtx | null> => {
-    const creds = basicAuth(authorization)
+    const creds = basicCredentials(authorization)
     if (!creds) return { name: null, roles: [] }
     if (creds.user === options.admin.user) return same(creds.password, options.admin.password) ? { name: creds.user, roles: ['_admin'] } : null
     const doc = (await db(USERS)
       .get(`org.couchdb.user:${creds.user}`)
-      .catch(() => null)) as { derived_key?: string; salt?: string; iterations?: number; roles?: string[] } | null
+      .catch(() => null)) as { derived_key?: string; salt?: string; iterations?: number; pbkdf2_prf?: string; roles?: string[] } | null
     if (!doc?.derived_key || !doc.salt) return null
-    const derived = await pbkdf2(creds.password, doc.salt, doc.iterations ?? ITERATIONS)
+    const derived = await pbkdf2(creds.password, doc.salt, doc.iterations ?? ITERATIONS, doc.pbkdf2_prf)
     return same(derived, doc.derived_key) ? { name: creds.user, roles: doc.roles ?? [] } : null
   }
 
