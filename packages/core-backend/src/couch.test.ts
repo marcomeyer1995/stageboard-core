@@ -444,12 +444,12 @@ describe('waitForChange', () => {
     const fetchMock = stubFetch({
       ok: true,
       status: 200,
-      json: async () => ({ last_seq: '5-abc', results: [{ seq: '5-abc' }] }),
+      json: async () => ({ last_seq: '5-abc', results: [{ seq: '5-abc', id: 'songs:1' }] }),
     })
 
     const result = await waitForChange(config, 'songs', '4-xyz', 30000)
 
-    expect(result).toEqual({ lastSeq: '5-abc', changed: true })
+    expect(result).toEqual({ lastSeq: '5-abc', changed: true, ids: ['songs:1'] })
     const [url] = fetchMock.mock.calls[0]
     expect(url).toContain('/songs/_changes?feed=longpoll&since=4-xyz&timeout=30000')
   })
@@ -457,7 +457,7 @@ describe('waitForChange', () => {
   it('reports no change on an empty results array (long-poll timeout)', async () => {
     stubFetch({ ok: true, status: 200, json: async () => ({ last_seq: '4-xyz', results: [] }) })
     const result = await waitForChange(config, 'songs', '4-xyz', 30000)
-    expect(result).toEqual({ lastSeq: '4-xyz', changed: false })
+    expect(result).toEqual({ lastSeq: '4-xyz', changed: false, ids: [] })
   })
 
   it('throws with the HTTP status on failure', async () => {

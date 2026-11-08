@@ -67,6 +67,9 @@ export const ROSTER_VALIDATOR_SOURCE = `function(newDoc, oldDoc, userCtx) {
   if (newDoc._id.indexOf('profiles:') === 0 && !isAdmin) {
     throw({forbidden: 'Only a band admin may edit the roster.'});
   }
+  if (newDoc._id === 'host-accounts' && userCtx.roles.indexOf('_admin') === -1) {
+    throw({forbidden: 'Only the Stage-Server writes the host accounts.'});
+  }
   if (newDoc._id.indexOf('band-settings:') === 0 && !isAdmin) {
     throw({forbidden: 'Only a band admin may change the band settings.'});
   }
