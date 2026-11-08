@@ -71,6 +71,17 @@ describe('DeviceLedgerView', () => {
     expect(screen.getByText('Noch keine Geräte registriert.')).toBeInTheDocument()
   })
 
+  it('shows how cleanly the native audio output played over the last minute (docs/30)', () => {
+    const native = { path: 'native' as const, delayMs: 504, missingMs: 0, jumps: 0, leadMinMs: 160 }
+    useDeviceInfoStore.setState({ deviceInfo: { devices: { 'device-1': { ...DEVICE_INFO_ENTRY, audioOutput: native } } } })
+    const { unmount } = render(<DeviceLedgerView />)
+    expect(screen.getByText('Ton nativ, sauber (504 ms)')).toBeInTheDocument()
+    unmount()
+    useDeviceInfoStore.setState({ deviceInfo: { devices: { 'device-1': { ...DEVICE_INFO_ENTRY, audioOutput: { ...native, missingMs: 120 } } } } })
+    render(<DeviceLedgerView />)
+    expect(screen.getByText('Ton: 120 ms Aussetzer in der letzten Minute')).toBeInTheDocument()
+  })
+
   it('renders a device with its live diagnostic info', () => {
     render(<DeviceLedgerView />)
 
@@ -166,12 +177,12 @@ describe('DeviceLedgerView', () => {
   it('a device hardware runs on says where it is used and cannot be removed', () => {
     useLogicalDevicesStore.setState({ devices: [{ id: 'k', name: 'Kemper', executionTarget: 'device-1' }] as never })
     render(<DeviceLedgerView />)
-    expect(screen.getByText(/In Verwendung: Kemper - im Tab Bühnentechnik ein anderes Gerät wählen/)).toBeInTheDocument()
+    expect(screen.getByText(/In Verwendung: Kemper - im Tab Bühne ein anderes Gerät wählen/)).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Menü: Marcos iPad' }))
     expect(screen.getByRole('button', { name: 'Aus Liste entfernen' })).toBeDisabled()
   })
 
-  it('built-in outputs read as in Bühnentechnik, not by their old role names', () => {
+  it('built-in outputs read as in Bühne, not by their old role names', () => {
     useLogicalDevicesStore.setState({
       devices: [
         { id: 'c', name: 'Click', capability: 'click-track', pluginId: 'mock-click', executionTarget: 'device-1' },
@@ -179,7 +190,7 @@ describe('DeviceLedgerView', () => {
       ] as never,
     })
     render(<DeviceLedgerView />)
-    expect(screen.getByText(/In Verwendung: Klick, Backing-Track - im Tab Bühnentechnik/)).toBeInTheDocument()
+    expect(screen.getByText(/In Verwendung: Klick, Backing-Track - im Tab Bühne/)).toBeInTheDocument()
   })
 
   it('"Inaktive entfernen" takes every device without a live signal once the server has collected for 5 minutes - not blocked, not used, not this one', async () => {

@@ -1,5 +1,6 @@
 import { useSectionJumpDriver } from '../lib/sectionJump'
 import { useAlignmentDriver } from '../lib/useAlignmentDriver'
+import { useNativeOutputWarmup } from '../lib/useNativeOutputWarmup'
 import { useAnnouncementDriver } from '../lib/useAnnouncementDriver'
 import { useAudioOutputDriver } from '../lib/useAudioOutputDriver'
 import { useAutoStopDriver } from '../lib/useAutoStopDriver'
@@ -29,6 +30,8 @@ import { useTrackDurationBackfill } from '../lib/useTrackDurationBackfill'
  * load effect running first (FrameDrivers, a child, runs its effects first).
  */
 export function PlaybackDrivers({ footswitchActive }: { footswitchActive: boolean }) {
+  // The native output runs from the start, so the first beats of the first song already use it.
+  useNativeOutputWarmup()
   // Bluetooth foot switch / keyboard (#27): only on the dashboards, not while arranging them.
   useFootswitch(footswitchActive)
   // Buttons of MIDI controllers plugged in here (#547): the same actions as pedal keys.

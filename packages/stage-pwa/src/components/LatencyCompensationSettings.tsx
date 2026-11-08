@@ -1,6 +1,7 @@
 import { getDeviceId } from '../lib/deviceId'
 import { useAudioCompensationStore } from '../lib/latencyCompensation'
 import { audioOutputLatencyMs, routeLabel } from '../lib/latencyProfiles'
+import { useNativeOutputStore } from '../lib/nativeOutput'
 import { useAudioRouteStore } from '../store/useAudioRouteStore'
 import { useLatencyProfilesStore } from '../store/useLatencyProfilesStore'
 import { Switch } from './ui'
@@ -16,7 +17,14 @@ export function LatencyCompensationSettings() {
   const route = useAudioRouteStore((state) => state.route)
   const profiles = useLatencyProfilesStore((state) => state.profiles)
   const stored = audioOutputLatencyMs(profiles, getDeviceId(), route, true)
-  const status = stored > 0 ? t('comp.stored', { ms: stored, route: routeLabel(route) }) : t('comp.none', { route: routeLabel(route) })
+  // With the native output on this value isn't used (its own delay plus "Ton über die native
+  // Ausgabe" is) - saying "no value, enter one below" there sent you after the wrong value.
+  const native = useNativeOutputStore((state) => state.state === 'on')
+  const status = native
+    ? t('comp.nativeOn')
+    : stored > 0
+      ? t('comp.stored', { ms: stored, route: routeLabel(route) })
+      : t('comp.none', { route: routeLabel(route) })
   return (
     <Switch
       label={t('comp.label')}

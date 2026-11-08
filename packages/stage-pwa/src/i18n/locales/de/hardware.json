@@ -16,8 +16,8 @@
   "driverUnused": "Kein Gerät braucht den Treiber „{{driver}}“ mehr. Auch ihn entfernen?",
   "removeDriver": "Treiber entfernen",
   "newDevice": "Neues Gerät",
-  "title": "Bühnentechnik",
-  "explainLabel": "Erklärung: Bühnentechnik",
+  "title": "Bühne",
+  "explainLabel": "Erklärung: Bühne",
   "explain": "Alle Geräte der Band und wo sie hängen. Oben Klick, Backing-Track und Ansagen - eingebaut, nur das spielende Gerät ist wählbar. Darunter Amp, Mischpult, Looper und Co., je mit Typ und dem Tablet, an dem sie hängen.",
   "out": {
     "click": "Klick",
@@ -130,5 +130,22 @@
   "builtIn": {
     "playsOn": "{{label}} - spielt auf",
     "noneChosen": "Keins gewählt: {{fallback}}"
+  },
+  "stage": {
+    "title": "Wege",
+    "explainLabel": "Was sind Wege?",
+    "explain": "Jeder physische Weg vom Gerät zum Ohr - der eigene Ton über Lautsprecher, Kopfhörer oder USB, und jedes Gerät, das ein Tablet steuert - hat genau eine Latenz-Korrektur. ● eingemessen, ◐ von Hand, ○ fehlt. Abgleichen am besten dort, wo der Weg zählt (der Klick beim Schlagzeug).",
+    "server": "Stage-Server",
+    "thisDevice": "Dieses Gerät",
+    "sound": "Ton · {{route}}",
+    "noPaths": "Noch keine Wege - dieses Gerät spielt nichts.",
+    "viewOnly": "Ohne Profil nur ansehen - wähle oben, wer du bist.",
+    "align": "Abgleichen",
+    "value": "Wert…",
+    "state": {
+      "measured": "eingemessen",
+      "manual": "von Hand",
+      "missing": "fehlt"
+    }
   }
 }

@@ -16,7 +16,7 @@
   "notPossible": "Aktion nicht möglich - keine Admin-Rechte oder Stage-Server nicht erreichbar.",
   "forgetConfirm": "„{{name}}“ aus der Liste entfernen? Kein Blockieren: startet das Gerät die App wieder, erscheint es erneut.",
   "remove": "Entfernen",
-  "inUse": "„{{name}}“ wird noch in der Bühnentechnik verwendet - erst dort ein anderes Gerät wählen.",
+  "inUse": "„{{name}}“ wird noch in „Bühne“ verwendet - erst dort ein anderes Gerät wählen.",
   "blocked": "„{{name}}“ wurde inzwischen blockiert - ein blockiertes Gerät bleibt in der Liste.",
   "skipNote": " {{count}} weitere bleiben, weil Hardware sie verwendet.",
   "forgetInactiveConfirm": "{{count}} inaktive Geräte aus der Liste entfernen? Blockierte Geräte und dieses Gerät bleiben.{{note}}",
@@ -47,7 +47,7 @@
   "appOpen": "App offen",
   "appClosed": "App geschlossen / nicht gemeldet",
   "noData": "Noch keine Diagnosedaten von diesem Gerät.",
-  "inUseBy": "In Verwendung: {{list}} - im Tab Bühnentechnik ein anderes Gerät wählen, dann lässt es sich entfernen.",
+  "inUseBy": "In Verwendung: {{list}} - im Tab Bühne ein anderes Gerät wählen, dann lässt es sich entfernen.",
   "src": {
     "measured": "gemessen",
     "manual": "von Hand",
@@ -122,7 +122,8 @@
     "stored": "{{ms}} ms für {{route}}",
     "none": "kein Wert für {{route}} - unten eintragen",
     "now": "Jetzt: {{status}}.",
-    "info": "Klick und Backing-Track starten um die gemessene Latenz dieses Ausgabewegs früher, damit sie auf dem Schlag klingen."
+    "info": "Klick und Backing-Track starten um die gemessene Latenz dieses Ausgabewegs früher, damit sie auf dem Schlag klingen.",
+    "nativeOn": "die native Tonausgabe ist an - sie braucht diesen Wert nicht, nur „Ton über die native Ausgabe“ (Nach Gehör abgleichen)"
   },
   "backup": {
     "minutes": "vor {{n}} Min.",
@@ -132,5 +133,13 @@
     "failed": "Backup fehlgeschlagen{{when}}: {{error}}",
     "last": "Letztes Backup {{when}}",
     "stale": " - älter als zwei Tage"
+  },
+  "audioOut": {
+    "webview": "Ton über die WebView",
+    "native": "Ton nativ, sauber ({{ms}} ms)",
+    "dropouts": "Ton: {{ms}} ms Aussetzer in der letzten Minute",
+    "jumps_one": "Ton: {{count}} Sprung in der letzten Minute",
+    "jumps_other": "Ton: {{count}} Sprünge in der letzten Minute",
+    "tight": "Ton: Reserve knapp ({{ms}} ms)"
   }
 }

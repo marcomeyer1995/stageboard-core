@@ -16,7 +16,7 @@
   "notPossible": "Not possible - no admin rights or the Stage server is unreachable.",
   "forgetConfirm": "Remove “{{name}}” from the list? No block: when the device starts the app again, it reappears.",
   "remove": "Remove",
-  "inUse": "“{{name}}” is still used in Stage gear - choose another device there first.",
+  "inUse": "“{{name}}” is still used in Stage - choose another device there first.",
   "blocked": "“{{name}}” has been blocked meanwhile - a blocked device stays in the list.",
   "skipNote": " {{count}} more stay because hardware uses them.",
   "forgetInactiveConfirm": "Remove {{count}} inactive devices from the list? Blocked devices and this device stay.{{note}}",
@@ -47,7 +47,7 @@
   "appOpen": "App open",
   "appClosed": "App closed / not reported",
   "noData": "No diagnostic data from this device yet.",
-  "inUseBy": "In use: {{list}} - choose another device in the Stage gear tab, then it can be removed.",
+  "inUseBy": "In use: {{list}} - choose another device in the Stage tab, then it can be removed.",
   "src": {
     "measured": "measured",
     "manual": "by hand",
@@ -122,7 +122,8 @@
     "stored": "{{ms}} ms for {{route}}",
     "none": "no value for {{route}} - enter it below",
     "now": "Now: {{status}}.",
-    "info": "Click and backing track start earlier by the measured latency of this output route, so that they sound on the beat."
+    "info": "Click and backing track start earlier by the measured latency of this output route, so that they sound on the beat.",
+    "nativeOn": "the native sound output is on - it doesn't use this value, only \"Sound through the native output\" (Align by ear)"
   },
   "backup": {
     "minutes": "{{n}} min ago",
@@ -132,5 +133,13 @@
     "failed": "Backup failed{{when}}: {{error}}",
     "last": "Last backup {{when}}",
     "stale": " - older than two days"
+  },
+  "audioOut": {
+    "webview": "Sound through the WebView",
+    "native": "Sound native, clean ({{ms}} ms)",
+    "dropouts": "Sound: {{ms}} ms of dropouts in the last minute",
+    "jumps_one": "Sound: {{count}} jump in the last minute",
+    "jumps_other": "Sound: {{count}} jumps in the last minute",
+    "tight": "Sound: reserve tight ({{ms}} ms)"
   }
 }

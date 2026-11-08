@@ -3,6 +3,7 @@ import { deriveSyncStatus, useSyncStore } from '../store/useSyncStore'
 import { detectEnvironment } from './detectEnvironment'
 import { getDeviceId } from './deviceId'
 import { guessDeviceName } from './guessDeviceName'
+import { nativeOutputHealth } from './nativeOutput'
 import { reportDeviceInfo } from './reportDeviceInfo'
 
 /** Comfortably inside DEVICE_INFO_TIMEOUT_MS (shared-types), same margin usePresenceReporter.ts
@@ -32,6 +33,7 @@ export function useDeviceInfoReporter(workspaceId: string): void {
         os: guessDeviceName(),
         environment: detectEnvironment(),
         syncStatus: deriveSyncStatus(useSyncStore.getState().streams, useSyncStore.getState().browserOffline),
+        audioOutput: nativeOutputHealth(),
       })
     report()
     const interval = setInterval(report, REPORT_INTERVAL_MS)
