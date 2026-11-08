@@ -1,4 +1,7 @@
 import { createSyncHost, type SyncDatabase, type SyncRequest, type SyncResponse } from './index.js'
+export type { UserCtx } from './writeGuard.js'
+import { basicCredentials, hex, pbkdf2, same } from './passwords.js'
+import { createWriteGuard, inList, isServerAdmin, type SecurityDoc, type UserCtx } from './writeGuard.js'
 
 /**
  * A small CouchDB for StageBoard's own needs (docs/25, Host step 1, 2026-11-07): what core-backend's
@@ -27,15 +30,6 @@ export interface Catalog {
   remove: (name: string) => Promise<void>
 }
 
-export interface UserCtx {
-  name: string | null
-  roles: string[]
-}
-
-interface SecurityDoc {
-  admins?: { names?: string[]; roles?: string[] }
-  members?: { names?: string[]; roles?: string[] }
-}
 
 const USERS = '_users'
 const SECURITY_ID = '_local/_security'
@@ -44,23 +38,6 @@ const ITERATIONS = 10_000
 const json = (status: number, body: unknown): SyncResponse => ({ status, body })
 const error = (status: number, name: string, reason: string): SyncResponse => json(status, { error: name, reason })
 
-const hex = (bytes: ArrayBuffer) => [...new Uint8Array(bytes)].map((b) => b.toString(16).padStart(2, '0')).join('')
-
-async function pbkdf2(password: string, salt: string, iterations: number): Promise<string> {
-  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveBits'])
-  const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', salt: new TextEncoder().encode(salt), iterations, hash: 'SHA-256' }, key, 256)
-  return hex(bits)
-}
-
-/** Constant-time string comparison - a password check must not tell how much matched. */
-function same(a: string, b: string): boolean {
-  if (a.length !== b.length) return false
-  let diff = 0
-  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i)
-  return diff === 0
-}
-
-/** A user document as stored: never the password, only its derived key (CouchDB does the same). */
 async function hashUser(doc: Record<string, unknown>): Promise<Record<string, unknown>> {
   if (typeof doc.password !== 'string') return doc
   const salt = hex(crypto.getRandomValues(new Uint8Array(16)).buffer)
@@ -70,35 +47,6 @@ async function hashUser(doc: Record<string, unknown>): Promise<Record<string, un
   return { ...rest, password_scheme: 'pbkdf2', pbkdf2_prf: 'sha256', iterations: ITERATIONS, salt, derived_key }
 }
 
-function basicAuth(header: string | undefined): { user: string; password: string } | null {
-  if (!header?.startsWith('Basic ')) return null
-  try {
-    const decoded = atob(header.slice(6))
-    const at = decoded.indexOf(':')
-    return at < 0 ? null : { user: decoded.slice(0, at), password: decoded.slice(at + 1) }
-  } catch {
-    return null
-  }
-}
-
-const isServerAdmin = (ctx: UserCtx) => ctx.roles.includes('_admin')
-
-function inList(ctx: UserCtx, list: { names?: string[]; roles?: string[] } | undefined): boolean {
-  if (!list) return false
-  return (ctx.name !== null && (list.names ?? []).includes(ctx.name)) || (list.roles ?? []).some((r) => ctx.roles.includes(r))
-}
-
-/** A validate_doc_update function from a design document - written only by the server (admins). */
-type Validator = (newDoc: unknown, oldDoc: unknown, userCtx: UserCtx, secObj: SecurityDoc) => void
-const compiled = new Map<string, Validator>()
-function compile(source: string): Validator {
-  let fn = compiled.get(source)
-  if (!fn) {
-    fn = new Function(`return (${source})`)() as Validator
-    compiled.set(source, fn)
-  }
-  return fn
-}
 
 export interface CouchHostRequest extends SyncRequest {
   /** The `Authorization` header as received. */
@@ -133,14 +81,14 @@ export function createCouchHost(options: CouchHostOptions) {
   }
 
   const checkLogin = async (authorization: string | undefined): Promise<UserCtx | null> => {
-    const creds = basicAuth(authorization)
+    const creds = basicCredentials(authorization)
     if (!creds) return { name: null, roles: [] }
     if (creds.user === options.admin.user) return same(creds.password, options.admin.password) ? { name: creds.user, roles: ['_admin'] } : null
     const doc = (await db(USERS)
       .get(`org.couchdb.user:${creds.user}`)
-      .catch(() => null)) as { derived_key?: string; salt?: string; iterations?: number; roles?: string[] } | null
+      .catch(() => null)) as { derived_key?: string; salt?: string; iterations?: number; pbkdf2_prf?: string; roles?: string[] } | null
     if (!doc?.derived_key || !doc.salt) return null
-    const derived = await pbkdf2(creds.password, doc.salt, doc.iterations ?? ITERATIONS)
+    const derived = await pbkdf2(creds.password, doc.salt, doc.iterations ?? ITERATIONS, doc.pbkdf2_prf)
     return same(derived, doc.derived_key) ? { name: creds.user, roles: doc.roles ?? [] } : null
   }
 
@@ -156,37 +104,7 @@ export function createCouchHost(options: CouchHostOptions) {
     return null
   }
 
-  /** The band's validators against each incoming document; a refused one comes back as an error row. */
-  const validate = async (name: string, ctx: UserCtx, docs: Record<string, unknown>[]): Promise<{ ok: Record<string, unknown>[]; refused: { id: string; error: string; reason: string }[] }> => {
-    if (isServerAdmin(ctx)) return { ok: docs, refused: [] }
-    const store = db(name)
-    const designs = await store.allDocs({ startkey: '_design/', endkey: '_design/￿', include_docs: true })
-    const validators = designs.rows.flatMap((r) => {
-      const source = (r.doc as { validate_doc_update?: string } | undefined)?.validate_doc_update
-      return source ? [compile(source)] : []
-    })
-    const sec = await security(name)
-    const dbAdmin = inList(ctx, sec.admins)
-    const ok: Record<string, unknown>[] = []
-    const refused: { id: string; error: string; reason: string }[] = []
-    for (const doc of docs) {
-      const id = String(doc._id)
-      if (id.startsWith('_design/') && !dbAdmin) {
-        refused.push({ id, error: 'unauthorized', reason: 'Only admins may write design documents.' })
-        continue
-      }
-      const oldDoc = await store.get(id).catch(() => null)
-      try {
-        for (const v of validators) v(doc, oldDoc, ctx, sec)
-        ok.push(doc)
-      } catch (thrown) {
-        const t = thrown as { forbidden?: string; unauthorized?: string }
-        refused.push({ id, error: t.unauthorized ? 'unauthorized' : 'forbidden', reason: t.forbidden ?? t.unauthorized ?? String(thrown) })
-      }
-    }
-    return { ok, refused }
-  }
-
+  const guard = createWriteGuard({ open: (name) => db(name), security })
   const sync = createSyncHost({ open: (name) => db(name), longpollMaxMs: options.longpollMaxMs })
 
   const handle = async (request: CouchHostRequest): Promise<SyncResponse> => {
@@ -253,19 +171,7 @@ export function createCouchHost(options: CouchHostOptions) {
     }
 
     // Writes go through the band's validators - also what arrives by replication.
-    if (method === 'POST' && second === '_bulk_docs') {
-      const body = request.body as { docs: Record<string, unknown>[]; new_edits?: boolean }
-      const { ok, refused } = await validate(name, ctx, body.docs)
-      const written = ok.length > 0 ? ((await sync({ ...request, body: { ...body, docs: ok } })).body as unknown[]) : []
-      return json(201, [...written, ...refused])
-    }
-    if ((method === 'PUT' || method === 'DELETE') && second !== undefined && !second.startsWith('_local') && parts.length === 2) {
-      const id = decodeURIComponent(second)
-      const doc = method === 'DELETE' ? { _id: id, _rev: request.query.rev, _deleted: true } : { ...(request.body as object), _id: id }
-      const { refused } = await validate(name, ctx, [doc])
-      if (refused[0]) return error(refused[0].error === 'unauthorized' ? 401 : 403, refused[0].error, refused[0].reason)
-    }
-    return sync(request)
+    return guard(ctx, request, sync)
   }
 
   /** Closes every open database - before the host stops, so its files are released. */
