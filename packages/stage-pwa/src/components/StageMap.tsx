@@ -46,6 +46,7 @@ import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { samePoint } from '../lib/matrixPoint'
 import { RoutingMatrix, type MatrixLine } from './RoutingMatrix'
 import { PortListDialog } from './PortListDialog'
+import { HostPlugins } from './HostPlugins'
 import { wheelZoomFactor } from '../lib/wheelZoom'
 import { listMidiOutputs } from '../lib/webMidiOutput'
 import { StageWiring } from './StageWiring'
@@ -676,6 +677,8 @@ export function StageMap() {
               <span className="text-base text-ink-muted">{subtitle(selectedNode)}</span>
               {selectedNode.deviceId === ownId && <Badge tone="accent">{t('stage.thisDevice')}</Badge>}
             </div>
+            {/* The host: its server plugins, installable where it can run them (docs/25 §6). */}
+            {(selectedNode.kind === 'stage-server' || appsOf(selectedNode).includes(SERVER_EXECUTION_TARGET)) && <HostPlugins canInstall={canGear} />}
             {appsOf(selectedNode).length > 1 && (
               <div className="flex flex-col gap-1">
                 <span className="text-base font-semibold">{t('map.appsHere')}</span>
