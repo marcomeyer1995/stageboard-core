@@ -75,6 +75,13 @@ std::atomic<long long> gMissing{0};
 std::atomic<long long> gReopens{0};
 std::atomic<int> gError{0};
 
+// Native Engine N1 (docs/30 §8): global instances for click synthesis and playback planning
+// These must be at file scope to be accessible from the callback
+ClickSynthesizer gClickSynth(48000);
+PlaybackPlanQueue gPlanQueue(gClickSynth);
+NativeClockSync gClockSync;
+AnnouncementPlayer gAnnouncementPlayer(48000);
+
 int64_t clockNs(clockid_t id) {
     timespec ts{};
     clock_gettime(id, &ts);
@@ -168,6 +175,27 @@ aaudio_data_callback_result_t onData(AAudioStream *stream, void *, void *audioDa
         if (gChannels > 1) out[i * gChannels + 1] = r;
         for (int c = 2; c < gChannels; c++) out[i * gChannels + c] = 0.f;
     }
+    
+    // Native Engine N1 (docs/30 §8): mix click synthesizer output into the audio stream
+    // This allows clicks to continue playing when the WebView is locked
+    {
+        // Process pending playback plans (converts band time → frame position)
+        gPlanQueue.process(gFrames);
+        
+        // Render clicks from the synthesizer
+        float clickBuffer[512];  // mono buffer for clicks
+        const int framesToRender = std::min(numFrames, 512);
+        gClickSynth.render(clickBuffer, framesToRender);
+        
+        // Mix clicks into output (mono → stereo)
+        for (int i = 0; i < framesToRender; i++) {
+            out[i * gChannels] += clickBuffer[i];  // left
+            if (gChannels > 1) {
+                out[i * gChannels + 1] += clickBuffer[i];  // right
+            }
+        }
+    }
+    
     gFrames += numFrames;
     if (gLocked) gHeardMs0 += numFrames * msPerFrame;
     return AAUDIO_CALLBACK_RESULT_CONTINUE;
@@ -293,14 +321,6 @@ Java_de_stageboard_app_NativeOutputPlugin_nativeStop(JNIEnv *, jclass) {
     }
 }
 
-// Native Engine N1 (docs/30 §8): global instances for click synthesis and playback planning
-namespace {
-    ClickSynthesizer gClickSynth(48000);
-    PlaybackPlanQueue gPlanQueue(gClickSynth);
-    NativeClockSync gClockSync;
-    AnnouncementPlayer gAnnouncementPlayer(48000);
-}
-
 extern "C" JNIEXPORT void JNICALL
 Java_de_stageboard_app_NativeOutputPlugin_nativeSendPlaybackPlan(JNIEnv *env, jclass, jlong bandTimeMs, jstring type, jstring payload, jfloat gain) {
     const char* typeStr = env->GetStringUTFChars(type, nullptr);
@@ -308,7 +328,7 @@ Java_de_stageboard_app_NativeOutputPlugin_nativeSendPlaybackPlan(JNIEnv *env, jc
     
     if (typeStr && payloadStr) {
         gPlanQueue.addPlan(bandTimeMs, typeStr, payloadStr);
-        LOG("Added playback plan: bandTimeMs=%lld, type=%s, gain=%.2f", bandTimeMs, typeStr, gain);
+        LOG("Added playback plan: bandTimeMs=%ld, type=%s, gain=%.2f", bandTimeMs, typeStr, gain);
     }
     
     if (typeStr) env->ReleaseStringUTFChars(type, typeStr);
