@@ -1,6 +1,6 @@
 import { registerPlugin, type PluginListenerHandle } from '@capacitor/core'
 import PouchDB from 'pouchdb-browser'
-import { createHostLogin, createSyncHost, HOST_ACCOUNTS_DOC_ID, type HostAccount } from 'sync-host'
+import { createHostLogin, createSyncHost, createWriteGuard, HOST_ACCOUNTS_DOC_ID, type HostAccount } from 'sync-host'
 
 /**
  * Spike "Android as host" (docs/25, 2026-11-07): this app answers sync requests from other devices
@@ -63,6 +63,11 @@ export async function startLocalHostSpike(port = 5985): Promise<{ url: string }>
   }
   // Only the band databases this app holds - never one made up by a request.
   const handler = createSyncHost({ open: (name) => (name.startsWith('stageboard-') ? open(name) : null) })
+  // The band's write rules (`_design/roster`), with the same access the Stage-Server gives every band.
+  const guard = createWriteGuard({
+    open: (name) => (name.startsWith('stageboard-') ? open(name) : null),
+    security: async () => ({ admins: { roles: ['admin'] }, members: { roles: ['member', 'admin'] } }),
+  })
   const login = createHostLogin({
     accounts: async (db) =>
       db.startsWith('stageboard-') ? (((await open(db).get(HOST_ACCOUNTS_DOC_ID).catch(() => null)) as { accounts?: HostAccount[] } | null)?.accounts ?? []) : [],
@@ -74,7 +79,8 @@ export async function startLocalHostSpike(port = 5985): Promise<{ url: string }>
       const body = req.text !== undefined ? (req.text === '' ? undefined : JSON.parse(req.text)) : { data: fromBase64(req.body ?? ''), contentType: req.contentType }
       const t1 = performance.now()
       const band = bandOf(req.path)
-      if (band !== null && (await login(req.authorization, band)) === null) {
+      const ctx = band === null ? null : await login(req.authorization, band)
+      if (band !== null && ctx === null) {
         await LocalHost.respond({ id: req.id, status: 401, contentType: 'application/json', text: JSON.stringify({ error: 'unauthorized', reason: 'Not a device of this band.' }) })
         return
       }
@@ -82,7 +88,8 @@ export async function startLocalHostSpike(port = 5985): Promise<{ url: string }>
         await LocalHost.respond({ id: req.id, status: 200, contentType: 'application/json', text: '{"ok":true}' })
         return
       }
-      const out = await handler({ method: req.method, path: req.path, query: Object.fromEntries(new URLSearchParams(req.query)), body })
+      const request = { method: req.method, path: req.path, query: Object.fromEntries(new URLSearchParams(req.query)), body }
+      const out = ctx ? await guard(ctx, request, handler) : await handler(request)
       const t2 = performance.now()
       const text = out.binary ? null : JSON.stringify(out.body)
       const t3 = performance.now()

@@ -246,3 +246,4 @@ async function changes(db: SyncDatabase, method: string, request: SyncRequest, l
 }
 
 export { createHostLogin, HOST_ACCOUNTS_DOC_ID, type HostAccount, type HostLogin, type HostLoginOptions } from './hostLogin.js'
+export { createWriteGuard, type SecurityDoc, type UserCtx, type WriteGuardOptions } from './writeGuard.js'
