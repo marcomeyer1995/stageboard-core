@@ -42,6 +42,7 @@ import { usePresenceReporter } from './lib/usePresenceReporter'
 import { useShowLogTracker } from './lib/useShowLogTracker'
 import { useRigCheckDriver, useRigCheckReporter } from './lib/rigCheck'
 import { useFrontAppClaim } from './lib/useFrontAppClaim'
+import { useGigWifiLock } from './lib/useGigWifiLock'
 import { useRigCheckMeasurer } from './lib/rigCheckMeasure'
 import { useWakeLock } from './lib/useWakeLock'
 import { useWorkspaceResource } from './lib/useWorkspaceResource'
@@ -160,6 +161,8 @@ function App() {
   useRigCheckDriver()
   // Several apps on one device: the one in front plays (stage map, 2026-11-07).
   useFrontAppClaim()
+  // Gig: Wi-Fi without power saving, so a pushed Play arrives on time (2026-11-08).
+  useGigWifiLock()
   useRigCheckReporter()
   useRigCheckMeasurer()
 
