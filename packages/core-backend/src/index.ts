@@ -13,6 +13,7 @@ import cors from '@fastify/cors'
 import httpProxy from '@fastify/http-proxy'
 import { startBuiltinCouch } from './builtinCouch.js'
 import { hostCapabilities } from './hostCapabilities.js'
+import { watchHostAccounts } from './hostAccounts.js'
 import fastifyStatic from '@fastify/static'
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify'
 import {
@@ -1884,6 +1885,8 @@ async function main() {
     } catch (err) {
       app.log.error({ err }, 'Could not update roster validators')
     }
+    // Device logins in every band's data, so any device can be the host (docs/25 §6b, "C").
+    watchHostAccounts(couch, app.log)
 
     // Which plugins run is not configured here: the band installs them in the PWA, and the
     // installation documents replicate to this server over CouchDB (docs/01, mesh).

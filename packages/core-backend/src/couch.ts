@@ -358,10 +358,10 @@ export async function waitForChange(
   db: string,
   since: string,
   timeoutMs: number,
-): Promise<{ lastSeq: string; changed: boolean }> {
+): Promise<{ lastSeq: string; changed: boolean; ids: string[] }> {
   const url = `${dbUrl(config, db)}/_changes?feed=longpoll&since=${encodeURIComponent(since)}&timeout=${timeoutMs}`
   const response = await request(config, url)
   if (!response.ok) throw new Error(`Failed to poll ${db}: HTTP ${response.status}`)
-  const body = (await response.json()) as { last_seq: string; results: unknown[] }
-  return { lastSeq: body.last_seq, changed: body.results.length > 0 }
+  const body = (await response.json()) as { last_seq: string; results: Array<{ id: string }> }
+  return { lastSeq: body.last_seq, changed: body.results.length > 0, ids: body.results.map((r) => r.id) }
 }
