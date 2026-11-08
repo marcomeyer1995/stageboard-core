@@ -39,6 +39,8 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Gig mode: Wi-Fi without power saving, so a pushed Play arrives on time (WifiLockPlugin). -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
     <!-- Camera: scanning the band's invite QR code. Microphone: the tuner widget. -->
     <!-- Installing app updates downloaded from the Stage-Server (#348). -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
