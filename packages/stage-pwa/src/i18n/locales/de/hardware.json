@@ -307,5 +307,14 @@
     "tooShort": "{{name}} brauchte zuletzt {{ms}} ms - Vorlauf auf mindestens {{suggest}} ms erhöhen.",
     "enough": "Reicht: höchstens {{ms}} ms gebraucht ({{name}}).",
     "notMeasured": "Noch nicht gemessen - jedes Gerät prüft es beim nächsten Play."
+  },
+  "hostPlugins": {
+    "title": "Server-Plugins auf diesem Host",
+    "unknown": "Dieser Stage-Server meldet noch nicht, was er ausführen kann (ältere Version).",
+    "installed": "installiert",
+    "cannot": "läuft auf diesem Host nicht - braucht {{needs}}",
+    "install": "Installieren",
+    "remove": "Entfernen",
+    "removeConfirm": "{{name}} vom Stage-Server entfernen?"
   }
 }

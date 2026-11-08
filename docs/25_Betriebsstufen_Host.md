@@ -59,6 +59,8 @@ Wie sich das mit den fünf Hardware-Stufen aus docs/02 zusammenfügt, ist offen 
 |---|---|
 | Reihenfolge | zuerst alle offenen PRs mergen und ausrollen (erledigt: main e78f86b, App 1.580), dann **Server ohne CouchDB**, dann **Spike Android als Host auf dem Redmi** |
 | Wie ohne CouchDB | **eigenes kleines Modul** `packages/sync-host` in reinem TypeScript über PouchDB – nicht express-pouchdb (seit 2019 ungepflegt, PouchDB 7) und nicht Node auf Android (nodejs-mobile steht bei Node 18, der Fastify-5-Server braucht ≥ 20). Dasselbe Modul läuft auf dem Laptop (Fastify) und später in der Android-App (nativer Webserver → Modul in der App über die PouchDB, die sie schon hat) |
+| Konten auf einem Android-Host (2026-11-07) | **C: Konten in den Banddaten** – jedes Gerät hat sie, jedes kann Host werden, auch bei Ausfall. Bedingung: dort liegen nur Schlüssel **langer Geräte-Passwörter** (wie die zufälligen 24-Byte-Logins der Tablets), **nie PIN-Schlüssel** – 4-stellige PINs wären offline in Sekunden zu erraten. Admin-Konten mit PIN brauchen dafür zusätzlich einen Geräte-Schlüssel |
+| WLAN im Gig (2026-11-07) | **Sperre gegen Stromsparen im Gig-Modus auf allen Tablets** (#716): gemessen kam ein Play nach Pausen bis 125 ms später an; mit Sperre Handy Median 85-116 → 46 ms, Redmi p90 155 → 67 ms, Fire (Android 9) wenig |
 | Server-Plugins auf der Karte | Download-Werkzeug, Stems, Piper usw. erscheinen am Host auf der Bühnen-Karte und sind dort installierbar, **wo der Host sie ausführen kann** (Linux/Windows ja, Android nein, grau „läuft auf diesem Host nicht“). Der Host meldet das (`GET /server/capabilities`) |
 
 **Gebaut (Branch `feat/sync-host`):**
@@ -85,7 +87,9 @@ Wie sich das mit den fünf Hardware-Stufen aus docs/02 zusammenfügt, ist offen 
 
 Ergebnis: **machbar.** Uhr gut (nativ), Live-Sync ausreichend; der erste Voll-Abgleich ist 12× langsamer – vermutlich die Abkürzungen des Spikes: neue Verbindung je Anfrage, Daten als Base64 durch die App-Brücke, Lesen aus IndexedDB in der WebView. Nächstes: Verbindungen offen halten, größere Pakete, Lesen evtl. nativ; Push (SSE) für Play; Konten/Zugriff (couch-host statt Token); Hotspot und Vordergrund-Dienst.
 
-**Noch offen:** echter Lauf auf dem Laptop mit einer frischen Band und den Tablets; Umzug einer bestehenden Band von CouchDB (Replikation, die Daten liegen auf jedem Gerät); die Plugins auf der Karte in der App; dann der Android-Spike.
+**Gerätetest bestanden (2026-11-07, Marco zu Hause):** Testserver mit `STAGEBOARD_DB=builtin` über HTTPS auf einer aufgefrischten Kopie der echten Datenbank, die Dev-App auf dem Redmi darauf umgestellt: Play, Bibliothek (Song bearbeitet), Bühnen-Karte, Diagnose, Stage-Server-Reiter, Add-ons, Synchronisation – alles wie gewohnt; die Test-Änderungen blieben nur in der Kopie.
+
+**Noch offen:** echter Lauf auf dem Laptop mit einer frischen Band und mehreren Tablets; Umzug einer bestehenden Band von CouchDB (Replikation, die Daten liegen auf jedem Gerät); die Plugins auf der Karte in der App; dann der Android-Spike.
 
 ## 6b. Konten auf einem Android-Host – entschieden: C (Marco, 2026-11-07)
 

@@ -39,7 +39,7 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
-    <!-- Host mode (docs/25): keep the Wi-Fi awake for low latency while this device is the host. -->
+    <!-- Gig mode and host mode (docs/25): Wi-Fi without power saving, so pushed signals arrive on time. -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <!-- Camera: scanning the band's invite QR code. Microphone: the tuner widget. -->
     <!-- Installing app updates downloaded from the Stage-Server (#348). -->
