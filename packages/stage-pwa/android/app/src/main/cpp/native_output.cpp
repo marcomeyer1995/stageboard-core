@@ -19,6 +19,12 @@
 #include <string>
 #include <thread>
 
+// Native Engine N1 (docs/30 §8): click synthesizer and playback plan queue
+#include "click_synth.h"
+#include "playback_plan.h"
+#include "clock_sync.h"
+#include "announcement_player.h"
+
 #define LOG(...) __android_log_print(ANDROID_LOG_INFO, "NativeOutput", __VA_ARGS__)
 
 namespace {
@@ -285,4 +291,26 @@ Java_de_stageboard_app_NativeOutputPlugin_nativeStop(JNIEnv *, jclass) {
         AAudioStream_close(gStream);
         gStream = nullptr;
     }
+}
+
+// Native Engine N1 (docs/30 §8): global instances for click synthesis and playback planning
+namespace {
+    ClickSynthesizer gClickSynth(48000);
+    PlaybackPlanQueue gPlanQueue(gClickSynth);
+    NativeClockSync gClockSync;
+    AnnouncementPlayer gAnnouncementPlayer(48000);
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_de_stageboard_app_NativeOutputPlugin_nativeSendPlaybackPlan(JNIEnv *env, jclass, jlong bandTimeMs, jstring type, jstring payload, jfloat gain) {
+    const char* typeStr = env->GetStringUTFChars(type, nullptr);
+    const char* payloadStr = env->GetStringUTFChars(payload, nullptr);
+    
+    if (typeStr && payloadStr) {
+        gPlanQueue.addPlan(bandTimeMs, typeStr, payloadStr);
+        LOG("Added playback plan: bandTimeMs=%lld, type=%s, gain=%.2f", bandTimeMs, typeStr, gain);
+    }
+    
+    if (typeStr) env->ReleaseStringUTFChars(type, typeStr);
+    if (payloadStr) env->ReleaseStringUTFChars(payload, payloadStr);
 }

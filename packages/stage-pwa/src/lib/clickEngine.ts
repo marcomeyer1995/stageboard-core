@@ -278,7 +278,10 @@ export function startClick(getState: () => ClickEngineState): void {
       // Send to native engine (fire-and-forget, errors are caught)
       try {
         const { NativeOutput } = await import('./nativeOutput')
-        await NativeOutput.sendPlaybackPlan(nativePlans)
+        // Send each plan individually (simpler for JNI)
+        for (const plan of nativePlans) {
+          await NativeOutput.sendPlaybackPlan(plan)
+        }
       } catch {
         // Bridge not available - continue with WebView fallback
       }

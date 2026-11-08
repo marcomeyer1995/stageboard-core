@@ -40,8 +40,8 @@ interface NativeOutputPlugin {
   startForegroundService(): Promise<void>
   /** Stops the foreground service. */
   stopForegroundService(): Promise<void>
-  /** Sends playback plans (clicks, announcements) to the native engine for lock-screen playback. */
-  sendPlaybackPlan(plans: Array<{ bandTimeMs: number; type: string; payload: string; gain: number }>): Promise<void>
+  /** Sends a playback plan (click or announcement) to the native engine for lock-screen playback. */
+  sendPlaybackPlan(plan: { bandTimeMs: number; type: string; payload: string; gain: number }): Promise<void>
 }
 
 const NativeOutput = registerPlugin<NativeOutputPlugin>('NativeOutput')
