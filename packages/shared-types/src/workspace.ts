@@ -344,3 +344,17 @@ export type SetOwnPinRequest = z.infer<typeof SetOwnPinRequestSchema>
 /** What a successful PIN change hands back - same shape as `JoinAsMemberResultSchema`. */
 export const SetOwnPinResultSchema = JoinAsMemberResultSchema
 export type SetOwnPinResult = z.infer<typeof SetOwnPinResultSchema>
+
+/**
+ * What a host can do (docs/25 §6, Marco 2026-11-07): the map shows the server plugins at the host
+ * and offers only those it can run - a Linux PC the download tool and stem separation, an Android
+ * host none of the heavy ones. `needs`: what is missing for a plugin (a tool to install), or null.
+ */
+export const HostCapabilitiesSchema = z.object({
+  kind: z.enum(['stage-server', 'android']),
+  platform: z.string(),
+  arch: z.string(),
+  database: z.enum(['couchdb', 'builtin']),
+  plugins: z.array(z.object({ id: z.string(), available: z.boolean(), needs: z.string().nullable() })),
+})
+export type HostCapabilities = z.infer<typeof HostCapabilitiesSchema>
