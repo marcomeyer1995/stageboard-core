@@ -199,6 +199,32 @@ public class NativeOutputPlugin extends Plugin {
             }
             server = null;
         }
+        // Stop the foreground service
+        stopPlaybackService();
         call.resolve();
+    }
+
+    /** Starts the foreground service to keep the native engine alive when the screen is locked. */
+    @PluginMethod
+    public void startForegroundService(PluginCall call) {
+        Intent intent = new Intent(getContext(), PlaybackService.class);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            getContext().startForegroundService(intent);
+        } else {
+            getContext().startService(intent);
+        }
+        call.resolve();
+    }
+
+    /** Stops the foreground service. */
+    @PluginMethod
+    public void stopForegroundService(PluginCall call) {
+        stopPlaybackService();
+        call.resolve();
+    }
+
+    private void stopPlaybackService() {
+        Intent intent = new Intent(getContext(), PlaybackService.class);
+        getContext().stopService(intent);
     }
 }

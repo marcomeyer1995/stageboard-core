@@ -36,6 +36,10 @@ interface NativeOutputPlugin {
   start(options: { sampleRate: number }): Promise<{ started?: boolean; error?: string; performance?: string; framesPerBurst?: number; port: number; token: string }>
   status(): Promise<NativeOutputStatus>
   stop(): Promise<void>
+  /** Starts the foreground service to keep the native engine alive when the screen is locked. */
+  startForegroundService(): Promise<void>
+  /** Stops the foreground service. */
+  stopForegroundService(): Promise<void>
 }
 
 const NativeOutput = registerPlugin<NativeOutputPlugin>('NativeOutput')
