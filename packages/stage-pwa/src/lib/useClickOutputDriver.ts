@@ -3,6 +3,8 @@ import { useEffect, useMemo, useRef, useSyncExternalStore } from 'react'
 import { CAPABILITIES } from 'shared-types'
 import { startClick, stopClick, type ClickEngineState } from './clickEngine'
 import { startEngineClick, stopEngineClick, wasmClickWanted } from './engine/engineClick'
+import { startNativeEngineClick, stopNativeEngineClick, wantsNativeClick } from './engine/nativeEngineClick'
+import { useNativeOutputStore } from './nativeOutput'
 import { holdAudioOutputAwake } from './sharedAudioContext'
 import { adjustedBpm, effectiveClickEnabled } from './metronome'
 import { useCapabilityRouting } from './useCapabilityRouting'
@@ -135,17 +137,28 @@ export function useClickOutputDriver(): void {
     return () => holdAudioOutputAwake('click', false)
   }, [holdsOutput])
 
-  // The engine core in the AudioWorklet instead (docs/30 §8h stage 2) - `sb:debug:wasm-click`, read
-  // at each start so it can be switched without a reload.
+  // The engine core instead (docs/30 §8h), read at each start so it can be switched without a
+  // reload: in the native output's callback while that plays (stage 3, `sb:debug:native-click`), in
+  // the AudioWorklet (stage 2, `sb:debug:wasm-click`). Should the native output fall back to the
+  // WebView's (#708), this runs again and the click moves with it.
+  const nativeOn = useNativeOutputStore((state) => state.state === 'on')
   useEffect(() => {
     if (!shouldPlay) {
       stopClick()
       stopEngineClick()
+      stopNativeEngineClick()
       return
     }
-    const wasm = wasmClickWanted()
-    if (wasm) startEngineClick(() => stateRef.current)
-    else startClick(() => stateRef.current)
-    return () => (wasm ? stopEngineClick() : stopClick())
-  }, [shouldPlay])
+    const getState = () => stateRef.current
+    if (nativeOn && wantsNativeClick()) {
+      startNativeEngineClick(getState)
+      return () => stopNativeEngineClick()
+    }
+    if (wasmClickWanted()) {
+      startEngineClick(getState)
+      return () => stopEngineClick()
+    }
+    startClick(getState)
+    return () => stopClick()
+  }, [shouldPlay, nativeOn])
 }

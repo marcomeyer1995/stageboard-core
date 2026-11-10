@@ -5,6 +5,7 @@ import android.os.Process;
 import android.util.Base64;
 import android.util.Log;
 
+import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
@@ -61,6 +62,19 @@ public class NativeOutputPlugin extends Plugin {
     private static native String nativeStatus();
 
     private static native void nativeStop();
+
+    // The engine core in the callback (docs/30 §8h stage 3, native_output.cpp).
+    private static native void nativeEngineEnable(boolean on);
+
+    private static native void nativeEngineTransport(int status, double startedAt, double accumulatedMs, double rate, boolean hasJump, double jumpAt, double jumpToMs, double jumpRate);
+
+    private static native void nativeEngineBeats(double[] songMs, boolean[] accent);
+
+    private static native void nativeEngineOffset(double offsetMs);
+
+    private static native void nativeEngineGain(int bus, float gain);
+
+    private static native void nativeEngineSide(int side);
 
     /** A JS number of any size: a large one without decimals arrives as a Long, which
      * getDouble() doesn't handle - it falls back to its default then. */
@@ -199,6 +213,57 @@ public class NativeOutputPlugin extends Plugin {
             }
             server = null;
         }
+        call.resolve();
+    }
+
+    /** The engine core's plan (docs/30 §8h stage 3). Each resolves at once - JS doesn't wait for the
+     * answer: on a locked screen answers can be held back for minutes (Fire, 2026-11-10), the calls
+     * themselves arrive. One at a time (synchronized): the engine's queue has one writer. */
+    @PluginMethod
+    public synchronized void engineEnable(PluginCall call) {
+        if (available()) nativeEngineEnable(Boolean.TRUE.equals(call.getBoolean("on", false)));
+        call.resolve();
+    }
+
+    @PluginMethod
+    public synchronized void engineTransport(PluginCall call) {
+        if (available()) {
+            nativeEngineTransport((int) num(call, "status"), num(call, "startedAt"), num(call, "accumulatedMs"), call.getData().optDouble("rate", 1.0),
+                    Boolean.TRUE.equals(call.getBoolean("hasJump", false)), num(call, "jumpAt"), num(call, "jumpToMs"), call.getData().optDouble("jumpRate", 1.0));
+        }
+        call.resolve();
+    }
+
+    @PluginMethod
+    public synchronized void engineBeats(PluginCall call) {
+        JSArray times = call.getArray("songMs", new JSArray());
+        JSArray accents = call.getArray("accent", new JSArray());
+        int n = Math.min(times.length(), accents.length());
+        double[] songMs = new double[n];
+        boolean[] accent = new boolean[n];
+        for (int i = 0; i < n; i++) {
+            songMs[i] = times.optDouble(i, 0.0);
+            accent[i] = accents.optInt(i, 0) != 0;
+        }
+        if (available()) nativeEngineBeats(songMs, accent);
+        call.resolve();
+    }
+
+    @PluginMethod
+    public synchronized void engineOffset(PluginCall call) {
+        if (available()) nativeEngineOffset(num(call, "offsetMs"));
+        call.resolve();
+    }
+
+    @PluginMethod
+    public synchronized void engineSide(PluginCall call) {
+        if (available()) nativeEngineSide((int) num(call, "side"));
+        call.resolve();
+    }
+
+    @PluginMethod
+    public synchronized void engineGain(PluginCall call) {
+        if (available()) nativeEngineGain((int) num(call, "bus"), (float) call.getData().optDouble("gain", 1.0));
         call.resolve();
     }
 }
