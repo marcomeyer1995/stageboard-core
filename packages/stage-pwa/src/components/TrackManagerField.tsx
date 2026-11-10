@@ -8,6 +8,10 @@ import { putAsyncJob, removeAsyncJob } from '../lib/asyncJobsDb'
 import { getTrack, putTrack, removeTrack, updateStem } from '../lib/songVariantsDb'
 import { guessStemRole, labelFromFileName, playableTracks, STEM_ROLE_LABELS, stemLengthsDiffer, stemsOf, uploadedStems } from '../lib/stems'
 import { formatVideoLength, searchYoutube, youtubeThumbnailUrl } from '../lib/youtubeSearch'
+import { useYoutubeRoute } from '../lib/useYoutubeRoute'
+import { newDeviceJob, runOnDevice, searchOnDevice } from '../lib/youtubeDevice'
+import { HelperError } from '../lib/nativeHelper'
+import { getDeviceId } from '../lib/deviceId'
 import { useAsyncJobsStore } from '../store/useAsyncJobsStore'
 import { useDialogStore } from '../store/useDialogStore'
 import { usePluginsStore } from '../store/usePluginsStore'
@@ -15,7 +19,7 @@ import { StemSeparationDialog } from './StemSeparationDialog'
 import { INPUT } from './ui/styles'
 import { AddRow, Button, Dialog, IconButton } from './ui'
 import { useTranslation } from 'react-i18next'
-import { serverErrorText } from '../lib/serverMessage'
+import { serverErrorText, serverText } from '../lib/serverMessage'
 
 const JOB_LABELS: Record<AsyncJob['type'], string> = {
   get 'youtube-extract'() {
@@ -78,6 +82,8 @@ export function TrackManagerField({ variantId, tracks, disabled, searchQuery = '
   const [hits, setHits] = useState<YoutubeSearchResult[] | null>(null)
   const [searching, setSearching] = useState(false)
   const [separating, setSeparating] = useState<TrackMeta | null>(null)
+  // The host's yt-dlp, else this device's YouTube helper (docs/25 §6b) - asked when the dialog opens.
+  const youtube = useYoutubeRoute(canDownload && adding)
   const [uploadProgress, setUploadProgress] = useState<string | null>(null)
   // The stem being listened to, as a local object URL (fetched from the Stage-Server on demand).
   const [listening, setListening] = useState<{ trackId: string; url: string } | null>(null)
@@ -252,6 +258,21 @@ export function TrackManagerField({ variantId, tracks, disabled, searchQuery = '
     if (!query.trim()) return
     setSearching(true)
     setYoutubeError(null)
+    if (youtube.route === 'device' && youtube.helper) {
+      try {
+        setHits(await searchOnDevice(youtube.helper, query.trim()))
+      } catch (err) {
+        setHits(null)
+        setYoutubeError(helperText(err))
+      }
+      setSearching(false)
+      return
+    }
+    if (youtube.route === 'none') {
+      setSearching(false)
+      setYoutubeError(t('tm.youtubeNowhere'))
+      return
+    }
     const result = await searchYoutube(query.trim())
     setSearching(false)
     if (result.status === 'ok') setHits(result.data)
@@ -261,8 +282,26 @@ export function TrackManagerField({ variantId, tracks, disabled, searchQuery = '
     }
   }
 
+  function helperText(err: unknown): string {
+    return err instanceof HelperError ? (serverText({ message: err.message, messageCode: err.code }) ?? err.message) : String(err)
+  }
+
   async function queueYoutube(url: string, label: string) {
     setYoutubeError(null)
+    if (youtube.route === 'device' && youtube.helper) {
+      // This device downloads (no host with yt-dlp): the job is its own, the band sees it run.
+      const job = newDeviceJob(variantId, url, label, getDeviceId())
+      await putAsyncJob(job)
+      void runOnDevice(job, getDeviceId(), youtube.helper, { putJob: putAsyncJob, putTrack })
+      setYoutubeUrl('')
+      setHits(null)
+      setAdding(false)
+      return
+    }
+    if (youtube.route === 'none') {
+      setYoutubeError(t('tm.youtubeNowhere'))
+      return
+    }
     await putAsyncJob({
       id: randomId(),
       type: 'youtube-extract',
@@ -385,7 +424,8 @@ export function TrackManagerField({ variantId, tracks, disabled, searchQuery = '
                   // A tap on a hit loads it - the same job as a pasted link.
                   <ul aria-label="Suchergebnisse" className="flex max-h-80 flex-col gap-1 overflow-y-auto">
                     {hits.map((hit) => {
-                      const thumbnail = youtubeThumbnailUrl(hit.id)
+                      // Through the host when it searched; straight from YouTube when this device did (it has the internet then).
+                      const thumbnail = youtube.route === 'device' ? `https://i.ytimg.com/vi/${hit.id}/mqdefault.jpg` : youtubeThumbnailUrl(hit.id)
                       return (
                         <li key={hit.id}>
                           <button

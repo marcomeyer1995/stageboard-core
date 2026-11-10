@@ -98,14 +98,15 @@ export function readAsyncJobs(docs: unknown[]): AsyncJob[] {
  * processed at a time per workspace. Pure, so the interesting part of the sync needs no
  * CouchDB to test (same split pluginSync.ts's `reconcile` makes). */
 export function pickNextQueuedJob(jobs: readonly AsyncJob[]): AsyncJob | undefined {
-  return [...jobs].filter((job) => job.status === 'queued').sort((a, b) => a.createdAt - b.createdAt)[0]
+  // A device's own job (`runner`) is not the Stage-Server's to pick up.
+  return jobs.filter((job) => job.status === 'queued' && !job.runner).sort((a, b) => a.createdAt - b.createdAt)[0]
 }
 
 /** `running` jobs that don't belong to this watcher instance's current job - left behind by a
  * Stage-Server restart mid-download, since nothing else will ever move them out of `running`.
  * Pure for the same reason as `pickNextQueuedJob`. */
 export function stuckRunningJobs(jobs: readonly AsyncJob[], currentJobId: string | null): AsyncJob[] {
-  return jobs.filter((job) => job.status === 'running' && job.id !== currentJobId)
+  return jobs.filter((job) => job.status === 'running' && job.id !== currentJobId && !job.runner)
 }
 
 function jobDocId(id: string): string {

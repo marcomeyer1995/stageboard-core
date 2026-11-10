@@ -28,6 +28,10 @@ const AsyncJobBase = {
   /** The error as a code the device translates (#679, serverMessage.ts), when the server has one. */
   errorCode: z.string().min(1).optional(),
   errorParams: ServerMessageParamsSchema.optional(),
+  /** Who works on it, when not the Stage-Server: `device:<Device.id>` - a device whose own helper
+   * does the job (docs/32 §8, the YouTube helper on Android). The Stage-Server leaves such a job
+   * alone, restart or not; the device fails its own leftovers. Absent: the Stage-Server's. */
+  runner: z.string().min(1).optional(),
 }
 
 export const YoutubeExtractJobSchema = z.object({
