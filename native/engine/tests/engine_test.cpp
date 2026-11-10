@@ -3,6 +3,7 @@
 
 #include <cmath>
 #include <cstdio>
+#include <random>
 #include <vector>
 
 #include "check.h"
@@ -116,21 +117,76 @@ static void testClockMap() {
   CHECK(worst < 1.0);                       // within 1 ms after the first minute
   std::printf("  drift learned %.1f ppm, worst error %.3f ms\n", fire.driftPpm(), worst);
 
-  // A clock-sync step of 100 ms re-anchors at once and is counted.
+  // A clock-sync step of 100 ms: confirmed by three observations in a row, then re-anchored and
+  // counted; the learned drift stays.
   ClockMap stepped(kRate);
-  stepped.observe(0, 0);
-  stepped.observe(48000, 1100);
+  for (int s = 0; s <= 20; ++s) stepped.observe(static_cast<int64_t>(s * kRate), s * 1000.0);
+  for (int s = 21; s <= 23; ++s) stepped.observe(static_cast<int64_t>(s * kRate), s * 1000.0 + 100);
   CHECK(stepped.jumps() == 1);
-  CHECK_NEAR(stepped.bandMsAt(48000), 1100, 1e-9);
+  CHECK(stepped.outliers() == 0);
+  CHECK_NEAR(stepped.bandMsAt(23 * kRate), 23100, 1e-9);
+  CHECK_NEAR(stepped.driftPpm(), 0, 1e-6);
 
-  // A small error glides: right after it the map is still continuous.
+  // A small, lasting offset glides in - continuous at every observation, no jump.
   ClockMap glide(kRate);
   glide.observe(0, 0);
   glide.observe(48000, 1005);
+  CHECK_NEAR(glide.bandMsAt(48000), 1000, 1e-6);  // no step where it was noticed
+  for (int s = 2; s <= 12; ++s) glide.observe(static_cast<int64_t>(s * kRate), s * 1000.0 + 5);
   CHECK(glide.jumps() == 0);
-  CHECK_NEAR(glide.bandMsAt(48000), 1000, 1e-6);
-  CHECK(glide.bandMsAt(48000 + 4 * 48000) > 5004);
+  CHECK_NEAR(glide.bandMsAt(16 * kRate), 16005, 0.2);
   CHECK_NEAR(glide.frameAt(glide.bandMsAt(70000)), 70000, 1e-6);
+}
+
+
+static void testClockMapNoisy() {
+  std::printf("clock map with noisy observations\n");
+  // Noise uniform within ±3 ms (a rough clock) and ±12 ms (the laptop's raw output timestamps in
+  // Chrome, 2026-11-10), two observations a second, a crystal 30 ppm slow: the drift must not be
+  // fooled, the position stays near the line. (The old per-observation drift learning ran to its
+  // ±1000 ppm limit at ±3 ms already.)
+  for (double noiseMs : {3.0, 12.0}) {
+    ClockMap map(kRate);
+    const double ppm = -30;
+    auto truth = [&](double frame) { return frame * (1000.0 / kRate) / (1 + ppm * 1e-6); };
+    std::mt19937 rng(4);
+    std::uniform_real_distribution<double> noise(-noiseMs, noiseMs);
+    double worst = 0;
+    for (int i = 0; i <= 240; ++i) {
+      const int64_t frame = static_cast<int64_t>(i * 0.5 * kRate);
+      map.observe(frame, truth(static_cast<double>(frame)) + noise(rng));
+      if (i >= 40) worst = std::fmax(worst, std::fabs(map.bandMsAt(static_cast<double>(frame) + 12000) - truth(static_cast<double>(frame) + 12000)));
+    }
+    std::printf("  ±%.0f ms noise: drift learned %.1f ppm (true %.0f), worst position error %.2f ms\n", noiseMs, map.driftPpm(), -ppm, worst);
+    CHECK(map.jumps() == 0);
+    CHECK_NEAR(map.driftPpm(), -ppm, noiseMs * 10);
+    CHECK(worst < noiseMs * 0.6);
+  }
+  // The Fire's glitches: now and then one observation 68 ms off. Ignored - no jump, no dent.
+  {
+    ClockMap map(kRate);
+    std::mt19937 rng(7);
+    std::uniform_real_distribution<double> noise(-0.4, 0.4);
+    double worst = 0;
+    for (int i = 0; i <= 120; ++i) {
+      const int64_t frame = static_cast<int64_t>(i * kRate);
+      const double glitch = i % 17 == 16 ? 68 : 0;
+      map.observe(frame, i * 1000.0 + noise(rng) + glitch);
+      if (i >= 20) worst = std::fmax(worst, std::fabs(map.bandMsAt(static_cast<double>(frame) + 24000) - (i * 1000.0 + 500)));
+    }
+    std::printf("  68 ms glitches: %d ignored, worst position error %.3f ms\n", map.outliers(), worst);
+    CHECK(map.jumps() == 0);
+    CHECK(map.outliers() == 7);
+    CHECK(worst < 0.5);
+  }
+  // The frame count going back (the output stream restarted) starts over.
+  {
+    ClockMap map(kRate);
+    map.observe(96000, 2000);
+    map.observe(0, 5000);
+    CHECK(map.jumps() == 1);
+    CHECK_NEAR(map.bandMsAt(48000), 6000, 1e-9);
+  }
 }
 
 static void testClickOnsets() {
@@ -409,6 +465,7 @@ int main() {
   testQueue();
   testTransport();
   testClockMap();
+  testClockMapNoisy();
   testClickOnsets();
   testFractionalOnset();
   testBlockSizeIndependence();
