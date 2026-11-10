@@ -358,3 +358,19 @@ export const HostCapabilitiesSchema = z.object({
   plugins: z.array(z.object({ id: z.string(), available: z.boolean(), needs: z.string().nullable() })),
 })
 export type HostCapabilities = z.infer<typeof HostCapabilitiesSchema>
+
+/**
+ * A tablet that can be the band's server announces itself (docs/25 §6c, Marco 2026-11-08): its own
+ * certificate's fingerprint, so every tablet trusts it in advance - from the last sync, no QR code in
+ * the rehearsal room. Document `hosts:<deviceId>`; only that tablet writes it (roster validator), a
+ * band admin may remove it.
+ */
+export const HostEntrySchema = z.object({
+  deviceId: z.string().min(1).max(200),
+  deviceName: z.string().max(120).optional(),
+  /** SHA-256 of the tablet's certificate - lowercase hex, no separators (like `/server-info`'s). */
+  certFingerprint: z.string().regex(/^[0-9a-f]{64}$/),
+  port: z.number().int().min(1).max(65535),
+  updatedAt: z.number(),
+})
+export type HostEntry = z.infer<typeof HostEntrySchema>
