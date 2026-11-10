@@ -16,3 +16,6 @@ docker/couchdb-credentials.env
 # tools/ (#793): device serials and local results
 tools/devices.json
 tools/*/out/
+
+# Python bytecode (stem_separate.py when imported)
+__pycache__/
