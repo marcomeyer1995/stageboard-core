@@ -32,3 +32,10 @@ jobs:
 
       - name: Test
         run: npm test --workspaces --if-present
+
+      # The audio engine's C++ core (docs/30 §8h stage 1): offline tests, with sanitizers.
+      - name: Audio engine (C++)
+        run: |
+          cmake -S native/engine -B build/engine -DSTAGEBOARD_ENGINE_SANITIZE=ON
+          cmake --build build/engine
+          ctest --test-dir build/engine --output-on-failure

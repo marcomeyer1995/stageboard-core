@@ -216,6 +216,8 @@ Anlass: Marcos Konzept „Cross-Platform Core Audio Engine“ (getrennter Audio-
 
 **Stufen:**
 1. **Kern als C++-Bibliothek ohne Ausgabe:** Transport in Band-Zeit, Ereignisplan, Klick, Clip-Player, Mischer, Limiter, Opus-Decoder, Resampler (für Ausgänge mit 44,1 kHz). Getestet offline: in einen Puffer rechnen, gegen bekannte Werte prüfen.
+   *Stand 2026-11-10 (`native/engine/`):* Uhr-Abbildung Ausgabe-Frame ↔ Band-Zeit (gleitet kleine Fehler weich aus, lernt die Drift, springt erst ab 20 ms und zählt das), Transport wie `playbackTransport.ts` (Rate, Sprung), Klick wie `clickEngine.ts` auf den Bruchteil eines Samples genau, Pegel je Quelle + Master (5 ms gleitend), Limiter −1 dBFS, Übergabe nur über lock-free Warteschlangen. Tests in CI mit Sanitizern; u. a. Fire-Drift 256 ppm über 10 min ohne Sprung, Fehler < 0,5 ms, Ausgabe unabhängig von der Blockgröße. Offen in Stufe 1: Clip-Player, Opus-Decoder, Resampler.
+   *Warum das auch für den gesperrten Bildschirm zählt:* der heutige Klick plant per JS-Timer nur 150 ms voraus; gesperrt drosselt Chromium Timer bis auf einmal pro Minute (Fire, 2026-11-10, trotz Vordergrund-Dienst #724). Die Engine plant im Audio-Faden selbst.
 2. **Derselbe Kern als WASM** im Browser/in der WebView, ersetzt die heutige Klick-Engine – gemessen gegen heute.
 3. **Android:** der Kern im AAudio-Callback statt der Pipe, mit Vordergrund-Dienst (= N1, §8f).
 4. **Tracks:** Umwandlung nach Opus beim Hochladen, nativ dekodieren, dann Stems, Zeitdehnung, Sprünge (= N2).
