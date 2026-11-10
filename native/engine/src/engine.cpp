@@ -44,10 +44,12 @@ bool Engine::setBeats(BeatPlan* plan) {
 }
 
 bool Engine::setClip(int id, ClipData* data, double songStartMs, Bus bus, float gain) {
-  if (id < 0 || id >= kMaxClips) {
+  if (id < 0 || id >= kMaxClips || !data || data->rate <= 0 || data->channels < 1 || data->channels > 2) {
     delete data;
     return false;
   }
+  // The resampler for this clip's rate, here on the control thread - building it allocates.
+  data->sinc.build(std::min(1.0, sampleRate_ / data->rate));
   Command command{};
   command.type = Command::Type::Clip;
   command.id = id;
@@ -217,9 +219,9 @@ void Engine::renderBlock(float* out, int frames, int64_t firstFrame) {
   for (int p = 0; p < count; ++p) scheduleClicks(parts[p], firstFrame);
   for (ClickVoice& voice : voices_) voice.render(click_, frames);
 
-  const double framesPerMs = sampleRate_ / 1000;
   for (ClipSlot& slot : clips_) {
     if (!slot.data) continue;
+    const double framesPerMs = slot.data->rate / 1000;  // the clip's own frames
     float* bus = bus_[slot.bus];
     if (!playing) {
       slot.voice.render(bus, frames, channels_, false, 0, 0, slot.gain);

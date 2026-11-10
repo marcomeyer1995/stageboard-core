@@ -22,3 +22,4 @@ inline int failures = 0;
   } while (0)
 
 void runOpusClipTests();
+void runResampleTests();

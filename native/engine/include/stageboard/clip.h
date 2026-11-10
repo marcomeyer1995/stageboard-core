@@ -3,13 +3,19 @@
 #include <cmath>
 #include <vector>
 
+#include "stageboard/sinc.h"
+
 namespace stageboard {
 
-/** Decoded audio of one clip - a track, a stem, an announcement. Float, interleaved, at the engine's
- * sample rate (other rates go through the resampler first). Built on the control thread. */
+/** Decoded audio of one clip - a track, a stem, an announcement. Float, interleaved, at any rate
+ * (Opus: 48 kHz, Piper: 22.05 kHz); the clip player resamples to the output. Built on the control
+ * thread. */
 struct ClipData {
   std::vector<float> samples;
   int channels = 2;
+  double rate = 48000;
+  /** Filled by Engine::setClip for the engine's output rate. */
+  SincTable sinc;
   long frames() const { return channels > 0 ? static_cast<long>(samples.size()) / channels : 0; }
 };
 
@@ -18,7 +24,9 @@ struct ClipData {
  * there. Each piece of output gets the source positions wanted at its start and end; in between it
  * reads at the speed that lands on them - so it follows the device's drift and the clock map's
  * gliding without a step. Too far off (a jump, a seek) it cross-fades to the new place over 5 ms;
- * stopping and resuming mid-clip fade too, so nothing clicks.
+ * stopping and resuming mid-clip fade too, so nothing clicks. Positions are in the clip's own
+ * frames; reading between them is the resampler (sinc.h), so a 48 kHz clip plays on a 44.1 kHz
+ * output and follows the drift in one go.
  *
  * Speed ≠ 1 (the loop trainer's slower passes) changes the pitch for now - time-stretching
  * (Signalsmith) comes with stage 4.
@@ -88,19 +96,33 @@ class ClipVoice {
   double position() const { return pos_; }
 
  private:
-  /** Linear interpolation between two source frames; silence outside the clip. */
+  /** The clip at source position `pos`, band-limited (sinc.h); silence outside the clip. */
   void add(float* out, int frame, int channels, double pos, float gain) const {
+    const SincTable& sinc = data_->sinc;
+    const int taps = sinc.taps();
     const long frames = data_->frames();
-    if (pos < 0 || pos >= frames || gain == 0) return;
-    const long i = static_cast<long>(pos);
-    const float frac = static_cast<float>(pos - static_cast<double>(i));
+    const double whole = std::floor(pos);
+    const long first = static_cast<long>(whole) - sinc.left();  // first tap's source frame
+    if (gain == 0 || first >= frames || first + taps <= 0) return;
+    float w[SincTable::kMaxTaps];
+    sinc.weights(pos - whole, w);
     const int src = data_->channels;
-    const float* a = data_->samples.data() + i * src;
-    const float* b = i + 1 < frames ? a + src : a;
-    for (int c = 0; c < channels; ++c) {
-      const int s = c < src ? c : src - 1;  // mono to every channel, stereo to L/R
-      out[frame * channels + c] += gain * (a[s] + (b[s] - a[s]) * frac);
+    const float* s = data_->samples.data();
+    float sum[2] = {0, 0};
+    // Taps beyond either end of the clip read silence.
+    const int from = first < 0 ? static_cast<int>(-first) : 0;
+    const int to = first + taps > frames ? static_cast<int>(frames - first) : taps;
+    if (src == 1) {
+      for (int j = from; j < to; ++j) sum[0] += w[j] * s[first + j];
+      sum[1] = sum[0];
+    } else {
+      for (int j = from; j < to; ++j) {
+        const float* f = s + (first + j) * 2;
+        sum[0] += w[j] * f[0];
+        sum[1] += w[j] * f[1];
+      }
     }
+    for (int c = 0; c < channels; ++c) out[frame * channels + c] += gain * sum[c < 2 ? c : 1];
   }
 
   const ClipData* data_ = nullptr;

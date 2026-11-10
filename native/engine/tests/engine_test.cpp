@@ -234,6 +234,11 @@ static void testLimiterAndGains() {
   float peak = 0;
   for (float s : loud) peak = std::fmax(peak, std::fabs(s));
   CHECK(peak <= 0.8911f);
+  // After the peak it lets go completely - not stuck a hair below 1.
+  std::vector<float> quiet(2 * 96000, 0.1f);  // 2 s: 40 release times
+  limiter.process(quiet.data(), 96000, 2);
+  CHECK(limiter.gain() == 1);
+  CHECK(quiet.back() == 0.1f);
 
   Engine engine(kRate, 2);
   engine.observeClock(0, 0);
@@ -415,6 +420,7 @@ int main() {
   testClipJumpAndPauseNoClick();
   testClipBusesAndSwap();
   runOpusClipTests();
+  runResampleTests();
   if (failures) {
     std::printf("%d check(s) failed\n", failures);
     return 1;

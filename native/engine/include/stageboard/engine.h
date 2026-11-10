@@ -51,7 +51,8 @@ class Engine {
   bool setBeats(BeatPlan* plan);
   /**
    * Places clip `id` (0..kMaxClips-1) so its first frame sounds at song time `songStartMs`; takes
-   * ownership of `data` (must be at the engine's sample rate). Replaces what had that id.
+   * ownership of `data` (mono or stereo, any rate - resampled to the output). Replaces what had
+   * that id.
    */
   bool setClip(int id, ClipData* data, double songStartMs, Bus bus, float gain = 1);
   bool removeClip(int id);
