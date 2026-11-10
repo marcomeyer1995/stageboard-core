@@ -278,6 +278,143 @@ static void testPlanSwap() {
   CHECK(true);  // no crash or leak under ASan
 }
 
+
+static ClipData* makeClip(long frames, int channels, float (*sample)(long, int)) {
+  auto* clip = new ClipData();
+  clip->channels = channels;
+  clip->samples.resize(static_cast<size_t>(frames) * channels);
+  for (long i = 0; i < frames; ++i)
+    for (int c = 0; c < channels; ++c) clip->samples[static_cast<size_t>(i) * channels + c] = sample(i, c);
+  return clip;
+}
+
+static float noiseSample(long i, int c) {
+  unsigned x = static_cast<unsigned>(i) * 2654435761u + static_cast<unsigned>(c) * 40503u;
+  x ^= x >> 13;
+  return (static_cast<float>(x % 2001) / 1000.0f - 1.0f) * 0.4f;  // ±0.4, under the limiter's ceiling
+}
+
+static float rampSample(long i, int) { return static_cast<float>(i % 48000) / 48000.0f * 0.8f; }
+static float sineSample(long i, int) { return 0.5f * std::sin(6.283185307179586f * 440.0f * static_cast<float>(i) / 48000.0f); }
+
+static void testClipExact() {
+  std::printf("clip plays sample-exact on its place\n");
+  Engine engine(kRate, 2);
+  engine.observeClock(0, 0);
+  engine.setTransport(playingFrom(0));
+  engine.setClip(0, makeClip(48000, 2, noiseSample), 100, Bus::Track);
+  std::vector<float> out(static_cast<size_t>(1.2 * kRate) * 2);
+  for (int64_t f = 0; f < static_cast<int64_t>(out.size() / 2); f += 333) {
+    const int n = static_cast<int>(std::min<int64_t>(333, static_cast<int64_t>(out.size() / 2) - f));
+    engine.render(out.data() + f * 2, n, f);
+  }
+  double diff = 0;
+  for (long f = 0; f < 4800; ++f) diff = std::fmax(diff, std::fabs(out[f * 2]));  // silent before 100 ms
+  for (long f = 4800; f < 4800 + 48000; ++f)
+    for (int c = 0; c < 2; ++c) diff = std::fmax(diff, std::fabs(out[f * 2 + c] - noiseSample(f - 4800, c)));
+  CHECK(diff < 1e-6);
+}
+
+static void testClipFollowsDrift() {
+  std::printf("clip follows the device's drift\n");
+  // Fire: frames come 256 ppm too fast. Fed once a second, the clip must stay on band time.
+  Engine engine(kRate, 1);
+  engine.setTransport(playingFrom(0));
+  engine.setClip(0, makeClip(static_cast<long>(130 * kRate), 1, rampSample), 0, Bus::Track);
+  const double ppm = 256;
+  auto band = [&](double frame) { return frame * (1000.0 / kRate) / (1 + ppm * 1e-6); };
+  std::vector<float> block(480);
+  double worst = 0;
+  unsigned noise = 777;
+  for (int64_t f = 0; f < static_cast<int64_t>(120 * kRate); f += 480) {
+    if (f % 48000 == 0) {
+      noise = noise * 1103515245u + 12345u;  // clock sync is only good to about ±0.5 ms
+      engine.observeClock(f, band(static_cast<double>(f)) + ((noise >> 16) % 1000) / 1000.0 - 0.5);
+    }
+    engine.render(block.data(), 480, f);
+    if (f >= 30 * 48000 && f % 48000 == 0) {
+      // The ramp value tells which source frame is playing.
+      const double heard = block[100] / 0.8 * 48000;
+      double expected = std::fmod(band(static_cast<double>(f + 100)) * 48, 48000);
+      double err = std::fabs(heard - expected);
+      if (err > 24000) err = 48000 - err;
+      worst = std::fmax(worst, err);
+    }
+  }
+  std::printf("  worst offset %.2f frames (%.3f ms)\n", worst, worst / 48);
+  CHECK(worst < 48);  // under 1 ms
+}
+
+static void testClipJumpAndPauseNoClick() {
+  std::printf("jump and pause without a click\n");
+  auto maxStep = [](const std::vector<float>& s) {
+    double m = 0;
+    for (size_t i = 1; i < s.size(); ++i) m = std::fmax(m, std::fabs(s[i] - s[i - 1]));
+    return m;
+  };
+  // A 440 Hz sine of 0.5 changes by at most 0.029 per sample; a hard cut would jump up to 1.
+  {
+    Engine engine(kRate, 1);
+    engine.observeClock(0, 0);
+    Transport t = playingFrom(0);
+    t.hasJump = true;
+    t.jumpAt = 500;
+    t.jumpToMs = 2000.6;  // lands mid-cycle
+    engine.setTransport(t);
+    engine.setClip(0, makeClip(static_cast<long>(4 * kRate), 1, sineSample), 0, Bus::Track);
+    const auto out = renderAll(engine, 1.0, 256);
+    CHECK(maxStep(out) < 0.06);
+    CHECK(std::fabs(out[36000]) > 0.01);  // still playing after the jump
+  }
+  {
+    Engine engine(kRate, 1);
+    engine.observeClock(0, 0);
+    engine.setTransport(playingFrom(0));
+    engine.setClip(0, makeClip(static_cast<long>(4 * kRate), 1, sineSample), 0, Bus::Track);
+    std::vector<float> out(static_cast<size_t>(kRate));
+    engine.render(out.data(), 24000, 0);
+    Transport paused;
+    paused.status = PlaybackStatus::Paused;
+    paused.accumulatedMs = 500;
+    engine.setTransport(paused);
+    engine.render(out.data() + 24000, 24000, 24000);
+    CHECK(maxStep(out) < 0.06);
+    float tail = 0;
+    for (size_t i = 24000 + 300; i < out.size(); ++i) tail = std::fmax(tail, std::fabs(out[i]));
+    CHECK(tail == 0);  // faded out within 5 ms
+    // Resuming mid-clip fades in again.
+    Transport resumed = playingFrom(1000, 500);
+    engine.setTransport(resumed);
+    std::vector<float> more(24000);
+    engine.render(more.data(), 24000, 48000);
+    CHECK(std::fabs(more[0]) < 0.01);
+    CHECK(maxStep(more) < 0.06);
+  }
+}
+
+static void testClipBusesAndSwap() {
+  std::printf("clip buses, replace and remove\n");
+  Engine engine(kRate, 1);
+  engine.observeClock(0, 0);
+  engine.setTransport(playingFrom(0));
+  engine.setClip(0, makeClip(48000, 1, sineSample), 0, Bus::Track);
+  engine.setClip(1, makeClip(48000, 1, sineSample), 0, Bus::Stem, 0.5f);
+  engine.setGain(Bus::Track, 0);
+  std::vector<float> out(4800);
+  engine.render(out.data(), 4800, 0);
+  // Only the stem at 0.5 is left: 0.25 peak (the track fades out over the first 5 ms).
+  float peak = 0;
+  for (size_t i = 2400; i < out.size(); ++i) peak = std::fmax(peak, std::fabs(out[i]));
+  CHECK_NEAR(peak, 0.25, 0.01);
+  engine.setClip(1, makeClip(48000, 1, sineSample), 0, Bus::Stem, 1);  // replaces - old one retired
+  engine.removeClip(0);
+  engine.render(out.data(), 4800, 4800);
+  engine.collectGarbage();
+  peak = 0;
+  for (size_t i = 0; i < out.size(); ++i) peak = std::fmax(peak, std::fabs(out[i]));
+  CHECK_NEAR(peak, 0.5, 0.01);
+}
+
 int main() {
   setvbuf(stdout, nullptr, _IONBF, 0);
   testQueue();
@@ -289,6 +426,10 @@ int main() {
   testPauseAndJump();
   testLimiterAndGains();
   testPlanSwap();
+  testClipExact();
+  testClipFollowsDrift();
+  testClipJumpAndPauseNoClick();
+  testClipBusesAndSwap();
   if (failures) {
     std::printf("%d check(s) failed\n", failures);
     return 1;
