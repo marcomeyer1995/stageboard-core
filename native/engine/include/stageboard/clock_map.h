@@ -35,8 +35,11 @@ class ClockMap {
     double minSpanMs = 10000;
     /** The learned drift is held within ± this. */
     double maxDriftPpm = 1000;
-    /** The position follows the middle mean of the residuals of this many latest observations. */
+    /** The position follows the middle mean of the residuals of this many latest observations - */
     int recent = 32;
+    /** - and of only this many until the drift is known: before, the residuals drift too, and a
+     * mean over many lags behind (the Fire: 1.5 ms after 9 s with 32). */
+    int recentUnfitted = 4;
   };
 
   /** Observations kept for the drift: at one every 0.5-1 s, 1-2 minutes. */
@@ -81,6 +84,8 @@ class ClockMap {
   double slewFrames_ = 0;
   int jumps_ = 0;
   int outliers_ = 0;
+  /** The drift has been fitted at least once (kept across a restart). */
+  bool driftKnown_ = false;
   /** Observations beyond jumpMs in a row, and their direction. */
   int off_ = 0;
   int offSign_ = 0;

@@ -69,6 +69,12 @@ class Engine {
    * `firstFrame` - the same count `observeClock` speaks of.
    */
   void render(float* out, int frames, int64_t firstFrame);
+  /**
+   * Audio thread: like observeClock, applied at once - for an output whose timestamps arrive in
+   * its own callback (AAudio, Android). The queue has one writer, the control thread; this keeps
+   * it that way.
+   */
+  void observeClockNow(int64_t frame, double bandMs) { clock_.observe(frame, bandMs); }
 
   // Readable by the audio thread's owner for self-monitoring (§8i).
   int clockJumps() const { return clock_.jumps(); }
