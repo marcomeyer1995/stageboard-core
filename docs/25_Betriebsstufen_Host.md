@@ -73,6 +73,18 @@ Wie sich das mit den fünf Hardware-Stufen aus docs/02 zusammenfügt, ist offen 
 
 **Noch offen:** echter Lauf auf dem Laptop mit einer frischen Band und mehreren Tablets; Umzug einer bestehenden Band von CouchDB (Replikation, die Daten liegen auf jedem Gerät); die Plugins auf der Karte in der App; dann der Android-Spike.
 
+## 6b. YouTube-Download auf jedem Host (Marco, 2026-11-10)
+
+| Frage | Entscheidung |
+|---|---|
+| Wo | **auf jedem Host** – auch ein Android-Gerät als Host, und ohne Host (Solo) auf dem Gerät selbst. Abweichend von „Server-Plugins auf der Karte: Android nein“ (§6a) für dieses Plugin |
+| Wie ausgeliefert | **nicht in der App**: ein eigenes Plugin, das jeder selbst installiert und für das er selbst verantwortlich ist (rechtliche Frage aus docs/16 §A.2 „riskante Funktionen abtrennen“ und Lizenz des YouTube-Codes). Nur für private Entwicklungszwecke |
+| Format | alles als **Ogg Opus** (docs/30 §8h): YouTubes Opus-Stream wird verlustfrei umgepackt, alles andere umgewandelt – „immer, auf jeden Fall“, nicht abhängig davon, was auf dem Host installiert ist |
+
+**Umsetzung (Vorschlag):** auf Android eine **eigene kleine Plugin-App** (eigenes Paket neben `de.stageboard.app`, gebundener Dienst: suchen, Opus-Stream laden mit Fortschritt); die StageBoard-App erkennt sie, ohne sie fehlt sie nur auf der Karte. Darin **NewPipeExtractor** (Java, GPL-3) – nur in der Plugin-App, nie im StageBoard-APK. Umpacken/Umwandeln in der App (`webmOpusToOgg`, Opus-Encoder als WASM), dadurch auf jedem Host gleich. Laptop/PC-Host weiter mit `yt-dlp`.
+
+**Machbarkeit geprüft (2026-11-10, Laptop, NewPipeExtractor v0.26.5 im JDK 21):** zu einem Video in 2,6 s alle Audio-Streams (M4A 139/140, Opus 249/250/**251 mit 160 kbit/s**), Opus 251 geladen (10,2 MB in 2,6 s, in 10-MB-Bereichen) – **byte-identisch** zur Datei von `yt-dlp -f 251`; umgepackt nach Ogg gültig, Länge bei OpusClip und ffmpeg gleich. Suche (#618): 10 Treffer in 2,5 s mit ID, Titel, Kanal, Dauer. Bibliotheken zusammen 3,6 MB (Rhino 1,3, Protobuf-Lite 1,0, Extractor 0,8, Jsoup 0,5). Offen: auf dem Gerät (Android-HTTP statt JDK-Client), wie lange eine Version hält, bis YouTube sie bricht (Updates des Plugins).
+
 ## 7. Vorgeschlagene Reihenfolge
 
 1. Dieses Konzept ausarbeiten und docs/02 auf die Stufen umstellen (Entscheidung zu Kern-Prinzip 1).
