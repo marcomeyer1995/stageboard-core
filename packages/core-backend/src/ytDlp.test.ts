@@ -1,7 +1,7 @@
 import { EventEmitter } from 'node:events'
 import { spawn } from 'node:child_process'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { buildYtDlpArgs, buildYtDlpSearchArgs, parseYtDlpSearch, mimeTypeForExt, parseYtDlpProgress, resolveYtDlpExecutable, runYtDlpExtract, ytDlpErrorSummary } from './ytDlp.js'
+import { buildYtDlpArgs, buildYtDlpSearchArgs, parseYtDlpSearch, mimeTypeForExt, parseYtDlpProgress, resolveYtDlpExecutable, runYtDlpExtract, toTrackFormat, ytDlpErrorSummary } from './ytDlp.js'
 
 vi.mock('node:child_process', async (importOriginal) => ({
   ...(await importOriginal<typeof import('node:child_process')>()),
@@ -56,6 +56,8 @@ describe('buildYtDlpArgs', () => {
   it('asks for audio-only, no playlist expansion, and puts the url after --', () => {
     const args = buildYtDlpArgs('https://youtu.be/abc', '/tmp/job-1/track.%(ext)s', 1234)
     expect(args).toContain('--no-playlist')
+    // Opus first - the track format, re-wrapped without encoding again (docs/30 §8h).
+    expect(args).toEqual(expect.arrayContaining(['-f', 'bestaudio[acodec=opus]/bestaudio/best']))
     expect(args).toEqual(expect.arrayContaining(['--max-filesize', '1234']))
     expect(args).toEqual(expect.arrayContaining(['--js-runtimes', `node:${process.execPath}`]))
     expect(args).toEqual(expect.arrayContaining(['-o', '/tmp/job-1/track.%(ext)s']))
@@ -180,5 +182,27 @@ describe('YouTube search (#618)', () => {
       { id: '9Ht5RZpzPqw', title: 'blink-182 - All The Small Things', channel: 'blink-182', durationSec: 171, url: 'https://www.youtube.com/watch?v=9Ht5RZpzPqw' },
       { id: 'r8RxevrNrbs', title: 'Lyrics', channel: '7clouds Rock', durationSec: null, url: 'https://www.youtube.com/watch?v=r8RxevrNrbs' },
     ])
+  })
+})
+
+describe('toTrackFormat', () => {
+  it('re-wraps WebM with Opus as Ogg Opus - the same audio, exact length', async () => {
+    const { readFileSync } = await import('node:fs')
+    const { join } = await import('node:path')
+    const { oggOpusInfo } = await import('shared-types')
+    // ffmpeg's libopus + WebM muxer, 72000 frames (shared-types' remux test file).
+    const webm = readFileSync(join(__dirname, '../../shared-types/src/__fixtures__/stereo.webm'))
+    const track = toTrackFormat(webm, 'webm')
+    expect(track.remuxed).toBe(true)
+    expect(track.mimeType).toBe('audio/ogg')
+    expect(track.data.subarray(0, 4).toString()).toBe('OggS')
+    expect(oggOpusInfo(new Uint8Array(track.data))).toEqual({ channels: 2, preSkip: 312, frames: 72000 })
+  })
+
+  it('keeps anything else as downloaded - the server has no decoder to encode it anew', () => {
+    const m4a = Buffer.from('not webm')
+    expect(toTrackFormat(m4a, 'm4a')).toEqual({ data: m4a, mimeType: 'audio/mp4', remuxed: false })
+    // WebM without Opus (or damaged) stays WebM.
+    expect(toTrackFormat(m4a, 'webm')).toEqual({ data: m4a, mimeType: 'audio/webm', remuxed: false })
   })
 })
