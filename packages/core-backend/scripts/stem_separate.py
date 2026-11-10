@@ -11,12 +11,13 @@ last, `RESULT <json>` with the stems written.
 """
 import json
 import sys
-from fractions import Fraction
 
 import av
 import numpy as np
 import torch
 from demucs.api import Separator
+
+from opus_ogg import OpusOggWriter
 
 MODELS = {'standard': 'htdemucs', 'extended': 'htdemucs_6s'}
 # Opus, not MP3 (2026-10-15): MP3 at 192 kbit/s cut the highs of the summed stems (error -10 dB
@@ -24,7 +25,6 @@ MODELS = {'standard': 'htdemucs', 'extended': 'htdemucs_6s'}
 # encoder delay was written without the header that tells decoders to skip it. Opus' pre-skip is
 # honoured by every decoder. Same format the browser's own recordings use.
 OPUS_BITRATE = 256_000
-OPUS_RATE = 48_000
 # Decoding is quick, separating takes ~95 % of the time, writing the rest.
 DECODE_SHARE, SEPARATE_SHARE = 0.03, 0.92
 
@@ -47,36 +47,13 @@ def decode(path, samplerate):
 def write_opus(audio, path, samplerate):
     # Clamped, not rescaled: every stem keeps its level, so they add up to the mix.
     data = np.clip(audio.numpy(), -1.0, 1.0).astype(np.float32)
-    # Ogg: its header carries the pre-skip and its last page the exact length (docs/30 §8h).
-    container = av.open(path, 'w', format='ogg')
-    stream = container.add_stream('libopus', rate=OPUS_RATE)
-    stream.bit_rate = OPUS_BITRATE
-    stream.layout = 'stereo'
-    resampler = av.AudioResampler(format=stream.codec_context.format.name, layout='stereo', rate=OPUS_RATE)
-    written = 0
-
-    def encode(resampled):
-        # Each frame's time in samples: without it the Ogg muxer doesn't take the encoder's delay
-        # (the pre-skip) off - the first page then says the stem starts 312 samples (6.5 ms) late,
-        # and the players' reader (OpusClip) refuses it.
-        nonlocal written
-        resampled.pts = written
-        resampled.time_base = Fraction(1, OPUS_RATE)
-        written += resampled.samples
-        for packet in stream.encode(resampled):
-            container.mux(packet)
-
+    writer = OpusOggWriter(path, OPUS_BITRATE)
     step = samplerate // 10
     for start in range(0, data.shape[1], step):
         frame = av.AudioFrame.from_ndarray(np.ascontiguousarray(data[:, start:start + step].T.reshape(1, -1)), format='flt', layout='stereo')
         frame.sample_rate = samplerate
-        for resampled in resampler.resample(frame):
-            encode(resampled)
-    for resampled in resampler.resample(None):
-        encode(resampled)
-    for packet in stream.encode(None):
-        container.mux(packet)
-    container.close()
+        writer.write(frame)
+    writer.close()
 
 
 def main():

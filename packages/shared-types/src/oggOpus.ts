@@ -306,7 +306,8 @@ export function oggOpusInfo(ogg: Uint8Array): { channels: number; preSkip: numbe
     for (let s = 0; s < segments; s++) body += ogg[at + 27 + s]!
     const length = 27 + segments + body
     if (at + length > ogg.length) return null
-    const page = ogg.slice(at, at + length)
+    // A copy, also for a Node Buffer (whose slice() shares memory): the CRC field is zeroed in it.
+    const page = Uint8Array.prototype.slice.call(ogg, at, at + length)
     new DataView(page.buffer).setUint32(22, 0, true)
     if (crc(page) !== v.getUint32(at + 22, true)) return null
     if (at === 0) {
