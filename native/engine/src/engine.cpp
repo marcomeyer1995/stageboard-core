@@ -172,8 +172,10 @@ void Engine::triggerClick(double frameInBlock, bool accent) {
 int Engine::segments(int frames, int64_t firstFrame, Segment* out) const {
   const double startBand = clock_.bandMsAt(static_cast<double>(firstFrame));
   const double endBand = clock_.bandMsAt(static_cast<double>(firstFrame + frames));
-  if (transport_.hasJump && transport_.jumpAt > startBand && transport_.jumpAt < endBand) {
-    // The jump falls inside this block: before it the old line, from it the new one.
+  // The jump falls inside this block - or right on its end: then the block is the old line's to
+  // its end (the new line starts with the next block), not one that ends already on the new one.
+  if (transport_.hasJump && transport_.jumpAt > startBand && transport_.jumpAt <= endBand) {
+    // Before it the old line, from it the new one.
     const double split = clock_.frameAt(transport_.jumpAt) - static_cast<double>(firstFrame);
     Transport before = transport_;
     before.hasJump = false;
