@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
-import { oggOpusInfo, type AsyncJob, type HostCapabilities, type TrackMeta } from 'shared-types'
+import { oggOpusInfo, webmOpusToOgg, type AsyncJob, type HostCapabilities, type TrackMeta } from 'shared-types'
 import type { HelperInfo } from './nativeHelper'
 
 // The helper itself is an Android app: here its answer - the real WebM/Opus file of shared-types'
@@ -70,11 +70,40 @@ describe('runOnDevice', () => {
     expect(d.jobs[d.jobs.length - 1]).toMatchObject({ status: 'error', errorCode: 'helper.untrusted' })
   })
 
-  it('without Opus it says so instead of storing another format', async () => {
-    runHelper.mockResolvedValue({ result: { itag: 140, codec: 'mp4a.40.2', container: 'm4a', kbps: 128, bytes: 4, title: 'T', durationSec: 1 }, file: new Blob(['m4a?']) })
+  const aac = { result: { itag: 140, codec: 'mp4a.40.2', container: 'm4a', kbps: 128, bytes: 4, title: 'T', durationSec: 1 }, file: new Blob(['m4a?']) }
+
+  it('without Opus it encodes on the device - still Ogg Opus, never another format', async () => {
+    runHelper.mockResolvedValue(aac)
+    const encoded = webmOpusToOgg(new Uint8Array(webm))!
+    const encode = vi.fn(async (file: Blob, onProgress: (done: number) => void) => {
+      expect(await file.text()).toBe('m4a?')
+      onProgress(1)
+      return new Blob([encoded])
+    })
     const d = deps()
-    await runOnDevice(newDeviceJob('v', 'https://youtu.be/abcdefghijk', 'R', 'redmi'), 'redmi', trusted, d)
-    expect(d.jobs[d.jobs.length - 1]).toMatchObject({ status: 'error', errorCode: 'youtube.noOpus' })
+    await runOnDevice(newDeviceJob('v', 'https://youtu.be/abcdefghijk', 'R', 'redmi'), 'redmi', trusted, { ...d, encode })
+    expect(encode).toHaveBeenCalledOnce()
+    expect(d.jobs[d.jobs.length - 1]).toMatchObject({ status: 'done', progress: 1 })
+    expect(d.tracks[0]!.meta.mimeType).toBe('audio/ogg')
+    expect(d.tracks[0]!.file.type).toBe('audio/ogg')
+    expect(oggOpusInfo(new Uint8Array(await d.tracks[0]!.file.arrayBuffer()))).toEqual({ channels: 2, preSkip: 312, frames: 72000 })
+  })
+
+  it("Opus the remux can't take is encoded too", async () => {
+    runHelper.mockResolvedValue({ result: { ...aac.result, itag: 251, codec: 'opus', container: 'webm' }, file: new Blob(['not webm']) })
+    const encode = vi.fn(async () => new Blob([webmOpusToOgg(new Uint8Array(webm))!]))
+    const d = deps()
+    await runOnDevice(newDeviceJob('v', 'https://youtu.be/abcdefghijk', 'R', 'redmi'), 'redmi', trusted, { ...d, encode })
+    expect(encode).toHaveBeenCalledOnce()
+    expect(d.jobs[d.jobs.length - 1]).toMatchObject({ status: 'done' })
+  })
+
+  it('a failed encode is reported, nothing stored', async () => {
+    runHelper.mockResolvedValue(aac)
+    const d = deps()
+    await runOnDevice(newDeviceJob('v', 'https://youtu.be/abcdefghijk', 'R', 'redmi'), 'redmi', trusted, { ...d, encode: async () => Promise.reject(new Error('EncodingError: unable to decode')) })
+    expect(d.jobs[d.jobs.length - 1]).toMatchObject({ status: 'error', errorCode: 'youtube.convertFailed' })
+    expect(d.jobs[d.jobs.length - 1]!.error).toContain('mp4a.40.2 (itag 140): EncodingError')
     expect(d.tracks).toHaveLength(0)
   })
 })
