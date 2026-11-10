@@ -9,3 +9,6 @@ coverage/
 certs/
 packages/core-backend/data/
 docker/couchdb-credentials.env
+
+# Python bytecode (stem_separate.py when imported)
+__pycache__/
