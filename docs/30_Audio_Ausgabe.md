@@ -140,7 +140,7 @@ Wie heute (#491, docs/21 §9): ein Weg spielt um seinen gemessenen Rest früher.
 - Welche Pulte geben ihre Eingänge per USB/Netz so heraus, dass StageBoard sie lesen kann (USB-Audio class compliant vs. eigene Treiber/Protokolle)? Zuerst die Pulte, für die es schon Plugins gibt (CQ-18T, Ui24R).
 - Was zeigt die App, wenn kein Weg auf einem Gerät stimmt (der Fire-WebView-Fall)? Vorschlag: rotes „Ausgang ungenau“ in Bühnentechnik mit der gemessenen Schwankung, Empfehlung eines anderen Wegs.
 
-## 8. Native Engine statt Pipe (Konzept, 2026-11-06, kein Beschluss)
+## 8. Native Engine statt Pipe (Konzept 2026-11-06; Entscheidungen 2026-11-10 in §8h)
 
 Heute rechnet die **WebView** den Ton (Track, Stems, Klick, Ansagen, Mischung), die native Ausgabe spielt nur das fertige Ergebnis zur richtigen Zeit (§2b, „pipe“). Eine **native Engine** würde den Ton selbst im App-Prozess rechnen (C++, Oboe/AAudio-Callback); die WebView schickt nur noch Befehle („Song X, Start bei Band-Zeit T, Klick 120 %, Sprung zu Teil B“). §3 beschreibt das schon als Ziel; im November wurde bewusst zuerst die Pipe gebaut.
 
@@ -193,3 +193,36 @@ Was bleibt: die Band-Zeit (docs/29), der Ausgleich je Weg (§5, docs/31), Web Au
 
 - Läuft die Uhr-Synchronisation bei gesperrtem Bildschirm weiter (nativ), oder reicht der letzte Stand (Drift ~0,3 ms pro Minute)?
 - Aufwand N1 grob: Plan-Format und Brücke, Mischer mit Klick-Synthese und Clip-Wiedergabe, Wechsel Web Audio ↔ nativ, Tests – geschätzt 1–2 Wochen; N2 deutlich mehr.
+
+### 8h. Entschieden: eine Engine, eine Sprache, ein Format (Marco, 2026-11-10)
+
+Anlass: Marcos Konzept „Cross-Platform Core Audio Engine“ (getrennter Audio-Faden, lock-free Ringpuffer, Float, Limiter, berechneter Klick, Ansagen als PCM) – abgeglichen mit docs/29 und diesem Dokument; am selben Tag der Fehler aus §8i.
+
+| Frage | Entscheidung |
+|---|---|
+| Sprache | **C++**, Ausgabe über **miniaudio** auf Laptop/Browser/iOS, auf Android weiter eigenes AAudio (mehr Kontrolle über schwierige Geräte). Rust verworfen: zweite Toolchain, vorhandener C++-Code (`native_output.cpp`) und Signalsmith (Zeitdehnung) sind C++ |
+| Ein Kern überall | **derselbe C++-Kern als WASM** im AudioWorklet (Browser, WebView-Notbetrieb #708) – damit entfällt „zwei Engines, die sich gleich verhalten müssen“ (§8c). Als **Stufe 2**, nach dem Kern als Bibliothek, gemessen gegen heute |
+| Track-Format | **nur Opus**, 48 kHz, Stereo, **160 kbit/s** – für Tracks und Stems. Erst erwogen: FLAC bzw. wählbar je Gerät; verworfen, weil ein **Android-Host** (docs/25) beide Fassungen speichern und erzeugen müsste (50 Songs: ~250 MB statt ~1,1 GB). Startposition genau: die Füll-Lücke steht im Opus-Kopf (bei MP3/AAC behandeln Decoder sie verschieden – bis 25–50 ms zwischen Geräten) |
+| Wer wandelt um | das **hochladende Gerät**, mit **libopus als WASM** (nicht WebCodecs – nicht überall verfügbar); die vorhandene Bibliothek einmal. Originale optional nur als Archiv auf dem Laptop-Server, nie auf die Tablets |
+| Dekodieren | eigener Decoder (libopus) in Engine und WASM – unabhängig von Codecs des Geräts oder Browsers |
+
+**Übernommen aus dem Konzept:** Audio-Faden ohne Speicher anlegen, Sperren und Speicherbereinigung; Austausch nur über lock-free Ringpuffer; Dekodieren in einem eigenen Faden; durchgehend Float; Pegel je Quelle; **Limiter** am Ende; Klick berechnet; Ansagen als PCM (heute schon Piper).
+
+**Bewusst anders als im Konzept:**
+- **Kein Sample-Zähler als einzige Uhr:** je Gerät ja, aber laufend auf die **Band-Zeit** abgebildet (docs/29) – Audio-Quarze laufen auseinander (Fire +256 ppm ≈ 15 ms/min).
+- **Keine eigene Tempo-Karte:** die Engine bekommt die Schlagzeiten aus dem starren Raster (docs/14 §5a).
+- **Kein Loopback-Rundlauf:** gebraucht wird die *Ausgabe*-Latenz, gemessen per Mikrofon (§4); ein halber Rundlauf ist sie nicht. **Keine Aufnahme-Kompensation** – StageBoard nimmt nicht auf.
+- **Dazu, was dem Konzept fehlte:** Zeitdehnung (Signalsmith), Teil-Sprünge mit Überblendung, Stems stumm/solo, mehrere Ausgänge mit „nie ein falsches Signal ans Publikum, sicherer Stopp“ (docs/28), **Selbstüberwachung** (unplausible Werte melden, §8i) und **Dauertest ≥ 24 h** bei jeder größeren Änderung.
+
+**Stufen:**
+1. **Kern als C++-Bibliothek ohne Ausgabe:** Transport in Band-Zeit, Ereignisplan, Klick, Clip-Player, Mischer, Limiter, Opus-Decoder, Resampler (für Ausgänge mit 44,1 kHz). Getestet offline: in einen Puffer rechnen, gegen bekannte Werte prüfen.
+2. **Derselbe Kern als WASM** im Browser/in der WebView, ersetzt die heutige Klick-Engine – gemessen gegen heute.
+3. **Android:** der Kern im AAudio-Callback statt der Pipe, mit Vordergrund-Dienst (= N1, §8f).
+4. **Tracks:** Umwandlung nach Opus beim Hochladen, nativ dekodieren, dann Stems, Zeitdehnung, Sprünge (= N2).
+5. **Mehrere Ausgänge** nach der Bühnenkarte (= N3).
+
+**Erste Aufgabe:** auf dem **Fire** (schwächstes Gerät) messen, ob **6 Opus-Spuren gleichzeitig** (Track + Stems) mit Reserve dekodiert werden – vor der Festlegung von Stufe 4.
+
+### 8i. Fehler 2026-11-10: 32-Bit-Frame-Position nach 12,4 h
+
+Der Fire (Android 9, AAudio über den alten AudioTrack-Weg) meldet die Frame-Position nur 32 Bit breit; nach 2³¹ Frames (12,4 h bei 48 kHz) lief sie über, die Ausgabe rechnete mit 2³² Frames Versatz (Latenz **89.478.694 ms**) und spielte nichts mehr. Sichtbar geworden, weil ein Vordergrund-Dienst die App über Nacht wach hielt. Behoben in #722 (Abstand modulo 2³²). Lehre für die Engine: jeden Wert vom Betriebssystem auf Plausibilität prüfen und melden, Dauertest ≥ 24 h.
