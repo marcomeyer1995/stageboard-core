@@ -57,7 +57,12 @@ export interface DeviceJobDeps {
   putTrack: (variantId: string, meta: TrackMeta, file: Blob) => Promise<void>
   /** Not too often - every write replicates to the band. */
   now?: () => number
+  /** Any audio → Ogg Opus, for a video without Opus (default: the WASM encoder, #730). */
+  encode?: (file: Blob, onProgress: (done: number) => void) => Promise<Blob>
 }
+
+// Loaded only when a video has no Opus - the encoder's WASM stays out of the app's start.
+const encodeWithWasm = async (file: Blob, onProgress: (done: number) => void): Promise<Blob> => (await import('./engine/encodeForUpload')).encodeForUpload(file, onProgress)
 
 /** The job's runner field for this device (asyncJob.ts): the Stage-Server leaves it alone. */
 export function deviceRunner(deviceId: string): string {
@@ -65,6 +70,9 @@ export function deviceRunner(deviceId: string): string {
 }
 
 const PROGRESS_WRITE_MS = 1000
+/** Job progress when the download is through, and when an encode (if needed) is. */
+const DOWNLOAD_SHARE = 0.8
+const ENCODED_AT = 0.95
 
 /** Jobs this device runs right now (this app session) - the rest of its `running` ones are leftovers. */
 export const activeDeviceJobs = new Set<string>()
@@ -96,16 +104,19 @@ export async function runOnDevice(job: YoutubeExtractJob, deviceId: string, help
       onProgress: (value) => {
         if (now() - lastWrite < PROGRESS_WRITE_MS) return
         lastWrite = now()
-        // The download is most of the work; re-wrapping and uploading the last few percent.
-        void write({ progress: Math.min(0.95, value * 0.95) })
+        // The download is most of the work; re-wrapping (or encoding) and uploading the rest.
+        void write({ progress: Math.min(DOWNLOAD_SHARE, value * DOWNLOAD_SHARE) })
       },
     })
     if (!file) throw new HelperError('youtube.failed', 'no file')
+    // The helper takes Opus whenever YouTube has it (practically always): re-wrapped, nothing
+    // re-encoded. Anything else - or Opus in a container the remux doesn't take - is encoded here.
     const ogg = result.codec === 'opus' ? webmOpusToOgg(new Uint8Array(await file.arrayBuffer())) : null
-    // The helper takes Opus whenever YouTube has it (practically always); the rest needs the
-    // Opus encoder (#730), not built into this path yet.
-    if (!ogg) throw new HelperError('youtube.noOpus', `${result.codec} (itag ${result.itag})`)
-    const track = new Blob([ogg], { type: 'audio/ogg' })
+    const track = ogg ? new Blob([ogg], { type: 'audio/ogg' }) : await encodeTrack(file, result, deps.encode ?? encodeWithWasm, (done) => {
+      if (now() - lastWrite < PROGRESS_WRITE_MS) return
+      lastWrite = now()
+      void write({ progress: DOWNLOAD_SHARE + (ENCODED_AT - DOWNLOAD_SHARE) * done })
+    })
     const meta: TrackMeta = {
       id: randomId(),
       kind: 'reference',
@@ -127,6 +138,15 @@ export async function runOnDevice(job: YoutubeExtractJob, deviceId: string, help
     await write({ status: 'error', error: message || code, errorCode: code, ...params })
   } finally {
     activeDeviceJobs.delete(job.id)
+  }
+}
+
+async function encodeTrack(file: Blob, result: DownloadResult, encode: NonNullable<DeviceJobDeps['encode']>, onProgress: (done: number) => void): Promise<Blob> {
+  try {
+    return new Blob([await encode(file, onProgress)], { type: 'audio/ogg' })
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err)
+    throw new HelperError('youtube.convertFailed', `${result.codec} (itag ${result.itag}): ${reason}`)
   }
 }
 

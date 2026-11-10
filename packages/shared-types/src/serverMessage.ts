@@ -54,7 +54,7 @@ export const SERVER_MESSAGES_DE = {
   'youtube.tooLarge': 'Die Audiospur ist größer als das Limit von {{mb}} MB.',
   'youtube.searchTimeout': 'Die YouTube-Suche hat nicht geantwortet - ist der Stage-Server online?',
   'youtube.noAudio': 'YouTube bietet zu diesem Video keine ladbare Audiospur an.',
-  'youtube.noOpus': 'YouTube bietet zu diesem Video kein Opus an - das Umwandeln auf dem Gerät kommt noch.',
+  'youtube.convertFailed': 'Die Audiospur ließ sich auf diesem Gerät nicht nach Opus umwandeln.',
   'youtube.failed': 'Der YouTube-Download ist fehlgeschlagen.',
   'youtube.interrupted': 'Der Download wurde unterbrochen (App beendet) - bitte neu starten.',
   // Native helpers of add-ons (docs/32 §8) - on the device, through NativeHelperPlugin.

@@ -60,7 +60,7 @@
     "tooLarge": "The audio is larger than the limit of {{mb}} MB.",
     "searchTimeout": "The YouTube search did not answer - is the Stage-Server online?",
     "noAudio": "YouTube offers no downloadable audio for this video.",
-    "noOpus": "YouTube offers no Opus for this video - converting on the device is still to come.",
+    "convertFailed": "The audio could not be converted to Opus on this device.",
     "failed": "The YouTube download failed.",
     "interrupted": "The download was interrupted (app closed) - please start it again."
   },
