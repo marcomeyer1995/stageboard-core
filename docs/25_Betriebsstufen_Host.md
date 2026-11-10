@@ -121,8 +121,8 @@ Begriff: „Host“ = das Gerät, das gerade **der Server der Band** ist – der
 |---|---|
 | Wer kann Server werden | Der **Admin schaltet es je Tablet frei** (Karte/Geräte). Nur freigeschaltete Tablets erzeugen ein Zertifikat und bieten sich an |
 | Wer ist es gerade | Der Admin legt eine **Reihenfolge der Server-Geräte** fest (z. B. 1. Laptop, 2. Redmi, 3. Fire). Alle nutzen automatisch das **erste erreichbare**; fällt es aus oder fehlt es, das nächste |
-| Zurück zum besseren (Vorschlag) | nur **zwischen Songs** (Pause/Stop/nach dem Song) – ein Wechsel kostet kurz Play-Kanal und Uhr |
-| Nie zwei Server (Vorschlag) | ein Gerät weiter unten wird nur Server, wenn es selbst keinen höheren erreicht, und gibt ab, sobald es einen sieht. Kurze Uneinigkeit kostet keine Daten (alles führt sich zusammen) |
+| Zurück zum besseren (Marco, 2026-11-10) | nur **zwischen Songs** (Pause/Stop/nach dem Song) – ein Wechsel kostet kurz Play-Kanal und Uhr |
+| Nie zwei Server (Marco, 2026-11-10) | ein Gerät weiter unten wird nur Server, wenn es selbst keinen höheren erreicht, und gibt ab, sobald es einen sieht. Kurze Uneinigkeit kostet keine Daten (alles führt sich zusammen) |
 
 **Bausteine (Vorschlag):**
 1. **Zertifikat je Server-Tablet:** einmal erzeugt, Schlüssel im Android-Schlüsselspeicher; der Tablet-Server spricht HTTPS wie der Stage-Server.
