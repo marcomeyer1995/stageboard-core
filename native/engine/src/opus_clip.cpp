@@ -2,6 +2,8 @@
 
 #include <opus.h>
 
+#include "ogg_crc.h"
+
 #include <algorithm>
 #include <array>
 #include <cstring>
@@ -12,23 +14,6 @@ namespace {
 
 /** Largest Opus packet: 120 ms. */
 constexpr int kMaxPacketFrames = 5760;
-
-/** Ogg's CRC-32: polynomial 0x04c11db7, not reflected, starting at 0. */
-std::array<uint32_t, 256> makeCrcTable() {
-  std::array<uint32_t, 256> table{};
-  for (uint32_t i = 0; i < 256; ++i) {
-    uint32_t r = i << 24;
-    for (int b = 0; b < 8; ++b) r = r & 0x80000000u ? (r << 1) ^ 0x04c11db7u : r << 1;
-    table[i] = r;
-  }
-  return table;
-}
-
-uint32_t oggCrc(uint32_t crc, const uint8_t* data, size_t size) {
-  static const std::array<uint32_t, 256> table = makeCrcTable();
-  for (size_t i = 0; i < size; ++i) crc = (crc << 8) ^ table[((crc >> 24) ^ data[i]) & 0xff];
-  return crc;
-}
 
 uint32_t le32(const uint8_t* p) {
   return static_cast<uint32_t>(p[0]) | static_cast<uint32_t>(p[1]) << 8 | static_cast<uint32_t>(p[2]) << 16 |
@@ -86,7 +71,7 @@ bool OpusClip::open(const uint8_t* data, size_t size, std::string* error) {
 
     // The checksum is taken with its own four bytes as zero.
     const uint8_t zero[4] = {};
-    const uint32_t crc = oggCrc(oggCrc(oggCrc(0, page, 22), zero, 4), page + 26, length - 26);
+    const uint32_t crc = detail::oggCrc(detail::oggCrc(detail::oggCrc(0, page, 22), zero, 4), page + 26, length - 26);
     if (crc != le32(page + 22)) return fail(error, "Datei beschädigt (Prüfsumme)");
 
     const bool first = pageEnds.empty() && starts.empty() && !open;
