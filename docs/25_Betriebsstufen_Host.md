@@ -61,7 +61,7 @@ Wie sich das mit den fünf Hardware-Stufen aus docs/02 zusammenfügt, ist offen 
 | Wie ohne CouchDB | **eigenes kleines Modul** `packages/sync-host` in reinem TypeScript über PouchDB – nicht express-pouchdb (seit 2019 ungepflegt, PouchDB 7) und nicht Node auf Android (nodejs-mobile steht bei Node 18, der Fastify-5-Server braucht ≥ 20). Dasselbe Modul läuft auf dem Laptop (Fastify) und später in der Android-App (nativer Webserver → Modul in der App über die PouchDB, die sie schon hat) |
 | Konten auf einem Android-Host (2026-11-07) | **C: Konten in den Banddaten** – jedes Gerät hat sie, jedes kann Host werden, auch bei Ausfall. Bedingung: dort liegen nur Schlüssel **langer Geräte-Passwörter** (wie die zufälligen 24-Byte-Logins der Tablets), **nie PIN-Schlüssel** – 4-stellige PINs wären offline in Sekunden zu erraten. Admin-Konten mit PIN brauchen dafür zusätzlich einen Geräte-Schlüssel |
 | WLAN im Gig (2026-11-07) | **Sperre gegen Stromsparen im Gig-Modus auf allen Tablets** (#716): gemessen kam ein Play nach Pausen bis 125 ms später an; mit Sperre Handy Median 85-116 → 46 ms, Redmi p90 155 → 67 ms, Fire (Android 9) wenig |
-| Server-Plugins auf der Karte | Download-Werkzeug, Stems, Piper usw. erscheinen am Host auf der Bühnen-Karte und sind dort installierbar, **wo der Host sie ausführen kann** (Linux/Windows ja, Android nein, grau „läuft auf diesem Host nicht“). Der Host meldet das (`GET /server/capabilities`) |
+| Server-Plugins auf der Karte | Download-Werkzeug, Stems, Piper usw. erscheinen am Host auf der Bühnen-Karte und sind dort installierbar, **wo der Host sie ausführen kann** (Linux/Windows ja, Android nein, grau „läuft auf diesem Host nicht“). Der Host meldet das (`GET /server/capabilities`). **Ergänzt 2026-11-10 (docs/32):** die Regel gilt **je Add-on**, nicht je Plattform – ein Add-on läuft auf einem Host, wenn sein JS-Teil dort läuft und das Hilfsprogramm, das es für diese Plattform braucht, da ist (YouTube auf Android: ja, §6b; Stems auf Android: nein, solange es kein Android-Hilfsprogramm gibt). Auf der Karte: #769 |
 
 **Gebaut (Branch `feat/sync-host`):**
 - `sync-host`: das Replikationsprotokoll (Info, Änderungs-Feed auch long-poll, `_revs_diff`, `_bulk_docs`, `_bulk_get`, `_all_docs`, Checkpoints, Dokumente, Anhänge) und darüber eine **kleine CouchDB** – Server-Admin, Konten nur als PBKDF2-Schlüssel (WebCrypto), `_session`, `_security` (CouchDB-3-Regeln), die `validate_doc_update`-Funktionen der Band bei jedem Schreiben (auch Replikation), Bandliste, Datenbanken anlegen/löschen. Getestet mit echter PouchDB-Replikation über HTTP und mit dem **unveränderten** `couch.ts`.
@@ -87,6 +87,8 @@ Wie sich das mit den fünf Hardware-Stufen aus docs/02 zusammenfügt, ist offen 
 
 ## 7. Vorgeschlagene Reihenfolge
 
+Issues seit 2026-11-10: Sammel-Issue **#777**, darunter #778 (echter Lauf `sync-host`), #779 (Umzug von CouchDB), #780 (Installer Windows/Mac), #781 (Spike Android als Host), #782 (Host fällt im Gig aus).
+
 1. Dieses Konzept ausarbeiten und docs/02 auf die Stufen umstellen (Entscheidung zu Kern-Prinzip 1).
 2. Server mit PouchDB statt CouchDB als Option + Installer für Windows/Mac → Stufe 2 auf Laptops und Windows-Tablets. Größter Gewinn für den kleinsten Aufwand; viele Bands haben schon einen Laptop.
 3. Spike „Android als Host“: Sync + Uhr + Push für 3-4 Geräte über den eigenen Hotspot, gemessen wie beim Clock-Sync (docs/09).
@@ -96,7 +98,7 @@ Wie sich das mit den fünf Hardware-Stufen aus docs/02 zusammenfügt, ist offen 
 
 - Ersetzen die drei Betriebsstufen die fünf Stufen aus docs/02, oder liegen sie quer dazu (Betrieb vs. Hardware)?
 - Kern-Prinzip 1 in CLAUDE.md neu fassen („der Host ist das Herzstück“)?
-- Was passiert, wenn der Host mitten im Gig ausfällt - übernimmt ein anderes Gerät (jedes hat die Daten), und wie wird das bedient?
+- Was passiert, wenn der Host mitten im Gig ausfällt - übernimmt ein anderes Gerät (jedes hat die Daten), und wie wird das bedient? → **#782** (Host H5), zusammen mit #753 (Havarie 2 der Bühnen-Karte).
 - Akku und Last: kann ein Host-Tablet gleichzeitig Hotspot, Server und eigenes Spielgerät sein?
 - Welche Add-ons auf Stufe 2 trotzdem gehen könnten (z. B. Piper im Browser).
 - Bezug zur Vermarktung (docs/16): Stufe 1/2 als Free/Band, Box als eigenes Produkt?
