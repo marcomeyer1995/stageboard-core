@@ -1,30 +1,14 @@
 // Offline tests of the engine core (docs/30 §8h stage 1): render into a buffer, check against known
-// values. No framework - one file, plain checks, exit code 1 on any failure.
+// values.
 
 #include <cmath>
 #include <cstdio>
 #include <vector>
 
+#include "check.h"
 #include "stageboard/engine.h"
 
 using namespace stageboard;
-
-static int failures = 0;
-#define CHECK(cond)                                                     \
-  do {                                                                  \
-    if (!(cond)) {                                                      \
-      std::printf("  FAIL %s:%d  %s\n", __FILE__, __LINE__, #cond);     \
-      ++failures;                                                       \
-    }                                                                   \
-  } while (0)
-#define CHECK_NEAR(a, b, tol)                                                                                      \
-  do {                                                                                                             \
-    const double a_ = (a), b_ = (b);                                                                               \
-    if (std::fabs(a_ - b_) > (tol)) {                                                                              \
-      std::printf("  FAIL %s:%d  %s = %.6f, expected %.6f ± %g\n", __FILE__, __LINE__, #a, a_, b_, (double)(tol)); \
-      ++failures;                                                                                                  \
-    }                                                                                                              \
-  } while (0)
 
 static constexpr double kRate = 48000;
 
@@ -430,6 +414,7 @@ int main() {
   testClipFollowsDrift();
   testClipJumpAndPauseNoClick();
   testClipBusesAndSwap();
+  runOpusClipTests();
   if (failures) {
     std::printf("%d check(s) failed\n", failures);
     return 1;
