@@ -405,7 +405,8 @@
       "stem": "Stem"
     },
     "searching": "Searching…",
-    "search": "Search"
+    "search": "Search",
+    "youtubeNowhere": "YouTube needs one of two here: the host has no yt-dlp, and the YouTube helper is not installed on this device."
   },
   "sep": {
     "title": "Separate stems: {{name}}",

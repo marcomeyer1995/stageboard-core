@@ -405,7 +405,8 @@
       "stem": "Stem"
     },
     "searching": "Suche…",
-    "search": "Suchen"
+    "search": "Suchen",
+    "youtubeNowhere": "Für YouTube fehlt hier beides: der Host hat kein yt-dlp, und auf diesem Gerät ist das YouTube-Hilfsprogramm nicht installiert."
   },
   "sep": {
     "title": "Spuren trennen: {{name}}",

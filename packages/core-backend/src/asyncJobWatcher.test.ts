@@ -75,6 +75,12 @@ describe('pickNextQueuedJob', () => {
   it('returns undefined for an empty list', () => {
     expect(pickNextQueuedJob([])).toBeUndefined()
   })
+
+  it("leaves a device's own job alone (docs/32 §8 helper) - queued or running, restart or not", () => {
+    const onDevice = job({ id: 'on-device', status: 'queued', runner: 'device:redmi' })
+    expect(pickNextQueuedJob([onDevice])).toBeUndefined()
+    expect(stuckRunningJobs([{ ...onDevice, status: 'running' }, job({ id: 'ours', status: 'running' })], null).map((j) => j.id)).toEqual(['ours'])
+  })
 })
 
 describe('stuckRunningJobs', () => {
