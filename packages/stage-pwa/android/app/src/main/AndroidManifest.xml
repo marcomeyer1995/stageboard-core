@@ -34,6 +34,12 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths"></meta-data>
         </provider>
+
+        <!-- N1: the app counts as in front for Android while it plays (PlaybackService.java). -->
+        <service
+            android:name=".PlaybackService"
+            android:foregroundServiceType="mediaPlayback"
+            android:exported="false" />
     </application>
 
     <!-- Permissions -->
@@ -41,6 +47,8 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Gig mode: Wi-Fi without power saving, so a pushed Play arrives on time (WifiLockPlugin). -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <!-- Camera: scanning the band's invite QR code. Microphone: the tuner widget. -->
     <!-- Installing app updates downloaded from the Stage-Server (#348). -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />

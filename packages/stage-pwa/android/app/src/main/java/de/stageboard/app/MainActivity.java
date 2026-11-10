@@ -31,6 +31,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(NativeOutputPlugin.class);
         registerPlugin(DeviceVitalsPlugin.class);
         registerPlugin(WifiLockPlugin.class);
+        registerPlugin(PlaybackServicePlugin.class);
         super.onCreate(savedInstanceState);
         // The Stage-Server's self-signed certificate is trusted only as pinned at pairing (#348).
         bridge.setWebViewClient(new PinnedWebViewClient(bridge));
