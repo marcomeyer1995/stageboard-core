@@ -2,6 +2,7 @@ import { jumpBoundaryMs, rateOf } from './playbackTransport'
 import { useEffect, useMemo, useRef, useSyncExternalStore } from 'react'
 import { CAPABILITIES } from 'shared-types'
 import { startClick, stopClick, type ClickEngineState } from './clickEngine'
+import { startEngineClick, stopEngineClick, wasmClickWanted } from './engine/engineClick'
 import { holdAudioOutputAwake } from './sharedAudioContext'
 import { adjustedBpm, effectiveClickEnabled } from './metronome'
 import { useCapabilityRouting } from './useCapabilityRouting'
@@ -122,6 +123,7 @@ export function useClickOutputDriver(): void {
       outputLatencyMs,
       clickOnAt,
       jump,
+      ...(transport ? { transport } : {}),
     }
   })
 
@@ -133,12 +135,17 @@ export function useClickOutputDriver(): void {
     return () => holdAudioOutputAwake('click', false)
   }, [holdsOutput])
 
+  // The engine core in the AudioWorklet instead (docs/30 §8h stage 2) - `sb:debug:wasm-click`, read
+  // at each start so it can be switched without a reload.
   useEffect(() => {
     if (!shouldPlay) {
       stopClick()
+      stopEngineClick()
       return
     }
-    startClick(() => stateRef.current)
-    return () => stopClick()
+    const wasm = wasmClickWanted()
+    if (wasm) startEngineClick(() => stateRef.current)
+    else startClick(() => stateRef.current)
+    return () => (wasm ? stopEngineClick() : stopClick())
   }, [shouldPlay])
 }
