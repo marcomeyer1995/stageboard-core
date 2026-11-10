@@ -242,7 +242,7 @@ Nach §0c: keine Phasen. Je Modell ein Startwert für die **Erdung** (Pult geerd
 ## 8. Offen
 
 - Dialog für generische Ausrüstung/Band-Modelle im Detail; welche Anschlüsse die App auf Tablets selbst erkennt.
-- Havarie (§12): wie lang die Lücke beim Umschalten wirklich ist (messen); nach wie vielen Sekunden ohne Lebenszeichen ein Gerät als ausgefallen gilt (zu kurz = doppelte Wiedergabe bei einem WLAN-Aussetzer); wer entscheidet, wenn das ausgefallene Gerät der Host selbst ist (docs/25).
+- Havarie (§12): wie lang die Lücke beim Umschalten wirklich ist (messen); nach wie vielen Sekunden ohne Lebenszeichen ein Gerät als ausgefallen gilt (zu kurz = doppelte Wiedergabe bei einem WLAN-Aussetzer); wer entscheidet, wenn das ausgefallene Gerät der Host selbst ist (docs/25 §8, #782).
 - Welche Spur ein eigenes Signal wie „Stem: Drums“ speist (§7a, docs/22).
 
 ## 9. Live-Ebene (#747)
