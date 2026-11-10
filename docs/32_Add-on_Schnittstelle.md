@@ -133,7 +133,7 @@ RESULT {"files":[{"key":"drums","file":"drums.opus"}]}
 **Laptop/PC** – *gebaut für die eingebauten*: ein Programm auf dem Host (`yt-dlp`, Python mit Demucs, Piper); der Host meldet je Add-on, ob es da ist (`GET /server/capabilities`).
 
 **Android** – *geplant, erstes Beispiel: YouTube* (docs/25 §6b): ein **eigenes App-Paket** neben StageBoard, ohne Symbol auf dem Startbildschirm.
-- Es bietet einen gebundenen Dienst mit der Aktion `de.stageboard.helper.<add-on-id>` an; StageBoard findet ihn über den Paket-Manager.
+- Es bietet einen gebundenen Dienst mit den Aktionen `de.stageboard.helper` (gemeinsam für alle – seit Android 11 sieht StageBoard fremde Apps nur über eine fest angemeldete Aktion) und `de.stageboard.helper.<add-on-id>` an, dazu die Metadaten `de.stageboard.addon` = Add-on-ID und `de.stageboard.apiVersion`. StageBoard findet es über den Paket-Manager.
 - Dieselben Nachrichten wie das Zeilenprotokoll (über Android-`Messenger`): Auftrag mit Argumenten → `progress`, `result`; Dateien als Datei-Deskriptor, nie über gemeinsame Ordner.
 - Das Hilfsprogramm prüft, dass der Aufrufer StageBoard ist (Signatur des aufrufenden Pakets), StageBoard prüft das Paket gegen den Signatur-Fingerabdruck im Manifest.
 - Installieren aus StageBoard: das Manifest nennt die APK (GitHub-Release) und ihren Fingerabdruck; StageBoard lädt sie und öffnet den Installationsdialog von Android. Ab dann zeigt StageBoard das Add-on als installiert; Updates genauso.
