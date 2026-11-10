@@ -189,6 +189,51 @@ static void testClockMapNoisy() {
   }
 }
 
+static void testAndroidCallback() {
+  std::printf("as in the AAudio callback (stage 3)\n");
+  // The Fire: 240-frame bursts, its crystal 256 ppm fast, AAudio's heard time smoothed to ±0.4 ms,
+  // fed every 0.5 s straight in the callback (observeClockNow). At 30 s the stream is reopened
+  // (headphones plugged in): the frame count starts at 0 again. Every click must still be heard
+  // on its beat in band time.
+  Engine engine(kRate, 2);
+  const double ppm = 256;
+  const double startedAt = 100000;  // band ms
+  Transport t = playingFrom(startedAt);
+  engine.setTransport(t);
+  engine.setBeats(beatsEvery(500, 200, 4));
+  std::mt19937 rng(11);
+  std::uniform_real_distribution<double> jitter(-0.4, 0.4);
+  const int burst = 240;
+  const int64_t total = static_cast<int64_t>(60 * kRate);
+  // Band time at which output frame g (counted over the whole run) is heard.
+  const double band0 = startedAt - 1000;
+  auto heard = [&](int64_t g) { return band0 + g * (1000.0 / kRate) / (1 + ppm * 1e-6); };
+  std::vector<float> out(static_cast<size_t>(total) * 2);
+  int64_t frames = 0, clockAt = -1;  // the callback's own count, restarted by the reopen
+  for (int64_t g = 0; g < total; g += burst) {
+    if (g == static_cast<int64_t>(30 * kRate)) frames = 0, clockAt = -1;
+    if (clockAt < 0 || (frames - clockAt) * (1000.0 / kRate) >= 500) {
+      engine.observeClockNow(frames, heard(g) + jitter(rng));
+      clockAt = frames;
+    }
+    engine.render(out.data() + g * 2, burst, frames);
+    frames += burst;
+  }
+  std::vector<float> left(static_cast<size_t>(total));
+  for (int64_t g = 0; g < total; ++g) left[static_cast<size_t>(g)] = out[static_cast<size_t>(g) * 2];
+  const auto found = onsets(left);
+  double worst = 0;
+  for (int f : found) {
+    const double ms = heard(f) - startedAt;
+    const double e = ms - 500 * std::round(ms / 500);
+    worst = std::fmax(worst, std::fabs(e));
+  }
+  std::printf("  %zu clicks, worst %.3f ms off the beat, clock restarts %d\n", found.size(), worst, engine.clockJumps());
+  CHECK(found.size() == 118);  // beats from band 100 s to 159 s
+  CHECK(worst < 1.0);
+  CHECK(engine.clockJumps() == 1);  // the reopen, nothing else
+}
+
 static void testClickOnsets() {
   std::printf("click on the exact frame\n");
   Engine engine(kRate, 1);
@@ -466,6 +511,7 @@ int main() {
   testTransport();
   testClockMap();
   testClockMapNoisy();
+  testAndroidCallback();
   testClickOnsets();
   testFractionalOnset();
   testBlockSizeIndependence();

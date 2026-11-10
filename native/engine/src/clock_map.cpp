@@ -93,9 +93,10 @@ void ClockMap::observe(int64_t frame, double bandMs) {
   if (span >= options_.minSpanMs) {
     const double maxRatio = options_.maxDriftPpm * 1e-6;
     ratio_ = std::clamp(fittedRatio(), 1 - maxRatio, 1 + maxRatio);
+    driftKnown_ = true;
   }
   // Where the line should be: the middle mean of the latest residuals against it - glided in.
-  const int k = std::min(options_.recent, count_);
+  const int k = std::min(driftKnown_ ? options_.recent : options_.recentUnfitted, count_);
   double residuals[kWindow];
   for (int i = 0; i < k; ++i) {
     const Observation& o = at(count_ - k + i);
