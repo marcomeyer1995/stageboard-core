@@ -33,7 +33,7 @@ Ein installiertes Add-on ist ein Dokument der Band (`PluginInstallation`, `share
 | `source` | URL des Server-Codes – *geplant* (§6) |
 | `enabled`, `installedAt` | an/aus, Zeitpunkt |
 
-*Geplant* dazu: `apiVersion` (welche Version dieser Schnittstelle das Add-on spricht), `permissions` (§7) und `helpers` (§8).
+Seit #756 (2026-11-10) *gebaut*, alle optional: `apiVersion` (welche Version dieser Schnittstelle das Add-on spricht, §10), `permissions` (§7) und `helpers` (§8). Ein eingebautes Add-on, das vor den Feldern installiert wurde, bekommt sie auf dem Gerät aus dem Katalog des Builds.
 
 ## 3. Fähigkeiten (Capabilities) – *gebaut*
 
@@ -102,9 +102,9 @@ Antwort (`ShowControlResult`): `status: 'ok' | 'error'`, Meldung als Text oder b
 
 Lange Aufgaben (Stems trennen, Download) laufen als **Job**: ein Band-Dokument mit Status und Fortschritt (`asyncJob.ts`), das jedes Gerät sieht. *Gebaut* für die eingebauten Jobs; *geplant*: Jobs für Add-ons über dieselben Nachrichten (`job-progress`, `job-result`).
 
-## 7. Rechte – *geplant*
+## 7. Rechte – *Feld gebaut (#756), Durchsetzung geplant*
 
-Das Manifest meldet an, was das Add-on braucht; die Band bestätigt es beim Installieren (wie Android-Berechtigungen). Ohne Recht keine Nachricht.
+Das Manifest meldet an, was das Add-on braucht (`permissions`, Form `PermissionSchema`); die Band bestätigt es beim Installieren (wie Android-Berechtigungen, #763). Durchgesetzt wird es in der Sandbox (#757, #761): ohne Recht keine Nachricht.
 
 | Recht | erlaubt |
 |---|---|
@@ -138,12 +138,12 @@ RESULT {"files":[{"key":"drums","file":"drums.opus"}]}
 - Das Hilfsprogramm prüft, dass der Aufrufer StageBoard ist (Signatur des aufrufenden Pakets), StageBoard prüft das Paket gegen den Signatur-Fingerabdruck im Manifest.
 - Installieren aus StageBoard: das Manifest nennt die APK (GitHub-Release) und ihren Fingerabdruck; StageBoard lädt sie und öffnet den Installationsdialog von Android. Ab dann zeigt StageBoard das Add-on als installiert; Updates genauso.
 
-Im Manifest (*geplant*):
+Im Manifest (*gebaut*, #756 – `HelpersSchema`; `certSha256` ist eine Liste, damit ein Schlüsselwechsel ohne Bruch geht; StageBoard liest die Vertrauensliste nur von hier, nie aus Code):
 
 ```jsonc
 "helpers": {
   "desktop": { "program": "yt-dlp", "minVersion": "2026.08.19" },
-  "android": { "package": "de.stageboard.helper.youtube", "minVersionCode": 1, "certSha256": "…" }
+  "android": { "package": "de.stageboard.helper.youtube", "minVersionCode": 1, "certSha256": ["…"] }
 }
 ```
 
@@ -153,9 +153,9 @@ Im Manifest (*geplant*):
 - **Meldungen** an Musiker als Code + Parameter, nicht als fertiger Text: das Gerät übersetzt (docs/03, #679).
 - **Einstellungen** der Band in `settings`, repliziert; das Add-on prüft sie mit einem eigenen Schema und nimmt bei Unbekanntem seine Voreinstellung (nie abstürzen).
 
-## 10. Versionen
+## 10. Versionen – *gebaut* (#756)
 
-`apiVersion` (*geplant*) ist die Version dieser Schnittstelle. Kleine Erweiterungen bleiben rückwärtsverträglich; bricht etwas, steigt sie, und StageBoard lädt ein Add-on mit zu alter oder zu neuer Version nicht, sondern zeigt es auf der Karte als „passt nicht zu dieser StageBoard-Version“.
+`apiVersion` ist die Version dieser Schnittstelle (`ADDON_API_VERSION`, heute 1; ein Manifest ohne Angabe gilt als 1). Kleine Erweiterungen bleiben rückwärtsverträglich; bricht etwas, steigt sie, und StageBoard lädt ein Add-on mit zu alter oder zu neuer Version nicht, sondern zeigt es im Add-on-Tab (und später auf der Karte) als „passt nicht zu dieser StageBoard-Version“ – der Host über den Zustand `error` mit dem Code `plugin.apiVersion`, das Gerät für seine eigenen Add-ons genauso.
 
 ## 11. Die eingebauten Add-ons – Umbau (Marco, 2026-11-10: „die anderen Pakete bauen wir entsprechend um“)
 
