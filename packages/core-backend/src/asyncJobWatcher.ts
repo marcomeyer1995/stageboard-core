@@ -11,6 +11,7 @@ import { readInstallations } from './plugins/pluginSync.js'
 import { STEM_SEPARATION_PLUGIN_ID } from './plugins/stemSeparationPlugin.js'
 import { bandHasAddon, YOUTUBE_DOWNLOAD_PLUGIN_ID } from './plugins/importAddons.js'
 import { runStemSeparation } from './stems/stemSeparation.js'
+import { convertToOpus, toOpusAvailable } from './stems/toOpus.js'
 
 const CHANGES_TIMEOUT_MS = 30_000
 const ASYNC_JOB_PREFIX = 'async-jobs:'
@@ -43,6 +44,31 @@ const STEM_ROLES: Record<string, StemRole> = {
   'guitar-left': 'guitar',
   'guitar-right': 'guitar',
   piano: 'keys',
+}
+
+/**
+ * The downloaded file as a track: Opus (YouTube's format 251, practically always) re-wrapped into
+ * Ogg losslessly; anything else encoded to Ogg Opus with the stem venv's PyAV (docs/30 §8h). Kept
+ * as downloaded only when that can't run - no venv, or the encoder fails on the file.
+ */
+async function youtubeTrack(filePath: string, ext: string, convertedPath: string, jobId: string, log: AsyncJobWatcherOptions['log']): Promise<{ data: Buffer; mimeType: string }> {
+  const track = toTrackFormat(await readFile(filePath), ext)
+  if (track.remuxed) {
+    log.info('YouTube audio re-wrapped as Ogg Opus', { jobId, ext })
+    return track
+  }
+  if (!toOpusAvailable()) {
+    log.error('YouTube audio kept as downloaded (not Opus, no encoder: stem-separation venv missing)', { jobId, ext })
+    return track
+  }
+  try {
+    const data = await convertToOpus(filePath, convertedPath)
+    log.info('YouTube audio encoded to Ogg Opus', { jobId, ext, bytes: data.length })
+    return { data, mimeType: 'audio/ogg' }
+  } catch (err) {
+    log.error('YouTube audio kept as downloaded (encoding to Opus failed)', { jobId, ext, error: String(err) })
+    return track
+  }
 }
 
 export interface AsyncJobWatcherOptions {
@@ -301,8 +327,7 @@ export function createAsyncJobWatcher(options: AsyncJobWatcherOptions): AsyncJob
       await progressWrites
 
       const ext = extname(filePath).replace(/^\./, '')
-      const track = toTrackFormat(await readFile(filePath), ext)
-      log.info(track.remuxed ? 'YouTube audio re-wrapped as Ogg Opus' : 'YouTube audio kept as downloaded (not Opus)', { jobId: job.id, ext })
+      const track = await youtubeTrack(filePath, ext, join(workDir, 'converted.opus'), job.id, log)
       const trackId = randomUUID()
       await writeAudioFile(job.variantId, trackId, track.data)
       writtenTrackId = trackId
