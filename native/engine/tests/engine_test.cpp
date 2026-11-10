@@ -319,10 +319,20 @@ static void testPauseAndJump() {
     t.jumpToMs = 4000;
     engine.setTransport(t);
     engine.setBeats(beatsEvery(500, 12, 4));
-    const auto found = onsets(renderAll(engine, 2.0, 300));
+    const auto out = renderAll(engine, 2.0, 300);
+    const auto found = onsets(out);
     const int expected[] = {0, 24000, 48000, 60000, 84000};
     CHECK(found.size() == 5);
     for (size_t i = 0; i < found.size() && i < 5; ++i) CHECK_NEAR(found[i], expected[i], 1);
+    // The jump (frame 60000) lies right on a block end (200 × 300): the beats it leaps over
+    // (1500…3500) must not pile up there - the click after it is one click, as loud as any.
+    float peakJump = 0, peakBefore = 0;
+    for (int i = 0; i < 1440; ++i) {
+      peakBefore = std::fmax(peakBefore, std::fabs(out[24000 + i]));
+      peakJump = std::fmax(peakJump, std::fabs(out[60000 - 200 + i]));
+    }
+    CHECK_NEAR(peakJump, 0.5, 0.02);  // 4000 ms is a downbeat (4/4 at 120 BPM)
+    CHECK_NEAR(peakBefore, 0.35, 0.02);
   }
 }
 
@@ -524,6 +534,7 @@ int main() {
   testClipBusesAndSwap();
   runOpusClipTests();
   runResampleTests();
+  runStreamClipTests();
   if (failures) {
     std::printf("%d check(s) failed\n", failures);
     return 1;
