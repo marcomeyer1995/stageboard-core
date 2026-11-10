@@ -1,6 +1,10 @@
 import { registerPlugin, type PluginListenerHandle } from '@capacitor/core'
 import PouchDB from 'pouchdb-browser'
+import { HostEntrySchema, type HostEntry } from 'shared-types'
 import { createHostLogin, createSyncHost, createWriteGuard, HOST_ACCOUNTS_DOC_ID, type HostAccount } from 'sync-host'
+import { getDeviceId } from './deviceId'
+import { rememberedDeviceName } from './ownDeviceName'
+import { getWorkspaceDb } from './workspaceDb'
 
 /**
  * Spike "Android as host" (docs/25, 2026-11-07): this app answers sync requests from other devices
@@ -10,7 +14,7 @@ import { createHostLogin, createSyncHost, createWriteGuard, HOST_ACCOUNTS_DOC_ID
  * `host-accounts` document (docs/25 §6b, C) - the Stage-Server writes it, every device holds it.
  */
 interface LocalHostPlugin {
-  start: (options: { port: number }) => Promise<{ port: number; address: string | null }>
+  start: (options: { port: number }) => Promise<{ port: number; address: string | null; certFingerprint: string }>
   stop: () => Promise<void>
   respond: (options: { id: string; status: number; contentType: string; text?: string; body?: string }) => Promise<void>
   addListener: (event: 'request', handler: (req: HostRequest) => void) => Promise<PluginListenerHandle>
@@ -51,7 +55,28 @@ function bandOf(path: string): string | null {
   return parts[0] ? decodeURIComponent(parts[0]) : null
 }
 
-export async function startLocalHostSpike(port = 5985): Promise<{ url: string }> {
+/**
+ * Announces this tablet in the active band (`hosts:<device>`, docs/25 §6c): every tablet that syncs
+ * learns its certificate before it is ever needed. Only this tablet may write it (roster validator).
+ */
+async function announceAsServer(port: number, certFingerprint: string): Promise<void> {
+  let workspaceId: string | null = null
+  try {
+    workspaceId = (JSON.parse(localStorage.getItem('stageboard-workspaces') ?? 'null') as { state?: { activeWorkspaceId?: string } } | null)?.state?.activeWorkspaceId ?? null
+  } catch {
+    workspaceId = null
+  }
+  if (!workspaceId) return
+  const deviceId = getDeviceId()
+  const entry: HostEntry = HostEntrySchema.parse({ deviceId, deviceName: rememberedDeviceName() ?? undefined, certFingerprint, port, updatedAt: Date.now() })
+  const db = getWorkspaceDb(workspaceId)
+  const id = `hosts:${deviceId}`
+  const old = (await db.get(id).catch(() => null)) as (HostEntry & { _rev: string }) | null
+  if (old && old.certFingerprint === entry.certFingerprint && old.port === entry.port && old.deviceName === entry.deviceName) return
+  await db.put({ _id: id, ...(old ? { _rev: old._rev } : {}), ...entry })
+}
+
+export async function startLocalHostSpike(port = 5985): Promise<{ url: string; certFingerprint: string }> {
   const opened = new Map<string, PouchDB.Database>()
   const open = (name: string) => {
     let db = opened.get(name)
@@ -105,7 +130,8 @@ export async function startLocalHostSpike(port = 5985): Promise<{ url: string }>
     })
   })
   const started = await LocalHost.start({ port })
-  return { url: `http://${started.address ?? '?'}:${started.port}` }
+  await announceAsServer(started.port, started.certFingerprint)
+  return { url: `https://${started.address ?? '?'}:${started.port}`, certFingerprint: started.certFingerprint }
 }
 
 if (typeof window !== 'undefined') (window as unknown as { __sbStartLocalHost: typeof startLocalHostSpike }).__sbStartLocalHost = startLocalHostSpike

@@ -26,6 +26,17 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.math.BigInteger;
+import java.security.KeyPairGenerator;
+import java.security.KeyStore;
+import java.security.MessageDigest;
+import java.security.spec.ECGenParameterSpec;
+import java.util.Date;
+import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.SSLContext;
+import javax.security.auth.x500.X500Principal;
+import android.security.keystore.KeyGenParameterSpec;
+import android.security.keystore.KeyProperties;
 
 /**
  * Spike "Android as host" (docs/25, Marco 2026-11-07): a small web server in the app. The clock
@@ -64,8 +75,8 @@ public class LocalHostPlugin extends Plugin {
         allowed.clear();
         try {
             if (server != null) server.close();
-            server = new ServerSocket(port, 64);
-        } catch (IOException e) {
+            server = tlsContext().getServerSocketFactory().createServerSocket(port, 64);
+        } catch (Exception e) {
             call.reject("listen failed: " + e.getMessage());
             return;
         }
@@ -81,6 +92,12 @@ public class LocalHostPlugin extends Plugin {
         JSObject ret = new JSObject();
         ret.put("port", port);
         ret.put("address", lanAddress());
+        try {
+            ret.put("certFingerprint", fingerprint());
+        } catch (Exception e) {
+            call.reject("certificate: " + e.getMessage());
+            return;
+        }
         call.resolve(ret);
     }
 
@@ -275,6 +292,48 @@ public class LocalHostPlugin extends Plugin {
         out.write(head.getBytes(StandardCharsets.UTF_8));
         out.write(body);
         out.flush();
+    }
+
+    /**
+     * The tablet's own certificate (docs/25 §6c): made once, the key stays in the Android keystore
+     * and never leaves the device. Every tablet of the band trusts exactly this certificate - by its
+     * fingerprint in the band data (`hosts:<device>`), like the Stage-Server's at pairing.
+     */
+    private static final String KEY_ALIAS = "stageboard-host";
+
+    private KeyStore keyStore() throws Exception {
+        KeyStore ks = KeyStore.getInstance("AndroidKeyStore");
+        ks.load(null);
+        if (!ks.containsAlias(KEY_ALIAS)) {
+            KeyPairGenerator gen = KeyPairGenerator.getInstance(KeyProperties.KEY_ALGORITHM_EC, "AndroidKeyStore");
+            long now = System.currentTimeMillis();
+            gen.initialize(new KeyGenParameterSpec.Builder(KEY_ALIAS, KeyProperties.PURPOSE_SIGN)
+                    .setAlgorithmParameterSpec(new ECGenParameterSpec("secp256r1"))
+                    .setDigests(KeyProperties.DIGEST_SHA256, KeyProperties.DIGEST_NONE)
+                    .setCertificateSubject(new X500Principal("CN=StageBoard Tablet"))
+                    .setCertificateSerialNumber(BigInteger.valueOf(now))
+                    .setCertificateNotBefore(new Date(now - 24L * 3600_000))
+                    .setCertificateNotAfter(new Date(now + 20L * 365 * 24 * 3600_000))
+                    .build());
+            gen.generateKeyPair();
+        }
+        return ks;
+    }
+
+    private SSLContext tlsContext() throws Exception {
+        KeyManagerFactory kmf = KeyManagerFactory.getInstance("X509");
+        kmf.init(keyStore(), null);
+        SSLContext ctx = SSLContext.getInstance("TLS");
+        ctx.init(kmf.getKeyManagers(), null, null);
+        return ctx;
+    }
+
+    /** SHA-256 of the certificate - lowercase hex, no separators, like the Stage-Server's. */
+    private String fingerprint() throws Exception {
+        byte[] digest = MessageDigest.getInstance("SHA-256").digest(keyStore().getCertificate(KEY_ALIAS).getEncoded());
+        StringBuilder hex = new StringBuilder();
+        for (byte b : digest) hex.append(String.format(Locale.ROOT, "%02x", b));
+        return hex.toString();
     }
 
     /** This device's Wi-Fi address, for the spike's measurements from the laptop. */
