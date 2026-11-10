@@ -13,6 +13,7 @@
 #include <atomic>
 #include <cmath>
 #include <cstdarg>
+#include <cstdint>
 #include <cstdio>
 #include <ctime>
 #include <mutex>
@@ -108,7 +109,12 @@ aaudio_data_callback_result_t onData(AAudioStream *stream, void *, void *audioDa
     if (AAudioStream_getTimestamp(stream, CLOCK_MONOTONIC, &framePos, &timeNs) == AAUDIO_OK) {
         const int64_t mono = clockNs(CLOCK_MONOTONIC);
         const int64_t real = clockNs(CLOCK_REALTIME);
-        const double heardMonoNs = static_cast<double>(timeNs) + static_cast<double>(gFrames - framePos) * 1e9 / gRate;
+        // Frames between the timestamp's frame and the next one we write - a fraction of a second.
+        // Taken modulo 2^32: Android 9's AAudio (legacy AudioTrack path, the Fire) reports a 32-bit
+        // position, which wraps after 2^31 frames (12.4 h at 48 kHz) - with the app kept awake
+        // overnight the output then sat 2^32 frames (24.9 h) "late" and played nothing.
+        const auto ahead = static_cast<int32_t>(static_cast<uint32_t>(static_cast<uint64_t>(gFrames - framePos)));
+        const double heardMonoNs = static_cast<double>(timeNs) + static_cast<double>(ahead) * 1e9 / gRate;
         gLatencyMs.store((heardMonoNs - static_cast<double>(mono)) / 1e6);
         const double measured = (heardMonoNs + static_cast<double>(real - mono)) / 1e6;
         const double err = measured - gHeardMs0;
