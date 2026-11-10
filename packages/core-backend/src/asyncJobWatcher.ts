@@ -1,11 +1,11 @@
 import { randomUUID } from 'node:crypto'
-import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { extname, join } from 'node:path'
 import { AsyncJobSchema, isYoutubeUrl, messageFieldsOf, ServerMessageError, type ServerMessageCode, type AsyncJob, type StemRole, type StemSeparationJob, type TrackMeta, type YoutubeExtractJob } from 'shared-types'
 import { allDocs, getDoc, putDocWithRetry, waitForChange, type CouchConfig, type CouchDoc } from './couch.js'
 import { workspaceDbName } from './workspaceProvisioning.js'
-import { mimeTypeForExt, runYtDlpExtract } from './ytDlp.js'
+import { runYtDlpExtract, toTrackFormat } from './ytDlp.js'
 import { deleteAudioFile, isSafeAudioId, readAudioFile, writeAudioFile } from './audioStore.js'
 import { readInstallations } from './plugins/pluginSync.js'
 import { STEM_SEPARATION_PLUGIN_ID } from './plugins/stemSeparationPlugin.js'
@@ -229,7 +229,8 @@ export function createAsyncJobWatcher(options: AsyncJobWatcherOptions): AsyncJob
           source: 'stem-separation',
           parentTrackId: job.sourceTrackId,
           ...(STEM_ROLES[file.key] ? { role: STEM_ROLES[file.key] } : {}),
-          mimeType: 'audio/webm',
+          // Ogg Opus, the track format (stem_separate.py); WebM from a script before 2026-11-10.
+          mimeType: file.path.endsWith('.opus') ? 'audio/ogg' : 'audio/webm',
           addedAt: Date.now(),
           sizeBytes: buffer.length,
           ...(typeof source.durationMs === 'number' ? { durationMs: source.durationMs } : {}),
@@ -299,10 +300,11 @@ export function createAsyncJobWatcher(options: AsyncJobWatcherOptions): AsyncJob
       })
       await progressWrites
 
-      const buffer = await readFile(filePath)
       const ext = extname(filePath).replace(/^\./, '')
+      const track = toTrackFormat(await readFile(filePath), ext)
+      log.info(track.remuxed ? 'YouTube audio re-wrapped as Ogg Opus' : 'YouTube audio kept as downloaded (not Opus)', { jobId: job.id, ext })
       const trackId = randomUUID()
-      await writeAudioFile(job.variantId, trackId, buffer)
+      await writeAudioFile(job.variantId, trackId, track.data)
       writtenTrackId = trackId
 
       const meta: TrackMeta = {
@@ -311,9 +313,9 @@ export function createAsyncJobWatcher(options: AsyncJobWatcherOptions): AsyncJob
         label: job.label,
         source: 'youtube-extract',
         parentTrackId: null,
-        mimeType: mimeTypeForExt(ext),
+        mimeType: track.mimeType,
         addedAt: Date.now(),
-        sizeBytes: (await stat(filePath)).size,
+        sizeBytes: track.data.length,
       }
       await appendTrack(job.variantId, meta)
       await patchJob(job.id, { status: 'done', progress: 1, trackId })
