@@ -155,7 +155,7 @@ Heute: ein Gerät wählen → Wert. Im Plan: **ein Weg** (Gerät-Ausgang → Zie
 | D1 | #749 | Icons, Zonen, Auto-Layout mit Anpinnen (§10) | – |
 | D2 | #750 | Export: Stage Plot, Input-/Output-Liste, Packliste (§11, #488) | D1 |
 | E1 | #751 | Einmess-Runde über die Linien (§5, #491) | C2 |
-| E2 | #752 | Havarie 1: Ersatzweg auf demselben Gerät (§12) | B1 |
+| E2 | #752 | Havarie 1: Ersatzweg auf demselben Gerät (§12) | B2 |
 | E3 | #753 | Havarie 2: ein anderes Gerät übernimmt (§12) | B4, E2 |
 
 Vorgeschlagene Reihenfolge: A1 → A2 → B1 → B3 → C1 → B4 → C2, danach A3/A4, dann D und E. Danach wie bisher: Pult als Sensor, Licht per Kamera (docs/21 §4).
@@ -267,7 +267,7 @@ Je Aufbau ein PDF, erzeugt in der App (auf jedem Host, auch Solo; kein Druckdial
 
 Digitale Wege (USB, Netz) fallen live am ehesten aus. Die App kann keinen fehlenden Anschluss ersetzen, aber auf einen **vorher festgelegten** Ersatzweg umschalten (§0c: nur auf einen festgelegten, sonst Stille; kurze Lücke in Ordnung).
 
-1. **Ersatzweg auf demselben Gerät** (#752, braucht §7c Stufe 1): in der Matrix legt der Admin neben dem Hauptweg einen Ersatz fest (langes Drücken und über ⋯), z. B. den Kopfhörerausgang, der vorsorglich am Pult steckt. Fällt der Hauptausgang weg (USB abgezogen), schaltet die Engine um und steigt über die gemeinsame Uhr wieder im Takt ein. Zurück auf den Hauptweg nicht von selbst im laufenden Song (noch eine Lücke) – von Hand oder beim nächsten Song.
+1. **Ersatzweg auf demselben Gerät** (#752, braucht §7c Stufe 2 – erst mit einem USB-Interface gibt es einen Ausgang, der wegfallen kann, und einen zweiten): in der Matrix legt der Admin neben dem Hauptweg einen Ersatz fest (langes Drücken und über ⋯), z. B. den Kopfhörerausgang, der vorsorglich am Pult steckt. Fällt der Hauptausgang weg (USB abgezogen), schaltet die Engine um und steigt über die gemeinsame Uhr wieder im Takt ein. Zurück auf den Hauptweg nicht von selbst im laufenden Song (noch eine Lücke) – von Hand oder beim nächsten Song.
 2. **Ein anderes Gerät übernimmt** (#753, braucht Aufbau im Gig und Stufe 1): für ein Signal (Track) ist ein anderes Gerät als Ersatz festgelegt; fällt das spielende Gerät ganz aus, übernimmt der Ersatz an derselben Stelle (gemeinsame Uhr). Voraussetzung: der Track liegt auf dem Ersatzgerät – die Live-Ebene zeigt, wenn nicht. Kommt das ausgefallene Gerät zurück, bleibt es still, bis der Admin zurückschaltet – nie doppelt.
 
 Karte: Hauptlinie rot, Ersatzlinie orange, Meldung an den Admin. Offen: §8.
