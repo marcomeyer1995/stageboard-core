@@ -4,7 +4,7 @@
 StageBoard is a modular all-in-one live operating system for bands. It synchronises setlists, chords, in-ear monitoring (IEM), MIDI cues and lighting control over a local mesh network on stage. It is inspired by the modular dashboard approach of "Home Assistant".
 
 ## Core principles
-1. **Local-first & resilience:** The Stage-Server (Linux/Docker) is the heart. The musicians' tablets talk to each other offline over the local network. (Being reworked by #784: the *host* is the heart, from the band's own laptop up to the box - docs/25.)
+1. **Local-first & resilience:** The **host** is the heart - a role, not a box: one device for itself (solo), one of the band's own devices (laptop, later Android), or a dedicated Stage-Server (docs/02, docs/25). Everything a gig needs runs on the local network, offline; every device holds the whole band and keeps playing when the network drops.
 2. **Graceful degradation:** When hardware (e.g. a mixer) is missing, the UI does not crash. Widgets go into a safe "disabled state" so the musicians' muscle memory is not disturbed.
 3. **Progressive disclosure:** The default UI is "foolproof". Complex settings are locked behind an "edit mode" (padlock icon).
 
@@ -16,7 +16,7 @@ This is the single authoritative source for the tech stack (do not duplicate it 
 *   **Backend:** Node.js, Fastify, TypeScript, Zod (schema validation, microkernel architecture for plugins)
 *   **Database:** CouchDB (Docker) for multi-master replication
 *   **Native app:** Capacitor (Android) around the same frontend build (`packages/stage-pwa/android`, UI inside the APK, certificate pinning, updates from the Stage-Server) - details in docs/03 §0c.
-*   **Infrastructure:** native execution on Linux (no virtualisation for the live server because of MIDI/audio latencies).
+*   **Infrastructure:** native execution (no virtualisation for the live host because of MIDI/audio latencies); the dedicated Stage-Server runs on Linux, the band host on the laptop's own OS (docs/25).
 
 The Node version is managed with `nvm` and pinned in `.nvmrc` (currently Node 24 LTS) - not through the system `apt` package (which only offers an outdated Node 18). Details including an nvm/`npm_config_prefix` pitfall: [docs/03_Developer_Experience.md](docs/03_Developer_Experience.md#0-nodejs-version-via-nvm-gepinnt-in-nvmrc).
 
@@ -31,7 +31,7 @@ The following files in `docs/` hold the detailed concepts. Read only the file(s)
 
 *   **[docs/00_System_Vision_und_Architektur.md](docs/00_System_Vision_und_Architektur.md)** — Overall system vision: dual-state architecture (home sandbox vs. stage mesh), onboarding/network discovery, identity/preferences, precision execution engine (NTP sync, ahead-of-time dispatch), hardware abstraction layer & auto-binding, plugin architecture, graceful degradation. → read for questions about the whole system or before placing a new idea/issue - the source that every other docs/ file and the issue tracker are checked against.
 *   **[docs/01_Architektur_Spezifikation.md](docs/01_Architektur_Spezifikation.md)** — Components in detail: tablet client, Stage-Server, high-availability setup, self-hosted cloud/AI. → read for questions about system structure, plugin interfaces, redundancy/failover.
-*   **[docs/02_Ausbaustufen_Konzept.md](docs/02_Ausbaustufen_Konzept.md)** — Hardware matrix of the 5 expansion tiers (solo to touring) with feature dependencies. **Outdated** - being replaced by the three operating tiers of docs/25 (#784). → read only for history.
+*   **[docs/02_Operating_Tiers.md](docs/02_Operating_Tiers.md)** — The three operating tiers (solo / band host / Stage-Server, rewritten 2026-11-10, #784) and, per function, what it really needs: host tier, gear at the spot, helper program on the host. Replaces the five hardware expansion tiers. → read for questions whether a feature needs a host or hardware, or how graceful degradation looks per tier.
 *   **[docs/03_Developer_Experience.md](docs/03_Developer_Experience.md)** — Node.js version via nvm (see above), local HTTPS/secure-context setup, the productive Stage-Server (systemd unit, deploy worktree, data outside the repo, redeploy steps), native Android app (toolchain, signing key, APK build and updates via `/app`), logging strategy, testing/hardware mocks, planned internal MCP server, issue-driven workflow, language rule. → read before every deploy/restart of the Stage-Server and for questions about tests, observability, dependency versions, local HTTPS or the AI development workflow itself.
 *   **[docs/04_Editor_Und_Datenstruktur.md](docs/04_Editor_Und_Datenstruktur.md)** — ChordPro data model, sheet editor, timecode generation (tap-to-sync & timeline). → read when working on the song editor, the data schema or timecode logic.
 *   **[docs/05_Meilensteinplanung.md](docs/05_Meilensteinplanung.md)** — Phase plan weeks 1–6 (core first, UI second, plugins third). → read to place a task in its build phase.
