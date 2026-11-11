@@ -80,8 +80,15 @@ if (cmd === 'prepare') {
       continue
     }
     s.play = cdp(d, "window.__sbRunAction({ kind: 'show', op: 'play-pause' })")
+  }
+  // The loop takes the section playing - not yet during the count-in before the first part.
+  execFileSync('sleep', ['6'])
+  for (const d of DEVICES) {
+    const s = state.devices[d.name]
+    if (s.play === undefined) continue
     s.loop = cdp(d, "window.__sbRunAction({ kind: 'section', op: 'loop-on' })")
     console.log(d.name, 'play', JSON.stringify(s.play), 'loop', JSON.stringify(s.loop))
+    if (s.loop !== null) console.log(d.name, '!! no loop - the song needs named parts ({part: ...}) with timed lines; it ends after one pass')
   }
   // Clicks must run before locking - else the test measures nothing.
   execFileSync('sleep', ['8'])
