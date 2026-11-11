@@ -36,7 +36,7 @@ function setUp(isAdmin: boolean) {
   map.setups[0]!.positions.pult = { x: 400, y: 600 }
   map.setups[0]!.links.push({ id: 'cable', from: { equipmentId: `device:${me}`, portId: 'headphones' }, to: { equipmentId: 'pult', portId: 'in', channel: 15 }, signals: ['audio'] })
   map.setups[0]!.routing[`device:${me}`] = [{ from: { kind: 'virtual', virtualPortId: 'klick' }, to: { kind: 'port', portId: 'headphones' } }]
-  useStageMapStore.setState({ ...map, loaded: true, updateSetup, saveEquipment })
+  useStageMapStore.setState({ ...map, ownSetups: [], ownEquipment: [], loaded: true, updateSetup, saveEquipment })
   useDevicesStore.setState({
     loaded: true,
     devices: [
@@ -288,5 +288,73 @@ describe('StageMap (docs/31 §7)', () => {
     expect(screen.queryByText(/kommt nirgends an/)).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Klick (Redmi)' }))
     expect(screen.getByText('kommt nirgends an')).toBeInTheDocument()
+  })
+
+  describe('own setups (#799, docs/31 §0d)', () => {
+    const home = (owner: string, name: string): StageSetup => ({ id: `home-${owner}`, name, owner, positions: { [`device:${me}`]: { x: 0, y: 0 } }, links: [], routing: {} })
+
+    it('a member starts an own setup from their own device - the band\'s setup stays as it is', async () => {
+      setUp(false)
+      const saveSetup = vi.fn().mockResolvedValue(undefined)
+      useStageMapStore.setState({ saveSetup })
+      render(
+        <>
+          <StageMap />
+          <DialogHost />
+        </>,
+      )
+      fireEvent.click(screen.getByRole('switch', { name: 'Bearbeiten' }))
+      fireEvent.click(screen.getByRole('button', { name: /Mein Aufbau \(neu\)/ }))
+      fireEvent.click(await screen.findByRole('button', { name: 'Hinzufügen' }))
+      await vi.waitFor(() => expect(saveSetup).toHaveBeenCalled())
+      const own = saveSetup.mock.calls[0]![0] as StageSetup
+      expect(own).toMatchObject({ name: 'Zuhause', owner: 'p-marco' })
+      expect(Object.keys(own.positions)).toContain(`device:${me}`)
+      expect(Object.keys(own.positions)).not.toContain('device:fire')
+      expect(Object.keys(own.positions)).not.toContain('pult')
+      expect(updateSetup).not.toHaveBeenCalled()
+    })
+
+    it('is listed for its owner and the admin, not for the other members', () => {
+      setUp(false)
+      useStageMapStore.setState({ ownSetups: [home('p-kai', 'Keller')] })
+      const member = render(<StageMap />)
+      expect(screen.queryByText(/Keller/)).toBeNull()
+      member.unmount()
+
+      setUp(true)
+      useStageMapStore.setState({ ownSetups: [home('p-kai', 'Keller')] })
+      const admin = render(<StageMap />)
+      expect(screen.getByRole('radio', { name: 'Keller (Kai)' })).toBeInTheDocument()
+      admin.unmount()
+
+      setUp(false)
+      useStageMapStore.setState({ ownSetups: [home('p-marco', 'Zuhause')] })
+      render(<StageMap />)
+      fireEvent.click(screen.getByRole('radio', { name: 'Mein: Zuhause' }))
+      expect(screen.getByText(/nur du und der Admin sehen ihn/)).toBeInTheDocument()
+    })
+
+    it('own equipment is offered in its owner\'s setup only, and what is added there is theirs', async () => {
+      setUp(false)
+      const unit = { ...equipmentFrom(BUILTIN_MODELS.find((m) => m.id === 'mixer')!, 'unit', 'Effektgerät'), owner: 'p-marco' }
+      useStageMapStore.setState({ ownSetups: [home('p-marco', 'Zuhause')], ownEquipment: [unit] })
+      render(
+        <>
+          <StageMap />
+          <DialogHost />
+        </>,
+      )
+      fireEvent.click(screen.getByRole('switch', { name: 'Bearbeiten' }))
+      // The band's setup: a member neither adds equipment nor sees the own unit.
+      expect(screen.queryByRole('button', { name: /Effektgerät/ })).toBeNull()
+      expect(screen.queryByRole('button', { name: /Ausrüstung hinzufügen/ })).toBeNull()
+      fireEvent.click(screen.getByRole('radio', { name: 'Mein: Zuhause' }))
+      expect(screen.getByRole('button', { name: /Effektgerät/ })).toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button', { name: /Ausrüstung hinzufügen/ }))
+      fireEvent.click(await screen.findByRole('button', { name: 'Hinzufügen' }))
+      await vi.waitFor(() => expect(saveEquipment).toHaveBeenCalled())
+      expect(saveEquipment.mock.calls[0]![0]).toMatchObject({ owner: 'p-marco' })
+    })
   })
 })
