@@ -256,6 +256,8 @@ Die Prüfungen aus §0b (doppelt belegt, Kabel breiter als das Ziel, Stereo-Buch
 
 Nach §0c: keine Phasen. Je Modell ein Startwert für die **Erdung** (Pult geerdet, Tablet auf Akku, Laptop: Rückfrage „am Netzteil?“); je Stecker ein Startwert für die **Verbindung** (XLR symmetrisch, Klinke mono unsymmetrisch, USB führt Masse, MIDI DIN und Funk getrennt; DI-Box und Trenner trennen). **Prüfung:** zwei geerdete Geräte, die über eine Kette von Kabeln mit Masse verbunden sind – liegt ein unsymmetrisches Kabel darin: rot, „Brummschleife wahrscheinlich – DI-Box oder Trenner“; nur symmetrische Kabel: höchstens ein leiser Hinweis. Optional Steckdosen auf der Karte mit Geräten daran.
 
+**Built 2026-11-11 (#806):** `equipmentEarth` (defaults by kind, "Strom" on the map), `cableGround` (XLR balanced; any jack, RCA and the headphone socket unbalanced unless the cable is set to balanced; USB/DMX carry ground; MIDI DIN, network, radio isolated; "Mit Trenner" on a cable; a DI box stops the ground). A cable on a way between two earthed devices (a bridge with earthed gear on both sides, or in a ring with two earthed devices): unbalanced red, USB/DMX only a hint, balanced nothing. Outlets on the map not built.
+
 ## 8. Offen
 
 - Dialog für generische Ausrüstung/Band-Modelle im Detail; welche Anschlüsse die App auf Tablets selbst erkennt.
