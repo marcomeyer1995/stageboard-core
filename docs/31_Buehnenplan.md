@@ -270,6 +270,8 @@ Schalter **„Aufbau | Prüfen“** auf der Karte. Prüfen zeigt je **Gerät**: 
 
 **Built 2026-11-11 (#805):** `lib/stageLive.ts` (pure) + `lib/useStageLive.ts`. Devices report `battery` and `midiOutputs` (names) with the device info, at once when a MIDI port comes or goes, never asking for the MIDI permission. Offline or app closed counts as a fault in the check; battery below 20 % without a charger is a warning. Open: clock deviation is only the vitals' "band time unsure" (no ms value reported), "✕ unstable" does not exist (nothing measures it), MIDI ports of the Stage-Server itself are not known, and for Klick/Track/Ansagen the latency state is the device's audio value over any route.
 
+Added the same day: devices also report the sources their output plan keeps silent (`silenced`) - the device and the cable the signal leaves on turn red, "Ausgang fehlt: Klick still" - and the band clock's uncertainty in the vitals (`clockUncertaintyMs`), shown as "Bandzeit ± n ms" (yellow when unsure). A device is never offline for itself. So of the open points above only "✕ unstable" and the Stage-Server's own MIDI ports remain; the clock shows how sure it is, not its true deviation (a device cannot know that).
+
 ## 10. Icons, Zonen und Auto-Layout (#749)
 
 - **Icons** je Art von Ausrüstung (Tablet, Pult, Amp, In-Ear, Wedge, Mikrofon, DI …) als Vektorgrafik im UI-System (docs/15), in beiden Themes lesbar.
