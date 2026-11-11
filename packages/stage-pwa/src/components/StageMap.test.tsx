@@ -276,7 +276,8 @@ describe('StageMap (docs/31 §7)', () => {
     expect(routedTo(2)).toContainEqual({ from: { kind: 'virtual', virtualPortId: 'track' }, to: { kind: 'port', portId: 'usb/audio-out', channel: 3 } })
     expect(screen.queryByRole('switch', { name: 'Track → USB-C · Audio aus 5' })).toBeNull()
     // The headphone jack closed is the whole socket (as before); opened it offers L and R.
-    fireEvent.click(screen.getByRole('switch', { name: 'Klick → Kopfhörer · 1/3' }))
+    // The whole socket counts as both pins taken.
+    fireEvent.click(screen.getByRole('switch', { name: 'Klick → Kopfhörer · 2/2' }))
     expect(routedTo(3)).not.toContainEqual({ from: { kind: 'virtual', virtualPortId: 'klick' }, to: { kind: 'port', portId: 'headphones' } })
     fireEvent.click(screen.getAllByRole('button', { name: 'Kopfhörer: auf- oder zuklappen' })[0]!)
     fireEvent.click(screen.getByRole('switch', { name: 'Klick → Kopfhörer L' }))

@@ -578,7 +578,7 @@ export function equipmentEarth(equipment: Pick<StageEquipment, 'kind' | 'earth'>
 }
 
 /** What a cable does with ground (#748, docs/31 §7e): a balanced audio cable (XLR, TRS on a mono
- * socket) carries the shield but the signal does not ride on it; an unbalanced one (mono jack,
+ * socket) carries the shield but the signal does not ride on it; an unbalanced one (TS jack,
  * stereo/headphone jack, RCA) carries the signal on the shield; USB and DMX tie the grounds with
  * no audio on them; MIDI DIN (opto-coupled at the input), network (transformers) and anything
  * without a wire are isolated. */
@@ -592,9 +592,11 @@ function endGround(port: PlugView | undefined): CableGround {
     case 'xlr':
     case 'xlr-jack':
       return 'balanced'
-    // A jack socket takes a mono (TS) cable as often as a balanced one: unbalanced unless the cable
-    // says otherwise (StageLink.ground, "Kabel: symmetrisch").
     case 'jack-6.3':
+      // A TRS socket (the map's "Klinke 6,3 symmetrisch") is balanced as one channel; with two pins
+      // it is left and right - a stereo/headphone socket, unbalanced. A mono (TS) cable in it:
+      // "Kabel und Masse: Unsymmetrisch" on the cable.
+      return (port.pins ?? 1) > 1 ? 'unbalanced' : 'balanced'
     case 'jack-6.3-ts':
     case 'jack-3.5':
     case 'rca':

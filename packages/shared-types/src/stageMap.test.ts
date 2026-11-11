@@ -766,25 +766,29 @@ describe('hum loops (#748, docs/31 §7e)', () => {
     expect(equipmentEarth(laptop)).toBe('earthed')
   })
 
-  it('cables by their plugs: XLR balanced, a jack unbalanced unless the cable says so, USB ties ground, MIDI isolated', () => {
+  it('cables by their plugs: XLR and TRS balanced, TS and stereo jacks unbalanced, the cable can say otherwise, USB ties ground, MIDI isolated', () => {
     const port = (connector: Port['connector'], pins?: number): Port => ({ id: 'p', name: 'P', connector, signals: ['audio'], direction: 'out', ...(pins ? { pins } : {}) })
     expect(cableGround(port('xlr'), port('xlr-jack'))).toBe('balanced')
-    expect(cableGround(port('jack-6.3'), port('xlr-jack'))).toBe('unbalanced')
-    expect(cableGround(port('jack-6.3'), port('xlr-jack'), 'balanced')).toBe('balanced')
+    expect(cableGround(port('jack-6.3'), port('xlr-jack'))).toBe('balanced')
+    expect(cableGround(port('jack-6.3-ts'), port('xlr-jack'))).toBe('unbalanced')
+    expect(cableGround(port('jack-6.3', 2), port('jack-6.3'))).toBe('unbalanced')
+    expect(cableGround(port('jack-6.3'), port('xlr-jack'), 'unbalanced')).toBe('unbalanced')
     expect(cableGround(port('usb-c'), port('usb-b'))).toBe('ground')
     expect(cableGround(port('din5'), port('din5'))).toBe('isolated')
     expect(cableGround(port('jack-3.5', 2), port('wireless'))).toBe('isolated')
   })
 
   it('laptop on its charger → USB → interface → mono jack → desk: red; with a DI box in between: gone (acceptance)', () => {
-    const jack = link('jack', ['umc', 'out'], ['desk', 'in'])
+    // The interface's outputs are TRS sockets; the mono cable in it is said on the cable.
+    const jack = link('jack', ['umc', 'out'], ['desk', 'in'], { ground: 'unbalanced' })
     expect(run([laptop, iface, desk], [usb, jack])).toEqual([{ kind: 'hum-loop', equipmentIds: ['laptop', 'desk'], linkIds: ['jack'] }])
     const viaDi = [usb, link('j1', ['umc', 'out'], ['di', 'in']), link('x1', ['di', 'out'], ['desk', 'in'])]
     expect(run([laptop, iface, di, desk], viaDi)).toEqual([])
     // The same laptop on its battery closes no loop.
     expect(run([{ ...laptop, earth: 'battery' }, iface, desk], [usb, jack])).toEqual([])
-    // A balanced TRS cable instead of the mono one: only the USB ground is left - a quiet hint.
-    expect(run([laptop, iface, desk], [usb, { ...jack, ground: 'balanced' }])).toEqual([{ kind: 'hum-hint', equipmentIds: ['laptop', 'desk'], linkIds: ['usb'] }])
+    // A balanced TRS cable instead (the socket's own default): only the USB ground is left - a quiet hint.
+    const { ground: _mono, ...trs } = jack
+    expect(run([laptop, iface, desk], [usb, trs])).toEqual([{ kind: 'hum-hint', equipmentIds: ['laptop', 'desk'], linkIds: ['usb'] }])
     // An isolator in the cable stops it as well.
     expect(run([laptop, iface, desk], [usb, { ...jack, ground: 'isolated' }])).toEqual([])
   })

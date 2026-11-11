@@ -75,7 +75,8 @@ describe('stageLive (#747, docs/31 §9)', () => {
 
   it('a tablet in flight mode appears offline once its report is stale (acceptance); app closed but on the network says so', () => {
     const stale = entry({ lastSeenAt: NOW - 31_000, networkReachable: false, midiOutputs: ['Kemper Player'] })
-    const live = stageLive(stage({ deviceInfo: { devices: { redmi: stale, fire: entry({ lastSeenAt: NOW - 60_000, networkReachable: true }) } } }))
+    // Seen from a third device (the laptop) - a device never sees itself offline.
+    const live = stageLive(stage({ ownDeviceId: 'laptop', deviceInfo: { devices: { redmi: stale, fire: entry({ lastSeenAt: NOW - 60_000, networkReachable: true }) } } }))
     expect(live.equipment['device:redmi']).toMatchObject({ status: 'error', notes: [{ key: 'offline' }] })
     expect(live.equipment['device:fire']).toMatchObject({ status: 'error', notes: [{ key: 'appClosed' }] })
     // What an offline device sees is not known - not a fault of the cable.
@@ -149,5 +150,11 @@ describe('stageLive (#747, docs/31 §9)', () => {
     // An older app without the number keeps the plain "unsure".
     const old = stageLive(stage({ deviceInfo: { devices: { redmi: entry({ vitals: { ...vitals(['clockUnsure']), clockUncertaintyMs: undefined } }), fire: entry() } } }))
     expect(old.equipment['device:redmi']!.notes).toContainEqual({ status: 'warning', key: 'vitals', issue: 'clockUnsure' })
+  })
+
+  it('this device is never offline for itself, even when its report does not get through (no Stage-Server)', () => {
+    const live = stageLive(stage({ ownDeviceId: 'redmi', ownSilenced: ['track'], deviceInfo: { devices: {} } }))
+    expect(live.equipment['device:redmi']!.notes).toEqual([{ status: 'ok', key: 'online' }, { status: 'error', key: 'outputMissing', sources: ['track'] }])
+    expect(live.equipment['device:fire']).toMatchObject({ status: 'error', notes: [{ key: 'offline' }] })
   })
 })
