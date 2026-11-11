@@ -73,8 +73,9 @@ Written in English (#785); the rest of this file is translated when touched.
 | Question | Decision |
 |---|---|
 | Gig | the playing device takes its outputs from **its matrix in the active band setup** (§7c) |
-| Practice (practice, Timeline, song editor) | **not a band setup**: every device has its own **practice assignment** - only the matrix of this one device (click, track, announcements, stems onto its own outputs), stored per device like "Mein Mix". Three choices: **"Everything on both ears"** (default, needs no map), **"As in setup …"** (this device's matrix from a band setup, to practise with the gig rig) and **"Own"** (a freely assigned matrix of this device). No preset "click left, track right" - that is done in "Own" |
-| Output missing while practising | **fall back to "Everything on both ears"** with a hint (no audience at home) |
+| Practice (practice, Timeline, song editor) | per device one choice: **"Everything on both ears"** (default, needs no map) or **a setup** - one of the band's ("Rehearsal room") or one of the person's own. No preset "click left, track right" - that is done in an own setup. Device cues (MIDI to the Kemper) follow the chosen setup as in the gig |
+| Own setups ("My setup", #799) | a **full stage map owned by one person**: same model and editor as a band setup (equipment, cables, matrix), so an effects unit, an interface or a pedal at home can be connected. **Per person, not per device** (syncs across the person's devices); several possible ("Home", "Teaching room"); not offered in the gig's setup choice and not listed for other members; **the admin may see and edit them**. Band equipment can be used, own equipment belongs to the person. Measured values belong to the path as always |
+| Output missing while practising | also when the device is not placed in the chosen setup: **fall back to "Everything on both ears"** with a hint (no audience at home) |
 | Output missing in the gig | **only the affected sources go silent**; sources whose output is still there keep playing (the click on the in-ear survives a pulled USB cable), with a red message. Never played somewhere else (docs/28); the later failover (#752) switches exactly the lost signal |
 | Old setting "click left / right" | **removed** (`OutputRouting` store and its settings) |
 
