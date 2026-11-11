@@ -279,6 +279,36 @@ describe('StageMap (docs/31 §7)', () => {
     expect(routedTo(4)).toContainEqual({ from: { kind: 'virtual', virtualPortId: 'klick' }, to: { kind: 'port', portId: 'headphones', pin: 1 } })
   })
 
+  it('an interface does not mix: a second signal on a taken output asks "replace?" - and the cable list names what is wrong (#746)', async () => {
+    setUp(true)
+    const umc = equipmentFrom(BUILTIN_MODELS.find((m) => m.id === 'audio-interface')!, 'umc', 'UMC204HD')
+    useStageMapStore.setState((s) => ({ equipment: [...s.equipment, umc], setups: s.setups.map((x) => ({ ...x, positions: { ...x.positions, umc: { x: 900, y: 900 } } })) }))
+    render(
+      <>
+        <StageMap />
+        <DialogHost />
+      </>,
+    )
+    fireEvent.click(screen.getByRole('switch', { name: 'Bearbeiten' }))
+    tapNode('UMC204HD')
+    fireEvent.click(screen.getAllByRole('button', { name: 'USB · Audio ein (vom Host): auf- oder zuklappen' })[0]!)
+    fireEvent.click(screen.getAllByRole('button', { name: 'Ausgang: auf- oder zuklappen' })[0]!)
+    // Output 1 already carries "Audio ein 1" (the model's default).
+    fireEvent.click(screen.getByRole('switch', { name: /Audio ein \(vom Host\) 2 → Ausgang 1$/ }))
+    expect(updateSetup).not.toHaveBeenCalled()
+    await vi.waitFor(() => expect(screen.getByRole('alertdialog', { name: 'Ausgang ist belegt' })).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: 'Ersetzen' }))
+    await vi.waitFor(() => expect(updateSetup).toHaveBeenCalledTimes(1))
+    const after = (updateSetup.mock.calls[0]![1] as (s: StageSetup) => StageSetup)(useStageMapStore.getState().setups[0]!)
+    expect(after.routing.umc!.filter((c) => c.to.kind === 'port' && c.to.channel === 1)).toEqual([{ from: { kind: 'port', portId: 'usb/audio-in', channel: 2 }, to: { kind: 'port', portId: 'out', channel: 1 } }])
+    // Both on the output anyway (an older map): the cable list says so, naming device and port.
+    useStageMapStore.setState((s) => ({
+      setups: s.setups.map((x) => ({ ...x, routing: { ...x.routing, umc: [1, 2].map((channel) => ({ from: { kind: 'port' as const, portId: 'usb/audio-in', channel }, to: { kind: 'port' as const, portId: 'out', channel: 1 } })) } })),
+    }))
+    fireEvent.click(screen.getByRole('button', { name: /Verkabelung \(/ }))
+    expect(screen.getByText(/^UMC204HD · Ausgang 1: 2 Signale auf demselben Ausgang, aber UMC204HD mischt nicht/)).toBeInTheDocument()
+  })
+
   it('a cable: first its two ends and what runs on it, tapped again the whole way of each signal', () => {
     setUp(false)
     render(<StageMap />)

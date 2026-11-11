@@ -162,6 +162,9 @@ export const EquipmentModelSchema = z.object({
   source: z.enum(['builtin', 'plugin', 'band']),
   pluginId: z.string().min(1).nullable().default(null),
   sounds: z.boolean().default(false),
+  /** Whether the gear mixes several signals routed onto one output (#746) - absent: by its kind
+   * (`equipmentMixes`). */
+  mixes: z.boolean().optional(),
   ports: z.array(PortSchema),
   routing: RoutingSchema.nullable().default(null),
 })
@@ -185,6 +188,8 @@ export const StageEquipmentSchema = z.object({
   modelId: z.string().min(1),
   kind: EquipmentKindSchema,
   sounds: z.boolean().default(false),
+  /** Copied from the model where it says so (#746); absent: by kind (`equipmentMixes`). */
+  mixes: z.boolean().optional(),
   ports: z.array(PortSchema),
   routing: RoutingSchema.nullable().default(null),
   /** The StageBoard device this is (kind `stageboard`). */
@@ -472,6 +477,7 @@ export function equipmentFrom(model: EquipmentModel, id: string, name: string, e
     modelId: model.id,
     kind: model.kind,
     sounds: model.sounds,
+    ...(model.mixes === undefined ? {} : { mixes: model.mixes }),
     ports: clone(model.ports),
     routing: clone(model.routing),
     deviceId: extra.deviceId ?? null,
@@ -533,6 +539,15 @@ export function addDeviceToMap(map: StageMap, device: { id: string; name: string
 export function defaultStageMap(devices: readonly { id: string; name: string }[]): StageMap {
   const empty: StageMap = { equipment: [], setups: [{ id: DEFAULT_SETUP_ID, name: 'Standard', positions: {}, links: [], routing: {} }] }
   return devices.reduce((map, device) => addDeviceToMap(map, device), empty)
+}
+
+/** Kinds that mix what their matrix puts on one output: the app's engine (docs/31 §7c) and a mixer. */
+const MIXING_KINDS: readonly EquipmentKind[] = ['stageboard', 'mixer']
+
+/** Whether a device mixes several signals routed onto one pin (#746): what its model says, else
+ * by kind - an interface, a stagebox or a splitter does not. */
+export function equipmentMixes(equipment: Pick<StageEquipment, 'kind' | 'mixes'>): boolean {
+  return equipment.mixes ?? MIXING_KINDS.includes(equipment.kind)
 }
 
 /** The crosspoints that apply to a device in a setup: a fixed routing always its own, a free one
@@ -603,16 +618,12 @@ function classOn(port: { signals: readonly Signal[] }, cls: SignalClass, sounds:
   return null
 }
 
-/**
- * Every signal of a setup and where it goes. `virtualPorts`: the band's virtual ports (names and
- * classes); an unknown id is shown by its id, as sound.
- */
-export function signalFlows(map: StageMap, setupId: string, virtualPorts: readonly VirtualPort[]): SignalFlow[] {
-  const setup = map.setups.find((s) => s.id === setupId)
-  if (!setup) return []
+type FlowStart = { equipment: StageEquipment; portId: string; channel: number | undefined; pin: number | undefined; cls: SignalClass }
+
+/** Follows a signal from where it leaves a device through every cable and matrix of a setup,
+ * filling the flow's hops, listeners and virtual inputs (shared by `signalFlows` and `checkSetup`). */
+function tracer(map: StageMap, setup: StageSetup): (flow: SignalFlow, start: FlowStart[]) => void {
   const byId = new Map(map.equipment.map((e) => [e.id, e]))
-  const onStage = map.equipment.filter((e) => setup.positions[e.id])
-  const flows: SignalFlow[] = []
 
   // Cables leaving `equipment` at (port, channel) that can carry `cls` away from it.
   // A cable `width` channels wide carries channel `mine.channel + k` to `theirs.channel + k`.
@@ -631,6 +642,8 @@ export function signalFlows(map: StageMap, setupId: string, virtualPorts: readon
       ] as const) {
         if (mine.equipmentId !== equipment.id || mine.portId !== attach) continue
         if (channel !== undefined && mine.channel !== undefined && (channel < mine.channel || channel >= mine.channel + width)) continue
+        // A cable on one pin of a stereo socket carries that pin only.
+        if (pin !== undefined && mine.pin !== undefined && mine.pin !== pin) continue
         const other = byId.get(theirs.equipmentId)
         const theirPort = other?.ports.find((p) => p.id === theirs.portId)
         if (!theirPort || theirPort.direction === 'out') continue
@@ -645,10 +658,11 @@ export function signalFlows(map: StageMap, setupId: string, virtualPorts: readon
         const from: PortRef = { ...mine, ...(channel === undefined ? {} : { channel }), ...(pin === undefined ? {} : { pin }) }
         if (theirs.channel === undefined) {
           // Onto one socket: a pin of a stereo jack lands on the same pin of a stereo socket.
-          out.push({ link, from, to: pin !== undefined && (theirPort.pins ?? 1) > 1 ? { ...theirs, pin } : theirs })
+          out.push({ link, from, to: pin !== undefined && theirs.pin === undefined && (theirPort.pins ?? 1) > 1 ? { ...theirs, pin } : theirs })
         } else if (channel !== undefined && mine.channel !== undefined) out.push({ link, from, to: { ...theirs, channel: theirs.channel + channel - mine.channel } })
         // One pin of a stereo jack onto a group: the left on the first channel, the right on the next.
-        else if (pin !== undefined) out.push({ link, from, to: { ...theirs, channel: theirs.channel + pin - 1 } })
+        // (A cable on that very pin lands where it says.)
+        else if (pin !== undefined) out.push({ link, from, to: { ...theirs, channel: theirs.channel + (mine.pin === undefined ? pin - 1 : 0) } })
         // The whole port (a stereo jack) onto a group: every channel the cable is wide.
         else for (let k = 0; k < width; k++) out.push({ link, from, to: { ...theirs, channel: theirs.channel + k } })
       }
@@ -656,7 +670,7 @@ export function signalFlows(map: StageMap, setupId: string, virtualPorts: readon
     return out
   }
 
-  const follow = (flow: SignalFlow, start: { equipment: StageEquipment; portId: string; channel: number | undefined; pin: number | undefined; cls: SignalClass }[]) => {
+  const follow = (flow: SignalFlow, start: FlowStart[]) => {
     const queue = [...start]
     const seen = new Set<string>()
     while (queue.length > 0) {
@@ -688,6 +702,20 @@ export function signalFlows(map: StageMap, setupId: string, virtualPorts: readon
       }
     }
   }
+  return follow
+}
+
+/**
+ * Every signal of a setup and where it goes. `virtualPorts`: the band's virtual ports (names and
+ * classes); an unknown id is shown by its id, as sound.
+ */
+export function signalFlows(map: StageMap, setupId: string, virtualPorts: readonly VirtualPort[]): SignalFlow[] {
+  const setup = map.setups.find((s) => s.id === setupId)
+  if (!setup) return []
+  const onStage = map.equipment.filter((e) => setup.positions[e.id])
+  const flows: SignalFlow[] = []
+
+  const follow = tracer(map, setup)
 
   for (const equipment of onStage) {
     if (DRIVER_KINDS.includes(equipment.kind)) {
@@ -852,6 +880,13 @@ export type StageIssue =
   | { kind: 'double'; equipmentId: string; portId: string; channel: number | undefined; pin?: number; linkIds: string[] }
   | { kind: 'width'; linkId: string; equipmentId: string; portId: string; width: number; capacity: number }
   | { kind: 'mono-of-stereo'; linkId: string; equipmentId: string; portId: string }
+  /** A mono plug in a stereo output: the right channel is shorted (#746). */
+  | { kind: 'mono-in-stereo-out'; linkId: string; equipmentId: string; portId: string }
+  /** One side of a stereo signal ends nowhere while the other goes on (#746): the slot of the
+   * device's output that is lost. */
+  | { kind: 'channel-lost'; equipmentId: string; portId: string; channel?: number; pin?: number; virtualPortId: string }
+  /** Several signals on one output of a device that does not mix (#746). */
+  | { kind: 'mix'; equipmentId: string; portId: string; channel?: number; pin?: number; sources: number }
   | { kind: 'adapter'; linkId: string }
 
 export interface PortUse {
@@ -878,9 +913,12 @@ const slotKey = (s: { channel?: number; pin?: number }) => `${s.channel ?? ''}.$
  * The checks for technicians (Marco, 2026-11-07): a socket or channel with two cables (a real plug
  * takes one - radio and sound are shared), a cable wider than where it lands (stereo into one mono
  * input), only one side of a stereo socket taken, plugs that need an adapter - and per port how many
- * channels are in use.
+ * channels are in use. Since #746 the whole chain (docs/31 §7d): a mono plug in a stereo output (the
+ * right channel is shorted), one side of a stereo signal that ends on the way while the other
+ * arrives (`virtualPorts` say which signals are stereo), and several signals on one output of a
+ * device that does not mix.
  */
-export function checkSetup(map: StageMap, setupId: string): { issues: StageIssue[]; use: PortUse[] } {
+export function checkSetup(map: StageMap, setupId: string, virtualPorts: readonly VirtualPort[] = []): { issues: StageIssue[]; use: PortUse[] } {
   const setup = map.setups.find((s) => s.id === setupId)
   if (!setup) return { issues: [], use: [] }
   const byId = new Map(map.equipment.map((e) => [e.id, e]))
@@ -896,7 +934,11 @@ export function checkSetup(map: StageMap, setupId: string): { issues: StageIssue
       if (port.parts || SHARED_CONNECTORS.includes(port.connector)) continue
       const capacity = portCapacity(port, end.channel, end.pin)
       if (width > capacity) issues.push({ kind: 'width', linkId: link.id, equipmentId: end.equipmentId, portId: end.portId, width, capacity })
-      else if (width === 1 && (port.pins ?? 1) > 1 && end.pin === undefined && port.channels === undefined) issues.push({ kind: 'mono-of-stereo', linkId: link.id, equipmentId: end.equipmentId, portId: end.portId })
+      else if (width === 1 && (port.pins ?? 1) > 1 && end.pin === undefined && port.channels === undefined) {
+        // At an output the plug's sleeve shorts the right channel; at an input one side stays empty.
+        const output = port.direction === 'out' || (port.direction === 'both' && end === link.from)
+        issues.push({ kind: output ? 'mono-in-stereo-out' : 'mono-of-stereo', linkId: link.id, equipmentId: end.equipmentId, portId: end.portId })
+      }
       for (const slot of occupied(end, width, port)) {
         const key = `${end.equipmentId}|${end.portId}|${slotKey(slot)}`
         taken.set(key, [...(taken.get(key) ?? []), link.id])
@@ -914,9 +956,58 @@ export function checkSetup(map: StageMap, setupId: string): { issues: StageIssue
     const [ch, pin] = slot.split('.') as [string, string]
     issues.push({ kind: 'double', equipmentId, portId, channel: ch === '' ? undefined : Number(ch), ...(pin === '' ? {} : { pin: Number(pin) }), linkIds })
   }
+  const onStage = map.equipment.filter((e) => setup.positions[e.id])
+  // The whole chain (#746): a stereo signal put on a whole socket or group goes side by side -
+  // when one side arrives somewhere and the other ends on the way, a channel is lost.
+  const follow = tracer(map, setup)
+  for (const e of onStage) {
+    if (!DRIVER_KINDS.includes(e.kind)) continue
+    for (const c of effectiveRouting(e, setup)) {
+      if (c.from.kind !== 'virtual' || c.to.kind !== 'port' || c.to.channel !== undefined || c.to.pin !== undefined) continue
+      const virtualPortId = c.from.virtualPortId
+      const vp = virtualPorts.find((v) => v.id === virtualPortId)
+      const builtIn = DEFAULT_VIRTUAL_OUTPUTS.find((v) => v.id === virtualPortId)
+      const width = vp?.width ?? (builtIn ? virtualPortWidth(builtIn.capability) : 1)
+      const cls = vp?.signalClass ?? 'sound'
+      const port = lookupPort(e.ports, c.to.portId)
+      if (width < 2 || !port || !classOn(port, cls, false)) continue
+      const slots = portSlots(port).slice(0, width)
+      if (slots.length < 2) continue
+      const sides = slots.map((slot) => {
+        const flow: SignalFlow = { key: '', name: '', signalClass: cls, originEquipmentId: e.id, hops: [], listenerIds: [], virtualInputs: [] }
+        follow(flow, [{ equipment: e, portId: port.id, channel: slot.channel, pin: slot.pin, cls }])
+        return { slot, flow }
+      })
+      // "Arrives": at a listener - or, while nobody is wired up yet, on any cable.
+      const heard = sides.some((s) => s.flow.listenerIds.length > 0)
+      const arrives = (s: (typeof sides)[number]) => (heard ? s.flow.listenerIds.length > 0 : s.flow.hops.length > 0)
+      if (!sides.some(arrives)) continue
+      for (const s of sides) if (!arrives(s)) issues.push({ kind: 'channel-lost', equipmentId: e.id, portId: port.id, ...s.slot, virtualPortId })
+    }
+  }
+  // Several signals on one output of a device that does not mix. A fixed routing is the gear's own.
+  for (const e of onStage) {
+    if (e.routing?.mode !== 'free' || equipmentMixes(e)) continue
+    const sources = new Map<string, { slot: { channel?: number; pin?: number }; portId: string; from: Set<string> }>()
+    for (const c of effectiveRouting(e, setup)) {
+      if (c.to.kind !== 'port') continue
+      const port = lookupPort(e.ports, c.to.portId)
+      if (!port || port.direction === 'in') continue
+      const to = c.to
+      const matching = portSlots(port).filter((s) => (to.channel === undefined || (s.channel ?? 1) === to.channel) && (to.pin === undefined || (s.pin ?? 1) === to.pin))
+      // A part takes its channels from the far end - the point names one the port does not list.
+      const slots = matching.length > 0 ? matching : [{ ...(to.channel === undefined ? {} : { channel: to.channel }), ...(to.pin === undefined ? {} : { pin: to.pin }) }]
+      for (const slot of slots) {
+        const key = `${port.id}|${slotKey(slot)}`
+        const entry = sources.get(key) ?? { slot, portId: port.id, from: new Set<string>() }
+        entry.from.add(JSON.stringify(c.from))
+        sources.set(key, entry)
+      }
+    }
+    for (const { slot, portId, from } of sources.values()) if (from.size > 1) issues.push({ kind: 'mix', equipmentId: e.id, portId, ...slot, sources: from.size })
+  }
   const use: PortUse[] = []
-  for (const e of map.equipment) {
-    if (!setup.positions[e.id]) continue
+  for (const e of onStage) {
     for (const p of e.ports) {
       if (SHARED_CONNECTORS.includes(p.connector) || p.parts) continue
       const total = p.channels ?? 1
