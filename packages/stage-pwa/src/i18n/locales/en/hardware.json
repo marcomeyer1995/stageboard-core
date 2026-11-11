@@ -242,7 +242,9 @@
     "midiChoose": "Choose MIDI port",
     "pinL": "L",
     "pinR": "R",
-    "pinN": "Pin {{n}}"
+    "pinN": "Pin {{n}}",
+    "groupToggle": "{{name}}: open or close",
+    "wholeSocket": "{{name}} (whole)"
   },
   "ports": {
     "title": "Ports: {{name}}",
