@@ -250,6 +250,8 @@ Die Prüfungen aus §0b (doppelt belegt, Kabel breiter als das Ziel, Stereo-Buch
 - Zwei Signale auf einen Pin eines Geräts, das **nicht mischt**: rot. Dafür sagt jedes Modell, ob es mischt.
 - Adapter bleiben stille Einträge für die Packliste (§11).
 
+**Built 2026-11-11 (#804):** `checkSetup` follows every signal through cables and matrices. Mono plug in a stereo output: red; a stereo signal of which one side reaches nobody: warning ("one channel is lost"); several signals on one output of a device that does not mix: red. `mixes` on a model, by default from its kind (app and mixer mix, an interface does not); only free matrices are checked. In the matrix of a device that does not mix, a second signal on a taken output asks "replace?" (§7c). The lost-channel check covers the app's own stereo signals (Track), not other stereo sources yet.
+
 ## 7e. Strom und Brummschleifen (#748)
 
 Nach §0c: keine Phasen. Je Modell ein Startwert für die **Erdung** (Pult geerdet, Tablet auf Akku, Laptop: Rückfrage „am Netzteil?“); je Stecker ein Startwert für die **Verbindung** (XLR symmetrisch, Klinke mono unsymmetrisch, USB führt Masse, MIDI DIN und Funk getrennt; DI-Box und Trenner trennen). **Prüfung:** zwei geerdete Geräte, die über eine Kette von Kabeln mit Masse verbunden sind – liegt ein unsymmetrisches Kabel darin: rot, „Brummschleife wahrscheinlich – DI-Box oder Trenner“; nur symmetrische Kabel: höchstens ein leiser Hinweis. Optional Steckdosen auf der Karte mit Geräten daran.
@@ -263,6 +265,8 @@ Nach §0c: keine Phasen. Je Modell ein Startwert für die **Erdung** (Pult geerd
 ## 9. Live-Ebene (#747)
 
 Schalter **„Aufbau | Prüfen“** auf der Karte. Prüfen zeigt je **Gerät**: online / App offen, Akku (neu zu erfassen), Ton sauber (#703), Uhr-Abweichung; Stage-Server online; Ausrüstung: Treiber meldet sich oder MIDI-Anschluss fehlt. Je **Linie**: Anschluss gefunden (MIDI-Name löst auf), Zustand des Wegs ● eingemessen · ◐ von Hand · ○ fehlt · ✕ instabil. Rot nur für Fehler (wie die Statusleiste). Aktualisierung über den Posteingang, Klasse Hintergrund (docs/26) – die Karte darf im Song nichts stören. Widgets, deren Verbindung fehlt, gehen wie bisher in den Disabled State. „Tablets & Handys“ bleibt die Diagnose-Liste.
+
+**Built 2026-11-11 (#805):** `lib/stageLive.ts` (pure) + `lib/useStageLive.ts`. Devices report `battery` and `midiOutputs` (names) with the device info, at once when a MIDI port comes or goes, never asking for the MIDI permission. Offline or app closed counts as a fault in the check; battery below 20 % without a charger is a warning. Open: clock deviation is only the vitals' "band time unsure" (no ms value reported), "✕ unstable" does not exist (nothing measures it), MIDI ports of the Stage-Server itself are not known, and for Klick/Track/Ansagen the latency state is the device's audio value over any route.
 
 ## 10. Icons, Zonen und Auto-Layout (#749)
 
