@@ -16,6 +16,7 @@ export async function reportClientHealth(
   workspaceId: string,
   pluginName: string,
   status: PluginStatus,
+  message?: string,
 ): Promise<void> {
   const base = getStageServerUrl()
   if (!base) return
@@ -24,7 +25,7 @@ export async function reportClientHealth(
     await fetch(`${base}/plugin-health/${encodeURIComponent(workspaceId)}/report`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pluginName, status }),
+      body: JSON.stringify({ pluginName, status, ...(message ? { message } : {}) }),
     })
   } catch {
     // Network failure or server down - nothing to recover from here, see doc comment above.

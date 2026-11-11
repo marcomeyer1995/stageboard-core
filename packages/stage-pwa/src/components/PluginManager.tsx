@@ -1,6 +1,6 @@
 import { pluginName } from '../lib/pluginCatalog'
 import { useState, type ComponentType } from 'react'
-import { HEALTH_TIMEOUT_MS, type PluginInstallation } from 'shared-types'
+import { API_VERSION_MISMATCH_CODE, apiVersionFits, HEALTH_TIMEOUT_MS, type PluginInstallation } from 'shared-types'
 import { usePluginsStore } from '../store/usePluginsStore'
 import { capabilitiesLabel, installableCatalog, isTestPlugin, pluginKind, type PluginKind } from '../lib/pluginCatalog'
 import { useDialogStore } from '../store/useDialogStore'
@@ -35,10 +35,11 @@ export function PluginManager({ kind = 'extensions' }: { kind?: PluginKind }) {
   const Settings = settingsOf ? SETTINGS[settingsOf] : undefined
 
   function healthLabel(plugin: PluginInstallation): string {
+    if (!apiVersionFits(plugin)) return t('apiVersionMismatch')
     if (plugin.runtime === 'client') return t('onTablet')
     const entry = health.plugins[plugin.id]
     if (!entry) return t('noHeartbeat')
-    if (entry.status !== 'online') return entry.message ?? entry.status
+    if (entry.status !== 'online') return entry.message === API_VERSION_MISMATCH_CODE ? t('apiVersionMismatch') : (entry.message ?? entry.status)
     if (now - entry.lastSeenAt > HEALTH_TIMEOUT_MS) return t('staleHeartbeat')
     return 'online'
   }

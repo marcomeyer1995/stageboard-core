@@ -490,13 +490,26 @@ export const PLUGIN_CATALOG: Array<Omit<PluginInstallation, 'installedAt' | 'ena
   {
     id: 'youtube-download',
     name: 'YouTube-Download',
-    version: '0.0.1',
-    // "Von YouTube laden" in the song editor: the Stage-Server downloads a reference recording with
-    // yt-dlp (#5, #546). An add-on for the same reason as Ultimate Guitar.
-    runtime: 'server',
+    version: '0.0.2',
+    // "Von YouTube laden" in the song editor: a laptop/box host downloads with yt-dlp (#5, #546);
+    // without such a host the device itself does, through the add-on's Android helper app
+    // (youtubeDevice.ts, docs/25 §6b). An add-on for the same reason as Ultimate Guitar.
+    runtime: 'both',
     capabilities: [CAPABILITIES.videoDownload],
     transports: [],
     hardwareIds: [],
+    apiVersion: 1,
+    permissions: ['audio-store', 'helper:youtube-download'],
+    helpers: {
+      desktop: { program: 'yt-dlp' },
+      android: {
+        package: 'de.stageboard.helper.youtube',
+        minVersionCode: 1,
+        // Built and signed on the band's laptop (the developer's debug key), 2026-11-10 - the
+        // add-on's trust list (docs/32 §8), read from the installed manifest, never from code.
+        certSha256: ['465bec8729afee54cfa03bdb3e9405990f1712d20fdac0bc477757c9190e94b8'],
+      },
+    },
   },
   {
     id: 'section-announcements',
@@ -511,3 +524,8 @@ export const PLUGIN_CATALOG: Array<Omit<PluginInstallation, 'installedAt' | 'ena
     hardwareIds: [],
   },
 ]
+
+/** The catalog's own manifest for a built-in add-on - undefined for an add-on from elsewhere. */
+export function catalogEntry(id: string): (typeof PLUGIN_CATALOG)[number] | undefined {
+  return PLUGIN_CATALOG.find((entry) => entry.id === id)
+}

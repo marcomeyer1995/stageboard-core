@@ -1,5 +1,5 @@
 import i18n from '../i18n'
-import { CAPABILITIES, type CapabilityId, type PluginInstallation, type ShowControlEvent, type ShowControlResult } from 'shared-types'
+import { CAPABILITIES, type CapabilityId, type PluginInstallation, type ShowControlEvent, type ShowControlResult, apiVersionFits } from 'shared-types'
 import { CQ18T_CAPABILITY, cq18tTranslator } from './cq18tTranslator'
 import { KEMPER_CAPABILITY, kemperTranslator } from './kemperTranslator'
 import { MG30_CAPABILITY, mg30Translator } from './mg30Translator'
@@ -102,8 +102,10 @@ export function preloadDynamicTranslator(
   const pending = pendingDynamicLoads.get(capability)
   if (pending) return pending
 
+  // An add-on written against another interface version is never loaded (docs/32 §10, #756) -
+  // useCapabilities reports it as an error, the widget stays in the disabled state.
   const plugin = installed.find(
-    (candidate) => candidate.enabled && candidate.capabilities.includes(capability) && candidate.clientSource,
+    (candidate) => candidate.enabled && candidate.capabilities.includes(capability) && candidate.clientSource && apiVersionFits(candidate),
   )
   if (!plugin) return Promise.resolve()
 
