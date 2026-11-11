@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
+  activeSetup,
   BUILTIN_MODELS,
   CAPABILITIES,
   channelNumber,
@@ -113,7 +114,7 @@ const portOf = (equipment: StageEquipment | undefined, portId: string): PortView
  */
 export function StageMap() {
   const { t } = useTranslation('hardware')
-  const { equipment: bandEquipment, setups: bandSetups, ownSetups, ownEquipment, front, loaded, saveEquipment, removeEquipment, saveSetup, updateSetup, removeSetup } = useStageMapStore()
+  const { equipment: bandEquipment, setups: bandSetups, ownSetups, ownEquipment, active, front, loaded, saveEquipment, removeEquipment, saveSetup, updateSetup, removeSetup } = useStageMapStore()
   const devices = useDevicesStore((state) => state.devices)
   const devicesLoaded = useDevicesStore((state) => state.loaded)
   const logicalDevices = useLogicalDevicesStore((state) => state.devices)
@@ -177,7 +178,9 @@ export function StageMap() {
 
   const personName = (profileId: string | undefined) => people.find((p) => p.id === profileId)?.name ?? null
   // An own setup says whose it is: "Mein: Zuhause", for the admin "Zuhause (Caro)".
-  const setupLabel = (s: StageSetup) => (s.owner === undefined ? s.name : s.owner === myProfileId ? t('map.ownSetupLabel', { name: s.name }) : t('map.ownSetupOf', { name: s.name, person: personName(s.owner) ?? '?' }))
+  // Which of several band setups the Gig goes by right now (#745).
+  const gigSetupId = bandSetups.length > 1 ? activeSetup({ equipment: bandEquipment, setups: bandSetups, active })?.id : undefined
+  const setupLabel = (s: StageSetup) => (s.owner === undefined ? (s.id === gigSetupId ? t('map.gigSetupLabel', { name: s.name }) : s.name) : s.owner === myProfileId ? t('map.ownSetupLabel', { name: s.name }) : t('map.ownSetupOf', { name: s.name, person: personName(s.owner) ?? '?' }))
   const subtitle = (e: StageEquipment): string => {
     if (e.kind === 'stageboard' && e.deviceId) return personName(presence.devices[e.deviceId]?.profileId) ?? t('map.nobody')
     if (e.kind === 'stageboard') return t('map.placeholder')

@@ -18,6 +18,7 @@ import {
   pruneForPorts,
   channelNumber,
   numberPorts,
+  activeSetup,
   mapPlays,
   mapOutputs,
   visibleOwnSetups,
@@ -333,6 +334,21 @@ describe('channels, checks and the wiring list (Marco, 2026-11-07)', () => {
 })
 
 describe('the map decides who plays (docs/31 §6 step 2, 2026-11-07)', () => {
+  it('the Gig chooses the setup (#745): the click moves to the other tablet; a setup that is gone or somebody\'s own never applies', () => {
+    const map = defaultStageMap([{ id: 'redmi', name: 'Redmi' }, { id: 'fire', name: 'Fire' }])
+    const standard = map.setups[0]!
+    const click = (portId: string) => [{ from: { kind: 'virtual' as const, virtualPortId: 'klick' }, to: { kind: 'port' as const, portId } }]
+    standard.routing = { 'device:redmi': click('headphones'), 'device:fire': [] }
+    map.setups.push({ ...standard, id: 'club', name: 'Club', routing: { 'device:redmi': [], 'device:fire': click('headphones') } })
+    map.setups.push({ ...standard, id: 'home', name: 'Zuhause', owner: 'marco', routing: { 'device:redmi': [], 'device:fire': [] } })
+    const plays = (active?: string) => ['redmi', 'fire'].map((id) => mapPlays({ ...map, active }, id, CAPABILITIES.clickTrack))
+    expect(plays()).toEqual([true, false])
+    expect(plays('club')).toEqual([false, true])
+    expect(activeSetup({ ...map, active: 'club' })?.id).toBe('club')
+    expect(plays('gone')).toEqual([true, false])
+    expect(plays('home')).toEqual([true, false])
+  })
+
   it('the default map: every device plays Klick, Track and Ansagen on its speaker', () => {
     const map = defaultStageMap([{ id: 'redmi', name: 'Redmi' }, { id: 'fire', name: 'Fire' }])
     for (const id of ['redmi', 'fire']) for (const c of [CAPABILITIES.clickTrack, CAPABILITIES.audioPlayback, CAPABILITIES.sectionAnnouncements]) expect(mapPlays(map, id, c)).toBe(true)

@@ -165,6 +165,7 @@
     "newOwnSetup": "My setup (new)",
     "ownSetupDefaultName": "Home",
     "renameSetup": "Rename setup",
+    "gigSetupLabel": "{{name}} (in the gig)",
     "ownSetupLabel": "Mine: {{name}}",
     "ownSetupOf": "{{name}} ({{person}})",
     "ownSetupHint": "Your own setup for practising: only you and the admin see it, it is never a choice in the Gig. What this device practises by is chosen in System → This device → Sound.",
