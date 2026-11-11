@@ -206,7 +206,9 @@ Zwei Ebenen:
 
 ## 7b. Anschluss-Modell 2: Container-Ports und Pins (#739)
 
-Heute hat ein Anschluss Stecker, Signale, Richtung und optional eine Kanalzahl für die ganze Gruppe; USB steht je Richtung in einer eigenen Zeile. Ein Interface mit 4 Audio-Ausgängen, 2 Eingängen und MIDI über **ein** USB-Kabel lässt sich so nicht beschreiben. Darum:
+**Gebaut 2026-11-11** (Datenmodell, Prüfungen, Signalwege, Anschlussliste, Matrix-Zeilen; der Ton selbst folgt der Matrix erst mit #742): `PortPart`, `Port.pins`/`Port.parts`, `MatrixPoint.pin`/`PortRef.pin`, Signal `osc`, `lookupPort`/`cablePortId`, `normalizeEquipment` (alte Karten beim Lesen: `stereo` → `pins: 2`, USB/Netz ohne Teile bekommt Standard-Teile), `partChannels` (Kanalzahl vom anderen Ende des Kabels), `portSlots`. Ein Matrix-Punkt auf dem Container (vor #739) gilt weiter als „alles davon“.
+
+Vorher hatte ein Anschluss Stecker, Signale, Richtung und optional eine Kanalzahl für die ganze Gruppe; USB steht je Richtung in einer eigenen Zeile. Ein Interface mit 4 Audio-Ausgängen, 2 Eingängen und MIDI über **ein** USB-Kabel lässt sich so nicht beschreiben. Darum:
 
 - **Container-Ports:** USB, Netzwerk (RJ45, Dante) und Bluetooth fassen Teile zusammen – **Protokoll** (Audio, MIDI, OSC, Netz) → **Richtung** → **Kanäle**. Auf der Karte bleibt es **ein** Kabel mit Signal-Marken; in Matrix und Anschlussliste klappt der Port auf.
 - **Pins:** jede Buchse hat Pins (Klinke mono = 1, Klinke stereo / Kopfhörer = 2) – ersetzt den Haken „Stereo“. Matrix-Punkte und Kabelenden können einen Pin nennen.
