@@ -30,7 +30,9 @@ import {
   joinDevices,
   separateApp,
   appsOf,
+  cableGround,
   checkSetup,
+  equipmentEarth,
   equipmentMixes,
   wiringList,
   signalFlows as flowsOf,
@@ -741,3 +743,58 @@ describe('cable checker: the whole chain (#746, docs/31 §7d)', () => {
     expect(equipmentFrom({ ...model('audio-interface'), mixes: true }, 'x', 'X').mixes).toBe(true)
   })
 })
+
+describe('hum loops (#748, docs/31 §7e)', () => {
+  const at = { x: 0, y: 0 }
+  const laptop = { ...equipmentFrom(model('tablet'), 'laptop', 'Laptop', { deviceId: 'laptop' }), earth: 'earthed' as const }
+  const iface = equipmentFrom(model('audio-interface'), 'umc', 'UMC204HD')
+  const desk = equipmentFrom(model('mixer'), 'desk', 'Pult')
+  const di = equipmentFrom(model('di-box'), 'di', 'DI-Box')
+  // The Kemper's own model (as its add-on describes it) has XLR outputs.
+  const kemper = { ...equipmentFrom(model('amp-modeller'), 'kemper', 'Kemper'), ports: [...equipmentFrom(model('amp-modeller'), 'k', 'K').ports.filter((p) => p.id !== 'main'), { id: 'main', name: 'Main Out', connector: 'xlr' as const, signals: ['audio' as const], direction: 'out' as const }] }
+  const link = (id: string, from: [string, string], to: [string, string], extra: Partial<StageLink> = {}): StageLink => ({ id, from: { equipmentId: from[0], portId: from[1] }, to: { equipmentId: to[0], portId: to[1], ...(to[0] === 'desk' ? { channel: 1 } : {}) }, signals: ['audio'], ...extra })
+  const run = (equipment: StageMap['equipment'], links: StageLink[]) => {
+    const setup: StageSetup = { id: 's', name: 'S', positions: Object.fromEntries(equipment.map((e) => [e.id, at])), links, routing: {} }
+    return checkSetup({ equipment, setups: [setup] }, 's').issues.filter((i) => i.kind === 'hum-loop' || i.kind === 'hum-hint')
+  }
+  const usb = link('usb', ['laptop', 'usb'], ['umc', 'usb'], { signals: ['usb-audio'] })
+
+  it('power by kind: the desk earthed, a tablet on battery, an interface without earth; the map can say otherwise', () => {
+    expect(equipmentEarth(desk)).toBe('earthed')
+    expect(equipmentEarth(equipmentFrom(model('tablet'), 't', 'T'))).toBe('battery')
+    expect(equipmentEarth(iface)).toBe('floating')
+    expect(equipmentEarth(laptop)).toBe('earthed')
+  })
+
+  it('cables by their plugs: XLR balanced, a jack unbalanced unless the cable says so, USB ties ground, MIDI isolated', () => {
+    const port = (connector: Port['connector'], pins?: number): Port => ({ id: 'p', name: 'P', connector, signals: ['audio'], direction: 'out', ...(pins ? { pins } : {}) })
+    expect(cableGround(port('xlr'), port('xlr-jack'))).toBe('balanced')
+    expect(cableGround(port('jack-6.3'), port('xlr-jack'))).toBe('unbalanced')
+    expect(cableGround(port('jack-6.3'), port('xlr-jack'), 'balanced')).toBe('balanced')
+    expect(cableGround(port('usb-c'), port('usb-b'))).toBe('ground')
+    expect(cableGround(port('din5'), port('din5'))).toBe('isolated')
+    expect(cableGround(port('jack-3.5', 2), port('wireless'))).toBe('isolated')
+  })
+
+  it('laptop on its charger → USB → interface → mono jack → desk: red; with a DI box in between: gone (acceptance)', () => {
+    const jack = link('jack', ['umc', 'out'], ['desk', 'in'])
+    expect(run([laptop, iface, desk], [usb, jack])).toEqual([{ kind: 'hum-loop', equipmentIds: ['laptop', 'desk'], linkIds: ['jack'] }])
+    const viaDi = [usb, link('j1', ['umc', 'out'], ['di', 'in']), link('x1', ['di', 'out'], ['desk', 'in'])]
+    expect(run([laptop, iface, di, desk], viaDi)).toEqual([])
+    // The same laptop on its battery closes no loop.
+    expect(run([{ ...laptop, earth: 'battery' }, iface, desk], [usb, jack])).toEqual([])
+    // A balanced TRS cable instead of the mono one: only the USB ground is left - a quiet hint.
+    expect(run([laptop, iface, desk], [usb, { ...jack, ground: 'balanced' }])).toEqual([{ kind: 'hum-hint', equipmentIds: ['laptop', 'desk'], linkIds: ['usb'] }])
+    // An isolator in the cable stops it as well.
+    expect(run([laptop, iface, desk], [usb, { ...jack, ground: 'isolated' }])).toEqual([])
+  })
+
+  it('Kemper → XLR → desk: not red (acceptance); a tablet bridging two earthed devices with a headphone cable is', () => {
+    expect(run([kemper, desk], [link('x', ['kemper', 'main'], ['desk', 'in'])])).toEqual([])
+    const tablet = equipmentFrom(model('tablet'), 'redmi', 'Redmi', { deviceId: 'redmi' })
+    const links = [link('x', ['kemper', 'main'], ['desk', 'in']), link('k', ['redmi', 'usb'], ['kemper', 'usb'], { signals: ['midi'] }), link('h', ['redmi', 'headphones'], ['desk', 'in'], { to: { equipmentId: 'desk', portId: 'in', channel: 2 } })]
+    // Kemper and desk already meet over XLR; the tablet adds USB + its headphone jack: the jack is the culprit.
+    expect(run([kemper, desk, tablet], links)).toEqual([{ kind: 'hum-loop', equipmentIds: ['kemper', 'desk'], linkIds: ['h'] }])
+  })
+})
+

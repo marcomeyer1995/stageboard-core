@@ -12,6 +12,10 @@ import {
   DRIVER_KINDS,
   effectiveRouting,
   equipmentMixes,
+  cableGround,
+  equipmentEarth,
+  type CableGround,
+  type Earth,
   type Crosspoint,
   equipmentFrom,
   equipmentOffered,
@@ -222,7 +226,7 @@ export function StageMap() {
   // The technicians' checks and the wiring list (2026-11-07).
   const check = useMemo(() => (setup ? checkSetup({ equipment, setups }, setup.id, virtualPorts) : { issues: [], use: [] }), [equipment, setups, setup, virtualPorts])
   const cables = useMemo(() => (setup ? wiringList({ equipment, setups }, setup.id) : []), [equipment, setups, setup])
-  const badLinks = useMemo(() => new Set(check.issues.flatMap((i) => (i.kind === 'double' ? i.linkIds : i.kind === 'width' || i.kind === 'mono-in-stereo-out' ? [i.linkId] : []))), [check])
+  const badLinks = useMemo(() => new Set(check.issues.flatMap((i) => (i.kind === 'double' ? i.linkIds : i.kind === 'width' || i.kind === 'mono-in-stereo-out' ? [i.linkId] : i.kind === 'hum-loop' ? i.linkIds : []))), [check])
   // The live layer (#747): only while "Prüfen" is on.
   const liveOutputs = useMemo(() => logicalDevices.filter((d) => !BUILT_IN_CAPABILITIES.includes(d.capability)).map((d) => ({ id: d.id, name: d.name, pluginId: d.pluginId })), [logicalDevices])
   const live = useStageLive(checking, { equipment: onStage, setup, flows, outputs: liveOutputs, builtInIds: BUILT_IN_IDS })
@@ -323,6 +327,25 @@ export function StageMap() {
   // MIDI leaving this app's own device (part 2, 2026-11-07): which of the ports this device sees is
   // the far end - by name, as MIDI always was. Only here can the list be read.
   const midiFromHere = (link: StageLink) => link.signals.includes('midi') && [link.from, link.to].some((end) => { const e = byId.get(end.equipmentId); return e?.kind === 'stageboard' && appsOf(e).includes(ownId) })
+  /** What the cable does with ground (#748): by its plugs, and what the band set. */
+  const groundOf = (link: StageLink): { plugs: CableGround; own: CableGround | undefined } => {
+    const a = portOf(byId.get(link.from.equipmentId), link.from.portId)
+    const b = portOf(byId.get(link.to.equipmentId), link.to.portId)
+    return { plugs: cableGround(a, b), own: link.ground }
+  }
+  const setGround = async (link: StageLink, ground: CableGround | 'plugs') => {
+    if (!setup) return
+    await updateSetup(setup.id, (s) => ({
+      ...s,
+      links: s.links.map((l) => {
+        if (l.id !== link.id) return l
+        const next = { ...l }
+        delete next.ground
+        return ground === 'plugs' ? next : { ...next, ground }
+      }),
+    }))
+  }
+
   const chooseMidiName = async (link: StageLink) => {
     if (!setup) return
     const outputs = await listMidiOutputs()
@@ -853,6 +876,15 @@ export function StageMap() {
                 </div>
               )
             })()}
+            {canGear && canChange(selectedNode) && !UNPOWERED_KINDS.includes(selectedNode.kind) && (
+              <Segmented<Earth>
+                label={t('map.earth.label')}
+                showLabel
+                value={equipmentEarth(selectedNode)}
+                onChange={(earth) => void saveEquipment({ ...selectedNode, earth })}
+                options={EARTHS.map((value) => ({ value, label: t(`map.earth.${value}`) }))}
+              />
+            )}
             {canGear && (
               <div className="flex flex-wrap gap-2">
                 {canChange(selectedNode) && (
@@ -892,6 +924,8 @@ export function StageMap() {
             onRemove={() => removeLink(selectedLink)}
             midiName={selectedLink.midiName ?? null}
             onMidi={midiFromHere(selectedLink) ? () => void chooseMidiName(selectedLink) : null}
+            ground={groundOf(selectedLink)}
+            onGround={canWireLink(selectedLink) && selectedLink.signals.includes('audio') && groundOf(selectedLink).plugs !== 'isolated' ? (g) => void setGround(selectedLink, g) : null}
           />
         )}
 
@@ -930,6 +964,10 @@ export function StageMap() {
   )
 }
 
+/** Gear without power of its own: no "Strom" to choose (#748). */
+const UNPOWERED_KINDS: readonly StageEquipment['kind'][] = ['person', 'hall', 'microphone', 'instrument', 'di-box']
+const EARTHS: readonly Earth[] = ['earthed', 'floating', 'battery']
+
 function LinkPanel(props: {
   ends: [string, string]
   width: number
@@ -943,6 +981,8 @@ function LinkPanel(props: {
   onRemove: () => void
   midiName: string | null
   onMidi: (() => void) | null
+  ground: { plugs: CableGround; own: CableGround | undefined }
+  onGround: ((ground: CableGround | 'plugs') => void) | null
 }) {
   const { t } = useTranslation('hardware')
   return (
@@ -958,6 +998,16 @@ function LinkPanel(props: {
         {props.midiName && <span className="text-base">{t('map.midiPort', { name: props.midiName })}</span>}
         {props.onMidi && <Button onClick={props.onMidi}>{t('map.midiChoose')}</Button>}
       </div>
+      {props.onGround && (
+        <Segmented<CableGround | 'plugs'>
+          label={t('map.ground.label')}
+          showLabel
+          hint={props.ground.own === undefined ? t('map.ground.fromPlugs', { what: t(`map.ground.${props.ground.plugs}`) }) : undefined}
+          value={props.ground.own ?? 'plugs'}
+          onChange={props.onGround}
+          options={(['plugs', 'balanced', 'unbalanced', 'isolated'] as const).map((value) => ({ value, label: t(value === 'isolated' ? 'map.ground.isolator' : `map.ground.${value === 'plugs' ? 'auto' : value}`) }))}
+        />
+      )}
       <div className="flex flex-col gap-1">
         <span className="text-base font-semibold">{t('map.onCable')}</span>
         {props.signals.length === 0 ? (
