@@ -53,6 +53,8 @@ export const DeviceVitalsSummarySchema = z.object({
   stallsPerMin: z.number().int().nonnegative(),
   /** How long the app process (or, in a browser, the page) runs, minutes. */
   uptimeMin: z.number().int().nonnegative(),
+  /** How sure the band clock is, ± ms (#747) - absent from older apps, null before the first sync. */
+  clockUncertaintyMs: z.number().nonnegative().nullable().optional(),
 })
 export type DeviceVitalsSummary = z.infer<typeof DeviceVitalsSummarySchema>
 
@@ -63,6 +65,10 @@ export const BatteryStateSchema = z.object({
   charging: z.boolean(),
 })
 export type BatteryState = z.infer<typeof BatteryStateSchema>
+
+/** The app's own sources (stage-pwa MixSource): track, click, announcements. */
+export const SilencedSourceSchema = z.enum(['track', 'click', 'voice'])
+export type SilencedSource = z.infer<typeof SilencedSourceSchema>
 
 export const DeviceInfoEntrySchema = z.object({
   /** Stamped server-side from the TCP connection (Fastify's `request.ip`) on every report -
@@ -105,6 +111,9 @@ export const DeviceInfoEntrySchema = z.object({
   /** The MIDI outputs this device sees right now, by name (#747): the map's check tells from it
    * whether a cable's MIDI port is there. Absent from older apps, null without WebMIDI. */
   midiOutputs: z.array(z.string()).max(64).nullable().optional(),
+  /** The sources this device keeps silent because the output the map names is not the one it
+   * plays on (#742, #747). Absent from older apps. */
+  silenced: z.array(SilencedSourceSchema).max(3).nullable().optional(),
 })
 export type DeviceInfoEntry = z.infer<typeof DeviceInfoEntrySchema>
 
@@ -141,5 +150,6 @@ export const DeviceInfoReportSchema = z.object({
   leadNeededMs: z.number().int().nonnegative().nullable().optional(),
   battery: BatteryStateSchema.nullable().optional(),
   midiOutputs: z.array(z.string()).max(64).nullable().optional(),
+  silenced: z.array(SilencedSourceSchema).max(3).nullable().optional(),
 })
 export type DeviceInfoReport = z.infer<typeof DeviceInfoReportSchema>

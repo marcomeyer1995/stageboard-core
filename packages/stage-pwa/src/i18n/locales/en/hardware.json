@@ -369,6 +369,8 @@
     "online": "app open",
     "battery": "battery {{pct}} %",
     "batteryLow": "battery {{pct}} %, not charging",
+    "clock": "Band time ± {{ms}} ms",
+    "outputMissing": "Output missing: {{sources}} silent",
     "serverOnline": "answers",
     "serverOffline": "does not answer",
     "noServer": "no Stage-Server set",
@@ -382,6 +384,11 @@
       "measured": "latency measured",
       "manual": "latency by hand",
       "missing": "latency missing"
+    },
+    "source": {
+      "track": "Track",
+      "click": "Click",
+      "voice": "Announcements"
     }
   }
 }

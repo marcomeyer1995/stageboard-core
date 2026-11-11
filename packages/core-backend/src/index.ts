@@ -735,6 +735,7 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
       leadNeededMs: parsed.data.leadNeededMs ?? null,
       battery: parsed.data.battery ?? null,
       midiOutputs: parsed.data.midiOutputs ?? null,
+      silenced: parsed.data.silenced ?? null,
     })
     return reply.status(204).send()
   })

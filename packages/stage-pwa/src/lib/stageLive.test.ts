@@ -36,6 +36,7 @@ function stage(overrides: Partial<StageLiveInput> = {}): StageLiveInput {
     health: { plugins: { 'kemper-plugin': { status: 'online', lastSeenAt: NOW - 1_000 } } },
     ownDeviceId: 'fire',
     ownMidiOutputs: null,
+    ownSilenced: [],
     front: {},
     profiles: [],
     ...overrides,
@@ -121,5 +122,32 @@ describe('stageLive (#747, docs/31 §9)', () => {
     expect(withServer(true)).toMatchObject({ status: 'ok', notes: [{ key: 'serverOnline' }] })
     expect(withServer(false)).toMatchObject({ status: 'error', notes: [{ key: 'serverOffline' }] })
     expect(withServer(null)).toMatchObject({ status: 'off', notes: [{ key: 'noServer' }] })
+  })
+
+  it('headphones pulled on the Redmi: the device and the cable its click leaves on turn red, from its report', () => {
+    const live = stageLive(stage({ deviceInfo: { devices: { redmi: entry({ midiOutputs: ['Kemper Player'], silenced: ['click'] }), fire: entry() } } }))
+    expect(live.equipment['device:redmi']!.status).toBe('error')
+    expect(live.equipment['device:redmi']!.notes).toContainEqual({ status: 'error', key: 'outputMissing', sources: ['click'] })
+    expect(live.links.jack).toMatchObject({ status: 'error', notes: [{ key: 'outputMissing', sources: ['click'] }] })
+    // The MIDI cable is not affected.
+    expect(live.links.usb!.status).toBe('ok')
+  })
+
+  it('this device knows its own silenced sources at once, ahead of its report', () => {
+    expect(stageLive(stage({ ownDeviceId: 'redmi', ownSilenced: ['click'] })).links.jack!.status).toBe('error')
+    expect(stageLive(stage({ ownDeviceId: 'redmi', ownSilenced: [] })).links.jack!.status).not.toBe('error')
+  })
+
+  it('the band clock as a number; "unsure" turns that number into the warning instead of a second note', () => {
+    const vitals = (issues: ('clockUnsure' | 'stalls')[]) => ({ level: 'ok' as const, issues, memAvailMb: null, audioClockPct: null, stallsPerMin: 0, uptimeMin: 5, clockUncertaintyMs: 3.2 })
+    const sure = stageLive(stage({ deviceInfo: { devices: { redmi: entry({ vitals: vitals([]) }), fire: entry() } } }))
+    expect(sure.equipment['device:redmi']!.notes).toContainEqual({ status: 'ok', key: 'clock', ms: 3.2 })
+    const unsure = stageLive(stage({ deviceInfo: { devices: { redmi: entry({ vitals: vitals(['clockUnsure']) }), fire: entry() } } }))
+    const notes = unsure.equipment['device:redmi']!.notes
+    expect(notes).toContainEqual({ status: 'warning', key: 'clock', ms: 3.2 })
+    expect(notes.some((n) => n.key === 'vitals' && n.issue === 'clockUnsure')).toBe(false)
+    // An older app without the number keeps the plain "unsure".
+    const old = stageLive(stage({ deviceInfo: { devices: { redmi: entry({ vitals: { ...vitals(['clockUnsure']), clockUncertaintyMs: undefined } }), fire: entry() } } }))
+    expect(old.equipment['device:redmi']!.notes).toContainEqual({ status: 'warning', key: 'vitals', issue: 'clockUnsure' })
   })
 })

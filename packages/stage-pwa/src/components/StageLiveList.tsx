@@ -15,7 +15,10 @@ export function StageLiveList({ live, links, nameOf, linkName }: { live: StageLi
   const { t } = useTranslation(['hardware', 'devices'])
   if (!live) return <p className="text-base text-ink-muted">{t('live.loading')}</p>
 
-  const noteText = (n: LiveNote): string => (n.key === 'vitals' ? t(`devices:vitals.issue.${n.issue!}`) : t(`live.${n.key}`, { name: n.name ?? '', pct: n.pct ?? 0 }))
+  const noteText = (n: LiveNote): string =>
+    n.key === 'vitals'
+      ? t(`devices:vitals.issue.${n.issue!}`)
+      : t(`live.${n.key}`, { name: n.name ?? '', pct: n.pct ?? 0, ms: n.ms ?? 0, sources: (n.sources ?? []).map((s) => t(`live.source.${s}`)).join(', ') })
   const rows = [
     ...Object.entries(live.equipment).map(([id, state]) => ({ key: `e:${id}`, name: nameOf(id), status: state.status, notes: state.notes, path: null as StagePathState | null })),
     ...links.flatMap((l) => {

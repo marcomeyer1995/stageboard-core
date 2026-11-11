@@ -5,8 +5,10 @@ import { useLatencyProfilesStore } from '../store/useLatencyProfilesStore'
 import { usePluginsStore } from '../store/usePluginsStore'
 import { useStageMapStore } from '../store/useStageMapStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
+import { useOutputPlanStore } from './audioMix'
 import { getServerTime } from './clockSync'
 import { getDeviceId } from './deviceId'
+import { silencedSources } from './outputPlan'
 import { stageLive, type StageLive } from './stageLive'
 import { knownMidiOutputNames, watchMidiPorts } from './webMidiOutput'
 
@@ -35,6 +37,7 @@ export function useStageLive(active: boolean, map: StageLiveMap): StageLive | nu
   const health = usePluginsStore((state) => state.health)
   const front = useStageMapStore((state) => state.front)
   const profiles = useLatencyProfilesStore((state) => state.profiles)
+  const plan = useOutputPlanStore((state) => state.plan)
   const [now, setNow] = useState(() => getServerTime())
   const [ownMidi, setOwnMidi] = useState<string[] | null>(null)
 
@@ -61,6 +64,6 @@ export function useStageLive(active: boolean, map: StageLiveMap): StageLive | nu
   const { equipment, setup, flows, outputs, builtInIds } = map
   return useMemo(() => {
     if (!active || !setup || (!loaded && reachable === null)) return null
-    return stageLive({ equipment, setup, flows, outputs, builtInIds, deviceInfo, now, serverReachable: reachable, health, ownDeviceId: getDeviceId(), ownMidiOutputs: ownMidi, front, profiles })
-  }, [active, setup, loaded, reachable, equipment, flows, outputs, builtInIds, deviceInfo, now, health, ownMidi, front, profiles])
+    return stageLive({ equipment, setup, flows, outputs, builtInIds, deviceInfo, now, serverReachable: reachable, health, ownDeviceId: getDeviceId(), ownMidiOutputs: ownMidi, ownSilenced: silencedSources(plan), front, profiles })
+  }, [active, setup, loaded, reachable, equipment, flows, outputs, builtInIds, deviceInfo, now, health, ownMidi, plan, front, profiles])
 }

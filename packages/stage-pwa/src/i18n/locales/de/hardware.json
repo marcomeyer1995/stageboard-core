@@ -369,6 +369,8 @@
     "online": "App offen",
     "battery": "Akku {{pct}} %",
     "batteryLow": "Akku {{pct}} %, lädt nicht",
+    "clock": "Bandzeit ± {{ms}} ms",
+    "outputMissing": "Ausgang fehlt: {{sources}} still",
     "serverOnline": "antwortet",
     "serverOffline": "antwortet nicht",
     "noServer": "kein Stage-Server eingestellt",
@@ -382,6 +384,11 @@
       "measured": "Latenz gemessen",
       "manual": "Latenz von Hand",
       "missing": "Latenz fehlt"
+    },
+    "source": {
+      "track": "Track",
+      "click": "Klick",
+      "voice": "Ansagen"
     }
   }
 }

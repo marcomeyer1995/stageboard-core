@@ -742,6 +742,21 @@ describe('Fastify routes', () => {
       expect(getDeviceInfoSnapshot('band-a').devices['device-1'].leadNeededMs).toBe(943)
     })
 
+    it('passes battery, MIDI outputs and silenced sources through for the map check (#747)', async () => {
+      await app.inject({
+        method: 'POST',
+        url: '/workspaces/band-a/device-info/report',
+        payload: { deviceId: 'device-1', os: 'Android', environment: 'native', syncStatus: 'idle', battery: { pct: 17, charging: false }, midiOutputs: ['Kemper Player'], silenced: ['click'] },
+      })
+      const entry = getDeviceInfoSnapshot('band-a').devices['device-1']
+      expect(entry.battery).toEqual({ pct: 17, charging: false })
+      expect(entry.midiOutputs).toEqual(['Kemper Player'])
+      expect(entry.silenced).toEqual(['click'])
+      // An older app sends none of them.
+      await app.inject({ method: 'POST', url: '/workspaces/band-a/device-info/report', payload: { deviceId: 'device-2', os: 'Android', environment: 'native', syncStatus: 'idle' } })
+      expect(getDeviceInfoSnapshot('band-a').devices['device-2']).toMatchObject({ battery: null, midiOutputs: null, silenced: null })
+    })
+
     it('rejects a body missing required fields', async () => {
       const response = await app.inject({
         method: 'POST',

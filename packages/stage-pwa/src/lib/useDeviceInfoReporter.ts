@@ -9,6 +9,8 @@ import { nativeOutputHealth } from './nativeOutput'
 import { reportDeviceInfo } from './reportDeviceInfo'
 import { knownMidiOutputNames, watchMidiPorts } from './webMidiOutput'
 import { useLeadNeededStore } from './leadCheck'
+import { useOutputPlanStore } from './audioMix'
+import { silencedSources } from './outputPlan'
 
 /** Comfortably inside DEVICE_INFO_TIMEOUT_MS (shared-types), same margin usePresenceReporter.ts
  * keeps against PRESENCE_TIMEOUT_MS. */
@@ -43,15 +45,26 @@ export function useDeviceInfoReporter(workspaceId: string): void {
         leadNeededMs: useLeadNeededStore.getState().neededMs,
         battery,
         midiOutputs,
+        silenced: silencedSources(useOutputPlanStore.getState().plan),
       })
     }
     void report()
     const interval = setInterval(() => void report(), REPORT_INTERVAL_MS)
     // A MIDI cable pulled or plugged: the map's check on the other devices should see it soon (#747).
     const stopWatching = watchMidiPorts(() => void report())
+    // An output gone or back (headphones pulled): the same, for the sources it silences.
+    const silencedKey = () => silencedSources(useOutputPlanStore.getState().plan).join(',')
+    let lastSilenced = silencedKey()
+    const stopPlan = useOutputPlanStore.subscribe(() => {
+      const key = silencedKey()
+      if (key === lastSilenced) return
+      lastSilenced = key
+      void report()
+    })
     return () => {
       clearInterval(interval)
       stopWatching()
+      stopPlan()
     }
   }, [workspaceId])
 }

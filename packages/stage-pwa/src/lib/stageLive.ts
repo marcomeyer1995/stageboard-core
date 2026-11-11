@@ -9,6 +9,7 @@ import {
   type DeviceInfoEntry,
   type LatencyProfileDoc,
   type PluginHealth,
+  type SilencedSource,
   type SignalFlow,
   type StageEquipment,
   type StageSetup,
@@ -22,11 +23,14 @@ export type LiveStatus = 'ok' | 'warning' | 'error' | 'off'
 /** One finding, as a text key (`live.*` in hardware.json) with its values. */
 export interface LiveNote {
   status: LiveStatus
-  key: 'offline' | 'appClosed' | 'placeholder' | 'online' | 'vitals' | 'battery' | 'batteryLow' | 'serverOnline' | 'serverOffline' | 'noServer' | 'driverOnline' | 'driverSilent' | 'driverError' | 'midiFound' | 'midiMissing' | 'midiUnknown'
-  /** `issue`: a VitalsIssue (vitals); `name`: a driver's or a MIDI port's name; `pct`: battery. */
+  key: 'offline' | 'appClosed' | 'placeholder' | 'online' | 'vitals' | 'battery' | 'batteryLow' | 'clock' | 'outputMissing' | 'serverOnline' | 'serverOffline' | 'noServer' | 'driverOnline' | 'driverSilent' | 'driverError' | 'midiFound' | 'midiMissing' | 'midiUnknown'
+  /** `issue`: a VitalsIssue (vitals); `name`: a driver's or a MIDI port's name; `pct`: battery;
+   * `ms`: the band clock's uncertainty; `sources`: what stays silent (outputMissing). */
   issue?: VitalsIssue
   name?: string
   pct?: number
+  ms?: number
+  sources?: SilencedSource[]
 }
 
 export interface LiveState {
@@ -63,6 +67,8 @@ export interface StageLiveInput {
   ownDeviceId: string
   /** What this device sees itself, fresher than its report - null when not known. */
   ownMidiOutputs: readonly string[] | null
+  /** The sources this device keeps silent right now (its output plan), fresher than its report. */
+  ownSilenced: readonly SilencedSource[]
   /** Device box id → the app in front there. */
   front: Readonly<Record<string, string>>
   profiles: readonly LatencyProfileDoc[]
@@ -80,6 +86,9 @@ const VITALS_ERRORS: readonly VitalsIssue[] = ['audioFallback', 'audioMissing', 
 export const PATH_MARK: Record<StagePathState, string> = { measured: '●', manual: '◐', missing: '○' }
 
 const PATH_RANK: Record<StagePathState, number> = { measured: 2, manual: 1, missing: 0 }
+
+/** The map's virtual port of each of the app's own sources (DEFAULT_VIRTUAL_OUTPUTS). */
+const SOURCE_OF_PORT: Readonly<Record<string, SilencedSource>> = { klick: 'click', track: 'track', ansagen: 'voice' }
 
 /** The app that sends for a device box: the one in front, else its first (as mapRoute). */
 function appOf(box: StageEquipment, front: Readonly<Record<string, string>>): string | null {
@@ -101,13 +110,33 @@ function appOf(box: StageEquipment, front: Readonly<Record<string, string>>): st
  *   latency value of what runs over it is.
  */
 export function stageLive(input: StageLiveInput): StageLive {
-  const { equipment, setup, flows, outputs, builtInIds, deviceInfo, now, serverReachable, health, ownDeviceId, ownMidiOutputs, front, profiles } = input
+  const { equipment, setup, flows, outputs, builtInIds, deviceInfo, now, serverReachable, health, ownDeviceId, ownMidiOutputs, ownSilenced, front, profiles } = input
   const byId = new Map(equipment.map((e) => [e.id, e]))
   const fresh = (id: string): DeviceInfoEntry | null => {
     const info = deviceInfo.devices[id]
     return info && now - info.lastSeenAt <= DEVICE_INFO_TIMEOUT_MS ? info : null
   }
   const result: StageLive = { equipment: {}, links: {} }
+  /** What a device box keeps silent: this device from its own plan, others from a fresh report. */
+  const silencedOf = (box: StageEquipment): SilencedSource[] => {
+    if (box.kind !== 'stageboard') return []
+    const app = appOf(box, front)
+    if (!app) return []
+    return [...(app === ownDeviceId ? ownSilenced : (fresh(app)?.silenced ?? []))]
+  }
+  const linkNotes = new Map<string, LiveNote[]>()
+  // A silenced source: the cable its signal leaves the device on is the one that does not play.
+  for (const flow of flows) {
+    const origin = byId.get(flow.originEquipmentId)
+    const source = SOURCE_OF_PORT[flow.key.slice(flow.originEquipmentId.length + 1)]
+    const first = flow.hops[0]
+    if (!origin || !source || !first || !silencedOf(origin).includes(source)) continue
+    const list = linkNotes.get(first.linkId) ?? []
+    const note = list.find((n) => n.key === 'outputMissing')
+    if (note) note.sources = [...new Set([...(note.sources ?? []), source])]
+    else list.push({ status: 'error', key: 'outputMissing', sources: [source] })
+    linkNotes.set(first.linkId, list)
+  }
   const gearNotes = new Map<string, LiveNote[]>()
   const addGear = (id: string, note: LiveNote) => {
     const list = gearNotes.get(id) ?? []
@@ -117,7 +146,7 @@ export function stageLive(input: StageLiveInput): StageLive {
 
   // Cables first: their MIDI port and path value, which also tell about the gear at the far end.
   for (const link of setup.links) {
-    const notes: LiveNote[] = []
+    const notes: LiveNote[] = [...(linkNotes.get(link.id) ?? [])]
     const ends = [byId.get(link.from.equipmentId), byId.get(link.to.equipmentId)]
     const box = ends.find((e) => e && (e.kind === 'stageboard' || e.kind === 'stage-server'))
     const other = ends.find((e) => e && e !== box)
@@ -174,7 +203,16 @@ export function stageLive(input: StageLiveInput): StageLive {
           notes.push({ status: 'error', key: pinged ? 'appClosed' : 'offline' })
         } else {
           notes.push({ status: 'ok', key: 'online' })
-          for (const issue of info.vitals?.issues ?? []) notes.push({ status: VITALS_ERRORS.includes(issue) ? 'error' : 'warning', key: 'vitals', issue })
+          const silenced = silencedOf(e)
+          if (silenced.length > 0) notes.push({ status: 'error', key: 'outputMissing', sources: silenced })
+          const issues = info.vitals?.issues ?? []
+          const clockMs = info.vitals?.clockUncertaintyMs
+          // The band clock as a number where the app reports one; "unsure" then is its warning.
+          if (clockMs !== undefined && clockMs !== null) notes.push({ status: issues.includes('clockUnsure') ? 'warning' : 'ok', key: 'clock', ms: clockMs })
+          for (const issue of issues) {
+            if (issue === 'clockUnsure' && clockMs !== undefined && clockMs !== null) continue
+            notes.push({ status: VITALS_ERRORS.includes(issue) ? 'error' : 'warning', key: 'vitals', issue })
+          }
           if (info.battery) notes.push(!info.battery.charging && info.battery.pct < BATTERY_WARN_PCT ? { status: 'warning', key: 'batteryLow', pct: info.battery.pct } : { status: 'ok', key: 'battery', pct: info.battery.pct })
         }
       }
