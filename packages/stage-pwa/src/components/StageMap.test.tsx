@@ -14,6 +14,10 @@ vi.mock('pouchdb-browser', () => ({
 // The MIDI ports this tablet sees (WebMIDI isn't in happy-dom).
 vi.mock('../lib/webMidiOutput', async (importOriginal) => ({ ...(await importOriginal<object>()), listMidiOutputs: async () => [{ id: 'k1', name: 'Kemper Player' }] }))
 
+// What the devices report to the Stage-Server (the map's "Prüfen", #747).
+const reported = { devices: {} as Record<string, unknown> }
+vi.mock('../lib/fetchDeviceInfo', () => ({ fetchDeviceInfo: async () => ({ devices: { ...reported.devices } }) }))
+
 const { getDeviceId } = await import('../lib/deviceId')
 const { useDevicesStore } = await import('../store/useDevicesStore')
 const { useWorkspaceStore } = await import('../store/useWorkspaceStore')
@@ -386,5 +390,26 @@ describe('StageMap (docs/31 §7)', () => {
       await vi.waitFor(() => expect(saveEquipment).toHaveBeenCalled())
       expect(saveEquipment.mock.calls[0]![0]).toMatchObject({ owner: 'p-marco' })
     })
+  })
+
+  it('"Prüfen" shows what each device reports: an offline tablet is red, on the map and in the list, and editing is off (#747)', async () => {
+    setUp(true)
+    const { getServerTime } = await import('../lib/clockSync')
+    reported.devices = { [me]: { ip: '10.0.0.2', os: 'Android', environment: 'native', syncStatus: 'idle', lastSeenAt: getServerTime(), networkReachable: true, hostname: null, battery: { pct: 64, charging: false } } }
+    const { container } = render(<StageMap />)
+    expect(container.querySelector('circle[data-live]')).toBeNull()
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Prüfen' }))
+    await vi.waitFor(() => expect(screen.getByText('Fehler: 1')).toBeInTheDocument())
+    expect(screen.getByText(/App offen/)).toBeInTheDocument()
+    expect(screen.getByText(/Akku 64 %/)).toBeInTheDocument()
+    expect(screen.getByText(/offline/)).toBeInTheDocument()
+    expect([...container.querySelectorAll('circle[data-live]')].map((c) => c.getAttribute('data-live')).sort()).toEqual(['error', 'ok'])
+    expect(screen.queryByRole('switch', { name: 'Bearbeiten' })).toBeNull()
+
+    // Back to "Aufbau": the layer is gone.
+    fireEvent.click(screen.getByRole('radio', { name: 'Aufbau' }))
+    expect(container.querySelector('circle[data-live]')).toBeNull()
+    expect(screen.queryByText('Fehler: 1')).toBeNull()
   })
 })

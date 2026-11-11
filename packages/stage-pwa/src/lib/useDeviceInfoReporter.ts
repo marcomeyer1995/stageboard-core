@@ -1,11 +1,13 @@
 import { useEffect } from 'react'
 import { deriveSyncStatus, useSyncStore } from '../store/useSyncStore'
+import { batteryState } from './battery'
 import { detectEnvironment } from './detectEnvironment'
 import { summarizeVitals, vitalsSnapshot } from './deviceVitals'
 import { getDeviceId } from './deviceId'
 import { guessDeviceName } from './guessDeviceName'
 import { nativeOutputHealth } from './nativeOutput'
 import { reportDeviceInfo } from './reportDeviceInfo'
+import { knownMidiOutputNames, watchMidiPorts } from './webMidiOutput'
 import { useLeadNeededStore } from './leadCheck'
 
 /** Comfortably inside DEVICE_INFO_TIMEOUT_MS (shared-types), same margin usePresenceReporter.ts
@@ -29,8 +31,9 @@ export function useDeviceInfoReporter(workspaceId: string): void {
   useEffect(() => {
     if (!workspaceId) return
     const deviceId = getDeviceId()
-    const report = () =>
-      void reportDeviceInfo(workspaceId, {
+    const report = async () => {
+      const [battery, midiOutputs] = await Promise.all([batteryState(), knownMidiOutputNames()])
+      await reportDeviceInfo(workspaceId, {
         deviceId,
         os: guessDeviceName(),
         environment: detectEnvironment(),
@@ -38,9 +41,17 @@ export function useDeviceInfoReporter(workspaceId: string): void {
         audioOutput: nativeOutputHealth(),
         vitals: summarizeVitals(vitalsSnapshot()),
         leadNeededMs: useLeadNeededStore.getState().neededMs,
+        battery,
+        midiOutputs,
       })
-    report()
-    const interval = setInterval(report, REPORT_INTERVAL_MS)
-    return () => clearInterval(interval)
+    }
+    void report()
+    const interval = setInterval(() => void report(), REPORT_INTERVAL_MS)
+    // A MIDI cable pulled or plugged: the map's check on the other devices should see it soon (#747).
+    const stopWatching = watchMidiPorts(() => void report())
+    return () => {
+      clearInterval(interval)
+      stopWatching()
+    }
   }, [workspaceId])
 }

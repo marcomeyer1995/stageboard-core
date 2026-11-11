@@ -353,5 +353,35 @@
     "install": "Installieren",
     "remove": "Entfernen",
     "removeConfirm": "{{name}} vom Stage-Server entfernen?"
+  },
+  "live": {
+    "mode": "Ansicht der Karte",
+    "setup": "Aufbau",
+    "check": "Prüfen",
+    "loading": "Zustand wird abgefragt…",
+    "allGood": "Alles da: kein Fehler gemeldet.",
+    "faults": "Fehler: {{n}}",
+    "warnings": "Hinweise: {{n}}",
+    "legend": "Rot heißt: so spielt es nicht. Latenz-Wert des Wegs: ● gemessen · ◐ von Hand · ○ fehlt. Mehr je Gerät unter „Tablets & Handys“.",
+    "offline": "offline",
+    "appClosed": "App ist zu",
+    "placeholder": "noch kein Gerät zugeordnet",
+    "online": "App offen",
+    "battery": "Akku {{pct}} %",
+    "batteryLow": "Akku {{pct}} %, lädt nicht",
+    "serverOnline": "antwortet",
+    "serverOffline": "antwortet nicht",
+    "noServer": "kein Stage-Server eingestellt",
+    "driverOnline": "Treiber {{name}} läuft",
+    "driverSilent": "Treiber {{name}} meldet sich nicht",
+    "driverError": "Treiber {{name}} meldet einen Fehler",
+    "midiFound": "MIDI-Port „{{name}}“ da",
+    "midiMissing": "MIDI-Port „{{name}}“ fehlt",
+    "midiUnknown": "MIDI-Port „{{name}}“: nicht bekannt (Gerät offline oder MIDI dort noch nicht benutzt)",
+    "path": {
+      "measured": "Latenz gemessen",
+      "manual": "Latenz von Hand",
+      "missing": "Latenz fehlt"
+    }
   }
 }

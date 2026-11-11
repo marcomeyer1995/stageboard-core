@@ -56,6 +56,14 @@ export const DeviceVitalsSummarySchema = z.object({
 })
 export type DeviceVitalsSummary = z.infer<typeof DeviceVitalsSummarySchema>
 
+/** The device's battery, where the platform tells (#747) - the map's check warns before it is empty. */
+export const BatteryStateSchema = z.object({
+  /** 0-100. */
+  pct: z.number().int().min(0).max(100),
+  charging: z.boolean(),
+})
+export type BatteryState = z.infer<typeof BatteryStateSchema>
+
 export const DeviceInfoEntrySchema = z.object({
   /** Stamped server-side from the TCP connection (Fastify's `request.ip`) on every report -
    * never trusted from the client, which can't reliably know its own LAN IP anyway. */
@@ -92,6 +100,11 @@ export const DeviceInfoEntrySchema = z.object({
   /** The Play lead this device needed at its last fresh song start, ms (stage-pwa lib/playLead.ts) -
    * absent from older apps. The Bühne tab warns when it is more than the band's setting. */
   leadNeededMs: z.number().int().nonnegative().nullable().optional(),
+  /** The battery (BatteryStateSchema) - absent from older apps, null where the platform hides it. */
+  battery: BatteryStateSchema.nullable().optional(),
+  /** The MIDI outputs this device sees right now, by name (#747): the map's check tells from it
+   * whether a cable's MIDI port is there. Absent from older apps, null without WebMIDI. */
+  midiOutputs: z.array(z.string()).max(64).nullable().optional(),
 })
 export type DeviceInfoEntry = z.infer<typeof DeviceInfoEntrySchema>
 
@@ -126,5 +139,7 @@ export const DeviceInfoReportSchema = z.object({
   audioOutput: AudioOutputHealthSchema.nullable().optional(),
   vitals: DeviceVitalsSummarySchema.nullable().optional(),
   leadNeededMs: z.number().int().nonnegative().nullable().optional(),
+  battery: BatteryStateSchema.nullable().optional(),
+  midiOutputs: z.array(z.string()).max(64).nullable().optional(),
 })
 export type DeviceInfoReport = z.infer<typeof DeviceInfoReportSchema>
