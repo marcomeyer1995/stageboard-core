@@ -11,12 +11,9 @@ import { HelperError, runHelper, trustedHelper, type HelperInfo } from './native
 
 export const YOUTUBE_ADDON_ID = 'youtube-download'
 
-/** Signing certificates of YouTube helpers this add-on trusts (SHA-256, lowercase) - to move into
- * the add-on's manifest (`helpers.android.certSha256`, docs/32 §8) once code comes from repos. */
-export const YOUTUBE_HELPER_CERTS: readonly string[] = [
-  // Built and signed on the band's laptop (the developer's debug key), 2026-11-10.
-  '465bec8729afee54cfa03bdb3e9405990f1712d20fdac0bc477757c9190e94b8',
-]
+/** `trusted` everywhere below: the signing certificates of helpers this add-on trusts, from the
+ * installed manifest (`helpers.android.certSha256`, `androidHelperCerts` in shared-types) - never
+ * from code, so an add-on from its own repository brings its own list (docs/32 §8). */
 
 export type YoutubeRoute = 'server' | 'device' | 'none'
 
@@ -25,15 +22,15 @@ export type YoutubeRoute = 'server' | 'device' | 'none'
  * when the host says it can't - a host that doesn't say (`null`: built before 2026-11-07, or not
  * reachable) is asked as before, and answers itself what is missing.
  */
-export function youtubeRoute(host: HostCapabilities | null, helper: HelperInfo | null): YoutubeRoute {
+export function youtubeRoute(host: HostCapabilities | null, helper: HelperInfo | null, trusted: readonly string[]): YoutubeRoute {
   if (host?.plugins.some((p) => p.id === YOUTUBE_ADDON_ID && p.available)) return 'server'
-  if (trustedHelper(helper, YOUTUBE_HELPER_CERTS)) return 'device'
+  if (trustedHelper(helper, trusted)) return 'device'
   return host ? 'none' : 'server'
 }
 
 /** Search through this device's helper - the same hits as the host's yt-dlp search (#618). */
-export async function searchOnDevice(helper: HelperInfo, query: string): Promise<YoutubeSearchResult[]> {
-  if (!trustedHelper(helper, YOUTUBE_HELPER_CERTS)) throw new HelperError('helper.untrusted', 'untrusted helper')
+export async function searchOnDevice(helper: HelperInfo, query: string, trusted: readonly string[]): Promise<YoutubeSearchResult[]> {
+  if (!trustedHelper(helper, trusted)) throw new HelperError('helper.untrusted', 'untrusted helper')
   const { result } = await runHelper<{ results: unknown[] }>(YOUTUBE_ADDON_ID, helper, 'search', { query })
   return (result.results ?? []).flatMap((r) => {
     const parsed = YoutubeSearchResultSchema.safeParse(r)
@@ -82,7 +79,7 @@ export const activeDeviceJobs = new Set<string>()
  * upload as a normal track (`putTrack`: to whichever host the band has), report on the job document
  * the whole band sees - exactly as the Stage-Server's watcher does.
  */
-export async function runOnDevice(job: YoutubeExtractJob, deviceId: string, helper: HelperInfo, deps: DeviceJobDeps, signal?: AbortSignal): Promise<void> {
+export async function runOnDevice(job: YoutubeExtractJob, deviceId: string, helper: HelperInfo, trusted: readonly string[], deps: DeviceJobDeps, signal?: AbortSignal): Promise<void> {
   const now = deps.now ?? Date.now
   const runner = deviceRunner(deviceId)
   activeDeviceJobs.add(job.id)
@@ -96,7 +93,7 @@ export async function runOnDevice(job: YoutubeExtractJob, deviceId: string, help
     return writes
   }
   try {
-    if (!trustedHelper(helper, YOUTUBE_HELPER_CERTS)) throw new HelperError('helper.untrusted', 'untrusted helper')
+    if (!trustedHelper(helper, trusted)) throw new HelperError('helper.untrusted', 'untrusted helper')
     let lastWrite = 0
     const { result, file } = await runHelper<DownloadResult>(YOUTUBE_ADDON_ID, helper, 'download', { url: job.url }, {
       output: true,

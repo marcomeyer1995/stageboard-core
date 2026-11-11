@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { PluginInstallation } from 'shared-types'
-import { installationsNeedingBundleDownload, readInstallations, reconcile } from './pluginSync.js'
+import { installationsNeedingBundleDownload, readInstallations, reconcile, splitByApiVersion } from './pluginSync.js'
 
 const CATALOG = ['mock-mixer', 'mock-lighting']
 
@@ -82,5 +82,14 @@ describe('installationsNeedingBundleDownload', () => {
   it('skips a disabled installation even with a clientSource', () => {
     const kemper = installation({ id: 'kemper', clientSource: 'https://cdn.example/kemper.js', enabled: false })
     expect(installationsNeedingBundleDownload([kemper], new Set())).toEqual([])
+  })
+})
+
+describe('splitByApiVersion (#756)', () => {
+  it('keeps manifests of our interface version or without one, sets the others aside', () => {
+    const ours = installation({ id: 'ours', apiVersion: 1 })
+    const older = installation({ id: 'older' })
+    const foreign = installation({ id: 'foreign', apiVersion: 99 })
+    expect(splitByApiVersion([ours, older, foreign])).toEqual({ fits: [ours, older], mismatched: [foreign] })
   })
 })

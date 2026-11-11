@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from 'react'
-import { CAPABILITIES, type CapabilityId } from 'shared-types'
+import { API_VERSION_MISMATCH_CODE, apiVersionFits, CAPABILITIES, type CapabilityId } from 'shared-types'
 import { resolveCapabilities, type CapabilityStatus } from './capabilities'
 import { reportClientHealth } from './reportClientHealth'
 import { useMidiTrigger } from './useMidiTrigger'
@@ -30,6 +30,10 @@ export function useCapabilities(): Map<CapabilityId, CapabilityStatus> {
   useEffect(() => {
     for (const plugin of installed) {
       if (!plugin.enabled || plugin.runtime !== 'client') continue
+      if (!apiVersionFits(plugin)) {
+        void reportClientHealth(workspaceId, plugin.id, 'error', API_VERSION_MISMATCH_CODE)
+        continue
+      }
       const available = plugin.capabilities.some((capability) => clientProbes[capability])
       void reportClientHealth(workspaceId, plugin.id, available ? 'online' : 'offline')
     }
