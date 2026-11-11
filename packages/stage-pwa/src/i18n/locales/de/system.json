@@ -103,11 +103,11 @@
   "practiceOutput": {
     "label": "Ausgang beim Üben",
     "both": "Alles auf beide Ohren",
-    "bothDetail": "Track, Klick und Ansagen auf beiden Seiten - braucht keine Karte.",
+    "bothDetail": "Track, Klick und Ansagen auf beiden Seiten - braucht keine Karte. Cues werden nicht gesendet.",
     "setup": "Wie im Aufbau „{{name}}“",
-    "setupDetail": "Klick, Ansagen und Track liegen wie in der Matrix dieses Geräts in dem Aufbau.",
+    "setupDetail": "Klick, Ansagen und Track liegen wie in der Matrix dieses Geräts in dem Aufbau. Cues gehen an die Geräte, die der Aufbau an dieses Gerät hängt.",
     "ownSetup": "Mein Aufbau „{{name}}“",
-    "ownSetupDetail": "Dein eigener Aufbau zum Üben (Bühne → Meine Aufbauten).",
+    "ownSetupDetail": "Dein eigener Aufbau zum Üben (Bühne → Meine Aufbauten) - mit Cues an deine eigenen Geräte.",
     "fellBack": "Der gewählte Aufbau passt gerade nicht (Gerät nicht platziert oder Ausgang nicht angesteckt) - alles spielt auf beiden Ohren."
   },
   "sync": {

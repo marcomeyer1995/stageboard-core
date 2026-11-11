@@ -1,11 +1,18 @@
 import { mapRoute } from 'shared-types'
 import { getDeviceId } from './deviceId'
+import { usePracticeRouteStore } from './outputPlan'
 import { getMidiOutputById, getMidiOutputByName } from './webMidiOutput'
 import { useStageMapStore } from '../store/useStageMapStore'
 
 /** The MIDI port name the stage map gives a plugin device on this app - from the cable it is routed
  * onto (docs/31 §6 step 2, part 2) - or null. */
 export function mapMidiName(logicalDeviceId: string): string | null {
+  // Practising by a setup (#799 step 4): its cable, not the one of the band's active setup.
+  const practice = usePracticeRouteStore.getState().route
+  if (practice) {
+    const route = mapRoute(practice.map, logicalDeviceId, {}, practice.setupId)
+    return route && route.app === getDeviceId() ? route.midiName : null
+  }
   const map = useStageMapStore.getState()
   if (!map.loaded) return null
   const route = mapRoute(map, logicalDeviceId, map.front)

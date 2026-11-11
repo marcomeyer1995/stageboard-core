@@ -16,6 +16,12 @@ describe('cue schedule (#477)', () => {
     expect(cueDueAt({ status: 'paused', startedAt: null, accumulatedMs: 4_000 }, 5_000)).toBeNull()
   })
 
+  it('a slowed pass (the loop trainer, #683) reaches a song time later on the clock', () => {
+    const slow: CueTransport = { ...playing(10_000, 1_000), rate: 0.5 }
+    expect(cueDueAt(slow, 2_000)).toBe(12_000)
+    expect(songTimeAt(slow, 12_000)).toBe(2_000)
+  })
+
   it('song time is negative during the Play lead', () => {
     expect(songTimeAt(playing(10_400), 10_000)).toBe(-400)
   })

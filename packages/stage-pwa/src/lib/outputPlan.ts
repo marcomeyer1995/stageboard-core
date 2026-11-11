@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { CAPABILITIES, mapOutputs, outputSide, type AudioRoute, type CapabilityId, type StageMap } from 'shared-types'
+import { CAPABILITIES, equipmentOffered, mapOutputs, outputSide, type AudioRoute, type CapabilityId, type StageEquipment, type StageMap, type StageSetup } from 'shared-types'
 import { MIX_SOURCES, PLAIN_PLAN, type MixSource, type OutputPlan } from './audioMix'
 import type { SessionMode } from '../store/useAppModeStore'
 
@@ -34,6 +34,38 @@ export const usePracticeOutputStore = create<PracticeOutputState>((set) => ({
     set({ setupId })
   },
 }))
+
+/** The stage-map store's lists: the band's, and everything somebody owns (#799). */
+export interface MapLists {
+  equipment: readonly StageEquipment[]
+  setups: readonly StageSetup[]
+  ownEquipment: readonly StageEquipment[]
+  ownSetups: readonly StageSetup[]
+}
+
+/** The map a person practises by (#799): the band's, plus their own equipment and setups. */
+export function practiceMap(lists: MapLists, profileId: string): StageMap {
+  const mine = profileId === '' ? [] : lists.ownSetups.filter((s) => s.owner === profileId)
+  return { equipment: [...lists.equipment, ...equipmentOffered(lists.ownEquipment, { owner: profileId || undefined })], setups: [...lists.setups, ...mine] }
+}
+
+/**
+ * The setup plugin devices go by while practising (#799 step 4): the one chosen under "Ausgang
+ * beim Üben", in the map of this person. Null: no setup chosen, or it is gone - cues stay at home
+ * then, as before.
+ */
+export function practiceRoute(lists: MapLists, profileId: string, setupId: string | null): { map: StageMap; setupId: string } | null {
+  if (setupId === null) return null
+  const map = practiceMap(lists, profileId)
+  return map.setups.some((s) => s.id === setupId) ? { map, setupId } : null
+}
+
+/**
+ * The setup plugin devices go by right now - set while this device practises by one, null in the
+ * Gig and while practising without a setup. Kept by useOutputPlan (always mounted); a store of its
+ * own so a Translator looking up its MIDI port reads it without pulling in the workspace stores.
+ */
+export const usePracticeRouteStore = create<{ route: { map: StageMap; setupId: string } | null }>(() => ({ route: null }))
 
 export interface PlanInput {
   mode: SessionMode
