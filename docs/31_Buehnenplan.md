@@ -66,6 +66,18 @@ Anlass: Marcos Konzept „StageMap“ vom 2026-11-09 denkt die Karte weiter – 
 | Reihenfolge | frei; Vorschlag in §6: zuerst das Anschluss-Modell und „der Ton folgt der Matrix“, weil das im Gig fehlt (Klick nur aufs In-Ear, Track ans Pult) |
 | Alte Issues | **#62** und **#545** geschlossen (Karte, Matrix und Verkabelungsliste erfüllen sie; der Live-Status aus #545 ist §9, #747); **#488** bleibt und wird mit dem Export (§11, #750) erledigt |
 
+## 0d. Decisions (Marco, 2026-11-11) – the sound follows the map (#742)
+
+Written in English (#785); the rest of this file is translated when touched.
+
+| Question | Decision |
+|---|---|
+| Gig | the playing device takes its outputs from **its matrix in the active band setup** (§7c) |
+| Practice (practice, Timeline, song editor) | **not a band setup**: every device has its own **practice assignment** - only the matrix of this one device (click, track, announcements, stems onto its own outputs), stored per device like "Mein Mix". Three choices: **"Everything on both ears"** (default, needs no map), **"As in setup …"** (this device's matrix from a band setup, to practise with the gig rig) and **"Own"** (a freely assigned matrix of this device). No preset "click left, track right" - that is done in "Own" |
+| Output missing while practising | **fall back to "Everything on both ears"** with a hint (no audience at home) |
+| Output missing in the gig | **only the affected sources go silent**; sources whose output is still there keep playing (the click on the in-ear survives a pulled USB cable), with a red message. Never played somewhere else (docs/28); the later failover (#752) switches exactly the lost signal |
+| Old setting "click left / right" | **removed** (`OutputRouting` store and its settings) |
+
 ## 1. Was der Bühnenplan ist
 
 Ein Bild der Bühne von oben, je Band: **wer steht wo, welches Gerät steht wo, was geht von wo nach wo, und wie gut ist jeder Weg eingemessen.** Er ist der eine Ort, an dem man den Aufbau sieht und ändert – statt verteilt über Bühnentechnik, Tablets & Handys, Latenz-Dialoge und Rig-Check.
