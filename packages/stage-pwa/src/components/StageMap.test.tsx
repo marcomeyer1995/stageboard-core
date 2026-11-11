@@ -245,6 +245,27 @@ describe('StageMap (docs/31 §7)', () => {
     expect(after.routing.pult).toEqual([{ from: { kind: 'port', portId: 'in', channel: 15 }, to: { kind: 'port', portId: 'aux', channel: 1 } }])
   })
 
+  it("a USB interface on this tablet's USB-C: the matrix shows 'USB-C · Audio aus 1-4' from the interface's count, and the headphone jack its L and R (#739)", () => {
+    setUp(true)
+    const base = BUILTIN_MODELS.find((m) => m.id === 'audio-interface')!
+    const umc = equipmentFrom({ ...base, ports: base.ports.map((p) => (p.id === 'usb' ? { ...p, parts: p.parts!.map((x) => (x.id === 'usb/audio-in' ? { ...x, channels: 4 } : x)) } : p)) }, 'umc', 'UMC204HD')
+    useStageMapStore.setState((s) => ({
+      equipment: [...s.equipment, umc],
+      setups: s.setups.map((x) => ({ ...x, positions: { ...x.positions, umc: { x: 900, y: 900 } }, links: [...x.links, { id: 'usb', from: { equipmentId: `device:${me}`, portId: 'usb' }, to: { equipmentId: 'umc', portId: 'usb' }, signals: ['usb-audio', 'midi'] }] })),
+    }))
+    render(<StageMap />)
+    fireEvent.click(screen.getByRole('switch', { name: 'Bearbeiten' }))
+    tapNode('Redmi')
+    fireEvent.click(screen.getByRole('switch', { name: 'Track → USB-C · Audio aus 3' }))
+    const [, patch] = updateSetup.mock.calls[0]!
+    const after = patch(useStageMapStore.getState().setups[0])
+    expect(after.routing[`device:${me}`]).toContainEqual({ from: { kind: 'virtual', virtualPortId: 'track' }, to: { kind: 'port', portId: 'usb/audio-out', channel: 3 } })
+    expect(screen.queryByRole('switch', { name: 'Track → USB-C · Audio aus 5' })).toBeNull()
+    fireEvent.click(screen.getByRole('switch', { name: 'Klick → Kopfhörer L' }))
+    const [, patch2] = updateSetup.mock.calls[1]!
+    expect(patch2(useStageMapStore.getState().setups[0]).routing[`device:${me}`]).toContainEqual({ from: { kind: 'virtual', virtualPortId: 'klick' }, to: { kind: 'port', portId: 'headphones', pin: 1 } })
+  })
+
   it('a cable: first its two ends and what runs on it, tapped again the whole way of each signal', () => {
     setUp(false)
     render(<StageMap />)

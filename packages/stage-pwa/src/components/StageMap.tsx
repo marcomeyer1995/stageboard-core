@@ -32,6 +32,9 @@ import {
   type StageEquipment,
   type StageLink,
   type StageSetup,
+  lookupPort,
+  partChannels,
+  type PortView,
 } from 'shared-types'
 import { getDeviceId } from '../lib/deviceId'
 import { stageMapDefaults } from '../lib/stageMapDefaults'
@@ -95,7 +98,8 @@ function fitView(points: { x: number; y: number }[]): ViewBox {
   return { x, y, w: Math.max(...xs) + NODE_W / 2 + pad - x, h: Math.max(...ys) + NODE_H / 2 + pad - y }
 }
 
-const portOf = (equipment: StageEquipment | undefined, portId: string): Port | undefined => equipment?.ports.find((p) => p.id === portId)
+/** A port or a part of a container port (#739), by id. */
+const portOf = (equipment: StageEquipment | undefined, portId: string): PortView | undefined => (equipment ? lookupPort(equipment.ports, portId) : undefined)
 
 /**
  * The stage map (docs/31 §7): the band's equipment, the cables between their ports, and per setup
@@ -205,12 +209,15 @@ export function StageMap() {
   const canWireLink = (l: StageLink) => canWire(byId.get(l.from.equipmentId)) || canWire(byId.get(l.to.equipmentId))
   const canGear = editing && isAdmin
 
-  // A port and its channel - or its channels, for a cable wider than one ("Aux 1–2").
+  // A pin of a socket: left/right of a stereo jack, else its number (#739).
+  const pinText = (pin: number | undefined) => (pin === undefined ? '' : ` ${pin === 1 ? t('map.pinL') : pin === 2 ? t('map.pinR') : t('map.pinN', { n: pin })}`)
+  // A port and its channel - or its channels, for a cable wider than one ("Aux 1–2"); a part of a
+  // container reads with its container in front ("USB-C · Audio aus 1").
   const refText = (ref: PortRef, width = 1) => {
     const port = portOf(byId.get(ref.equipmentId), ref.portId)
-    if (ref.channel === undefined) return port?.name ?? ref.portId
+    if (ref.channel === undefined) return `${port?.name ?? ref.portId}${pinText(ref.pin)}`
     const first = channelNumber(port, ref.channel)
-    return `${port?.name ?? ref.portId} ${width > 1 ? `${first}–${first + width - 1}` : first}`
+    return `${port?.name ?? ref.portId} ${width > 1 ? `${first}–${first + width - 1}` : first}${pinText(ref.pin)}`
   }
   const portLabel = (ref: PortRef, width = 1) => {
     const item = byId.get(ref.equipmentId)
@@ -221,6 +228,7 @@ export function StageMap() {
   const connectPort = connectFrom ? portOf(byId.get(connectFrom.equipmentId), connectFrom.portId) : undefined
   const fitsFrom = (target: StageEquipment) => {
     if (!connectPort || !connectFrom || target.id === connectFrom.equipmentId) return [] as { port: Port; reverse: boolean }[]
+    // Cables sit on ports, never on a part of a container (#739).
     const out: { port: Port; reverse: boolean }[] = []
     for (const port of target.ports) {
       if (portFit(connectPort, port)) out.push({ port, reverse: false })
@@ -264,9 +272,10 @@ export function StageMap() {
     // Mono, stereo or a multicore (2026-11-07) - offered as far as both ends take it.
     const room = Math.min(portCapacity(fromPort, from.channel), portCapacity(toPort, to.channel))
     let width = 1
-    if (room >= 2) {
+    // A container (USB) carries every part at once - no width to ask for.
+    if (room >= 2 && !fromPort.parts && !toPort.parts) {
       const widths = [{ value: '1', label: t('map.mono') }, { value: '2', label: t('map.stereo') }, ...(room >= 3 ? [{ value: String(room), label: t('map.allChannels', { n: room }) }] : [])]
-      const stereoish = (fromPort.stereo || toPort.stereo) ?? false
+      const stereoish = (fromPort.pins ?? 1) > 1 || (toPort.pins ?? 1) > 1
       const answer = await promptFields(t('map.width'), [{ key: 'width', label: t('map.widthLabel'), type: 'radio', options: widths, defaultValue: stereoish ? '2' : '1' }], t('map.connect'))
       if (!answer) return
       width = Number(answer.width) || 1
@@ -497,20 +506,35 @@ export function StageMap() {
       return { ...s, routing: { ...s.routing, [item.id]: on ? [...current, { from, to }] : current } }
     })
 
-  // The rows and columns of a device's matrix: physical ports, one line per channel, and on a
-  // StageBoard device its virtual sources (columns) and virtual inputs (rows).
+  // The rows and columns of a device's matrix: physical ports, one line per channel; a container
+  // (USB) unfolds into its parts, each with as many channels as the far end says (#739); a stereo
+  // socket also offers its pins ("Kopfhörer L" / "R"); and on a StageBoard device its virtual
+  // sources (columns) and virtual inputs (rows).
   const matrixOf = (item: StageEquipment): { columns: MatrixLine[]; rows: MatrixLine[] } => {
-    const lines = (ports: Port[]): MatrixLine[] =>
-      ports.flatMap((p) =>
-        p.channels
-          ? Array.from({ length: p.channels }, (_, i) => ({ key: `${p.id}#${i + 1}`, label: `${p.name} ${channelNumber(p, i + 1)}`, point: { kind: 'port' as const, portId: p.id, channel: i + 1 } }))
-          : [{ key: p.id, label: p.name, point: { kind: 'port' as const, portId: p.id } }],
-      )
+    const perChannel = (portId: string, name: string, count: number, numbered: Port | undefined): MatrixLine[] =>
+      Array.from({ length: count }, (_, i) => ({ key: `${portId}#${i + 1}`, label: `${name} ${channelNumber(numbered, i + 1)}`, point: { kind: 'port' as const, portId, channel: i + 1 } }))
+    const lines = (side: 'in' | 'out'): MatrixLine[] =>
+      item.ports.flatMap((p) => {
+        if (p.parts) {
+          return p.parts
+            .filter((part) => part.direction !== (side === 'in' ? 'out' : 'in'))
+            .flatMap((part) => {
+              const count = setup ? partChannels({ equipment, setups }, setup, item.id, part.id) : part.channels
+              const name = `${p.name} · ${part.name}`
+              return count && count > 1 ? perChannel(part.id, name, count, undefined) : [{ key: part.id, label: name, point: { kind: 'port' as const, portId: part.id } }]
+            })
+        }
+        if (p.direction === (side === 'in' ? 'out' : 'in')) return []
+        if (p.channels) return perChannel(p.id, p.name, p.channels, p)
+        const whole: MatrixLine = { key: p.id, label: p.name, point: { kind: 'port' as const, portId: p.id } }
+        const pins = p.pins ?? 1
+        return pins > 1 ? [whole, ...Array.from({ length: pins }, (_, i) => ({ key: `${p.id}.${i + 1}`, label: `${p.name}${pinText(i + 1)}`, point: { kind: 'port' as const, portId: p.id, pin: i + 1 } }))] : [whole]
+      })
     const virtualLines = (input: boolean): MatrixLine[] =>
       DRIVER_KINDS.includes(item.kind) ? virtualPorts.filter((v) => v.input === input).map((v) => ({ key: `v:${v.id}`, label: v.name, point: { kind: 'virtual' as const, virtualPortId: v.id } })) : []
     return {
-      columns: [...virtualLines(false), ...lines(item.ports.filter((p) => p.direction !== 'out'))],
-      rows: [...lines(item.ports.filter((p) => p.direction !== 'in')), ...virtualLines(true)],
+      columns: [...virtualLines(false), ...lines('in')],
+      rows: [...lines('out'), ...virtualLines(true)],
     }
   }
 

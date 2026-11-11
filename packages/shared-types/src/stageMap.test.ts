@@ -29,6 +29,15 @@ import {
   signalFlows as flowsOf,
   linkPlaceholder,
   mergeEquipmentInSetup,
+  lookupPort,
+  cablePortId,
+  normalizePort,
+  normalizeEquipment,
+  partChannels,
+  portSlots,
+  portCapacity,
+  PortSchema,
+  type StageSetup,
 } from './stageMap.js'
 
 const model = (id: string) => BUILTIN_MODELS.find((m) => m.id === id)!
@@ -56,7 +65,7 @@ describe('portFit (lenient, decision 2)', () => {
 
   it('a different plug only warns', () => {
     expect(portFit(portOf('tablet', 'headphones'), portOf('mixer', 'in'))).toEqual({ signals: ['audio'], adapter: true })
-    expect(portFit(portOf('audio-interface', 'out12'), portOf('mixer', 'in'))).toEqual({ signals: ['audio'], adapter: false })
+    expect(portFit(portOf('audio-interface', 'out'), portOf('mixer', 'in'))).toEqual({ signals: ['audio'], adapter: false })
   })
 })
 
@@ -214,7 +223,7 @@ describe('built-in equipment', () => {
       for (const c of model.routing?.default ?? []) {
         for (const pt of [c.from, c.to]) {
           if (pt.kind !== 'port') continue
-          const p = model.ports.find((x) => x.id === pt.portId)
+          const p = lookupPort(model.ports, pt.portId)
           expect(p, `${model.id}: ${pt.portId}`).toBeDefined()
           if (pt.channel !== undefined) expect(pt.channel).toBeLessThanOrEqual(p!.channels ?? 0)
         }
@@ -385,5 +394,134 @@ describe('plugins follow the map (docs/31 §6 step 2, part 2, 2026-11-07)', () =
     expect(mapRoute(withKemper(), 'ld-kemper')).toEqual({ app: null, midiName: null })
     const stored = [{ id: 'ld-kemper', capability: 'kemper-control', executionTarget: 'fire' }]
     expect(routedLogicalDevices(stored, { equipment: [], setups: [] })).toEqual(stored)
+  })
+})
+
+describe('port model 2 (docs/31 §7b, #739): pins, container ports, OSC', () => {
+  const tablet = equipmentFrom(model('tablet'), 'redmi', 'Redmi', { deviceId: 'redmi' })
+  const iface = equipmentFrom(model('audio-interface'), 'umc', 'UMC204HD')
+  const mixer = equipmentFrom(model('mixer'), 'desk', 'Pult')
+  const iem = equipmentFrom(model('iem-sender'), 'iem', 'In-Ear-Sender')
+  const kai = equipmentFrom(model('person'), 'kai', 'Kai', { listener: { kind: 'profile', profileId: 'kai' } })
+
+  it('the schema takes pins, parts and the signal osc; stereo stays readable', () => {
+    expect(PortSchema.safeParse({ id: 'p', name: 'Kopfhörer', connector: 'jack-3.5', signals: ['audio'], direction: 'out', pins: 2 }).success).toBe(true)
+    expect(PortSchema.safeParse({ id: 'net', name: 'LAN', connector: 'ethernet', signals: ['osc'], direction: 'out', parts: [{ id: 'net/osc', name: 'OSC', signals: ['osc'], direction: 'out' }] }).success).toBe(true)
+    expect(PortSchema.safeParse({ id: 'p', name: 'Main', connector: 'xlr', signals: ['audio'], direction: 'out', stereo: true }).success).toBe(true)
+  })
+
+  it('a map from before #739 is read the new way: stereo → pins 2, a USB socket gets its parts, its cables and points stay', () => {
+    const old: Port = { id: 'headphones', name: 'Kopfhörer', connector: 'jack-3.5', signals: ['audio'], direction: 'out', stereo: true }
+    expect(normalizePort(old)).toEqual({ id: 'headphones', name: 'Kopfhörer', connector: 'jack-3.5', signals: ['audio'], direction: 'out', pins: 2 })
+    const usb: Port = { id: 'usb', name: 'USB', connector: 'usb-b', signals: ['usb-audio', 'midi'], direction: 'both' }
+    expect(normalizePort(usb).parts?.map((x) => x.id)).toEqual(['usb/audio-out', 'usb/audio-in', 'usb/midi-out', 'usb/midi-in'])
+    expect(normalizePort({ ...usb, direction: 'in' }).parts?.map((x) => x.id)).toEqual(['usb/audio-in', 'usb/midi-in'])
+    // A plain jack has no parts; a container that has parts keeps them.
+    expect(normalizePort(portOf('mixer', 'main')).parts).toBeUndefined()
+    expect(normalizeEquipment(tablet).ports.find((p) => p.id === 'usb')?.parts).toHaveLength(4)
+    // The old interface model routed the whole container onto its outputs: a container point still matches every part.
+    const oldIface = { ...iface, ports: [usb, { id: 'out12', name: 'Out 1/2', connector: 'jack-6.3' as const, signals: ['audio' as const], direction: 'out' as const }], routing: { mode: 'free' as const, default: [{ from: { kind: 'port' as const, portId: 'usb' }, to: { kind: 'port' as const, portId: 'out12' } }] } }
+    const setup: StageSetup = { id: 's', name: 'S', positions: { redmi: { x: 0, y: 0 }, umc: { x: 0, y: 0 }, desk: { x: 0, y: 0 }, kai: { x: 0, y: 0 } }, routing: { redmi: [{ from: { kind: 'virtual', virtualPortId: 'track' }, to: { kind: 'port', portId: 'usb/audio-out', channel: 1 } }] }, links: [
+      { id: 'c1', from: { equipmentId: 'redmi', portId: 'usb' }, to: { equipmentId: 'umc', portId: 'usb' }, signals: ['usb-audio', 'midi'] },
+      { id: 'c2', from: { equipmentId: 'umc', portId: 'out12' }, to: { equipmentId: 'kai', portId: 'ears' }, signals: ['audio'] },
+    ] }
+    const flows = signalFlows({ equipment: [normalizeEquipment(tablet), normalizeEquipment(oldIface), kai], setups: [setup] }, 's', VIRTUAL)
+    expect(flows.find((f) => f.key === 'redmi/track')?.listenerIds).toEqual(['kai'])
+  })
+
+  it('looks a part up through its container: the plug of the socket, the part\'s own signals and direction', () => {
+    const view = lookupPort(tablet.ports, 'usb/audio-out')
+    expect(view).toMatchObject({ id: 'usb/audio-out', connector: 'usb-c', signals: ['usb-audio'], direction: 'out', container: { id: 'usb' } })
+    expect(cablePortId(tablet.ports, 'usb/audio-out')).toBe('usb')
+    expect(cablePortId(tablet.ports, 'headphones')).toBe('headphones')
+    expect(lookupPort(tablet.ports, 'headphones')?.pins).toBe(2)
+  })
+
+  it('slots: a stereo jack has two pins, a group its sockets; capacity counts from where a cable starts', () => {
+    expect(portSlots(lookupPort(tablet.ports, 'headphones')!)).toEqual([{ pin: 1 }, { pin: 2 }])
+    expect(portSlots(lookupPort(mixer.ports, 'aux')!)).toEqual([{ channel: 1 }, { channel: 2 }, { channel: 3 }, { channel: 4 }])
+    expect(portCapacity(lookupPort(tablet.ports, 'headphones')!, undefined)).toBe(2)
+    expect(portCapacity(lookupPort(tablet.ports, 'headphones')!, undefined, 2)).toBe(1)
+    expect(portCapacity(lookupPort(mixer.ports, 'aux')!, 3)).toBe(2)
+  })
+
+  it("a tablet's USB audio has as many channels as the interface on the cable - none without a cable", () => {
+    const setup: StageSetup = { id: 's', name: 'S', positions: { redmi: { x: 0, y: 0 }, umc: { x: 0, y: 0 } }, routing: {}, links: [{ id: 'c', from: { equipmentId: 'redmi', portId: 'usb' }, to: { equipmentId: 'umc', portId: 'usb' }, signals: ['usb-audio', 'midi'] }] }
+    const four = { ...iface, ports: iface.ports.map((p) => (p.id === 'usb' ? { ...p, parts: p.parts!.map((x) => (x.id === 'usb/audio-in' ? { ...x, channels: 4 } : x)) } : p)) }
+    const map: StageMap = { equipment: [tablet, four], setups: [setup] }
+    expect(partChannels(map, setup, 'redmi', 'usb/audio-out')).toBe(4)
+    expect(partChannels(map, setup, 'redmi', 'usb/audio-in')).toBe(2)
+    expect(partChannels(map, setup, 'redmi', 'usb/midi-out')).toBeUndefined()
+    expect(partChannels({ ...map, setups: [{ ...setup, links: [] }] }, { ...setup, links: [] }, 'redmi', 'usb/audio-out')).toBeUndefined()
+  })
+
+  it('Klick on USB audio out 1, Track on 3/4: one cable carries all of it, the interface puts channel 3 on its output 3', () => {
+    const four = {
+      ...iface,
+      ports: [{ ...iface.ports[0]!, parts: iface.ports[0]!.parts!.map((x) => (x.id === 'usb/audio-in' ? { ...x, channels: 4 } : x)) }, { ...iface.ports[1]!, channels: 4 }],
+      routing: { mode: 'free' as const, default: Array.from({ length: 4 }, (_, i) => ({ from: { kind: 'port' as const, portId: 'usb/audio-in', channel: i + 1 }, to: { kind: 'port' as const, portId: 'out', channel: i + 1 } })) },
+    }
+    const setup: StageSetup = {
+      id: 's', name: 'S', positions: { redmi: { x: 0, y: 0 }, umc: { x: 0, y: 0 }, iem: { x: 0, y: 0 }, desk: { x: 0, y: 0 }, kai: { x: 0, y: 0 } },
+      routing: { redmi: [
+        { from: { kind: 'virtual', virtualPortId: 'klick' }, to: { kind: 'port', portId: 'usb/audio-out', channel: 1 } },
+        { from: { kind: 'virtual', virtualPortId: 'track' }, to: { kind: 'port', portId: 'usb/audio-out', channel: 3 } },
+      ], desk: [{ from: { kind: 'port', portId: 'in', channel: 7 }, to: { kind: 'port', portId: 'main', channel: 1 } }] },
+      links: [
+        { id: 'usb', from: { equipmentId: 'redmi', portId: 'usb' }, to: { equipmentId: 'umc', portId: 'usb' }, signals: ['usb-audio', 'midi'] },
+        { id: 'o1', from: { equipmentId: 'umc', portId: 'out', channel: 1 }, to: { equipmentId: 'iem', portId: 'in', channel: 1 }, signals: ['audio'] },
+        { id: 'o3', from: { equipmentId: 'umc', portId: 'out', channel: 3 }, to: { equipmentId: 'desk', portId: 'in', channel: 7 }, signals: ['audio'] },
+        { id: 'ear', from: { equipmentId: 'iem', portId: 'out' }, to: { equipmentId: 'kai', portId: 'ears' }, signals: ['audio'] },
+      ],
+    }
+    const flows = signalFlows({ equipment: [tablet, four, iem, mixer, kai], setups: [setup] }, 's', VIRTUAL)
+    const klick = flows.find((f) => f.key === 'redmi/klick')!
+    expect(klick.hops.map((h) => h.linkId)).toEqual(['usb', 'o1', 'ear'])
+    expect(klick.hops[0]).toMatchObject({ from: { portId: 'usb/audio-out', channel: 1 }, to: { portId: 'usb/audio-in', channel: 1 } })
+    expect(klick.listenerIds).toEqual(['kai'])
+    const track = flows.find((f) => f.key === 'redmi/track')!
+    expect(track.hops.map((h) => h.linkId)).toEqual(['usb', 'o3'])
+    expect(track.listenerIds).toEqual([])
+    // The checks: the USB cable counts no channels, the outputs do.
+    const { issues } = checkSetup({ equipment: [tablet, four, iem, mixer, kai], setups: [setup] }, 's')
+    expect(issues).toEqual([])
+  })
+
+  it('a pin of the headphone jack: the left goes on the first channel of the in-ear sender, the right on the second', () => {
+    const setup: StageSetup = {
+      id: 's', name: 'S', positions: { redmi: { x: 0, y: 0 }, iem: { x: 0, y: 0 }, kai: { x: 0, y: 0 } },
+      routing: { redmi: [
+        { from: { kind: 'virtual', virtualPortId: 'klick' }, to: { kind: 'port', portId: 'headphones', pin: 1 } },
+        { from: { kind: 'virtual', virtualPortId: 'track' }, to: { kind: 'port', portId: 'headphones', pin: 2 } },
+      ] },
+      links: [
+        { id: 'y', from: { equipmentId: 'redmi', portId: 'headphones' }, to: { equipmentId: 'iem', portId: 'in', channel: 1 }, signals: ['audio'], width: 2 },
+        { id: 'ear', from: { equipmentId: 'iem', portId: 'out' }, to: { equipmentId: 'kai', portId: 'ears' }, signals: ['audio'] },
+      ],
+    }
+    const map: StageMap = { equipment: [tablet, iem, kai], setups: [setup] }
+    const flows = signalFlows(map, 's', VIRTUAL)
+    expect(flows.find((f) => f.key === 'redmi/klick')?.hops[0]).toMatchObject({ from: { portId: 'headphones', pin: 1 }, to: { portId: 'in', channel: 1 } })
+    expect(flows.find((f) => f.key === 'redmi/track')?.hops[0]).toMatchObject({ from: { portId: 'headphones', pin: 2 }, to: { portId: 'in', channel: 2 } })
+    // One mono cable from one pin on purpose: no "only one side of a stereo socket" warning (the
+    // 3.5 mm plug into a combo socket needs an adapter, that stays).
+    const kinds = (s: StageSetup) => checkSetup({ ...map, setups: [s] }, 's').issues.map((i) => i.kind).filter((k) => k !== 'adapter')
+    const mono: StageSetup = { ...setup, links: [{ id: 'm', from: { equipmentId: 'redmi', portId: 'headphones', pin: 1 }, to: { equipmentId: 'iem', portId: 'in', channel: 1 }, signals: ['audio'] }] }
+    expect(kinds(mono)).toEqual([])
+    const whole: StageSetup = { ...setup, links: [{ id: 'm', from: { equipmentId: 'redmi', portId: 'headphones' }, to: { equipmentId: 'iem', portId: 'in', channel: 1 }, signals: ['audio'] }] }
+    expect(kinds(whole)).toEqual(['mono-of-stereo'])
+    // Two mono cables on the same pin: double; on different pins: fine.
+    const twice: StageSetup = { ...mono, links: [...mono.links, { id: 'm2', from: { equipmentId: 'redmi', portId: 'headphones', pin: 1 }, to: { equipmentId: 'iem', portId: 'in', channel: 2 }, signals: ['audio'] }] }
+    expect(kinds(twice)).toEqual(['double'])
+    const both: StageSetup = { ...mono, links: [...mono.links, { id: 'm2', from: { equipmentId: 'redmi', portId: 'headphones', pin: 2 }, to: { equipmentId: 'iem', portId: 'in', channel: 2 }, signals: ['audio'] }] }
+    expect(kinds(both)).toEqual([])
+    // A point on a pin the socket no longer has goes when the ports change.
+    const pruned = pruneForPorts(setup, 'redmi', tablet.ports.map((p) => (p.id === 'headphones' ? { ...p, pins: 1 } : p)))
+    expect(pruned.crosspoints).toBe(1)
+  })
+
+  it('mapRoute finds the cable on the container of a part', () => {
+    const setup: StageSetup = { id: DEFAULT_SETUP_ID, name: 'Standard', positions: { redmi: { x: 0, y: 0 }, umc: { x: 0, y: 0 } }, routing: { redmi: [{ from: { kind: 'virtual', virtualPortId: 'kemper' }, to: { kind: 'port', portId: 'usb/midi-out' } }] }, links: [{ id: 'c', from: { equipmentId: 'redmi', portId: 'usb' }, to: { equipmentId: 'umc', portId: 'usb' }, signals: ['usb-audio', 'midi'], midiName: 'UMC204HD MIDI' }] }
+    expect(mapRoute({ equipment: [tablet, iface], setups: [setup] }, 'kemper')).toEqual({ app: 'redmi', midiName: 'UMC204HD MIDI' })
   })
 })
