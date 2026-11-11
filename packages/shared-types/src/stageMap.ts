@@ -968,23 +968,88 @@ export function activeSetup(map: StageMap): StageSetup | null {
   return map.setups.find((s) => s.id === DEFAULT_SETUP_ID) ?? map.setups[0] ?? null
 }
 
+/** Which side of a stereo output a signal sits on. */
+export type OutputSide = 'both' | 'left' | 'right'
+
 /**
- * Whether a StageBoard app plays a built-in output in the Gig - the map decides (docs/31 §6
- * step 2, Marco 2026-11-07): the matrix of its device in the active setup routes the virtual
- * output (Klick, Track, Ansagen) to one of its ports, and of several apps on that device it is the
- * one in front (`frontApp`: box id → app). A device not placed in that setup plays nothing. Null
- * without a map - the old rules (roles, the master) still apply then.
+ * The Android output a port stands for (`AudioRoute`), `any` while the band has not ticked this
+ * device's matrix (the default map: wherever Android plays, as before #742), `none` for a point
+ * this stage cannot play (a channel above 2 - several channels are #743 - or a plug that is no
+ * audio output of the device).
  */
-export function mapPlays(map: StageMap, deviceId: string, capability: CapabilityId, frontApp: Readonly<Record<string, string>> = {}): boolean | null {
-  const setup = activeSetup(map)
+export type OutputRouteKind = 'speaker' | 'wired' | 'usb' | 'bluetooth' | 'any' | 'none'
+
+export interface MapOutput {
+  portId: string
+  route: OutputRouteKind
+  side: OutputSide
+}
+
+function routeOfConnector(connector: Connector): OutputRouteKind {
+  if (connector === 'builtin') return 'speaker'
+  if (connector === 'jack-3.5' || connector === 'jack-6.3' || connector === 'jack-6.3-ts') return 'wired'
+  if (connector === 'wireless') return 'bluetooth'
+  if (connector === 'usb-a' || connector === 'usb-b' || connector === 'usb-c') return 'usb'
+  return 'none'
+}
+
+/** The setup with this id, else the active one. */
+function setupOf(map: StageMap, setupId?: string): StageSetup | null {
+  return (setupId !== undefined ? map.setups.find((s) => s.id === setupId) : undefined) ?? activeSetup(map)
+}
+
+/**
+ * Where a StageBoard app plays a built-in output (Klick, Track, Ansagen) - the sound follows the
+ * map (docs/31 §0d, §7c, #742): every point its device's matrix routes the virtual output to, as
+ * Android output and side (pin or channel 1 = left, 2 = right, the whole socket = both). Empty:
+ * the app plays nothing - its device is not placed in the setup, routes the output nowhere, or
+ * another app on the device is in front (`frontApp`: box id → app). Null without a map - the old
+ * rules (roles, the master) still apply then. `setupId`: a setup other than the active one
+ * (practising "as in setup …").
+ */
+export function mapOutputs(map: StageMap, deviceId: string, capability: CapabilityId, frontApp: Readonly<Record<string, string>> = {}, setupId?: string): MapOutput[] | null {
+  const setup = setupOf(map, setupId)
   if (!setup) return null
   const device = map.equipment.find((e) => e.kind === 'stageboard' && appsOf(e).includes(deviceId))
-  if (!device || !setup.positions[device.id]) return false
+  if (!device || !setup.positions[device.id]) return []
   // Several apps on one device: only the one that came to the front last plays - no double click.
   const front = frontApp[device.id]
-  if (front && front !== deviceId && appsOf(device).includes(front)) return false
+  if (front && front !== deviceId && appsOf(device).includes(front)) return []
   const ids = new Set(DEFAULT_VIRTUAL_OUTPUTS.filter((v) => v.capability === capability).map((v) => v.id))
-  return effectiveRouting(device, setup).some((c) => c.from.kind === 'virtual' && ids.has(c.from.virtualPortId) && c.to.kind === 'port')
+  // Not ticked by the band yet: the model's default routing, played wherever Android plays.
+  const untouched = device.routing?.mode !== 'fixed' && setup.routing[device.id] === undefined
+  const out: MapOutput[] = []
+  for (const c of effectiveRouting(device, setup)) {
+    if (c.from.kind !== 'virtual' || !ids.has(c.from.virtualPortId) || c.to.kind !== 'port') continue
+    const port = lookupPort(device.ports, c.to.portId)
+    const index = c.to.pin ?? c.to.channel
+    const side: OutputSide = index === undefined ? 'both' : index === 1 ? 'left' : 'right'
+    const playable = port !== undefined && (index === undefined || index <= 2)
+    out.push({ portId: c.to.portId, route: untouched ? 'any' : playable ? routeOfConnector(port.connector) : 'none', side })
+  }
+  return out
+}
+
+/**
+ * Whether a StageBoard app plays a built-in output in the Gig - the map decides (docs/31 §6
+ * step 2, Marco 2026-11-07): `mapOutputs` names at least one point. Null without a map.
+ */
+export function mapPlays(map: StageMap, deviceId: string, capability: CapabilityId, frontApp: Readonly<Record<string, string>> = {}): boolean | null {
+  const outputs = mapOutputs(map, deviceId, capability, frontApp)
+  return outputs === null ? null : outputs.length > 0
+}
+
+/**
+ * The side a source plays on while Android is on `route`, from its `mapOutputs`: the points on
+ * that output together (left and right = both). Null: none of its points is on that output - the
+ * source stays silent, never played somewhere else (docs/28). A browser cannot tell the route
+ * (`unknown`): every playable point counts there.
+ */
+export function outputSide(outputs: readonly MapOutput[], route: string): OutputSide | null {
+  const here = outputs.filter((o) => o.route === 'any' || (o.route !== 'none' && (route === 'unknown' || o.route === route)))
+  if (here.length === 0) return null
+  if (here.some((o) => o.side === 'both')) return 'both'
+  return here.every((o) => o.side === here[0]!.side) ? here[0]!.side : 'both'
 }
 
 /** Klick, Track and Ansagen - decided by mapPlays, not by mapRoute. */

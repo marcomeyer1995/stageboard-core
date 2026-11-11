@@ -19,6 +19,8 @@ import {
   channelNumber,
   numberPorts,
   mapPlays,
+  mapOutputs,
+  outputSide,
   mapRoute,
   routedLogicalDevices,
   joinDevices,
@@ -342,6 +344,54 @@ describe('the map decides who plays (docs/31 §6 step 2, 2026-11-07)', () => {
     expect(mapPlays(map, 'fire', CAPABILITIES.clickTrack)).toBe(false)
     expect(mapPlays(map, 'laptop', CAPABILITIES.clickTrack)).toBe(false)
     expect(mapPlays({ equipment: [], setups: [] }, 'redmi', CAPABILITIES.clickTrack)).toBeNull()
+  })
+})
+
+describe('the sound follows the map (#742, docs/31 §0d)', () => {
+  const to = (virtualPortId: string, portId: string, pin?: number) => ({ from: { kind: 'virtual' as const, virtualPortId }, to: pin === undefined ? { kind: 'port' as const, portId } : { kind: 'port' as const, portId, pin } })
+
+  it('the untouched default map plays wherever Android plays, as before', () => {
+    const map = defaultStageMap([{ id: 'redmi', name: 'Redmi' }])
+    const outputs = mapOutputs(map, 'redmi', CAPABILITIES.clickTrack)!
+    expect(outputs).toEqual([{ portId: 'speaker', route: 'any', side: 'both' }])
+    expect(outputSide(outputs, 'wired')).toBe('both')
+  })
+
+  it('click on the left pin of the headphones, track on the right; only on that output', () => {
+    const map = defaultStageMap([{ id: 'redmi', name: 'Redmi' }])
+    map.setups[0]!.routing['device:redmi'] = [to('klick', 'headphones', 1), to('track', 'headphones', 2)]
+    const click = mapOutputs(map, 'redmi', CAPABILITIES.clickTrack)!
+    const track = mapOutputs(map, 'redmi', CAPABILITIES.audioPlayback)!
+    expect(click).toEqual([{ portId: 'headphones', route: 'wired', side: 'left' }])
+    expect(outputSide(click, 'wired')).toBe('left')
+    expect(outputSide(track, 'wired')).toBe('right')
+    // Headphones pulled: Android is on the speaker - the click does not come out there.
+    expect(outputSide(click, 'speaker')).toBeNull()
+    // A browser cannot tell the route.
+    expect(outputSide(click, 'unknown')).toBe('left')
+    expect(mapOutputs(map, 'redmi', CAPABILITIES.sectionAnnouncements)).toEqual([])
+  })
+
+  it('both pins or the whole socket: both sides; a USB part by channel; channel 3 waits for #743', () => {
+    const map = defaultStageMap([{ id: 'redmi', name: 'Redmi' }])
+    map.setups[0]!.routing['device:redmi'] = [
+      to('klick', 'headphones', 1),
+      to('klick', 'headphones', 2),
+      { from: { kind: 'virtual', virtualPortId: 'track' }, to: { kind: 'port', portId: 'usb/audio-out', channel: 2 } },
+      { from: { kind: 'virtual', virtualPortId: 'ansagen' }, to: { kind: 'port', portId: 'usb/audio-out', channel: 3 } },
+    ]
+    expect(outputSide(mapOutputs(map, 'redmi', CAPABILITIES.clickTrack)!, 'wired')).toBe('both')
+    expect(mapOutputs(map, 'redmi', CAPABILITIES.audioPlayback)).toEqual([{ portId: 'usb/audio-out', route: 'usb', side: 'right' }])
+    const voice = mapOutputs(map, 'redmi', CAPABILITIES.sectionAnnouncements)!
+    expect(voice[0]!.route).toBe('none')
+    expect(outputSide(voice, 'usb')).toBeNull()
+  })
+
+  it('another setup by id (practising "as in setup …")', () => {
+    const map = defaultStageMap([{ id: 'redmi', name: 'Redmi' }])
+    map.setups.push({ ...map.setups[0]!, id: 'club', name: 'Club', routing: { 'device:redmi': [to('klick', 'bluetooth')] } })
+    expect(mapOutputs(map, 'redmi', CAPABILITIES.clickTrack, {}, 'club')).toEqual([{ portId: 'bluetooth', route: 'bluetooth', side: 'both' }])
+    expect(mapOutputs(map, 'redmi', CAPABILITIES.clickTrack)![0]!.route).toBe('any')
   })
 })
 

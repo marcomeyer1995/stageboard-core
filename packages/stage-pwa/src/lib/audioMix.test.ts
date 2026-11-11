@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { __resetAudioMixForTests, DEFAULT_MIX, mixGain, parseMix, sideOf, sourceOutput, trackElementVolume, useAudioMixStore, useOutputRoutingStore } from './audioMix'
+import { __resetAudioMixForTests, DEFAULT_MIX, mixGain, parseMix, sourceOutput, trackElementVolume, useAudioMixStore, useOutputPlanStore } from './audioMix'
 import { masterOutput } from './nativeOutput'
 
 class FakeGain {
@@ -78,20 +78,14 @@ describe('Mein Mix (docs/21 §9.3)', () => {
   })
 })
 
-describe('Klick und Track trennen (#481 step 1)', () => {
-  it('click and announcements on one side, the track on the other', () => {
-    expect(sideOf('click', 'click-left')).toBe('left')
-    expect(sideOf('voice', 'click-left')).toBe('left')
-    expect(sideOf('track', 'click-left')).toBe('right')
-    expect(sideOf('track', 'click-right')).toBe('left')
-    expect(sideOf('track', 'mixed')).toBeNull()
-  })
+describe('the sound follows the map (#742)', () => {
+  const plan = (click: 'both' | 'left' | 'right' | null, track: 'both' | 'left' | 'right' | null) => useOutputPlanStore.getState().setPlan({ click, voice: click, track })
 
-  it('split: each source into a mono bus on its merger input; back to mixed: straight to the output', () => {
+  it('a side: each source into a mono bus on its merger input; back to both: straight to the output', () => {
     const ctx = fakeCtx()
     const click = sourceOutput('click', ctx) as unknown as FakeGain
     const track = sourceOutput('track', ctx) as unknown as FakeGain
-    useOutputRoutingStore.getState().setRouting('click-left')
+    plan('left', 'right')
     const left = click.connectedTo as FakeGain
     const right = track.connectedTo as FakeGain
     expect(left.input).toBe(0)
@@ -101,16 +95,22 @@ describe('Klick und Track trennen (#481 step 1)', () => {
     const merger = left.connectedTo as FakeMerger
     expect(right.connectedTo).toBe(merger)
     expect(merger.connectedTo).toBe(masterOutput(ctx))
-    // A source created later follows the routing too.
+    // A source created later follows the plan too.
     const voice = sourceOutput('voice', ctx) as unknown as FakeGain
     expect(voice.connectedTo).toBe(left)
-    useOutputRoutingStore.getState().setRouting('mixed')
+    plan('both', 'both')
     expect(click.connectedTo).toBe(masterOutput(ctx))
     expect(track.connectedTo).toBe(masterOutput(ctx))
   })
 
-  it('is kept per device', () => {
-    useOutputRoutingStore.getState().setRouting('click-right')
-    expect(localStorage.getItem('sb:audio:routing')).toBe('click-right')
+  it('a source whose output is missing is silent, the others keep playing; it comes back with the output', () => {
+    const ctx = fakeCtx()
+    const click = sourceOutput('click', ctx) as unknown as FakeGain
+    const track = sourceOutput('track', ctx) as unknown as FakeGain
+    plan('left', null)
+    expect(track.connectedTo).toBeNull()
+    expect((click.connectedTo as FakeGain).input).toBe(0)
+    plan('left', 'right')
+    expect((track.connectedTo as FakeGain).input).toBe(1)
   })
 })
