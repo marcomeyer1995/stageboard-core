@@ -67,6 +67,9 @@ export function PrompterWidget({ config }: { config: PrompterConfig }) {
   // Chord shapes on a long press (#609) - never while a Gig song plays: an accidental press must
   // not cover the lyrics on stage. Paused is fine - a moment to look a chord up (Marco, 2026-10-28).
   const chordInfo = !(mode === 'gig' && playbackStatus === 'playing')
+  // Solo: a tapped line with a time is where the song starts, or jumps to while it plays (#817).
+  // Loaded on the tap: the Prompter stays free of the practice store's database.
+  const timeTap = mode === 'practice' ? (ms: number) => void import('../lib/sectionJump').then((jump) => jump.practiceStartAt(ms)) : undefined
   const { currentSong, currentVariant } = queue
   const containerRef = useRef<HTMLDivElement>(null)
   // Each header part can be left out under "Anzeigen" in the ⋯ menu (Marco, 2026-10-17).
@@ -273,6 +276,7 @@ export function PrompterWidget({ config }: { config: PrompterConfig }) {
               chordFontSize={chordFontSize}
               commentFontSize={commentFontSize}
               chordInfo={chordInfo}
+              onTimeTap={timeTap}
             />
           </div>
         </>
@@ -285,6 +289,7 @@ export function PrompterWidget({ config }: { config: PrompterConfig }) {
             chordFontSize={chordFontSize}
             commentFontSize={commentFontSize}
             chordInfo={chordInfo}
+            onTimeTap={timeTap}
           />
         </div>
       )}

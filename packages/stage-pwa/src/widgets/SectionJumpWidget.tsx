@@ -6,7 +6,7 @@ import { Segmented } from '../components/ui'
 import { clickTimeline } from '../lib/beatGrid'
 import { songDurationMs } from '../lib/entryDuration'
 import { adjustedBpm } from '../lib/metronome'
-import { cancelSectionJump, queueSectionJump, setSectionLoop } from '../lib/sectionJump'
+import { cancelSectionJump, practiceStartAt, queueSectionJump, setSectionLoop } from '../lib/sectionJump'
 import { useShowModeCore } from '../lib/showMode'
 import { useFrameValue } from '../lib/useFrameValue'
 import { sectionIndexAt, showSections, type JumpWhen, type ShowSection } from '../lib/showSections'
@@ -71,11 +71,17 @@ export function SectionJumpWidget() {
     return <p className="flex h-full items-center justify-center text-center text-ink-faint">{t('sj.none')}</p>
   }
   const current: ShowSection | undefined = sections[currentIndex]
-  const canJump = isMaster && playing
+  // Solo also from a stop: the tap sets where Play starts (#817).
+  const startPoint = mode === 'practice' && !playing
+  const canJump = (isMaster && playing) || startPoint
 
   async function tap(section: ShowSection) {
     if (!timeline) return
     setMessage(null)
+    if (startPoint) {
+      practiceStartAt(section.startMs)
+      return
+    }
     if (jump && jump.toMs === section.startMs) {
       await cancelSectionJump()
       return
@@ -99,8 +105,10 @@ export function SectionJumpWidget() {
       ? t('sj.repeating', { name: loop.label ?? t('w.section') })
       : !isMaster && mode === 'gig'
         ? t('sj.masterOnly')
-        : !playing
-          ? t('sj.whilePlaying')
+        : startPoint
+          ? t('sj.startPoint')
+          : !playing
+            ? t('sj.whilePlaying')
           : null
 
   return (
