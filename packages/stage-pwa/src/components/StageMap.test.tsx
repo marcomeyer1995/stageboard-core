@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { defaultStageMap, equipmentFrom, BUILTIN_MODELS, type StageSetup } from 'shared-types'
 
@@ -282,6 +282,35 @@ describe('StageMap (docs/31 §7)', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'Kopfhörer: auf- oder zuklappen' })[0]!)
     fireEvent.click(screen.getByRole('switch', { name: 'Klick → Kopfhörer L' }))
     expect(routedTo(4)).toContainEqual({ from: { kind: 'virtual', virtualPortId: 'klick' }, to: { kind: 'port', portId: 'headphones', pin: 1 } })
+  })
+
+  it('the track opens into its sides (2026-11-12): "Track L" on the right pin; the whole track on channels 1 and 2 shows L and R', () => {
+    setUp(true)
+    useStageMapStore.setState((s) => ({
+      setups: s.setups.map((x) => ({
+        ...x,
+        routing: {
+          ...x.routing,
+          [`device:${me}`]: [
+            { from: { kind: 'virtual', virtualPortId: 'track' }, to: { kind: 'port', portId: 'headphones', pin: 1 } },
+            { from: { kind: 'virtual', virtualPortId: 'track' }, to: { kind: 'port', portId: 'headphones', pin: 2 } },
+          ],
+        },
+      })),
+    }))
+    render(<StageMap />)
+    fireEvent.click(screen.getByRole('switch', { name: 'Bearbeiten' }))
+    tapNode('Redmi')
+    const matrix = screen.getByRole('group', { name: 'Routing von Redmi' })
+    fireEvent.click(within(matrix).getAllByRole('button', { name: 'Kopfhörer: auf- oder zuklappen' })[0]!)
+    // Left on L, right on R - said in the cells.
+    expect(within(matrix).getAllByText('L', { selector: 'text' })).toHaveLength(1)
+    expect(within(matrix).getAllByText('R', { selector: 'text' })).toHaveLength(1)
+    fireEvent.click(within(matrix).getByRole('button', { name: 'Track: auf- oder zuklappen' }))
+    fireEvent.click(within(matrix).getByRole('switch', { name: 'Track L → Kopfhörer R' }))
+    const routedTo = updateSetup.mock.calls[0]![1](useStageMapStore.getState().setups[0]).routing[`device:${me}`]
+    expect(routedTo).toContainEqual({ from: { kind: 'virtual', virtualPortId: 'track', channel: 1 }, to: { kind: 'port', portId: 'headphones', pin: 2 } })
+    expect(within(matrix).getByRole('switch', { name: 'Track (beide Seiten) → Kopfhörer L' })).toHaveAttribute('aria-checked', 'true')
   })
 
   it('an interface does not mix: a second signal on a taken output asks "replace?" - and the cable list names what is wrong (#746)', async () => {

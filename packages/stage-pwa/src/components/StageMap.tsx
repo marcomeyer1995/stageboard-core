@@ -57,7 +57,7 @@ import { usePresenceStore } from '../store/usePresenceStore'
 import { useProfilesStore } from '../store/useProfilesStore'
 import { useStageMapStore } from '../store/useStageMapStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
-import { samePoint } from '../lib/matrixPoint'
+import { samePoint, stereoBadge } from '../lib/matrixPoint'
 import { RoutingMatrix, type MatrixLine } from './RoutingMatrix'
 import { PortListDialog } from './PortListDialog'
 import { HostPlugins } from './HostPlugins'
@@ -617,8 +617,22 @@ export function StageMap() {
         const group = { key: p.id, label: p.name, closedPoint: whole.point }
         return pins > 1 ? [{ ...whole, label: t('map.wholeSocket', { name: p.name }), group }, ...Array.from({ length: pins }, (_, i) => ({ key: `${p.id}.${i + 1}`, label: `${p.name}${pinText(i + 1)}`, point: { kind: 'port' as const, portId: p.id, pin: i + 1 }, group }))] : [whole]
       })
+    // A stereo source (the track) is a group too (2026-11-12): closed the whole signal, open also
+    // its left and right side alone ("Track L", "Track R").
     const virtualLines = (input: boolean): MatrixLine[] =>
-      DRIVER_KINDS.includes(item.kind) ? virtualPorts.filter((v) => v.input === input).map((v) => ({ key: `v:${v.id}`, label: v.name, point: { kind: 'virtual' as const, virtualPortId: v.id }, ...(v.width ? { width: v.width } : {}) })) : []
+      DRIVER_KINDS.includes(item.kind)
+        ? virtualPorts
+            .filter((v) => v.input === input)
+            .flatMap((v) => {
+              const whole: MatrixLine = { key: `v:${v.id}`, label: v.name, point: { kind: 'virtual' as const, virtualPortId: v.id }, ...(v.width ? { width: v.width } : {}) }
+              if (input || v.width !== 2) return [whole]
+              const group = { key: `v:${v.id}`, label: v.name, closedPoint: whole.point, width: 2, count: false }
+              return [
+                { ...whole, label: t('map.wholeSignal', { name: v.name }), group },
+                ...([1, 2] as const).map((channel) => ({ key: `v:${v.id}.${channel}`, label: `${v.name}${pinText(channel)}`, point: { kind: 'virtual' as const, virtualPortId: v.id, channel }, group })),
+              ]
+            })
+        : []
     return {
       columns: [...virtualLines(false), ...lines('in')],
       rows: [...lines('out'), ...virtualLines(true)],
@@ -869,6 +883,7 @@ export function StageMap() {
                     columns={columns}
                     rows={rows}
                     routed={(from, to) => crosspoints.some((c) => samePoint(c.from, from) && samePoint(c.to, to))}
+                    badge={(from, to) => stereoBadge(crosspoints, from, to, (id) => virtualPorts.some((v) => v.id === id && v.width === 2))}
                     fixed={fixedRouting}
                     editable={selectedNode.kind === 'stageboard' || selectedNode.kind === 'stage-server' ? canWire(selectedNode) : canGear}
                     onToggle={(from, to, on) => void toggleCross(selectedNode, from, to, on)}

@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { CAPABILITIES, equipmentOffered, mapOutputs, outputSide, type AudioRoute, type CapabilityId, type StageEquipment, type StageMap, type StageSetup } from 'shared-types'
+import { CAPABILITIES, equipmentOffered, mapOutputs, outputFeeds, type AudioRoute, type CapabilityId, type StageEquipment, type StageMap, type StageSetup } from 'shared-types'
 import { MIX_SOURCES, PLAIN_PLAN, type MixSource, type OutputPlan } from './audioMix'
 import type { SessionMode } from '../store/useAppModeStore'
 
@@ -101,7 +101,8 @@ export function outputPlan(input: PlanInput): { plan: OutputPlan; fellBack: bool
     // Routed nowhere: this device does not play the source in the Gig (mapPlays) - nothing to place.
     if (!outputs || outputs.length === 0) continue
     routed = true
-    plan[source] = outputSide(outputs, input.route)
+    // Only the track has two sides; click and announcements are one signal.
+    plan[source] = outputFeeds(outputs, input.route, source === 'track')
   }
   if (practice && (!routed || MIX_SOURCES.some((s) => plan[s] === null))) return { plan: PLAIN_PLAN, fellBack: true }
   return { plan, fellBack: false }
