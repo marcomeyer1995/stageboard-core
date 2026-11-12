@@ -40,12 +40,10 @@ constexpr double MAX_RATE_DEVIATION = 0.004;
 constexpr double TIMESTAMP_JUMP_MS = 3.0;
 constexpr double TIMESTAMP_CONFIRM_MS = 500.0;
 /** No timestamp for this long after opening: play on an estimated one (the buffer's length) instead
- * of waiting. The Redmi's USB output, after the cable came back, never gave one and its HAL failed
- * every write ("cannot prepare channel: Device or resource busy") until nothing of the app played
- * on it any more (2026-11-12). JS sees `noTimestampMs` first and releases all of its audio for a
- * few seconds (nativeOutput.ts, RELEASE_AFTER_MS) - this is the last resort after that. A real
- * timestamp, should one come, takes over like any other move (TIMESTAMP_CONFIRM_MS). */
-constexpr double NO_TIMESTAMP_MS = 6000.0;
+ * of waiting. The Redmi's USB output, reopened after the cable came back, never gave one - and the
+ * output wrote silence until the tablet rebooted (2026-11-12). A real timestamp, should one come,
+ * takes over like any other move (TIMESTAMP_CONFIRM_MS). */
+constexpr double NO_TIMESTAMP_MS = 500.0;
 
 std::mutex gLock;   // open/close only - never taken in the callback
 AAudioStream *gStream = nullptr;
@@ -65,6 +63,7 @@ double gPendingErr = 0;  // an unconfirmed move of the timestamps, and since whi
 long long gPendingSince = -1;
 double gRead = -1;   // pipe frame position, fractional
 double gRateIntegral = 0;   // learned steady speed difference (fraction)
+long long gNoStampFrames = 0;   // frames played since opening without a timestamp
 
 // Stats for JS.
 std::atomic<double> gLatencyMs{-1};
@@ -77,7 +76,6 @@ std::atomic<long long> gMissing{0};
 std::atomic<long long> gReopens{0};
 std::atomic<int> gError{0};
 std::atomic<bool> gEstimated{false};   // playing on an estimated timestamp (NO_TIMESTAMP_MS)
-std::atomic<long long> gNoStampFrames{0};   // frames played since opening, none with a timestamp
 
 int64_t clockNs(clockid_t id) {
     timespec ts{};
@@ -113,15 +111,12 @@ float ringAt(long long f, int ch, long long written, bool &missing) {
     return gRing[2 * static_cast<int>(f & (RING_FRAMES - 1)) + ch];
 }
 
-void reopenLater();
-
 aaudio_data_callback_result_t onData(AAudioStream *stream, void *, void *audioData, int32_t numFrames) {
     auto *out = static_cast<float *>(audioData);
     const double msPerFrame = 1000.0 / gRate;
     int64_t framePos = 0, timeNs = 0;
     if (AAudioStream_getTimestamp(stream, CLOCK_MONOTONIC, &framePos, &timeNs) == AAUDIO_OK) {
         gEstimated = false;
-        gNoStampFrames = 0;
         const int64_t mono = clockNs(CLOCK_MONOTONIC);
         const int64_t real = clockNs(CLOCK_REALTIME);
         // Frames between the timestamp's frame and the next one we write - a fraction of a second.
@@ -204,23 +199,17 @@ void onError(AAudioStream *, void *, aaudio_result_t error) {
     LOG("stream error %d (%s)", error, AAudio_convertResultToText(error));
     // The output changed (headphones, Bluetooth, USB): AAudio disconnects the stream. Reopen it on
     // the new default output - from another thread, never from this callback.
-    if (error == AAUDIO_ERROR_DISCONNECTED) reopenLater();
-}
-
-// From another thread, never from a callback; once at a time.
-void reopenLater() {
-    if (gReopen.exchange(true)) return;
-    std::thread([] {
-        std::lock_guard<std::mutex> guard(gLock);
-        if (gStream) {
-            AAudioStream_close(gStream);
-            gStream = nullptr;
-            const aaudio_result_t r = openStream();
-            LOG("reopened: %s", AAudio_convertResultToText(r));
-            if (r == AAUDIO_OK) gReopens.fetch_add(1);
-        }
-        gReopen = false;
-    }).detach();
+    if (error == AAUDIO_ERROR_DISCONNECTED && !gReopen.exchange(true)) {
+        std::thread([] {
+            std::lock_guard<std::mutex> guard(gLock);
+            if (gStream) {
+                AAudioStream_close(gStream);
+                gStream = nullptr;
+                if (openStream() == AAUDIO_OK) gReopens.fetch_add(1);
+            }
+            gReopen = false;
+        }).detach();
+    }
 }
 
 // Caller holds gLock.
@@ -306,11 +295,11 @@ Java_de_stageboard_app_NativeOutputPlugin_nativeStatus(JNIEnv *env, jclass) {
     const double leadMin = gLeadMinMs.exchange(1e9);
     return env->NewStringUTF(json(
             "{\"open\":true,\"state\":\"%s\",\"latencyMs\":%.2f,\"leadMs\":%.1f,\"leadMinMs\":%.1f,\"jumps\":%lld,\"timestampJumps\":%lld,\"rateDevPpm\":%.0f,"
-            "\"missing\":%lld,\"xruns\":%d,\"reopens\":%lld,\"error\":%d,\"performance\":\"%s\",\"framesPerBurst\":%d,\"estimated\":%s,\"noTimestampMs\":%.0f}",
+            "\"missing\":%lld,\"xruns\":%d,\"reopens\":%lld,\"error\":%d,\"performance\":\"%s\",\"framesPerBurst\":%d,\"estimated\":%s}",
             AAudio_convertStreamStateToText(AAudioStream_getState(gStream)), gLatencyMs.load(), gLeadMs.load(), leadMin > 1e8 ? -1.0 : leadMin,
             static_cast<long long>(gJumps), static_cast<long long>(gTimestampJumps), gRateDev.load() * 1e6, static_cast<long long>(gMissing), AAudioStream_getXRunCount(gStream),
             static_cast<long long>(gReopens), gError.load(), perf(AAudioStream_getPerformanceMode(gStream)),
-            AAudioStream_getFramesPerBurst(gStream), gEstimated.load() ? "true" : "false", gNoStampFrames.load() * 1000.0 / gRate).c_str());
+            AAudioStream_getFramesPerBurst(gStream), gEstimated.load() ? "true" : "false").c_str());
 }
 
 extern "C" JNIEXPORT void JNICALL
