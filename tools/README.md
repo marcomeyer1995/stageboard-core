@@ -9,12 +9,13 @@ for the devices, Python with numpy for `measure/`. Nothing here ships with the a
 | [device](device/README.md) | install an APK, set and read the volume, wake, info |
 | [night-test](night-test/README.md) | does the app keep playing with the screen locked (#724, #789) |
 | [phone-check](phone-check/README.md) | pages at phone size in a headless Chrome |
+| [test-runner](test-runner/README.md) | checks on the real devices with a report: GUI (cut-off text, sizes), Solo start point (#819) |
 | [stage-map-harness](stage-map-harness/README.md) | the real stage map in a browser, no server |
 | [measure](measure/README.md) | click/track offset, crosstalk, silence after unplugging (#742) |
 | [server/deploy-ref.sh](server/deploy-ref.sh) | run the Stage-Server from another ref for a test, and back |
 
 **Devices:** copy `devices.example.json` to `devices.json` (git-ignored) and fill in the serials
-from `adb devices -l`, a free local port per device and how its volume changes. Names in there
+and models from `adb devices -l`, a free local port per device and how its volume changes. Names in there
 are what the tools take (`Redmi`, `Fire`, ...).
 
 **Ground rules** (they come from real mistakes): never type a PIN or a password by script; never

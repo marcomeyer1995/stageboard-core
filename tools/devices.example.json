@@ -1,5 +1,5 @@
 [
-  { "name": "Fire", "serial": "<adb serial>", "port": 9222, "volume": "media" },
-  { "name": "Redmi", "serial": "<adb serial>", "port": 9223, "volume": "keys" },
-  { "name": "Phone", "serial": "<adb serial>", "port": 9224, "volume": "session", "app": "de.stageboard.app" }
+  { "name": "Fire", "serial": "<adb serial>", "model": "KFTRPWI", "port": 9222, "volume": "media" },
+  { "name": "Redmi", "serial": "<adb serial>", "model": "24075RP89G", "port": 9223, "volume": "keys" },
+  { "name": "Phone", "serial": "<adb serial>", "model": "2407FPN8EG", "port": 9224, "volume": "session", "app": "de.stageboard.app" }
 ]
