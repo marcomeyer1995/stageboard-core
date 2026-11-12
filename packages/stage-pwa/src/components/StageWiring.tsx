@@ -30,7 +30,7 @@ export function StageWiring({
   const { t } = useTranslation('hardware')
   const [open, setOpen] = useState(false)
   // Red only for what gives a wrong signal; adapters are packing-list entries, not findings.
-  const isWarning = (i: StageIssue) => i.kind === 'mono-of-stereo' || i.kind === 'channel-lost' || i.kind === 'hum-hint'
+  const isWarning = (i: StageIssue) => i.kind === 'mono-of-stereo' || i.kind === 'channel-lost' || i.kind === 'hum-hint' || i.kind === 'usb-audio-shared'
   const warnings = issues.filter(isWarning)
   const errors = issues.filter((i) => i.kind !== 'adapter' && !isWarning(i))
   const slot = (i: { equipmentId: string; portId: string; channel?: number; pin?: number }) =>
@@ -54,6 +54,8 @@ export function StageWiring({
       case 'hum-loop':
       case 'hum-hint':
         return t(i.kind === 'hum-loop' ? 'wiring.humLoop' : 'wiring.humHint', { a: nameOf(i.equipmentIds[0]), b: nameOf(i.equipmentIds[1]), cables: i.linkIds.map(cableName).join(', ') })
+      case 'usb-audio-shared':
+        return t('wiring.usbAudioShared', { where: `${nameOf(i.equipmentId)} · ${refText({ equipmentId: i.equipmentId, portId: i.portId })}`, devices: i.linkIds.map(cableName).join(', ') })
       default:
         return ''
     }

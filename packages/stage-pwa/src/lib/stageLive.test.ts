@@ -157,4 +157,19 @@ describe('stageLive (#747, docs/31 §9)', () => {
     expect(live.equipment['device:redmi']!.notes).toEqual([{ status: 'ok', key: 'online' }, { status: 'error', key: 'outputMissing', sources: ['track'] }])
     expect(live.equipment['device:fire']).toMatchObject({ status: 'error', notes: [{ key: 'offline' }] })
   })
+
+  it('a hub (#813): a silenced click is red on every cable it leaves the device on, not only the first', () => {
+    const map = defaultStageMap([{ id: 'redmi', name: 'Redmi' }])
+    const setup = map.setups[0]!
+    for (const [modelId, id] of [['behringer-umc204hd', 'umc'], ['nux-mg30', 'mg30']] as const) {
+      map.equipment.push(equipmentFrom(BUILTIN_MODELS.find((m) => m.id === modelId)!, id, id))
+      setup.positions[id] = { x: 0, y: 0 }
+    }
+    setup.links.push({ id: 'to-mg30', from: { equipmentId: 'mg30', portId: 'usb' }, to: { equipmentId: 'device:redmi', portId: 'usb' }, signals: ['usb-audio', 'midi'] })
+    setup.links.push({ id: 'to-umc', from: { equipmentId: 'umc', portId: 'usb' }, to: { equipmentId: 'device:redmi', portId: 'usb' }, signals: ['usb-audio', 'midi'] })
+    setup.routing['device:redmi'] = [{ from: { kind: 'virtual', virtualPortId: 'klick' }, to: { kind: 'port', portId: 'usb/audio-out', channel: 1 } }]
+    const live = stageLive(stage({ equipment: map.equipment, setup, flows: signalFlows(map, setup.id, [KLICK_PORT]), outputs: [], deviceInfo: { devices: { redmi: entry({ silenced: ['click'] }) } } }))
+    expect(live.links['to-umc']).toMatchObject({ status: 'error', notes: [{ key: 'outputMissing', sources: ['click'] }] })
+    expect(live.links['to-mg30']).toMatchObject({ status: 'error', notes: [{ key: 'outputMissing', sources: ['click'] }] })
+  })
 })

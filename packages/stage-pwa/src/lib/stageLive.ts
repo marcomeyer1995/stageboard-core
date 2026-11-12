@@ -129,13 +129,15 @@ export function stageLive(input: StageLiveInput): StageLive {
   for (const flow of flows) {
     const origin = byId.get(flow.originEquipmentId)
     const source = SOURCE_OF_PORT[flow.key.slice(flow.originEquipmentId.length + 1)]
-    const first = flow.hops[0]
-    if (!origin || !source || !first || !silencedOf(origin).includes(source)) continue
-    const list = linkNotes.get(first.linkId) ?? []
-    const note = list.find((n) => n.key === 'outputMissing')
-    if (note) note.sources = [...new Set([...(note.sources ?? []), source])]
-    else list.push({ status: 'error', key: 'outputMissing', sources: [source] })
-    linkNotes.set(first.linkId, list)
+    if (!origin || !source || !silencedOf(origin).includes(source)) continue
+    // Every cable it leaves the device on - with a hub there are several on one socket (#813).
+    for (const linkId of new Set(flow.hops.filter((h) => h.from.equipmentId === origin.id).map((h) => h.linkId))) {
+      const list = linkNotes.get(linkId) ?? []
+      const note = list.find((n) => n.key === 'outputMissing')
+      if (note) note.sources = [...new Set([...(note.sources ?? []), source])]
+      else list.push({ status: 'error', key: 'outputMissing', sources: [source] })
+      linkNotes.set(linkId, list)
+    }
   }
   const gearNotes = new Map<string, LiveNote[]>()
   const addGear = (id: string, note: LiveNote) => {
