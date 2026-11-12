@@ -861,6 +861,8 @@ describe('the NUX MG-30 in detail (2026-11-12)', () => {
     expect(to('usb/audio-in', 2)).toEqual(['main2', 'phones.2'])
     expect(to('usb/midi-in')).toEqual(['main1'])
     expect(mg.ports.some((p) => p.connector === 'din5')).toBe(false)
+    // A wall wart, no earth: no hum loop of its own (device test 2026-11-12).
+    expect(equipmentEarth(equipmentFrom(mg, 'mg', 'MG-30'))).toBe('floating')
     const ids = new Set(mg.ports.flatMap((p) => [p.id, ...(p.parts ?? []).map((x) => x.id)]))
     for (const c of mg.routing!.default) for (const end of [c.from, c.to]) expect(end.kind === 'port' && ids.has(end.portId)).toBe(true)
   })
