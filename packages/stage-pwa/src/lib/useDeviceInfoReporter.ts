@@ -27,7 +27,7 @@ const REPORT_INTERVAL_MS = 10_000
  *
  * No explicit "I'm leaving" report on stop - same reasoning as presence: an entry just goes
  * stale and times out (DEVICE_INFO_TIMEOUT_MS), robust to a tab closing or a tablet losing
- * power.
+ * power. Only hiding the page is reported at once (`foreground`, #815).
  */
 export function useDeviceInfoReporter(workspaceId: string): void {
   useEffect(() => {
@@ -46,6 +46,7 @@ export function useDeviceInfoReporter(workspaceId: string): void {
         battery,
         midiOutputs,
         silenced: silencedSources(useOutputPlanStore.getState().plan),
+        foreground: document.visibilityState !== 'hidden',
       })
     }
     void report()
@@ -61,10 +62,14 @@ export function useDeviceInfoReporter(workspaceId: string): void {
       lastSilenced = key
       void report()
     })
+    // Minimised or back (#815): say so at once - hidden, the next interval may never come.
+    const onVisibility = () => void report()
+    document.addEventListener('visibilitychange', onVisibility)
     return () => {
       clearInterval(interval)
       stopWatching()
       stopPlan()
+      document.removeEventListener('visibilitychange', onVisibility)
     }
   }, [workspaceId])
 }

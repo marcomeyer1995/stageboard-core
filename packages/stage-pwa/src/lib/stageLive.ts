@@ -23,7 +23,7 @@ export type LiveStatus = 'ok' | 'warning' | 'error' | 'off'
 /** One finding, as a text key (`live.*` in hardware.json) with its values. */
 export interface LiveNote {
   status: LiveStatus
-  key: 'offline' | 'appClosed' | 'placeholder' | 'online' | 'vitals' | 'battery' | 'batteryLow' | 'clock' | 'outputMissing' | 'serverOnline' | 'serverOffline' | 'noServer' | 'driverOnline' | 'driverSilent' | 'driverError' | 'midiFound' | 'midiMissing' | 'midiUnknown'
+  key: 'offline' | 'appClosed' | 'background' | 'placeholder' | 'online' | 'vitals' | 'battery' | 'batteryLow' | 'clock' | 'outputMissing' | 'serverOnline' | 'serverOffline' | 'noServer' | 'driverOnline' | 'driverSilent' | 'driverError' | 'midiFound' | 'midiMissing' | 'midiUnknown'
   /** `issue`: a VitalsIssue (vitals); `name`: a driver's or a MIDI port's name; `pct`: battery;
    * `ms`: the band clock's uncertainty; `sources`: what stays silent (outputMissing). */
   issue?: VitalsIssue
@@ -214,9 +214,13 @@ export function stageLive(input: StageLiveInput): StageLive {
           notes.push({ status: 'ok', key: 'online' })
           if (ownSilenced.length > 0) notes.push({ status: 'error', key: 'outputMissing', sources: [...ownSilenced] })
         } else if (!info) {
+          // Its last word was "hidden" (minimised, swiped away): not in front, which may still be
+          // fixed with a tap - orange, not the red of closed or gone (Marco 2026-11-12, #815).
+          const last = (app ? deviceInfo.devices[app] : undefined) ?? apps.map((id) => deviceInfo.devices[id]).find((x) => x !== undefined)
           // On the network but the app closed is still not there for the show.
           const pinged = apps.some((id) => deviceInfo.devices[id]?.networkReachable === true)
-          notes.push({ status: 'error', key: pinged ? 'appClosed' : 'offline' })
+          if (last?.foreground === false) notes.push({ status: 'warning', key: 'background' })
+          else notes.push({ status: 'error', key: pinged ? 'appClosed' : 'offline' })
         } else {
           notes.push({ status: 'ok', key: 'online' })
           const silenced = silencedOf(e)

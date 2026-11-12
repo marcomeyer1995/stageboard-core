@@ -386,6 +386,7 @@
     "legend": "Rot heißt: so spielt es nicht. Latenz-Wert des Wegs: ● gemessen · ◐ von Hand · ○ fehlt. Mehr je Gerät unter „Tablets & Handys“.",
     "offline": "offline",
     "appClosed": "App ist zu",
+    "background": "nicht im Vordergrund",
     "placeholder": "noch kein Gerät zugeordnet",
     "online": "App offen",
     "battery": "Akku {{pct}} %",

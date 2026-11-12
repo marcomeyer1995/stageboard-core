@@ -114,6 +114,9 @@ export const DeviceInfoEntrySchema = z.object({
   /** The sources this device keeps silent because the output the map names is not the one it
    * plays on (#742, #747). Absent from older apps. */
   silenced: z.array(SilencedSourceSchema).max(3).nullable().optional(),
+  /** False: the app's page was hidden at its last report - minimised, swiped away or behind
+   * another app ("nicht im Vordergrund", #815). Absent from older apps. */
+  foreground: z.boolean().nullable().optional(),
 })
 export type DeviceInfoEntry = z.infer<typeof DeviceInfoEntrySchema>
 
@@ -151,5 +154,6 @@ export const DeviceInfoReportSchema = z.object({
   battery: BatteryStateSchema.nullable().optional(),
   midiOutputs: z.array(z.string()).max(64).nullable().optional(),
   silenced: z.array(SilencedSourceSchema).max(3).nullable().optional(),
+  foreground: z.boolean().nullable().optional(),
 })
 export type DeviceInfoReport = z.infer<typeof DeviceInfoReportSchema>

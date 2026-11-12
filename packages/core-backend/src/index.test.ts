@@ -742,19 +742,21 @@ describe('Fastify routes', () => {
       expect(getDeviceInfoSnapshot('band-a').devices['device-1'].leadNeededMs).toBe(943)
     })
 
-    it('passes battery, MIDI outputs and silenced sources through for the map check (#747)', async () => {
+    it('passes battery, MIDI outputs, silenced sources and foreground through for the map check (#747, #815)', async () => {
       await app.inject({
         method: 'POST',
         url: '/workspaces/band-a/device-info/report',
-        payload: { deviceId: 'device-1', os: 'Android', environment: 'native', syncStatus: 'idle', battery: { pct: 17, charging: false }, midiOutputs: ['Kemper Player'], silenced: ['click'] },
+        payload: { deviceId: 'device-1', os: 'Android', environment: 'native', syncStatus: 'idle', battery: { pct: 17, charging: false }, midiOutputs: ['Kemper Player'], silenced: ['click'], foreground: false },
       })
       const entry = getDeviceInfoSnapshot('band-a').devices['device-1']
       expect(entry.battery).toEqual({ pct: 17, charging: false })
       expect(entry.midiOutputs).toEqual(['Kemper Player'])
       expect(entry.silenced).toEqual(['click'])
+      // Minimised at that report (#815).
+      expect(entry.foreground).toBe(false)
       // An older app sends none of them.
       await app.inject({ method: 'POST', url: '/workspaces/band-a/device-info/report', payload: { deviceId: 'device-2', os: 'Android', environment: 'native', syncStatus: 'idle' } })
-      expect(getDeviceInfoSnapshot('band-a').devices['device-2']).toMatchObject({ battery: null, midiOutputs: null, silenced: null })
+      expect(getDeviceInfoSnapshot('band-a').devices['device-2']).toMatchObject({ battery: null, midiOutputs: null, silenced: null, foreground: null })
     })
 
     it('rejects a body missing required fields', async () => {
