@@ -39,17 +39,20 @@ constexpr double MAX_RATE_DEVIATION = 0.004;
  * (115 confirmed "jumps" in an hour, playback speed swinging ±0.05 %, 2026-11-05). */
 constexpr double TIMESTAMP_JUMP_MS = 3.0;
 constexpr double TIMESTAMP_CONFIRM_MS = 500.0;
-/** No timestamp for this long after opening: play on an estimated one (the buffer's length) instead
- * of waiting. The Redmi's USB output, reopened after the cable came back, never gave one - and the
- * output wrote silence until the tablet rebooted (2026-11-12). A real timestamp, should one come,
- * takes over like any other move (TIMESTAMP_CONFIRM_MS). */
-constexpr double NO_TIMESTAMP_MS = 500.0;
+/** No timestamp for this long after opening: Android's output is broken. The Redmi's low-latency USB
+ * output, after the cable came back, never gave one and played nothing ("cannot prepare channel:
+ * Device or resource busy" in its HAL) until the tablet rebooted - while Spotify played on the
+ * deep-buffer output (2026-11-12). So the stream is reopened once without low latency; should that
+ * give no timestamp either, it plays on an estimated one (the buffer's length) instead of waiting.
+ * A real timestamp, should one come, takes over like any other move (TIMESTAMP_CONFIRM_MS). */
+constexpr double NO_TIMESTAMP_MS = 1000.0;
 
 std::mutex gLock;   // open/close only - never taken in the callback
 AAudioStream *gStream = nullptr;
 int gRate = 48000;
 int gChannels = 2;
 std::atomic<bool> gReopen{false};
+std::atomic<bool> gLowLatency{true};   // until a low-latency stream gave no timestamp (NO_TIMESTAMP_MS)
 
 float gRing[RING_FRAMES * 2];
 std::atomic<long long> gWritten{0};
@@ -111,6 +114,8 @@ float ringAt(long long f, int ch, long long written, bool &missing) {
     return gRing[2 * static_cast<int>(f & (RING_FRAMES - 1)) + ch];
 }
 
+void reopenLater();
+
 aaudio_data_callback_result_t onData(AAudioStream *stream, void *, void *audioData, int32_t numFrames) {
     auto *out = static_cast<float *>(audioData);
     const double msPerFrame = 1000.0 / gRate;
@@ -145,7 +150,9 @@ aaudio_data_callback_result_t onData(AAudioStream *stream, void *, void *audioDa
         }
     } else if (!gLocked) {
         gNoStampFrames += numFrames;
-        if (gNoStampFrames * msPerFrame >= NO_TIMESTAMP_MS) {
+        if (gNoStampFrames * msPerFrame >= NO_TIMESTAMP_MS && gLowLatency.exchange(false)) {
+            reopenLater();
+        } else if (gNoStampFrames * msPerFrame >= NO_TIMESTAMP_MS) {
             const double bufferMs = AAudioStream_getBufferSizeInFrames(stream) * msPerFrame;
             gLatencyMs.store(bufferMs);
             gHeardMs0 = static_cast<double>(clockNs(CLOCK_REALTIME)) / 1e6 + bufferMs;
@@ -199,17 +206,23 @@ void onError(AAudioStream *, void *, aaudio_result_t error) {
     LOG("stream error %d (%s)", error, AAudio_convertResultToText(error));
     // The output changed (headphones, Bluetooth, USB): AAudio disconnects the stream. Reopen it on
     // the new default output - from another thread, never from this callback.
-    if (error == AAUDIO_ERROR_DISCONNECTED && !gReopen.exchange(true)) {
-        std::thread([] {
-            std::lock_guard<std::mutex> guard(gLock);
-            if (gStream) {
-                AAudioStream_close(gStream);
-                gStream = nullptr;
-                if (openStream() == AAUDIO_OK) gReopens.fetch_add(1);
-            }
-            gReopen = false;
-        }).detach();
-    }
+    if (error == AAUDIO_ERROR_DISCONNECTED) reopenLater();
+}
+
+// From another thread, never from a callback; once at a time.
+void reopenLater() {
+    if (gReopen.exchange(true)) return;
+    std::thread([] {
+        std::lock_guard<std::mutex> guard(gLock);
+        if (gStream) {
+            AAudioStream_close(gStream);
+            gStream = nullptr;
+            const aaudio_result_t r = openStream();
+            LOG("reopened (%s): %s", gLowLatency.load() ? "low latency" : "without low latency", AAudio_convertResultToText(r));
+            if (r == AAUDIO_OK) gReopens.fetch_add(1);
+        }
+        gReopen = false;
+    }).detach();
 }
 
 // Caller holds gLock.
@@ -221,7 +234,7 @@ aaudio_result_t openStream() {
     AAudioStreamBuilder_setFormat(b, AAUDIO_FORMAT_PCM_FLOAT);
     AAudioStreamBuilder_setChannelCount(b, 2);
     AAudioStreamBuilder_setSampleRate(b, gRate);
-    AAudioStreamBuilder_setPerformanceMode(b, AAUDIO_PERFORMANCE_MODE_LOW_LATENCY);
+    AAudioStreamBuilder_setPerformanceMode(b, gLowLatency.load() ? AAUDIO_PERFORMANCE_MODE_LOW_LATENCY : AAUDIO_PERFORMANCE_MODE_NONE);
     AAudioStreamBuilder_setSharingMode(b, AAUDIO_SHARING_MODE_SHARED);
     AAudioStreamBuilder_setUsage(b, AAUDIO_USAGE_MEDIA);
     AAudioStreamBuilder_setContentType(b, AAUDIO_CONTENT_TYPE_MUSIC);
@@ -253,6 +266,7 @@ Java_de_stageboard_app_NativeOutputPlugin_nativeStart(JNIEnv *env, jclass, jint 
         gStream = nullptr;
     }
     gRate = sampleRate;
+    gLowLatency = true;
     gWritten = 0;
     gBaseMs = 0;
     gLatencyMs = -1;
