@@ -39,20 +39,19 @@ constexpr double MAX_RATE_DEVIATION = 0.004;
  * (115 confirmed "jumps" in an hour, playback speed swinging ±0.05 %, 2026-11-05). */
 constexpr double TIMESTAMP_JUMP_MS = 3.0;
 constexpr double TIMESTAMP_CONFIRM_MS = 500.0;
-/** No timestamp for this long after opening: Android's output is broken. The Redmi's low-latency USB
- * output, after the cable came back, never gave one and played nothing ("cannot prepare channel:
- * Device or resource busy" in its HAL) until the tablet rebooted - while Spotify played on the
- * deep-buffer output (2026-11-12). So the stream is reopened once without low latency; should that
- * give no timestamp either, it plays on an estimated one (the buffer's length) instead of waiting.
- * A real timestamp, should one come, takes over like any other move (TIMESTAMP_CONFIRM_MS). */
-constexpr double NO_TIMESTAMP_MS = 1000.0;
+/** No timestamp for this long after opening: play on an estimated one (the buffer's length) instead
+ * of waiting. The Redmi's USB output, after the cable came back, never gave one and its HAL failed
+ * every write ("cannot prepare channel: Device or resource busy") until nothing of the app played
+ * on it any more (2026-11-12). JS sees `noTimestampMs` first and releases all of its audio for a
+ * few seconds (nativeOutput.ts, RELEASE_AFTER_MS) - this is the last resort after that. A real
+ * timestamp, should one come, takes over like any other move (TIMESTAMP_CONFIRM_MS). */
+constexpr double NO_TIMESTAMP_MS = 6000.0;
 
 std::mutex gLock;   // open/close only - never taken in the callback
 AAudioStream *gStream = nullptr;
 int gRate = 48000;
 int gChannels = 2;
 std::atomic<bool> gReopen{false};
-std::atomic<bool> gLowLatency{true};   // until a low-latency stream gave no timestamp (NO_TIMESTAMP_MS)
 
 float gRing[RING_FRAMES * 2];
 std::atomic<long long> gWritten{0};
@@ -66,7 +65,6 @@ double gPendingErr = 0;  // an unconfirmed move of the timestamps, and since whi
 long long gPendingSince = -1;
 double gRead = -1;   // pipe frame position, fractional
 double gRateIntegral = 0;   // learned steady speed difference (fraction)
-long long gNoStampFrames = 0;   // frames played since opening without a timestamp
 
 // Stats for JS.
 std::atomic<double> gLatencyMs{-1};
@@ -79,6 +77,7 @@ std::atomic<long long> gMissing{0};
 std::atomic<long long> gReopens{0};
 std::atomic<int> gError{0};
 std::atomic<bool> gEstimated{false};   // playing on an estimated timestamp (NO_TIMESTAMP_MS)
+std::atomic<long long> gNoStampFrames{0};   // frames played since opening, none with a timestamp
 
 int64_t clockNs(clockid_t id) {
     timespec ts{};
@@ -122,6 +121,7 @@ aaudio_data_callback_result_t onData(AAudioStream *stream, void *, void *audioDa
     int64_t framePos = 0, timeNs = 0;
     if (AAudioStream_getTimestamp(stream, CLOCK_MONOTONIC, &framePos, &timeNs) == AAUDIO_OK) {
         gEstimated = false;
+        gNoStampFrames = 0;
         const int64_t mono = clockNs(CLOCK_MONOTONIC);
         const int64_t real = clockNs(CLOCK_REALTIME);
         // Frames between the timestamp's frame and the next one we write - a fraction of a second.
@@ -150,9 +150,7 @@ aaudio_data_callback_result_t onData(AAudioStream *stream, void *, void *audioDa
         }
     } else if (!gLocked) {
         gNoStampFrames += numFrames;
-        if (gNoStampFrames * msPerFrame >= NO_TIMESTAMP_MS && gLowLatency.exchange(false)) {
-            reopenLater();
-        } else if (gNoStampFrames * msPerFrame >= NO_TIMESTAMP_MS) {
+        if (gNoStampFrames * msPerFrame >= NO_TIMESTAMP_MS) {
             const double bufferMs = AAudioStream_getBufferSizeInFrames(stream) * msPerFrame;
             gLatencyMs.store(bufferMs);
             gHeardMs0 = static_cast<double>(clockNs(CLOCK_REALTIME)) / 1e6 + bufferMs;
@@ -218,7 +216,7 @@ void reopenLater() {
             AAudioStream_close(gStream);
             gStream = nullptr;
             const aaudio_result_t r = openStream();
-            LOG("reopened (%s): %s", gLowLatency.load() ? "low latency" : "without low latency", AAudio_convertResultToText(r));
+            LOG("reopened: %s", AAudio_convertResultToText(r));
             if (r == AAUDIO_OK) gReopens.fetch_add(1);
         }
         gReopen = false;
@@ -234,7 +232,7 @@ aaudio_result_t openStream() {
     AAudioStreamBuilder_setFormat(b, AAUDIO_FORMAT_PCM_FLOAT);
     AAudioStreamBuilder_setChannelCount(b, 2);
     AAudioStreamBuilder_setSampleRate(b, gRate);
-    AAudioStreamBuilder_setPerformanceMode(b, gLowLatency.load() ? AAUDIO_PERFORMANCE_MODE_LOW_LATENCY : AAUDIO_PERFORMANCE_MODE_NONE);
+    AAudioStreamBuilder_setPerformanceMode(b, AAUDIO_PERFORMANCE_MODE_LOW_LATENCY);
     AAudioStreamBuilder_setSharingMode(b, AAUDIO_SHARING_MODE_SHARED);
     AAudioStreamBuilder_setUsage(b, AAUDIO_USAGE_MEDIA);
     AAudioStreamBuilder_setContentType(b, AAUDIO_CONTENT_TYPE_MUSIC);
@@ -266,7 +264,6 @@ Java_de_stageboard_app_NativeOutputPlugin_nativeStart(JNIEnv *env, jclass, jint 
         gStream = nullptr;
     }
     gRate = sampleRate;
-    gLowLatency = true;
     gWritten = 0;
     gBaseMs = 0;
     gLatencyMs = -1;
@@ -309,11 +306,11 @@ Java_de_stageboard_app_NativeOutputPlugin_nativeStatus(JNIEnv *env, jclass) {
     const double leadMin = gLeadMinMs.exchange(1e9);
     return env->NewStringUTF(json(
             "{\"open\":true,\"state\":\"%s\",\"latencyMs\":%.2f,\"leadMs\":%.1f,\"leadMinMs\":%.1f,\"jumps\":%lld,\"timestampJumps\":%lld,\"rateDevPpm\":%.0f,"
-            "\"missing\":%lld,\"xruns\":%d,\"reopens\":%lld,\"error\":%d,\"performance\":\"%s\",\"framesPerBurst\":%d,\"estimated\":%s}",
+            "\"missing\":%lld,\"xruns\":%d,\"reopens\":%lld,\"error\":%d,\"performance\":\"%s\",\"framesPerBurst\":%d,\"estimated\":%s,\"noTimestampMs\":%.0f}",
             AAudio_convertStreamStateToText(AAudioStream_getState(gStream)), gLatencyMs.load(), gLeadMs.load(), leadMin > 1e8 ? -1.0 : leadMin,
             static_cast<long long>(gJumps), static_cast<long long>(gTimestampJumps), gRateDev.load() * 1e6, static_cast<long long>(gMissing), AAudioStream_getXRunCount(gStream),
             static_cast<long long>(gReopens), gError.load(), perf(AAudioStream_getPerformanceMode(gStream)),
-            AAudioStream_getFramesPerBurst(gStream), gEstimated.load() ? "true" : "false").c_str());
+            AAudioStream_getFramesPerBurst(gStream), gEstimated.load() ? "true" : "false", gNoStampFrames.load() * 1000.0 / gRate).c_str());
 }
 
 extern "C" JNIEXPORT void JNICALL

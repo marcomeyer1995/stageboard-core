@@ -32,6 +32,8 @@ interface NativeOutputStatus {
   performance?: string
   /** No timestamp from Android: playing on an estimated one - on time only roughly (2026-11-12). */
   estimated?: boolean
+  /** How long the stream has played without ever giving a timestamp, ms (0 once one came). */
+  noTimestampMs?: number
 }
 
 interface NativeOutputPlugin {
@@ -104,6 +106,16 @@ const SHIFT_HOLD_MS = 2000
 const RATE_WINDOW_MS = 30_000
 /** How long to wait for the stream's first timestamp before choosing the delay. */
 const LATENCY_WAIT_MS = 400
+/** The stream gave no timestamp for this long: Android's output hangs. The Redmi's USB output after
+ * the cable came back failed every write ("Device or resource busy") until nothing of the app played
+ * on it any more - closing and reopening the native stream alone did not help, the WebView kept the
+ * output open (2026-11-12). So all of the app's audio is let go for RELEASE_MS, long enough for
+ * Android to put the output to standby and open it anew, then the native output starts again. */
+const RELEASE_AFTER_MS = 1000
+const RELEASE_MS = 4000
+/** At most one release in this time - a second one in a row would only be another gap. */
+const RELEASE_COOLDOWN_MS = 60_000
+let lastReleaseAt = -Infinity
 const STATUS_INTERVAL_MS = 2000
 /** The health the device reports (nativeOutputHealth) looks back this far. */
 const HEALTH_WINDOW_MS = 60_000
@@ -438,6 +450,11 @@ async function attach(ctx: AudioContext): Promise<void> {
       void NativeOutput.status().then((s) => {
         if (p.closed) return
         const now = Date.now()
+        if ((s.noTimestampMs ?? 0) >= RELEASE_AFTER_MS && now - lastReleaseAt >= RELEASE_COOLDOWN_MS) {
+          lastReleaseAt = now
+          void release(p.ctx)
+          return
+        }
         // Screen locked, or just unlocked: what goes missing is the lock, not the output - no loss,
         // no health sample, and no bigger reserve learned from it. Nothing sounding: a gap is inaudible.
         if (now < quiet || !audible(p.soundAt, now)) {
@@ -470,6 +487,22 @@ async function attach(ctx: AudioContext): Promise<void> {
     detach()
     useNativeOutputStore.setState({ state: store.wanted ? 'failed' : 'off', error: error instanceof Error ? error.message : String(error) })
   }
+}
+
+/** Lets go of all audio (RELEASE_AFTER_MS): the native stream and the WebView's own output, then
+ * starts the native output again. */
+async function release(ctx: AudioContext): Promise<void> {
+  console.warn(`[native-output] no timestamp from Android - releasing all audio for ${RELEASE_MS / 1000} s`)
+  detach()
+  // The engines resume a suspended context on their own (stemEngine's sync, startClick) - that
+  // would keep Android's output open. Held off on this context until the release is over.
+  const hold = (): Promise<void> => Promise.resolve()
+  ctx.resume = hold
+  await ctx.suspend().catch(() => {})
+  await new Promise((resolve) => setTimeout(resolve, RELEASE_MS))
+  if (ctx.resume === hold) delete (ctx as Partial<Pick<AudioContext, 'resume'>>).resume
+  await ctx.resume().catch(() => {})
+  if (current === ctx && useNativeOutputStore.getState().wanted) await attach(ctx)
 }
 
 /** Back to the WebView's own output for the rest of this app run (nativeOutputFallback.ts). */
