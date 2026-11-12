@@ -24,11 +24,15 @@ import { useTranslation } from 'react-i18next'
  * Bibliothek approach"). Local rather than shared yet, same reasoning as SheetEditor.tsx's own
  * screen-class hook - a second/third consumer wanting the exact same threshold can justify
  * extracting a shared version later. */
+// Also a phone held sideways (#816, device test 2026-11-12): two rows of tabs under the status bar
+// took 40 % of its ~375 px height - its 800+ px width has room for the side list instead.
+const WIDE_QUERY = '(min-width: 1024px), (orientation: landscape) and (max-height: 500px) and (min-width: 700px)'
+
 function useIsWideScreen(): boolean {
-  const [isWide, setIsWide] = useState(() => window.matchMedia('(min-width: 1024px)').matches)
+  const [isWide, setIsWide] = useState(() => window.matchMedia(WIDE_QUERY).matches)
 
   useEffect(() => {
-    const query = window.matchMedia('(min-width: 1024px)')
+    const query = window.matchMedia(WIDE_QUERY)
     const update = () => setIsWide(query.matches)
     query.addEventListener('change', update)
     return () => query.removeEventListener('change', update)
