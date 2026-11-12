@@ -30,6 +30,8 @@ interface NativeOutputStatus {
   xruns?: number
   reopens?: number
   performance?: string
+  /** No timestamp from Android: playing on an estimated one - on time only roughly (2026-11-12). */
+  estimated?: boolean
 }
 
 interface NativeOutputPlugin {
@@ -302,6 +304,7 @@ export function nativeOutputHealth(): AudioOutputHealth | null {
     missingMs: first && last ? Math.round(((last.missing - first.missing) * 1000) / pipe.rate) : 0,
     jumps: first && last ? Math.max(0, last.jumps - first.jumps) : 0,
     leadMinMs: leads.length > 0 ? Math.round(Math.min(...leads)) : null,
+    ...(useNativeOutputStore.getState().status?.estimated ? { estimated: true } : {}),
   }
 }
 /** Per context: the one node every source ends in - to the speaker, or to the tap. */
