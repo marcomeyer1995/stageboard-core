@@ -312,7 +312,7 @@ describe('StageMap (docs/31 §7)', () => {
     expect(within(matrix).getByRole('switch', { name: 'Track (beide Seiten) → Kopfhörer L' })).toHaveAttribute('aria-checked', 'true')
   })
 
-  it('an interface does not mix: a second signal on a taken output asks "replace?" - and the cable list names what is wrong (#746)', async () => {
+  it('an interface puts out one signal per output: a second signal on a taken output asks "replace?" - and the cable list names what is wrong (#746)', async () => {
     setUp(true)
     const umc = equipmentFrom(BUILTIN_MODELS.find((m) => m.id === 'audio-interface')!, 'umc', 'UMC204HD')
     useStageMapStore.setState((s) => ({ equipment: [...s.equipment, umc], setups: s.setups.map((x) => ({ ...x, positions: { ...x.positions, umc: { x: 900, y: 900 } } })) }))
@@ -329,8 +329,10 @@ describe('StageMap (docs/31 §7)', () => {
     // Output 1 already carries "Audio ein 1" (the model's default).
     fireEvent.click(screen.getByRole('switch', { name: /Audio ein \(vom Host\) 2 → Ausgang 1$/ }))
     expect(updateSetup).not.toHaveBeenCalled()
-    await vi.waitFor(() => expect(screen.getByRole('alertdialog', { name: 'Ausgang ist belegt' })).toBeInTheDocument())
-    fireEvent.click(screen.getByRole('button', { name: 'Ersetzen' }))
+    // It says what is where, not "does not mix" (device test 2026-11-12).
+    await vi.waitFor(() => expect(screen.getByRole('alertdialog', { name: 'Ausgang 1 ist schon belegt' })).toBeInTheDocument())
+    expect(screen.getByText('Auf Ausgang 1 liegt schon „USB · Audio ein (vom Host) 1“. UMC204HD gibt pro Ausgang nur ein Signal aus.')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '„USB · Audio ein (vom Host) 2“ stattdessen' }))
     await vi.waitFor(() => expect(updateSetup).toHaveBeenCalledTimes(1))
     const after = (updateSetup.mock.calls[0]![1] as (s: StageSetup) => StageSetup)(useStageMapStore.getState().setups[0]!)
     expect(after.routing.umc!.filter((c) => c.to.kind === 'port' && c.to.channel === 1)).toEqual([{ from: { kind: 'port', portId: 'usb/audio-in', channel: 2 }, to: { kind: 'port', portId: 'out', channel: 1 } }])
@@ -339,7 +341,19 @@ describe('StageMap (docs/31 §7)', () => {
       setups: s.setups.map((x) => ({ ...x, routing: { ...x.routing, umc: [1, 2].map((channel) => ({ from: { kind: 'port' as const, portId: 'usb/audio-in', channel }, to: { kind: 'port' as const, portId: 'out', channel: 1 } })) } })),
     }))
     fireEvent.click(screen.getByRole('button', { name: /Verkabelung \(/ }))
-    expect(screen.getByText(/^UMC204HD · Ausgang 1: 2 Signale auf demselben Ausgang, aber UMC204HD mischt nicht/)).toBeInTheDocument()
+    expect(screen.getByText(/^UMC204HD · Ausgang 1: 2 Signale auf demselben Ausgang - UMC204HD gibt pro Ausgang aber nur ein Signal aus/)).toBeInTheDocument()
+  })
+
+  it('the matrix offers only crosspoints whose signals meet: no MIDI onto an audio output (device test 2026-11-12)', () => {
+    setUp(true)
+    const ifc = equipmentFrom(BUILTIN_MODELS.find((m) => m.id === 'audio-interface')!, 'ifc', 'Interface')
+    useStageMapStore.setState((s) => ({ equipment: [...s.equipment, ifc], setups: s.setups.map((x) => ({ ...x, positions: { ...x.positions, ifc: { x: 900, y: 900 } } })) }))
+    render(<StageMap />)
+    fireEvent.click(screen.getByRole('switch', { name: 'Bearbeiten' }))
+    tapNode('Interface')
+    expect(screen.queryByRole('switch', { name: /^USB · MIDI ein → Ausgang/ })).toBeNull()
+    expect(screen.getByRole('switch', { name: /^USB · MIDI ein → USB · MIDI aus$/ })).toBeInTheDocument()
+    expect(screen.getAllByRole('switch', { name: /^USB · Audio ein \(vom Host\).* → Ausgang/ }).length).toBeGreaterThan(0)
   })
 
   it('hum loops (#748): "Strom" per device, the cable list warns, an isolator on the cable clears it', async () => {

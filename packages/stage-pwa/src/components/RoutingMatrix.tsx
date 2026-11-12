@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { MatrixPoint } from 'shared-types'
+import type { MatrixPoint, SignalClass } from 'shared-types'
 
 export interface MatrixLine {
   key: string
@@ -13,6 +13,9 @@ export interface MatrixLine {
    * container's part ("USB-C · Audio aus 1–4") or a socket's pins ("Kopfhörer", L, R). Closed
    * until opened; a closed group is one line. */
   group?: MatrixGroup
+  /** The signal classes it carries (Ton, MIDI, Licht). A crosspoint is only offered where a
+   * column and a row share one - no MIDI onto an audio output (device test 2026-11-12). */
+  classes?: readonly SignalClass[]
 }
 
 export interface MatrixGroup {
@@ -107,6 +110,9 @@ export function RoutingMatrix({
 
   // What a drawn row or column stands for when asked "is this routed".
   const linesOf = (d: Drawn): MatrixLine[] => (d.kind === 'line' ? [d.line] : d.lines)
+  // Absent classes: anything goes (lines that do not say).
+  const fits = (col: Drawn, row: Drawn) =>
+    linesOf(col).some((c) => linesOf(row).some((r) => !c.classes || !r.classes || c.classes.some((x) => r.classes!.includes(x))))
   const isRouted = (col: Drawn, row: Drawn) => linesOf(col).some((c) => linesOf(row).some((r) => routed(c.point, r.point)))
   const routedCount = (d: Drawn, others: Drawn[], asColumn: boolean) =>
     linesOf(d).filter((l) => others.some((o) => linesOf(o).some((x) => (asColumn ? routed(l.point, x.point) : routed(x.point, l.point))))).length
@@ -194,7 +200,7 @@ export function RoutingMatrix({
               </text>
             )
           })}
-          {rws.map((_row, r) => cols.map((_col, c) => <circle key={`${r}|${c}`} cx={cx(c)} cy={cy(r)} r={3} className="fill-ink-faint" />))}
+          {rws.map((row, r) => cols.map((col, c) => (fits(col, row) ? <circle key={`${r}|${c}`} cx={cx(c)} cy={cy(r)} r={3} className="fill-ink-faint" /> : null)))}
           {cols.map((col, c) => {
             const last = rws.reduce((max, row, r) => (isRouted(col, row) ? r : max), -1)
             return last < 0 ? (
@@ -229,6 +235,7 @@ export function RoutingMatrix({
             rws.map((row, r) =>
               cols.map((col, c) => {
                 const on = isRouted(col, row)
+                if (!on && !fits(col, row)) return null
                 return (
                   <rect
                     key={`${r}|${c}`}
