@@ -407,6 +407,49 @@ export const BUILTIN_MODELS: readonly EquipmentModel[] = [
     fixed(via(at('midi-in'), at('main')), via(at('usb'), at('main'))),
     true,
   ),
+  // Marco's modeller (2026-11-12; NUX's panel: no MIDI DIN, MIDI only over USB). The guitar runs
+  // through the effects to Main Out L/R and the Phones; the FX loop sits in that chain, Aux In and
+  // the host's playback are mixed in. USB audio is 2 in / 2 out - NUX gives no channel count, to
+  // check on the device. The expression jack carries no signal the map knows, so it is left out.
+  builtin(
+    'nux-mg30',
+    'NUX MG-30',
+    'amp-modeller',
+    [
+      container(port('usb', 'USB', 'usb-c', ['usb-audio', 'midi'], 'both'), [
+        part('usb/audio-in', 'Audio ein (vom Host)', ['usb-audio'], 'in', 2),
+        part('usb/audio-out', 'Audio aus (zum Host)', ['usb-audio'], 'out', 2),
+        part('usb/midi-in', 'MIDI ein', ['midi'], 'in'),
+        part('usb/midi-out', 'MIDI aus', ['midi'], 'out'),
+      ]),
+      port('in', 'Eingang', 'jack-6.3-ts', ['audio'], 'in'),
+      stereo(port('aux', 'Aux In', 'jack-3.5', ['audio'], 'in')),
+      port('send', 'FX Send', 'jack-6.3-ts', ['audio'], 'out'),
+      port('return', 'FX Return', 'jack-6.3-ts', ['audio'], 'in'),
+      port('main', 'Main Out L/Mono, R', 'jack-6.3', ['audio'], 'out', 2),
+      stereo(port('phones', 'Phones', 'jack-3.5', ['audio'], 'out')),
+    ],
+    fixed(
+      via(at('in'), at('send')),
+      via(at('return'), at('main', 1)),
+      via(at('return'), at('main', 2)),
+      via(at('in'), at('main', 1)),
+      via(at('in'), at('main', 2)),
+      via(at('in'), { kind: 'port', portId: 'phones', pin: 1 }),
+      via(at('in'), { kind: 'port', portId: 'phones', pin: 2 }),
+      via(at('in'), at('usb/audio-out', 1)),
+      via(at('in'), at('usb/audio-out', 2)),
+      via({ kind: 'port', portId: 'aux', pin: 1 }, at('main', 1)),
+      via({ kind: 'port', portId: 'aux', pin: 2 }, at('main', 2)),
+      via(at('usb/audio-in', 1), at('main', 1)),
+      via(at('usb/audio-in', 2), at('main', 2)),
+      via(at('usb/audio-in', 1), { kind: 'port', portId: 'phones', pin: 1 }),
+      via(at('usb/audio-in', 2), { kind: 'port', portId: 'phones', pin: 2 }),
+      // Program changes and CCs arrive over USB and change what comes out.
+      via(at('usb/midi-in'), at('main', 1)),
+    ),
+    true,
+  ),
   // Two mono inputs (L/R): one channel for a mono mix, both for stereo (Marco, 2026-11-07).
   builtin(
     'iem-sender',

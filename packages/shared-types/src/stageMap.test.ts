@@ -849,3 +849,19 @@ describe('the Behringer UMC204HD in detail (2026-11-12)', () => {
   })
 })
 
+
+describe('the NUX MG-30 in detail (2026-11-12)', () => {
+  it('the guitar through the FX loop to Main Out, the Phones and the host; MIDI only over USB', () => {
+    const mg = BUILTIN_MODELS.find((m) => m.id === 'nux-mg30')!
+    expect(mg.kind).toBe('amp-modeller')
+    expect(mg.routing?.mode).toBe('fixed')
+    const to = (portId: string, channel?: number) =>
+      mg.routing!.default.filter((c) => c.from.kind === 'port' && c.from.portId === portId && c.from.channel === channel && c.from.pin === undefined).map((c) => (c.to.kind === 'port' ? `${c.to.portId}${c.to.channel ?? ''}${c.to.pin ? `.${c.to.pin}` : ''}` : ''))
+    expect(to('in')).toEqual(['send', 'main1', 'main2', 'phones.1', 'phones.2', 'usb/audio-out1', 'usb/audio-out2'])
+    expect(to('usb/audio-in', 2)).toEqual(['main2', 'phones.2'])
+    expect(to('usb/midi-in')).toEqual(['main1'])
+    expect(mg.ports.some((p) => p.connector === 'din5')).toBe(false)
+    const ids = new Set(mg.ports.flatMap((p) => [p.id, ...(p.parts ?? []).map((x) => x.id)]))
+    for (const c of mg.routing!.default) for (const end of [c.from, c.to]) expect(end.kind === 'port' && ids.has(end.portId)).toBe(true)
+  })
+})
