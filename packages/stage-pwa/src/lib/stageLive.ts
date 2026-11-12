@@ -54,8 +54,9 @@ export interface StageLiveInput {
   equipment: readonly StageEquipment[]
   setup: StageSetup
   flows: readonly SignalFlow[]
-  /** The Logical Devices that are not Klick/Track/Ansagen. */
-  outputs: readonly { id: string; name: string; pluginId: string | null }[]
+  /** The Logical Devices that are not Klick/Track/Ansagen. `client`: its plugin runs on the
+   * tablet the gear hangs on (MG-30, Kemper over WebMIDI) - no heartbeat of its own then. */
+  outputs: readonly { id: string; name: string; pluginId: string | null; client?: boolean }[]
   /** The virtual port ids of Klick, Track and Ansagen. */
   builtInIds: readonly string[]
   deviceInfo: DeviceInfo
@@ -179,13 +180,20 @@ export function stageLive(input: StageLiveInput): StageLive {
   for (const output of outputs) {
     if (!output.pluginId) continue
     const entry = health.plugins[output.pluginId]
-    const note: LiveNote = !entry || now - entry.lastSeenAt > HEALTH_TIMEOUT_MS ? { status: 'error', key: 'driverSilent', name: output.name } : entry.status === 'online' ? { status: 'ok', key: 'driverOnline', name: output.name } : { status: 'error', key: entry.status === 'error' ? 'driverError' : 'driverSilent', name: output.name }
+    const fromHealth: LiveNote = !entry || now - entry.lastSeenAt > HEALTH_TIMEOUT_MS ? { status: 'error', key: 'driverSilent', name: output.name } : entry.status === 'online' ? { status: 'ok', key: 'driverOnline', name: output.name } : { status: 'error', key: entry.status === 'error' ? 'driverError' : 'driverSilent', name: output.name }
     for (const flow of flows) {
       if (flow.key.slice(flow.originEquipmentId.length + 1) !== output.id) continue
       const first = flow.hops[0]
       if (!first) continue
       const target = first.from.equipmentId === flow.originEquipmentId ? first.to.equipmentId : first.from.equipmentId
-      addGear(target, note)
+      // A driver on the tablet: running where that tablet sees the gear's MIDI port - what its
+      // cable already says (device test 2026-11-12: the MG-30 played, yet "meldet sich nicht").
+      if (output.client) {
+        const port = result.links[first.linkId]?.notes.find((n) => n.key === 'midiFound' || n.key === 'midiMissing' || n.key === 'midiUnknown')
+        if (port?.key === 'midiFound') addGear(target, { status: 'ok', key: 'driverOnline', name: output.name })
+        continue
+      }
+      addGear(target, fromHealth)
     }
   }
 

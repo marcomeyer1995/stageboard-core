@@ -1022,9 +1022,17 @@ export function mergeEquipmentInSetup(setup: StageSetup, fromId: string, intoId:
 
 /** Links placeholder tablet `placeholder` to registered device `deviceId`: what to save, which
  * equipment the map made for that device on its own (to merge in and remove), or null. */
-export function linkPlaceholder(map: StageMap, placeholder: StageEquipment, deviceId: string): { linked: StageEquipment; merge: string | null } {
+export function linkPlaceholder(map: StageMap, placeholder: StageEquipment, deviceId: string, deviceName?: string): { linked: StageEquipment; merge: string | null } {
   const own = map.equipment.find((e) => e.kind === 'stageboard' && appsOf(e).includes(deviceId) && e.id !== placeholder.id)
-  return { linked: { ...placeholder, deviceId }, merge: own?.id ?? null }
+  // Still called "Tablet / Handy": it takes the device's name, so the map says which one it is
+  // (device test 2026-11-12, #815). A name the band gave it stays.
+  const name = deviceName && hasModelName(placeholder) ? deviceName : placeholder.name
+  return { linked: { ...placeholder, deviceId, name }, merge: own?.id ?? null }
+}
+
+/** Still the name its model gave it ("Tablet / Handy") - nobody named it. */
+export function hasModelName(e: Pick<StageEquipment, 'name' | 'modelId'>): boolean {
+  return BUILTIN_MODELS.some((m) => m.id === e.modelId && m.name === e.name)
 }
 
 /**

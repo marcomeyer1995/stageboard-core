@@ -172,4 +172,13 @@ describe('stageLive (#747, docs/31 §9)', () => {
     expect(live.links['to-umc']).toMatchObject({ status: 'error', notes: [{ key: 'outputMissing', sources: ['click'] }] })
     expect(live.links['to-mg30']).toMatchObject({ status: 'error', notes: [{ key: 'outputMissing', sources: ['click'] }] })
   })
+
+  it('a driver on the tablet (MG-30, Kemper over WebMIDI) is running where the tablet sees its port - no heartbeat needed', () => {
+    const outputs = [{ id: 'ld-kemper', name: 'Kemper', pluginId: 'kemper-plugin', client: true }]
+    const seen = stageLive(stage({ outputs, health: { plugins: {} } }))
+    expect(seen.equipment.kemper).toMatchObject({ status: 'ok', notes: [{ key: 'driverOnline', name: 'Kemper' }] })
+    // The port gone: the cable says so, and the gear is red from that, not from a missing heartbeat.
+    const gone = stageLive(stage({ outputs, health: { plugins: {} }, deviceInfo: { devices: { redmi: entry({ midiOutputs: [] }), fire: entry() } } }))
+    expect(gone.equipment.kemper!.notes.map((n) => n.key)).toEqual(['midiMissing'])
+  })
 })
