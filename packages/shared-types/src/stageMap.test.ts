@@ -826,7 +826,8 @@ describe('a tablet takes its ports from its model (2026-11-12)', () => {
     const old = { ...tablet, ports: tablet.ports.map((p) => (p.id === 'headphones' ? { id: p.id, name: p.name, connector: p.connector, signals: p.signals, direction: p.direction } : p)) }
     expect(old.ports.find((p) => p.id === 'headphones')!.pins).toBeUndefined()
     expect(normalizeEquipment(old).ports.find((p) => p.id === 'headphones')!.pins).toBe(2)
-    const desk = { id: 'desk', name: 'Pult', modelId: 'tablet', kind: 'mixer' as const, sounds: false, routing: null, ports: [{ id: 'in', name: 'In', connector: 'xlr' as const, signals: ['audio' as const], direction: 'in' as const }] }
-    expect(normalizeEquipment(desk).ports).toEqual(desk.ports)
+    // Gear that can be set up keeps what was set up, even on the same model id.
+    const gear = { ...old, kind: 'mixer' as const }
+    expect(normalizeEquipment(gear).ports.find((p) => p.id === 'headphones')!.pins).toBeUndefined()
   })
 })
