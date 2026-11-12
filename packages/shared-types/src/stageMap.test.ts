@@ -831,3 +831,21 @@ describe('a tablet takes its ports from its model (2026-11-12)', () => {
     expect(normalizeEquipment(gear).ports.find((p) => p.id === 'headphones')!.pins).toBeUndefined()
   })
 })
+
+describe('the Behringer UMC204HD in detail (2026-11-12)', () => {
+  it('playback 1/2 on Main Out, Playback A and the Phones, 3/4 on Playback B; the inputs to the host; MIDI through', () => {
+    const umc = BUILTIN_MODELS.find((m) => m.id === 'behringer-umc204hd')!
+    expect(umc.kind).toBe('audio-interface')
+    expect(umc.routing?.mode).toBe('fixed')
+    const to = (portId: string, channel?: number) =>
+      umc.routing!.default.filter((c) => c.from.kind === 'port' && c.from.portId === portId && c.from.channel === channel).map((c) => (c.to.kind === 'port' ? `${c.to.portId}${c.to.channel ?? ''}${c.to.pin ? `.${c.to.pin}` : ''}` : ''))
+    expect(to('usb/audio-in', 1)).toEqual(['main1', 'playback-a1', 'phones.1'])
+    expect(to('usb/audio-in', 4)).toEqual(['playback-b2'])
+    expect(to('in', 2)).toEqual(['usb/audio-out2'])
+    expect(to('usb/midi-in')).toEqual(['midi-out'])
+    // Every point names a port the model has.
+    const ids = new Set(umc.ports.flatMap((p) => [p.id, ...(p.parts ?? []).map((x) => x.id)]))
+    for (const c of umc.routing!.default) for (const end of [c.from, c.to]) expect(end.kind === 'port' && ids.has(end.portId)).toBe(true)
+  })
+})
+

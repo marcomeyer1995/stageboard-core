@@ -358,6 +358,45 @@ export const BUILTIN_MODELS: readonly EquipmentModel[] = [
     ],
     free(via(at('usb/audio-in', 1), at('out', 1)), via(at('usb/audio-in', 2), at('out', 2))),
   ),
+  // The band's own interface in detail (Marco, 2026-11-12; Behringer's panel layout). Its routing is
+  // the hardware's own, so fixed: playback 1/2 goes to Main Out and Playback A, 3/4 to Playback B,
+  // the Phones play A (the A/B button switches them to 3/4 - not modelled, nor the Mix knob's
+  // direct monitoring of the inputs). The inputs are what the host records; MIDI passes through.
+  builtin(
+    'behringer-umc204hd',
+    'Behringer UMC204HD',
+    'audio-interface',
+    [
+      container(port('usb', 'USB', 'usb-b', ['usb-audio', 'midi'], 'both'), [
+        part('usb/audio-in', 'Audio ein (vom Host)', ['usb-audio'], 'in', 4),
+        part('usb/audio-out', 'Audio aus (zum Host)', ['usb-audio'], 'out', 2),
+        part('usb/midi-in', 'MIDI ein', ['midi'], 'in'),
+        part('usb/midi-out', 'MIDI aus', ['midi'], 'out'),
+      ]),
+      port('in', 'Eingang', 'xlr-jack', ['audio'], 'in', 2),
+      port('insert', 'Insert', 'jack-6.3', ['audio'], 'both', 2),
+      port('main', 'Main Out', 'jack-6.3', ['audio'], 'out', 2),
+      port('playback-a', 'Playback A', 'rca', ['audio'], 'out', 2),
+      { ...port('playback-b', 'Playback B', 'rca', ['audio'], 'out', 2), firstChannel: 3 },
+      stereo(port('phones', 'Phones', 'jack-6.3', ['audio'], 'out')),
+      port('midi-in', 'MIDI In', 'din5', ['midi'], 'in'),
+      port('midi-out', 'MIDI Out', 'din5', ['midi'], 'out'),
+    ],
+    fixed(
+      via(at('usb/audio-in', 1), at('main', 1)),
+      via(at('usb/audio-in', 2), at('main', 2)),
+      via(at('usb/audio-in', 1), at('playback-a', 1)),
+      via(at('usb/audio-in', 2), at('playback-a', 2)),
+      via(at('usb/audio-in', 3), at('playback-b', 1)),
+      via(at('usb/audio-in', 4), at('playback-b', 2)),
+      via(at('usb/audio-in', 1), { kind: 'port', portId: 'phones', pin: 1 }),
+      via(at('usb/audio-in', 2), { kind: 'port', portId: 'phones', pin: 2 }),
+      via(at('in', 1), at('usb/audio-out', 1)),
+      via(at('in', 2), at('usb/audio-out', 2)),
+      via(at('usb/midi-in'), at('midi-out')),
+      via(at('midi-in'), at('usb/midi-out')),
+    ),
+  ),
   builtin('midi-device', 'MIDI-Gerät', 'midi-device', [port('midi-in', 'MIDI In', 'din5', ['midi'], 'in'), port('main', 'Audio Out', 'jack-6.3', ['audio'], 'out')], fixed(via(at('midi-in'), at('main'))), true),
   builtin('midi-controller', 'Pedal / Keyboard', 'midi-controller', [port('midi-out', 'MIDI Out', 'din5', ['midi'], 'out'), port('usb', 'USB', 'usb-b', ['midi'], 'both')], null),
   builtin(
