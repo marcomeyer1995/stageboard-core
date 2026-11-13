@@ -58,7 +58,8 @@ export function DashboardSwitcherView({ config }: { config: DashboardSwitcherCon
     strip.addEventListener('scroll', update, { passive: true })
     return () => strip.removeEventListener('scroll', update)
   }, [sideways, box.width, visible.length])
-  const hint = 'pointer-events-none absolute inset-y-0 flex w-8 items-center justify-center rounded-control bg-control-strong/90 text-ink'
+  // Opaque, in the bar's own surface: the name under it must not show through ("PRON›PT").
+  const hint = 'pointer-events-none absolute inset-y-0 flex w-10 items-center justify-center bg-surface text-ink'
 
   return (
     <div className="relative h-full w-full">
@@ -68,7 +69,8 @@ export function DashboardSwitcherView({ config }: { config: DashboardSwitcherCon
           stripRef.current = node
         }}
         className={`flex h-full w-full gap-2 ${
-          vertical ? 'flex-col overflow-y-auto' : wrap ? 'flex-row flex-wrap overflow-y-auto' : 'flex-row overflow-x-auto'
+          // No scrollbar under the buttons: it took 3 px off them on the phone; "‹ ›" say there is more.
+          vertical ? 'flex-col overflow-y-auto' : wrap ? 'flex-row flex-wrap overflow-y-auto' : 'flex-row overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
         }`}
       >
         {visible.map((dashboard) => (

@@ -11,6 +11,7 @@ import { useShowModeCore } from '../lib/showMode'
 import { useFrameValue } from '../lib/useFrameValue'
 import { sectionIndexAt, showSections, type JumpWhen, type ShowSection } from '../lib/showSections'
 import { useShowPart } from '../lib/widgetParts'
+import { useElementSize } from '../lib/useElementSize'
 import { JumpCrossfadeSetting } from '../components/JumpCrossfadeSetting'
 
 const WHEN_KEY = 'sb:section-jump-when'
@@ -24,6 +25,9 @@ function storedWhen(): JumpWhen {
 }
 
 const BUTTON = 'min-h-touch rounded-control px-4 font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-40'
+/** Below this height the widget shows only its section buttons (#829): one row of buttons, the
+ * when/repeat row and the status line need about this much. */
+const COMPACT_BELOW_PX = 150
 
 /**
  * Abschnitte (#479): the song's sections from its timeline parts. The master taps one - the band
@@ -39,6 +43,10 @@ export function SectionJumpWidget() {
   const [when, setWhen] = useState<JumpWhen>(storedWhen)
   const showWhen = useShowPart('when')
   const showLoop = useShowPart('loop')
+  // Too low for its rows (a phone dashboard gave it 49 px, #829): only the section buttons, the
+  // full height - a dashboard never scrolls, and a cut-off button is no button.
+  const [boxRef, box] = useElementSize()
+  const compact = box.height > 0 && box.height < COMPACT_BELOW_PX
   const [message, setMessage] = useState<string | null>(null)
 
   const { currentEntry, currentSong, currentVariant } = queue
@@ -112,8 +120,8 @@ export function SectionJumpWidget() {
           : null
 
   return (
-    <div className="flex h-full flex-col gap-2 overflow-y-auto">
-      <div className="flex flex-wrap gap-2" role="group" aria-label={t('sj.aria')}>
+    <div ref={boxRef} className={`flex h-full flex-col gap-2 ${compact ? 'overflow-hidden' : 'overflow-y-auto'}`}>
+      <div className={`flex gap-2 ${compact ? 'h-full' : 'flex-wrap'}`} role="group" aria-label={t('sj.aria')} title={compact ? (message ?? status ?? undefined) : undefined}>
         {sections.map((section, index) => {
           const queued = jump?.toMs === section.startMs
           const isCurrent = index === currentIndex
@@ -125,7 +133,7 @@ export function SectionJumpWidget() {
               aria-pressed={queued}
               aria-current={isCurrent ? 'true' : undefined}
               onClick={() => void tap(section)}
-              className={`${BUTTON} flex-1 ${queued ? 'bg-accent text-accent-ink' : 'bg-control-strong text-ink [@media(hover:hover)]:hover:bg-control-strong-hover'} ${
+              className={`${BUTTON} flex-1 ${compact ? 'h-full min-w-0' : ''} ${queued ? 'bg-accent text-accent-ink' : 'bg-control-strong text-ink [@media(hover:hover)]:hover:bg-control-strong-hover'} ${
                 isCurrent ? 'outline outline-2 -outline-offset-2 outline-accent' : ''
               }`}
             >
@@ -135,7 +143,7 @@ export function SectionJumpWidget() {
           )
         })}
       </div>
-      {(showWhen || showLoop) && isMaster && (
+      {!compact && (showWhen || showLoop) && isMaster && (
         <div className="flex flex-wrap items-center gap-2">
           {showWhen && (
             <div className="min-w-[14rem] flex-1">
@@ -165,7 +173,7 @@ export function SectionJumpWidget() {
           )}
         </div>
       )}
-      {(message ?? status) && <p className="text-ink-faint">{message ?? status}</p>}
+      {!compact && (message ?? status) && <p className="text-ink-faint">{message ?? status}</p>}
     </div>
   )
 }
