@@ -161,6 +161,9 @@ window.__sbt = {
         for (let p = el.parentElement; p; p = p.parentElement) {
           const o = getComputedStyle(p).overflowY
           if (o === 'visible') continue
+          // A preparation screen scrolls: a control half below the fold is fine there. On Boards
+          // nothing may scroll (dashboards never scroll), so a scrolling box counts too.
+          if (tier !== 'stage' && (o === 'auto' || o === 'scroll')) break
           const pr = p.getBoundingClientRect()
           const cut = Math.max(0, r.bottom - pr.bottom, pr.top - r.top)
           if (cut > 2 && cut < r.height) add('control-cut', tier === 'stage' ? 'error' : 'warning', el, { cut: Math.round(cut) })
