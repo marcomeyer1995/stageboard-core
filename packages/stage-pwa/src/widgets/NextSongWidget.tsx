@@ -1,3 +1,4 @@
+import { useLayoutEffect, useRef, useState } from 'react'
 import i18n from '../i18n'
 import { useTranslation } from 'react-i18next'
 import { useShowPart } from '../lib/widgetParts'
@@ -37,7 +38,20 @@ export function NextSongWidget({ config }: { config: NextSongConfig }) {
   const touchSizes = useTouchSizes()
   const showCurrentLine = useShowPart('current')
   const showNextLine = useShowPart('next')
-  const layout = nextSongLayout(box.width, box.height, lineHeightFor(fontSize), touchSizes, Number(showCurrentLine) + Number(showNextLine))
+  const planned = nextSongLayout(box.width, box.height, lineHeightFor(fontSize), touchSizes, Number(showCurrentLine) + Number(showNextLine))
+  // The plan estimates a line's height; when the stacked form still overflows its tile (the
+  // phone in landscape cut "Zurück"/"Weiter" by 9 px, test runner #829), it goes side by side for
+  // that size - tried once per size, like the section widget.
+  const rootRef = useRef<HTMLDivElement | null>(null)
+  const [overflow, setOverflow] = useState({ key: '', stackedOverflows: false })
+  const sizeKey = `${box.width}×${box.height}`
+  const flat = planned.stacked && overflow.key === sizeKey && overflow.stackedOverflows
+  const layout = flat ? nextSongLayout(box.width, box.height, lineHeightFor(fontSize), touchSizes, 0) : planned
+  useLayoutEffect(() => {
+    const root = rootRef.current
+    if (!root || box.height === 0 || overflow.key === sizeKey || !planned.stacked) return
+    setOverflow({ key: sizeKey, stackedOverflows: root.scrollHeight > root.clientHeight + 1 })
+  }, [box.height, overflow.key, sizeKey, planned.stacked])
   // Buttons fill the widget's height (or the row under the info when stacked), at least the
   // touch size - "Weiter" is the action hit mid-show (lib/gigWidgetLayout.ts).
   const buttonClass = `h-full min-h-touch min-w-touch rounded-control bg-control-strong px-4 font-bold text-ink [@media(hover:hover)]:hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-40`
@@ -85,7 +99,10 @@ export function NextSongWidget({ config }: { config: NextSongConfig }) {
 
   return (
     <div
-      ref={boxRef}
+      ref={(node) => {
+        boxRef(node)
+        rootRef.current = node
+      }}
       className={`flex h-full gap-2 text-ink-soft ${layout.stacked ? 'flex-col' : 'items-stretch justify-between'}`}
     >
       {hasInfo && (
