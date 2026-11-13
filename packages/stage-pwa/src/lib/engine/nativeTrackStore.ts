@@ -12,6 +12,7 @@ export interface NativeTrackState {
   /** The engine plays the track now - the WebView's track (element / Web Audio) stays out. */
   active: boolean
   /** What the driver saw last - for the self-check and debugging. */
+  sent?: { stems: boolean; gain: number; feeds: [number, number]; transport: string }
   why?: { nativeOn: boolean; engine: string; switch: boolean; variant: string | null; track: string | null }
 }
 

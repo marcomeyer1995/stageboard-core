@@ -61,11 +61,13 @@ export function useNativeTrackDriver(): void {
     const update = () => {
       sendNativeOffset(transportNow, stateRef.current.outputLatencyMs)
       // The stems play instead (docs/22 §3): the track is silent, as the element is then.
-      const stems = useStemPlaybackStore.getState().status === 'ready'
+      const stem = useStemPlaybackStore.getState()
+      const stems = stem.status === 'ready' && stem.stems
       nativeEngine.clipGain(TRACK_CLIP, stems ? 0 : 1)
       nativeEngine.gain(ENGINE_BUS.track, mixGain('track'))
       const [left, right] = feedsOf(useOutputPlanStore.getState().plan.track)
       nativeEngine.feeds(ENGINE_BUS.track, left, right)
+      useNativeTrackStore.setState({ sent: { stems, gain: mixGain('track'), feeds: [left, right], transport: stateRef.current.transport.status } })
     }
     update()
     sendNativeTransport(stateRef.current.transport)
