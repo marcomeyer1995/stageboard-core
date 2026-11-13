@@ -56,6 +56,8 @@ export function PickRow({
         {label}
         <Icon name="next" size="1.4rem" className="text-ink-faint" />
       </button>
+      {/* Why it is greyed out, visible - a tooltip never shows on a touch screen (device test 2026-11-12). */}
+      {locked && lockedHint && <p className="text-sm text-ink-faint">{lockedHint}</p>}
       {picking && (
         <Dialog title={title} size="s" closeLabel={t('common:actions.cancel')} onClose={() => setPicking(false)}>
           <div className="flex flex-col gap-2" role="group" aria-label={title}>

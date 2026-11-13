@@ -9,3 +9,7 @@ coverage/
 certs/
 packages/core-backend/data/
 docker/couchdb-credentials.env
+
+# tools/ (#793): device serials and local results
+tools/devices.json
+tools/*/out/

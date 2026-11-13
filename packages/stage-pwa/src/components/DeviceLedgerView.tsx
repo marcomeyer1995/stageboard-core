@@ -50,14 +50,16 @@ function AudioOutputLine({ health }: { health: AudioOutputHealth }) {
   }
   if (health.path === 'webview') return <span>{t('audioOut.webview')}</span>
   const tight = health.leadMinMs !== null && health.leadMinMs < TIGHT_LEAD_MS
-  const ok = health.missingMs === 0 && health.jumps === 0 && !tight
+  const ok = health.missingMs === 0 && health.jumps === 0 && !tight && !health.estimated
   const text = health.missingMs > 0
     ? t('audioOut.dropouts', { ms: health.missingMs })
     : health.jumps > 0
       ? t('audioOut.jumps', { count: health.jumps })
       : tight
         ? t('audioOut.tight', { ms: health.leadMinMs })
-        : t('audioOut.native', { ms: health.delayMs })
+        : health.estimated
+          ? t('audioOut.estimated')
+          : t('audioOut.native', { ms: health.delayMs })
   return (
     <span className={`flex items-center gap-1.5 ${ok ? '' : 'text-danger'}`}>
       <StatusDot on={ok} title={text} />

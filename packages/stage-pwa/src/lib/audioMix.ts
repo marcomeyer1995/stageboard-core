@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { STEREO_FEEDS, type SideFeed, type SourceFeeds } from 'shared-types'
 import { getSharedAudioContext } from './sharedAudioContext'
 import { masterOutput } from './nativeOutput'
 
@@ -95,48 +96,36 @@ const RAMP_S = 0.02
 const outputs = new Map<MixSource, { ctx: AudioContext; gain: GainNode }>()
 
 /**
- * How this device's stereo output carries the sources (#481 step 1, docs/21 §9.2): all mixed (as
- * always), or split - click and announcements on one side, the track summed to mono on the other -
- * so a Y-cable or a stereo DI gives two signals: the click side to the in-ear mix, the track side to
- * FOH. For a device without an audio interface; with one, each source gets its own channel (§9.2).
- * Per device, like Mein Mix.
+ * Where every source sits on this device's stereo output - the sound follows the map (#742,
+ * docs/31 §0d): what each side gets from it (`SourceFeeds`: left on left and right on right as
+ * always, the click on the left pin for the in-ear mix, the track summed on the right for FOH,
+ * only the track's left side, ...) or null - silent, because the output the map names for it is
+ * not the one Android plays on (never a wrong signal, docs/28). Written by `useOutputPlan`; not
+ * stored, it follows the map and the output route.
  */
-export type OutputRouting = 'mixed' | 'click-left' | 'click-right'
-export const OUTPUT_ROUTINGS: readonly OutputRouting[] = ['mixed', 'click-left', 'click-right']
-const ROUTING_KEY = 'sb:audio:routing'
+export type SourceSide = SourceFeeds | null
+export type OutputPlan = Record<MixSource, SourceSide>
+export const PLAIN_PLAN: OutputPlan = { track: STEREO_FEEDS, click: STEREO_FEEDS, voice: STEREO_FEEDS }
 
-function loadRouting(): OutputRouting {
-  try {
-    const raw = localStorage.getItem(ROUTING_KEY)
-    return OUTPUT_ROUTINGS.includes(raw as OutputRouting) ? (raw as OutputRouting) : 'mixed'
-  } catch {
-    return 'mixed'
-  }
+/** Two placements are the same (plans are rebuilt, compare by value). */
+export const sameSide = (a: SourceSide, b: SourceSide): boolean => (a === null || b === null ? a === b : a.left === b.left && a.right === b.right)
+
+interface OutputPlanState {
+  plan: OutputPlan
+  /** Practising "as in setup …" could not apply (device not placed, output missing): both ears. */
+  fellBack: boolean
+  setPlan: (plan: OutputPlan, fellBack?: boolean) => void
 }
 
-interface OutputRoutingState {
-  routing: OutputRouting
-  setRouting: (routing: OutputRouting) => void
-}
-
-export const useOutputRoutingStore = create<OutputRoutingState>((set) => ({
-  routing: loadRouting(),
-  setRouting: (routing) => {
-    try {
-      localStorage.setItem(ROUTING_KEY, routing)
-    } catch {
-      // Blocked storage: applies until the app is reloaded.
-    }
-    set({ routing })
+export const useOutputPlanStore = create<OutputPlanState>((set, get) => ({
+  plan: PLAIN_PLAN,
+  fellBack: false,
+  setPlan: (plan, fellBack = false) => {
+    const now = get()
+    if (now.fellBack === fellBack && MIX_SOURCES.every((s) => sameSide(now.plan[s], plan[s]))) return
+    set({ plan, fellBack })
   },
 }))
-
-/** Which side a source plays on when the output is split. */
-export function sideOf(source: MixSource, routing: OutputRouting): 'left' | 'right' | null {
-  if (routing === 'mixed') return null
-  const clickSide = routing === 'click-left' ? 'left' : 'right'
-  return source === 'track' ? (clickSide === 'left' ? 'right' : 'left') : clickSide
-}
 
 /** Per context: one mono bus per side into a two-channel merger - a stereo source (the track) is
  * summed to mono on the way in (Web Audio's own down-mix: (L+R)/2). */
@@ -161,31 +150,47 @@ function sideBus(ctx: AudioContext, side: 'left' | 'right'): GainNode {
   return buses[side]
 }
 
-/** Connects a source's gain to the output as the routing says - again on every change (`rewire`:
- * it is connected already and comes off first). */
-function route(source: MixSource, ctx: AudioContext, gain: GainNode, routing: OutputRouting, rewire = false): void {
+/** Connects a source's gain to the output as the plan says - again on every change (`rewire`:
+ * it is connected already and comes off first). A silent source stays unconnected. Left on left
+ * and right on right goes straight to the output as always; otherwise each side's bus gets the
+ * sum (`mix`, the bus's own down-mix) or one channel of the source through a splitter. */
+function route(ctx: AudioContext, gain: GainNode, side: SourceSide, rewire = false): void {
   if (rewire) gain.disconnect()
-  const side = sideOf(source, routing)
-  gain.connect(side ? sideBus(ctx, side) : masterOutput(ctx))
+  if (side === null) return
+  if (side.left === 'L' && side.right === 'R') {
+    gain.connect(masterOutput(ctx))
+    return
+  }
+  let splitter: ChannelSplitterNode | null = null
+  const feed = (to: 'left' | 'right', what: SideFeed) => {
+    if (what === null) return
+    if (what === 'mix') return gain.connect(sideBus(ctx, to))
+    if (!splitter) {
+      splitter = ctx.createChannelSplitter(2)
+      gain.connect(splitter)
+    }
+    splitter.connect(sideBus(ctx, to), what === 'L' ? 0 : 1)
+  }
+  feed('left', side.left)
+  feed('right', side.right)
 }
 
 /**
  * Where a source connects instead of `ctx.destination`: its own gain node on the shared
- * AudioContext, following the mix - and the output routing.
+ * AudioContext, following the mix - and the output plan.
  */
 export function sourceOutput(source: MixSource, ctx: AudioContext = getSharedAudioContext()): AudioNode {
   const existing = outputs.get(source)
   if (existing && existing.ctx === ctx) return existing.gain
   const gain = ctx.createGain()
   gain.gain.value = mixGain(source)
-  route(source, ctx, gain, useOutputRoutingStore.getState().routing)
+  route(ctx, gain, useOutputPlanStore.getState().plan[source])
   outputs.set(source, { ctx, gain })
   return gain
 }
 
-useOutputRoutingStore.subscribe((state, before) => {
-  if (state.routing === before.routing) return
-  for (const [source, { ctx, gain }] of outputs) route(source, ctx, gain, state.routing, true)
+useOutputPlanStore.subscribe((state, before) => {
+  for (const [source, { ctx, gain }] of outputs) if (!sameSide(state.plan[source], before.plan[source])) route(ctx, gain, state.plan[source], true)
 })
 
 /** Volume for an `<audio>` element playing the track (0..1). */
@@ -201,6 +206,6 @@ useAudioMixStore.subscribe((state) => {
 export function __resetAudioMixForTests(): void {
   outputs.clear()
   sides.clear()
-  useOutputRoutingStore.setState({ routing: 'mixed' })
+  useOutputPlanStore.setState({ plan: PLAIN_PLAN, fellBack: false })
   useAudioMixStore.setState({ mix: { ...DEFAULT_MIX } })
 }
