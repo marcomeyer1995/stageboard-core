@@ -217,8 +217,10 @@ export function PrompterWidget({ config }: { config: PrompterConfig }) {
           takes no extra line above the lyrics. Each part can be hidden in the ⋯ menu, and "Now
           Playing" is gone (Marco, 2026-10-17: the title stood four times on one dashboard). */}
       {(showTitle || showArtistLine || showKey) && (
-      <div className="mb-2 flex items-start gap-3">
-        <div className="min-w-0 flex-1">
+      // Narrow (a 360 px phone with "Stimmung ½ Ton tiefer (Eb)"): the key corner moves under the
+      // title instead of being cut at the edge (test runner, #829).
+      <div className="mb-2 flex flex-wrap items-start gap-3">
+        <div className="min-w-[min(100%,12rem)] flex-1">
           {showTitle && (
             <h1
               style={{ fontSize: titleFontSize }}
@@ -234,7 +236,7 @@ export function PrompterWidget({ config }: { config: PrompterConfig }) {
           )}
         </div>
         {showKey && (
-          <div className="flex flex-shrink-0 flex-wrap items-center justify-end gap-2">
+          <div className="ml-auto flex max-w-full flex-wrap items-center justify-end gap-2">
             {chips.map((chip) => (
               <span key={chip} style={{ fontSize: arrangementInfoFontSize }} className="rounded-control bg-control px-2 py-1 font-semibold text-ink-soft">
                 {chip}
