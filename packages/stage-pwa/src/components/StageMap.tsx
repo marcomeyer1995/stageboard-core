@@ -35,6 +35,7 @@ import {
   type MatrixPoint,
   type Port,
   type PortRef,
+  type Signal,
   type SignalClass,
   type SignalFlow,
   type VirtualPort,
@@ -559,7 +560,14 @@ export function StageMap() {
       (c.to.channel === undefined || to.channel === undefined || c.to.channel === to.channel) &&
       (c.to.pin === undefined || to.pin === undefined || c.to.pin === to.pin) &&
       !samePoint(c.from, from)
-    if (effectiveRouting(item, setup).some(clash) && !(await confirm(t('map.pinTaken', { name: title(item) }), { title: t('map.pinTakenTitle'), confirmLabel: t('map.replace') }))) return
+    const taken = effectiveRouting(item, setup).find(clash)
+    if (taken) {
+      // Say what is where, not "does not mix" (device test 2026-11-12).
+      const { columns, rows } = matrixOf(item)
+      const name = (lines: MatrixLine[], point: MatrixPoint) => lines.find((l) => samePoint(l.point, point))?.label ?? '?'
+      const text = t('map.pinTaken', { name: title(item), output: name(rows, to), current: name(columns, taken.from) })
+      if (!(await confirm(text, { title: t('map.pinTakenTitle', { output: name(rows, to) }), confirmLabel: t('map.replaceWith', { next: name(columns, from) }) }))) return
+    }
     await updateSetup(setup.id, (s) => {
       const current = effectiveRouting(item, s).filter((c) => !(samePoint(c.from, from) && samePoint(c.to, to)) && !clash(c))
       return { ...s, routing: { ...s.routing, [item.id]: on ? [...current, { from, to }] : current } }
@@ -570,6 +578,7 @@ export function StageMap() {
   // (USB) unfolds into its parts, each with as many channels as the far end says (#739); a stereo
   // socket also offers its pins ("Kopfhörer L" / "R"); and on a StageBoard device its virtual
   // sources (columns) and virtual inputs (rows).
+  const classesOf = (signals: readonly Signal[]): SignalClass[] => [...new Set(signals.map((x) => SIGNAL_CLASS[x]))]
   const matrixOf = (item: StageEquipment): { columns: MatrixLine[]; rows: MatrixLine[] } => {
     // A channel group is one group of the smart matrix (#744), closed until opened.
     const perChannel = (portId: string, name: string, count: number, numbered: Port | undefined): MatrixLine[] =>
@@ -582,12 +591,14 @@ export function StageMap() {
             .flatMap((part) => {
               const count = setup ? partChannels({ equipment, setups }, setup, item.id, part.id) : part.channels
               const name = `${p.name} · ${part.name}`
-              return count && count > 1 ? perChannel(part.id, name, count, undefined) : [{ key: part.id, label: name, point: { kind: 'port' as const, portId: part.id } }]
+              const classes = classesOf(part.signals)
+              return count && count > 1 ? perChannel(part.id, name, count, undefined).map((l) => ({ ...l, classes })) : [{ key: part.id, label: name, point: { kind: 'port' as const, portId: part.id }, classes }]
             })
         }
         if (p.direction === (side === 'in' ? 'out' : 'in')) return []
-        if (p.channels) return perChannel(p.id, p.name, p.channels, p)
-        const whole: MatrixLine = { key: p.id, label: p.name, point: { kind: 'port' as const, portId: p.id } }
+        const classes = classesOf(p.signals)
+        if (p.channels) return perChannel(p.id, p.name, p.channels, p).map((l) => ({ ...l, classes }))
+        const whole: MatrixLine = { key: p.id, label: p.name, point: { kind: 'port' as const, portId: p.id }, classes }
         const pins = p.pins ?? 1
         // A stereo socket: closed it is the whole socket, open it offers the whole and each pin.
         const group = { key: p.id, label: p.name, closedPoint: whole.point }
@@ -600,7 +611,7 @@ export function StageMap() {
         ? virtualPorts
             .filter((v) => v.input === input)
             .flatMap((v) => {
-              const whole: MatrixLine = { key: `v:${v.id}`, label: v.name, point: { kind: 'virtual' as const, virtualPortId: v.id }, ...(v.width ? { width: v.width } : {}) }
+              const whole: MatrixLine = { key: `v:${v.id}`, label: v.name, point: { kind: 'virtual' as const, virtualPortId: v.id }, classes: [v.signalClass], ...(v.width ? { width: v.width } : {}) }
               if (input || v.width !== 2) return [whole]
               const group = { key: `v:${v.id}`, label: v.name, closedPoint: whole.point, width: 2, count: false }
               return [
