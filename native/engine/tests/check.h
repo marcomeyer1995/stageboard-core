@@ -23,4 +23,5 @@ inline int failures = 0;
 
 void runOpusClipTests();
 void runResampleTests();
+void runStreamClipTests();
 void runOpusWriterTests();
