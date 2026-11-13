@@ -1,11 +1,13 @@
 import type { ClickEngineState } from '../clickEngine'
-import type { TransportState } from '../playbackTransport'
-import { mixGain, sideOf, useOutputRoutingStore } from '../audioMix'
+import { mixGain, useOutputPlanStore } from '../audioMix'
 import { getServerTime } from '../clockSync'
-import { nativeEngine, useNativeOutputStore } from '../nativeOutput'
+import { nativeEngine } from '../nativeOutput'
 import { createFollower } from './engineClick'
 import type { EngineMessage } from './engineMessages'
+import { acquireNativeEngine, feedsOf, releaseNativeEngine, sendNativeOffset, sendNativeTransport } from './nativeEngineSession'
 import { ENGINE_BUS } from './wasmEngine'
+
+export { bandOffsetMs, nativeTransport } from './nativeEngineSession'
 
 /**
  * The click from the engine core in the native output's callback (docs/30 §8h stage 3) - the same
@@ -13,32 +15,18 @@ import { ENGINE_BUS } from './wasmEngine'
  *
  * Unlike the AudioWorklet (engineClick.ts) the clock is not sent from here: the callback has
  * AAudio's timestamp of when each frame is heard, on the wall clock. What it can't know comes from
- * here, now and then: band time - wall clock (the server offset) plus what AAudio can't see of the
- * output (the trim, latencyProfiles.ts), and the click's level and side. With the plan in the
- * callback the click goes on while the page is throttled - only those small updates wait.
+ * here, now and then: transport time - wall clock (nativeEngineSession.ts) plus what AAudio can't
+ * see of the output (the trim, latencyProfiles.ts), and the click's level and place in the output
+ * plan. With the plan in the callback the click goes on while the page is throttled - only those
+ * small updates wait. The engine itself is shared with the track (nativeEngineSession.ts).
  */
 
 const UPDATE_MS = 1000
-const STATUS = { stopped: 0, playing: 1, paused: 2 } as const
 
 /** The engine message as the plugin's calls - the same follower as the worklet uses. */
 export function postNative(m: EngineMessage): void {
-  if (m.type === 'transport') nativeEngine.transport(nativeTransport(m.transport))
+  if (m.type === 'transport') sendNativeTransport(m.transport)
   else if (m.type === 'beats') nativeEngine.beats(m.songMs, m.accent)
-}
-
-export function nativeTransport(t: TransportState) {
-  const rate = t.rate ?? 1
-  const jump = t.jump ?? null
-  // Playing without a start time stands still, as in computeActiveMs.
-  const status = t.status === 'playing' && t.startedAt === null ? STATUS.paused : STATUS[t.status]
-  return { status, startedAt: t.startedAt ?? 0, accumulatedMs: t.accumulatedMs, rate, hasJump: jump !== null, jumpAt: jump?.at ?? 0, jumpToMs: jump?.toMs ?? 0, jumpRate: jump?.rate ?? rate }
-}
-
-/** Band time - wall clock for the callback: the server offset plus the trim beyond the pipe's own
- * delay (`outputLatencyMs` is delay + trim while the native output plays). */
-export function bandOffsetMs(serverNow: number, wallNow: number, outputLatencyMs: number, pipeDelayMs: number): number {
-  return serverNow - wallNow + (outputLatencyMs - pipeDelayMs)
 }
 
 export function wantsNativeClick(): boolean {
@@ -54,13 +42,13 @@ let update: ReturnType<typeof setInterval> | null = null
 let follower: ReturnType<typeof createFollower> | null = null
 
 function sendUpdate(state: ClickEngineState): void {
-  const delayMs = useNativeOutputStore.getState().delayMs ?? 0
   // On the transport's clock: in Solo Üben the device's own - with the server's, the click came
   // the device's clock offset early (650 ms on the Redmi, 2026-11-13).
-  nativeEngine.offset(bandOffsetMs((state.transportNow ?? getServerTime)(), Date.now(), state.outputLatencyMs ?? delayMs, delayMs))
+  sendNativeOffset(state.transportNow ?? getServerTime, state.outputLatencyMs)
   nativeEngine.gain(ENGINE_BUS.click, mixGain('click'))
-  const side = sideOf('click', useOutputRoutingStore.getState().routing)
-  nativeEngine.side(side === 'left' ? 1 : side === 'right' ? 2 : 0)
+  // Where the plan puts the click (the map, #742) - silent where it says so.
+  const [left, right] = feedsOf(useOutputPlanStore.getState().plan.click)
+  nativeEngine.feeds(ENGINE_BUS.click, left, right)
 }
 
 /** As clickEngine.ts `startClick`: safe to call repeatedly; the state is polled for changes. */
@@ -68,19 +56,19 @@ export function startNativeEngineClick(getState: () => ClickEngineState): void {
   if (poll !== null) return
   follower = createFollower(postNative)
   sendUpdate(getState())
-  nativeEngine.enable(true)
+  acquireNativeEngine('click')
   follower.update(getState())
   poll = setInterval(() => follower?.update(getState()), 50)
   update = setInterval(() => sendUpdate(getState()), UPDATE_MS)
 }
 
-/** As clickEngine.ts `stopClick`: the engine stops at once. */
+/** As clickEngine.ts `stopClick`: no more beats at once; the engine stops if the track doesn't play. */
 export function stopNativeEngineClick(): void {
   if (poll === null) return
   clearInterval(poll)
   if (update !== null) clearInterval(update)
   poll = update = null
   follower = null
-  nativeEngine.transport(nativeTransport({ status: 'stopped', startedAt: null, accumulatedMs: 0 }))
-  nativeEngine.enable(false)
+  nativeEngine.beats(new Float64Array(0), new Uint8Array(0))
+  releaseNativeEngine('click')
 }
