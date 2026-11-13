@@ -148,7 +148,8 @@ export function SectionJumpWidget() {
               aria-pressed={queued}
               aria-current={isCurrent ? 'true' : undefined}
               onClick={() => void tap(section)}
-              className={`${BUTTON} flex-1 ${compact ? 'h-full min-w-0' : ''} ${queued ? 'bg-accent text-accent-ink' : 'bg-control-strong text-ink [@media(hover:hover)]:hover:bg-control-strong-hover'} ${
+              // Compact: the tile's height, not the 56 px stage minimum it cannot hold (#829).
+              className={`${compact ? `${BUTTON.replace('min-h-touch ', '')} h-full min-w-0` : BUTTON} flex-1 ${queued ? 'bg-accent text-accent-ink' : 'bg-control-strong text-ink [@media(hover:hover)]:hover:bg-control-strong-hover'} ${
                 isCurrent ? 'outline outline-2 -outline-offset-2 outline-accent' : ''
               }`}
             >

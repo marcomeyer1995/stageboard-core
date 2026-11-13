@@ -103,6 +103,7 @@ describe('SectionJumpWidget (#479)', () => {
     sh.mockRestore()
     ch.mockRestore()
     expect(screen.getByRole('button', { name: 'Chorus' })).toHaveClass('h-full')
+    expect(screen.getByRole('button', { name: 'Chorus' })).not.toHaveClass('min-h-touch')
     expect(screen.queryByRole('radio', { name: 'Ende Takt' })).toBeNull()
     expect(screen.queryByRole('button', { name: /Wiederholen/ })).toBeNull()
   })
