@@ -48,3 +48,5 @@ jobs:
           tar -xzf /tmp/wasi-sdk.tar.gz -C /tmp
           WASI_SDK=/tmp/wasi-sdk-29.0-x86_64-linux native/engine/wasm/build.sh /tmp/stageboard_engine.wasm
           cmp /tmp/stageboard_engine.wasm packages/stage-pwa/src/lib/engine/stageboard_engine.wasm || { echo "stageboard_engine.wasm is out of date - run native/engine/wasm/build.sh packages/stage-pwa/src/lib/engine/stageboard_engine.wasm"; exit 1; }
+          WASI_SDK=/tmp/wasi-sdk-29.0-x86_64-linux native/engine/wasm/build-opus.sh /tmp/stageboard_opus.wasm
+          cmp /tmp/stageboard_opus.wasm packages/stage-pwa/src/lib/engine/stageboard_opus.wasm || { echo "stageboard_opus.wasm is out of date - run native/engine/wasm/build-opus.sh packages/stage-pwa/src/lib/engine/stageboard_opus.wasm"; exit 1; }
