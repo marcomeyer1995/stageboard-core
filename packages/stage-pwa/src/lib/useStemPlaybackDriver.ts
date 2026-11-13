@@ -86,7 +86,7 @@ export function useStemPlaybackDriver(): void {
     let cancelled = false
     useStemPlaybackStore.setState({
       status: 'loading',
-      cacheKeys: stemIds.map((id) => cacheKey(currentVariant.id, id)),
+      cacheKeys: stemIds.map((id) => cacheKey(currentVariant.id, id, currentVariant.tracks.find((t) => t.id === id)?.fileRev)),
     })
     void loadStems(currentVariant.id, stemIds).then((ok) => {
       if (cancelled) return

@@ -10,7 +10,8 @@
     "start": "node dist/index.js",
     "test": "vitest run",
     "band:delete": "tsx src/cli/deleteBand.ts",
-    "admin:reset": "tsx src/cli/resetAdmin.ts"
+    "admin:reset": "tsx src/cli/resetAdmin.ts",
+    "tracks:convert": "tsx src/cli/convertTracks.ts"
   },
   "dependencies": {
     "@fastify/cors": "^11.3.0",

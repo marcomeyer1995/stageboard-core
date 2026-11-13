@@ -27,6 +27,10 @@ add_library(stageboard_engine STATIC src/clock_map.cpp src/engine.cpp src/opus_c
 target_include_directories(stageboard_engine PUBLIC include)
 target_link_libraries(stageboard_engine PRIVATE opus)
 target_compile_options(stageboard_engine PRIVATE -Wall -Wextra -Wpedantic)
+# One-off converter for the library on the server (tools/convert-tracks): PCM in, Ogg Opus out.
+add_executable(opus_encode tools/opus_encode.cpp)
+target_link_libraries(opus_encode stageboard_engine)
+target_compile_options(opus_encode PRIVATE -Wall -Wextra -Wpedantic)
 if(STAGEBOARD_ENGINE_TESTS)
   enable_testing()
   add_executable(engine_test tests/engine_test.cpp tests/opus_clip_test.cpp tests/resample_test.cpp tests/stream_clip_test.cpp tests/opus_writer_test.cpp)
