@@ -42,6 +42,10 @@ export interface ClickEngineState {
    * boundary, nothing of the old song is queued past it. `id` tells two jumps between the same
    * points apart (a looped section jumps back the same way every pass). */
   jump?: { id: number; boundaryMs: number; toMs: number; rate?: number } | null
+  /** The clock the transport's times are on - the server's in the Gig (getServerTime), this
+   * device's own in Solo Üben (Date.now). The engine core places the transport on it; absent: the
+   * server's. clickEngine.ts needs none - it follows `elapsedMs`. */
+  transportNow?: () => number
   /** The transport itself - the engine core (engine/engineClick.ts) follows it directly instead of
    * polling `elapsedMs`. Unused here. */
   transport?: TransportState
