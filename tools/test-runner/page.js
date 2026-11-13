@@ -100,7 +100,8 @@ window.__sbt = {
   gui(tier = 'stage') {
     // Phone (< 600 px wide, Marco 2026-11-13): text may be a step smaller there - the screen is
     // small. Touch targets stay: the finger is not smaller on a phone.
-    const phone = document.documentElement.clientWidth < 600
+    // The shorter side: a phone held sideways is still a phone.
+    const phone = Math.min(document.documentElement.clientWidth, document.documentElement.clientHeight) < 600
     const [minTarget, minText] = tier === 'stage' ? [47.5, phone ? 13.5 : 15.5] : [39.5, phone ? 11.5 : 13.5]
     const vw = document.documentElement.clientWidth
     const out = []
