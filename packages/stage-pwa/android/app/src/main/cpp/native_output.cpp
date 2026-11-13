@@ -345,6 +345,11 @@ std::atomic<long long> gUsbUrbs{0}, gUsbPacketErrors{0}, gUsbFbCount{0};
 std::atomic<double> gUsbFbFrames{0.0};  // frames per packet, from the feedback endpoint
 std::atomic<int> gUsbErrno{0};
 std::vector<float> gUsbScratch;         // rendered frames of one URB, float, gChannels each
+// Self-monitoring in the log (docs/30 §8i) - also while the screen is locked and the page frozen:
+// what actually leaves per side, every USB_LOG_MS.
+constexpr long long USB_LOG_MS = 30000;
+double gUsbSumSq[2] = {0, 0}, gUsbPeak[2] = {0, 0};
+long long gUsbLevelFrames = 0;
 
 usbdevfs_urb *allocUrb(int packets, int bufferSize) {
     const size_t size = sizeof(usbdevfs_urb) + static_cast<size_t>(packets) * sizeof(usbdevfs_iso_packet_desc);
@@ -415,6 +420,13 @@ void fillUsb(usbdevfs_urb *urb, double &acc, long long queuedFrames, int &frames
     followHeard(heard);
     if (gUsbScratch.size() < static_cast<size_t>(total * c.channels)) gUsbScratch.resize(static_cast<size_t>(total * c.channels));
     produce(gUsbScratch.data(), total);
+    for (int f = 0; f < total; f++)
+        for (int ch = 0; ch < 2 && ch < c.channels; ch++) {
+            const double v = gUsbScratch[static_cast<size_t>(f * c.channels + ch)];
+            gUsbSumSq[ch] += v * v;
+            gUsbPeak[ch] = std::fmax(gUsbPeak[ch], std::fabs(v));
+        }
+    gUsbLevelFrames += total;
     // UAC: the significant bits sit at the top of the subslot, little endian.
     auto *p = static_cast<unsigned char *>(urb->buffer);
     const float *src = gUsbScratch.data();
@@ -489,6 +501,17 @@ void runUsb() {
             break;
         }
         queued -= framesOf[urb];
+        if (gUsbLevelFrames >= USB_LOG_MS * c.rate / 1000) {
+            auto db = [](double x) { return x > 0 ? 20 * std::log10(x) : -200.0; };
+            const double n = static_cast<double>(gUsbLevelFrames);
+            LOG("usb status: urbs %lld packetErrors %lld feedback %.1f Hz pipeMissing %lld engine %d clockJumps %d driftPpm %.1f "
+                "left rms %.1f peak %.1f dBFS right rms %.1f peak %.1f dBFS",
+                static_cast<long long>(gUsbUrbs), static_cast<long long>(gUsbPacketErrors), gUsbFbFrames.load() * (c.highSpeed ? 8000.0 : 1000.0),
+                static_cast<long long>(gMissing), gEngineOn.load() ? 1 : 0, gEngine ? gEngine->clockJumps() : -1, gEngine ? gEngine->clockDriftPpm() : 0.0,
+                db(std::sqrt(gUsbSumSq[0] / n)), db(gUsbPeak[0]), db(std::sqrt(gUsbSumSq[1] / n)), db(gUsbPeak[1]));
+            gUsbSumSq[0] = gUsbSumSq[1] = gUsbPeak[0] = gUsbPeak[1] = 0;
+            gUsbLevelFrames = 0;
+        }
         int n = 0;
         fillUsb(urb, acc, queued, n);
         if (ioctl(c.fd, USBDEVFS_SUBMITURB, urb) < 0) { fail("resubmit out"); break; }
