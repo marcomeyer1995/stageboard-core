@@ -11,6 +11,10 @@ export interface NativeTrackState {
   error: string | null
   /** The engine plays the track now - the WebView's track (element / Web Audio) stays out. */
   active: boolean
+  /** What the driver saw last - for the self-check and debugging. */
+  why?: { nativeOn: boolean; engine: string; switch: boolean; variant: string | null; track: string | null }
 }
 
 export const useNativeTrackStore = create<NativeTrackState>(() => ({ key: null, status: 'idle', error: null, active: false }))
+
+if (typeof window !== 'undefined') (window as unknown as { __sbNativeTrack: typeof useNativeTrackStore }).__sbNativeTrack = useNativeTrackStore

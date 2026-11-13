@@ -29,6 +29,9 @@ export function useNativeTrackDriver(): void {
   const { currentEntry, currentVariant } = queue
   const track = resolveTrackForEntry(currentEntry, currentVariant, trackOverride)
   const wanted = nativeOn && engine === 'local-mine' && wantsNativeTrack() && currentVariant !== null && track !== null
+  useEffect(() => {
+    useNativeTrackStore.setState({ why: { nativeOn, engine, switch: wantsNativeTrack(), variant: currentVariant?.id ?? null, track: track?.id ?? null } })
+  }, [nativeOn, engine, currentVariant?.id, track?.id])
   const variantId = currentVariant?.id ?? null
   const trackId = track?.id ?? null
 
