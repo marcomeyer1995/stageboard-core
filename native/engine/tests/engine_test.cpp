@@ -569,6 +569,7 @@ int main() {
   runOpusClipTests();
   runResampleTests();
   runStreamClipTests();
+  runOpusWriterTests();
   if (failures) {
     std::printf("%d check(s) failed\n", failures);
     return 1;
