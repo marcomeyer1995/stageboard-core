@@ -19,7 +19,6 @@ import {
   type Crosspoint,
   equipmentFrom,
   equipmentOffered,
-  ownSetupFrom,
   visibleOwnSetups,
   linkPlaceholder,
   appsOf,
@@ -232,19 +231,9 @@ export function StageMap() {
   const live = useStageLive(checking, { equipment: onStage, setup, flows, outputs: liveOutputs, builtInIds: BUILT_IN_IDS })
   const flowsOn = (linkId: string) => flows.filter((f) => f.hops.some((h) => h.linkId === linkId))
 
-  // Who may change what: the admin everything, everyone else the cables of their own device.
+  // Who may change what (#810): only the admin edits the stage, everyone else looks.
   const signedIn = myProfileId !== ''
-  const ownsDevice = (e: StageEquipment | undefined) => !!e?.deviceId && (e.deviceId === ownId || presence.devices[e.deviceId]?.profileId === myProfileId)
-  // An own setup (#799) is its owner's as a whole - and the admin's; only they see it.
-  const canWire = (e: StageEquipment | undefined) => editing && signedIn && (isAdmin || ownSetup || ownsDevice(e))
-  const canMove = (e: StageEquipment) => editing && signedIn && (isAdmin || ownSetup || ownsDevice(e))
-  const canWireLink = (l: StageLink) => canWire(byId.get(l.from.equipmentId)) || canWire(byId.get(l.to.equipmentId))
-  /** What belongs to the band as a whole: the host's plugins, which apps are one device. */
-  const canAdmin = editing && isAdmin
-  /** This setup: what stands in it, its matrices, the setup itself. */
-  const canGear = editing && (isAdmin || (ownSetup && signedIn))
-  /** A piece of equipment itself (name, ports, delete) - in every setup it stands in. */
-  const canChange = (e: StageEquipment) => editing && (isAdmin || (signedIn && e.owner !== undefined && e.owner === myProfileId))
+  const canEdit = editing && isAdmin
 
   // A pin of a socket: left/right of a stereo jack, else its number (#739).
   const pinText = (pin: number | undefined) => (pin === undefined ? '' : ` ${pin === 1 ? t('map.pinL') : pin === 2 ? t('map.pinR') : t('map.pinN', { n: pin })}`)
@@ -375,7 +364,7 @@ export function StageMap() {
       return
     }
     const node = nodeId ? byId.get(nodeId) : undefined
-    gesture.current = { kind: node && canMove(node) ? 'node' : 'pan', id: nodeId, startView: viewBox, start: { x: event.clientX, y: event.clientY }, moved: false }
+    gesture.current = { kind: node && canEdit ? 'node' : 'pan', id: nodeId, startView: viewBox, start: { x: event.clientX, y: event.clientY }, moved: false }
   }
   const onPointerMove = (event: ReactPointerEvent) => {
     if (!pointers.current.has(event.pointerId)) return
@@ -547,19 +536,6 @@ export function StageMap() {
     await saveSetup(copy)
     setSetupId(copy.id)
   }
-  // An own setup (#799): started from the band's setup with this person's own devices in it.
-  const addOwnSetup = async () => {
-    const from = setup && !ownSetup ? setup : bandSetups[0]
-    if (!from || !signedIn) return
-    const answer = await promptFields(t('map.newOwnSetup'), [{ key: 'name', label: t('map.name'), defaultValue: t('map.ownSetupDefaultName') }], t('map.add'))
-    const name = answer?.name?.trim()
-    if (!name) return
-    const mine = bandEquipment.filter(ownsDevice).map((e) => e.id)
-    const own = ownSetupFrom({ equipment: bandEquipment, setups: bandSetups }, from, myProfileId, mine, crypto.randomUUID(), name)
-    await saveSetup(own)
-    setSetupId(own.id)
-    setSelection(null)
-  }
   const renameSetup = async () => {
     if (!setup) return
     const answer = await promptFields(t('map.renameSetup'), [{ key: 'name', label: t('map.name'), defaultValue: setup.name }], t('map.save'))
@@ -712,11 +688,11 @@ export function StageMap() {
         />
         <Button onClick={showWhole}>{t('map.whole')}</Button>
         <Switch layout="inline" label={t('map.ports')} checked={showPorts} onChange={setShowPorts} />
-        {signedIn && !checking && <Switch layout="inline" label={t('map.edit')} checked={editing} onChange={(on) => { setEditing(on); setConnectFrom(null) }} />}
+        {isAdmin && !checking && <Switch layout="inline" label={t('map.edit')} checked={editing} onChange={(on) => { setEditing(on); setConnectFrom(null) }} />}
         <span className="flex-1" />
         <IconButton icon={full ? 'exitFullscreen' : 'fullscreen'} label={full ? t('map.exitFull') : t('map.full')} onClick={() => toggleFull(!full)} />
       </div>
-      {!signedIn && <p className="mb-2 text-base text-ink-muted">{t('stage.viewOnly')}</p>}
+      {!signedIn ? <p className="mb-2 text-base text-ink-muted">{t('stage.viewOnly')}</p> : !isAdmin && <p className="mb-2 text-base text-ink-muted">{t('map.adminEdits')}</p>}
       {connectFrom && (
         <div className="mb-2 flex flex-wrap items-center gap-2 rounded-container border border-accent p-2">
           <span className="min-w-0 flex-1 text-base">{t('map.connecting', { port: portLabel(connectFrom) })}</span>
@@ -827,7 +803,7 @@ export function StageMap() {
               {selectedNode.deviceId === ownId && <Badge tone="accent">{t('stage.thisDevice')}</Badge>}
             </div>
             {/* The host: its server plugins, installable where it can run them (docs/25 §6). */}
-            {(selectedNode.kind === 'stage-server' || appsOf(selectedNode).includes(SERVER_EXECUTION_TARGET)) && <HostPlugins canInstall={canAdmin} />}
+            {(selectedNode.kind === 'stage-server' || appsOf(selectedNode).includes(SERVER_EXECUTION_TARGET)) && <HostPlugins canInstall={canEdit} />}
             {appsOf(selectedNode).length > 1 && (
               <div className="flex flex-col gap-1">
                 <span className="text-base font-semibold">{t('map.appsHere')}</span>
@@ -837,7 +813,7 @@ export function StageMap() {
                       {appName(appId)}
                       {front[selectedNode.id] === appId && ` · ${t('map.inFront')}`}
                     </span>
-                    {canAdmin && appId !== selectedNode.deviceId && (
+                    {canEdit && appId !== selectedNode.deviceId && (
                       <Button variant="quiet" onClick={() => separate(selectedNode, appId)}>
                         {t('map.separate')}
                       </Button>
@@ -860,7 +836,7 @@ export function StageMap() {
                         </button>
                       ))}
                     </span>
-                    {canWire(selectedNode) && !connectFrom && (
+                    {canEdit && !connectFrom && (
                       <Button onClick={() => setConnectFrom({ equipmentId: selectedNode.id, portId: port.id })}>{t('map.connect')}</Button>
                     )}
                   </li>
@@ -885,13 +861,13 @@ export function StageMap() {
                     routed={(from, to) => crosspoints.some((c) => samePoint(c.from, from) && samePoint(c.to, to))}
                     badge={(from, to) => stereoBadge(crosspoints, from, to, (id) => virtualPorts.some((v) => v.id === id && v.width === 2))}
                     fixed={fixedRouting}
-                    editable={selectedNode.kind === 'stageboard' || selectedNode.kind === 'stage-server' ? canWire(selectedNode) : canGear}
+                    editable={canEdit}
                     onToggle={(from, to, on) => void toggleCross(selectedNode, from, to, on)}
                   />
                 </div>
               )
             })()}
-            {canGear && canChange(selectedNode) && !UNPOWERED_KINDS.includes(selectedNode.kind) && (
+            {canEdit && !UNPOWERED_KINDS.includes(selectedNode.kind) && (
               <Segmented<Earth>
                 label={t('map.earth.label')}
                 showLabel
@@ -900,18 +876,16 @@ export function StageMap() {
                 options={EARTHS.map((value) => ({ value, label: t(`map.earth.${value}`) }))}
               />
             )}
-            {canGear && (
+            {canEdit && (
               <div className="flex flex-wrap gap-2">
-                {canChange(selectedNode) && (
-                  <Button icon="rename" onClick={() => void renameEquipment(selectedNode)}>
-                    {t('map.rename')}
-                  </Button>
-                )}
-                {canChange(selectedNode) && selectedNode.kind !== 'stageboard' && selectedNode.kind !== 'person' && selectedNode.kind !== 'hall' && <Button onClick={() => setPortsFor(selectedNode)}>{t('map.setUp')}</Button>}
-                {canAdmin && selectedNode.kind === 'stageboard' && !selectedNode.deviceId && <Button onClick={() => void linkDevice(selectedNode)}>{t('map.link')}</Button>}
-                {canAdmin && (selectedNode.kind === 'stageboard' || selectedNode.kind === 'stage-server') && <Button onClick={() => void sameDevice(selectedNode)}>{t('map.same')}</Button>}
+                <Button icon="rename" onClick={() => void renameEquipment(selectedNode)}>
+                  {t('map.rename')}
+                </Button>
+                {selectedNode.kind !== 'stageboard' && selectedNode.kind !== 'person' && selectedNode.kind !== 'hall' && <Button onClick={() => setPortsFor(selectedNode)}>{t('map.setUp')}</Button>}
+                {selectedNode.kind === 'stageboard' && !selectedNode.deviceId && <Button onClick={() => void linkDevice(selectedNode)}>{t('map.link')}</Button>}
+                {(selectedNode.kind === 'stageboard' || selectedNode.kind === 'stage-server') && <Button onClick={() => void sameDevice(selectedNode)}>{t('map.same')}</Button>}
                 <Button onClick={() => void takeOffStage(selectedNode)}>{t('map.offStage')}</Button>
-                {canChange(selectedNode) && selectedNode.kind !== 'stageboard' && (
+                {selectedNode.kind !== 'stageboard' && (
                   <Button variant="danger" icon="delete" onClick={() => void deleteEquipment(selectedNode)}>
                     {t('map.delete')}
                   </Button>
@@ -935,34 +909,31 @@ export function StageMap() {
             chains={chainFlows.map((f) => ({ key: f.key, label: signalLabel(f), cls: f.signalClass, way: wayOf(f), ends: endsOf(f) }))}
             onSignal={(key) => setSelection({ kind: 'signal', key, linkId: selectedLink.id })}
             onChain={() => setSelection({ kind: 'link', id: selectedLink.id, chain: true })}
-            removable={canWireLink(selectedLink)}
+            removable={canEdit}
             onRemove={() => removeLink(selectedLink)}
             midiName={selectedLink.midiName ?? null}
             onMidi={midiFromHere(selectedLink) ? () => void chooseMidiName(selectedLink) : null}
             ground={groundOf(selectedLink)}
-            onGround={canWireLink(selectedLink) && selectedLink.signals.includes('audio') && groundOf(selectedLink).plugs !== 'isolated' ? (g) => void setGround(selectedLink, g) : null}
+            onGround={canEdit && selectedLink.signals.includes('audio') && groundOf(selectedLink).plugs !== 'isolated' ? (g) => void setGround(selectedLink, g) : null}
           />
         )}
 
         {!selectedNode && !selectedLink && !connectFrom && <p className="text-base text-ink-muted">{t('map.hint')}</p>}
-        {editing && (canGear || signedIn) && !selectedNode && !selectedLink && (
+        {canEdit && !selectedNode && !selectedLink && (
           <div className="flex flex-col gap-2">
-            {canGear && <AddRow label={t('map.addEquipment')} onClick={() => void addEquipment()} />}
+            <AddRow label={t('map.addEquipment')} onClick={() => void addEquipment()} />
             <div className="flex flex-wrap gap-2">
-              {canGear && <AddRow inline label={t('map.newSetup')} onClick={() => void addSetup()} />}
-              {signedIn && <AddRow inline label={t('map.newOwnSetup')} onClick={() => void addOwnSetup()} />}
-              {canGear && (
-                <Button icon="rename" onClick={() => void renameSetup()}>
-                  {t('map.renameSetup')}
-                </Button>
-              )}
-              {canGear && (ownSetup || bandSetups.length > 1) && (
+              <AddRow inline label={t('map.newSetup')} onClick={() => void addSetup()} />
+              <Button icon="rename" onClick={() => void renameSetup()}>
+                {t('map.renameSetup')}
+              </Button>
+              {(ownSetup || bandSetups.length > 1) && (
                 <Button variant="danger" icon="delete" onClick={() => void deleteSetup()}>
                   {t('map.deleteSetup')}
                 </Button>
               )}
             </div>
-            {canGear && offStage.length > 0 && (
+            {offStage.length > 0 && (
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-base text-ink-muted">{t('map.offStageList')}</span>
                 {offStage.map((e) => (
