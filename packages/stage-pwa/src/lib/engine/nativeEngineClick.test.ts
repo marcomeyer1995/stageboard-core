@@ -66,6 +66,13 @@ describe('nativeEngineClick', () => {
     expect(Array.from(songMs.slice(0, 3))).toEqual([0, 500, 1000])
   })
 
+  it("Solo Üben: the offset is on the device's own clock, not the server's (the click came 650 ms early on the Redmi)", () => {
+    startNativeEngineClick(() => state({ transportNow: Date.now }))
+    const offset = calls[0]![1][0] as number
+    expect(offset).toBeGreaterThan(15 - 5)
+    expect(offset).toBeLessThan(15 + 5)
+  })
+
   it('puts the click on its side when the output is split for in-ear', () => {
     useOutputRoutingStore.setState({ routing: 'click-left' })
     startNativeEngineClick(() => state())

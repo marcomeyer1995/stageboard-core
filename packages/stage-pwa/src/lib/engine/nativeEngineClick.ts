@@ -55,7 +55,9 @@ let follower: ReturnType<typeof createFollower> | null = null
 
 function sendUpdate(state: ClickEngineState): void {
   const delayMs = useNativeOutputStore.getState().delayMs ?? 0
-  nativeEngine.offset(bandOffsetMs(getServerTime(), Date.now(), state.outputLatencyMs ?? delayMs, delayMs))
+  // On the transport's clock: in Solo Üben the device's own - with the server's, the click came
+  // the device's clock offset early (650 ms on the Redmi, 2026-11-13).
+  nativeEngine.offset(bandOffsetMs((state.transportNow ?? getServerTime)(), Date.now(), state.outputLatencyMs ?? delayMs, delayMs))
   nativeEngine.gain(ENGINE_BUS.click, mixGain('click'))
   const side = sideOf('click', useOutputRoutingStore.getState().routing)
   nativeEngine.side(side === 'left' ? 1 : side === 'right' ? 2 : 0)
