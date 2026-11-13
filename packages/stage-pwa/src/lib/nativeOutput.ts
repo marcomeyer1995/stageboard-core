@@ -244,6 +244,23 @@ export function wantsUsbDriver(): boolean {
   }
 }
 
+/**
+ * Android grants a USB audio interface for good ("always open StageBoard for this device") only to
+ * an app that may record - the interface has inputs. Without it Android asked at every plug-in
+ * (Redmi, 2026-11-13). Asked once, before the own USB driver first opens; a refusal only means the
+ * question comes again at the next plug-in.
+ */
+async function ensureRecordPermission(): Promise<void> {
+  try {
+    const status = await navigator.permissions?.query({ name: 'microphone' as PermissionName })
+    if (status?.state === 'granted') return
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+    for (const track of stream.getTracks()) track.stop()
+  } catch {
+    // Refused or not available: the USB permission is then asked per plug-in.
+  }
+}
+
 /** Whether this device can use the native output at all. */
 export function nativeOutputAvailable(): boolean {
   return isNativeApp()
@@ -492,7 +509,9 @@ async function attach(ctx: AudioContext): Promise<void> {
     URL.revokeObjectURL(workerUrl)
     const p: Pipe = { ctx, tap, worker, silent, rate: ctx.sampleRate, chunk, delayMs: null, line: null, history: [], timer: null, unwatch: null, soundAt: null, closed: false }
     pipe = p
-    const started = await NativeOutput.start({ sampleRate: ctx.sampleRate, lowLatency: !safeMode, usb: wantsUsbDriver() })
+    const usb = wantsUsbDriver()
+    if (usb) await ensureRecordPermission()
+    const started = await NativeOutput.start({ sampleRate: ctx.sampleRate, lowLatency: !safeMode, usb })
     useNativeOutputStore.setState({ usb: started.path === 'usb', usbError: started.usbError ?? null })
     if (!started.started) throw new Error(started.error ?? 'start')
     const opened = new Promise<void>((resolve, reject) => {
