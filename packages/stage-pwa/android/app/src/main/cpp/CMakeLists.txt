@@ -3,7 +3,13 @@ project(stageboard_native_output LANGUAGES CXX)
 
 # Native audio output (docs/30). AAudio exists from Android 8 (API 26); the app's minSdk is 24, so
 # the symbols are weak and the Java side only loads this library on API 26+.
-add_library(native_output SHARED native_output.cpp)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+# The engine core (docs/30 §8h stage 3) - its sources straight from native/engine, the same files
+# the laptop's tests and the WebAssembly build use. Opus decoding comes with stage 4.
+set(ENGINE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../../../../../../native/engine)
+add_library(native_output SHARED native_output.cpp ${ENGINE_DIR}/src/clock_map.cpp ${ENGINE_DIR}/src/engine.cpp)
+target_include_directories(native_output PRIVATE ${ENGINE_DIR}/include)
 target_compile_definitions(native_output PRIVATE __ANDROID_UNAVAILABLE_SYMBOLS_ARE_WEAK__)
 target_compile_options(native_output PRIVATE -Wall -Wno-unguarded-availability-new -Wno-unguarded-availability)
 # libaaudio's stub only exists in the API 26+ sysroot folders - link that one explicitly.

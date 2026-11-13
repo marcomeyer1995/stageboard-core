@@ -30,6 +30,9 @@ interface NativeOutputStatus {
   xruns?: number
   reopens?: number
   performance?: string
+  engine?: boolean
+  engineClockJumps?: number
+  engineDriftPpm?: number
   /** No timestamp from Android: playing on an estimated one - on time only roughly (2026-11-12). */
   estimated?: boolean
 }
@@ -39,9 +42,38 @@ interface NativeOutputPlugin {
   start(options: { sampleRate: number }): Promise<{ started?: boolean; error?: string; performance?: string; framesPerBurst?: number; port: number; token: string }>
   status(): Promise<NativeOutputStatus>
   stop(): Promise<void>
+  engineEnable(options: { on: boolean }): Promise<void>
+  engineTransport(options: { status: number; startedAt: number; accumulatedMs: number; rate: number; hasJump: boolean; jumpAt: number; jumpToMs: number; jumpRate: number }): Promise<void>
+  engineBeats(options: { songMs: number[]; accent: number[] }): Promise<void>
+  engineOffset(options: { offsetMs: number }): Promise<void>
+  engineGain(options: { bus: number; gain: number }): Promise<void>
+  engineSide(options: { side: number }): Promise<void>
 }
 
 const NativeOutput = registerPlugin<NativeOutputPlugin>('NativeOutput')
+
+/** Fire and forget: on a locked screen a plugin's answer can be held back for minutes (Fire,
+ * 2026-11-10) - nothing waits for it. */
+function send(call: Promise<void>): void {
+  call.catch(() => {})
+}
+
+/**
+ * The engine core inside the native callback (docs/30 §8h stage 3, native_output.cpp): the click
+ * is placed there from AAudio's timestamp, independent of the WebView. Each call only hands over a
+ * change; engine/nativeEngineClick.ts decides what.
+ */
+export const nativeEngine = {
+  enable: (on: boolean) => send(NativeOutput.engineEnable({ on })),
+  transport: (t: { status: number; startedAt: number; accumulatedMs: number; rate: number; hasJump: boolean; jumpAt: number; jumpToMs: number; jumpRate: number }) => send(NativeOutput.engineTransport(t)),
+  beats: (songMs: Float64Array, accent: Uint8Array) => send(NativeOutput.engineBeats({ songMs: Array.from(songMs), accent: Array.from(accent) })),
+  /** Band time - wall clock: the server offset plus this output's trim. */
+  offset: (offsetMs: number) => send(NativeOutput.engineOffset({ offsetMs })),
+  /** `bus` as engine.h (0 click), -1 the master. */
+  gain: (bus: number, gain: number) => send(NativeOutput.engineGain({ bus, gain })),
+  /** 0 both sides, 1 left only, 2 right only. */
+  side: (side: 0 | 1 | 2) => send(NativeOutput.engineSide({ side })),
+}
 
 const SWITCH_KEY = 'sb:audio:native-output'
 /** Frames per handover - 40 ms: fewer bridge calls than smaller chunks, still well inside the delay. */

@@ -6,6 +6,11 @@
 // reads the pipe frame due then. Small differences are taken up by playing up to 0.2 % faster or
 // slower (interpolated, inaudible - skipping single frames instead crackled), large ones by a jump.
 // Nothing here knows the band clock: JS converts with the same wall clock.
+//
+// The engine core (native/engine, docs/30 §8h stage 3) can add the click here, in the callback: JS
+// hands it the whole plan (beats, transport) and the offset band time - wall clock; it places each
+// click on the sample from AAudio's own timestamp, so the click needs neither the WebView nor its
+// timers - a locked screen throttles those to once a minute (Fire, 2026-11-10).
 #include <jni.h>
 #include <aaudio/AAudio.h>
 #include <android/log.h>
@@ -18,7 +23,11 @@
 #include <ctime>
 #include <mutex>
 #include <string>
+#include <memory>
 #include <thread>
+#include <vector>
+
+#include "stageboard/engine.h"
 
 #define LOG(...) __android_log_print(ANDROID_LOG_INFO, "NativeOutput", __VA_ARGS__)
 
@@ -77,6 +86,20 @@ std::atomic<long long> gReopens{0};
 std::atomic<int> gError{0};
 std::atomic<bool> gEstimated{false};   // playing on an estimated timestamp (NO_TIMESTAMP_MS)
 
+// The engine core. Made at nativeStart while no stream runs; its setters (JNI, one at a time under
+// gEngineLock) are the control thread, the callback renders and feeds the clock.
+std::mutex gEngineLock;
+std::unique_ptr<stageboard::Engine> gEngine;
+std::atomic<bool> gEngineOn{false};
+/** Band time minus wall clock (server offset + this output's trim), from JS; NaN until known. */
+std::atomic<double> gBandOffsetMs{NAN};
+/** The clock goes to the engine this often - it learns the drift over a minute of these. */
+constexpr double ENGINE_CLOCK_MS = 500.0;
+/** Where the click goes (the app's output routing, audioMix.ts): 0 both sides, 1 left only, 2 right. */
+std::atomic<int> gEngineSide{0};
+long long gEngineClockAt = 0;   // callback thread: frame of the last clock observation
+float gEngineOut[2 * 4096];
+
 int64_t clockNs(clockid_t id) {
     timespec ts{};
     clock_gettime(id, &ts);
@@ -95,6 +118,7 @@ std::string json(const char *fmt, ...) {
 
 void resetCallbackState() {
     gFrames = 0;
+    gEngineClockAt = -1;
     gLocked = false;
     gPendingSince = -1;
     gRead = -1;
@@ -187,6 +211,25 @@ aaudio_data_callback_result_t onData(AAudioStream *stream, void *, void *audioDa
         if (gChannels > 1) out[i * gChannels + 1] = r;
         for (int c = 2; c < gChannels; c++) out[i * gChannels + c] = 0.f;
     }
+    if (gEngineOn.load() && gEngine) {
+        // Frame gFrames - this buffer's first - is heard at gHeardMs0 (wall clock, smoothed above).
+        const double offset = gBandOffsetMs.load();
+        if (gLocked && !std::isnan(offset) && (gEngineClockAt < 0 || (gFrames - gEngineClockAt) * msPerFrame >= ENGINE_CLOCK_MS)) {
+            gEngine->observeClockNow(gFrames, gHeardMs0 + offset);
+            gEngineClockAt = gFrames;
+        }
+        for (int done = 0; done < numFrames;) {
+            const int n = std::min(numFrames - done, 4096);
+            gEngine->render(gEngineOut, n, gFrames + done);
+            const int side = gChannels > 1 ? gEngineSide.load() : 0;
+            for (int i = 0; i < n; i++) {
+                float *frame = out + (done + i) * gChannels;
+                if (side != 2) frame[0] += gEngineOut[2 * i];
+                if (gChannels > 1 && side != 1) frame[1] += gEngineOut[2 * i + 1];
+            }
+            done += n;
+        }
+    }
     gFrames += numFrames;
     if (gLocked) gHeardMs0 += numFrames * msPerFrame;
     return AAUDIO_CALLBACK_RESULT_CONTINUE;
@@ -252,6 +295,11 @@ Java_de_stageboard_app_NativeOutputPlugin_nativeStart(JNIEnv *env, jclass, jint 
         AAudioStream_close(gStream);
         gStream = nullptr;
     }
+    {
+        // No stream runs now: the engine may be made (again) for this rate.
+        std::lock_guard<std::mutex> engine(gEngineLock);
+        if (!gEngine || gRate != sampleRate) gEngine = std::make_unique<stageboard::Engine>(sampleRate, 2);
+    }
     gRate = sampleRate;
     gWritten = 0;
     gBaseMs = 0;
@@ -295,11 +343,13 @@ Java_de_stageboard_app_NativeOutputPlugin_nativeStatus(JNIEnv *env, jclass) {
     const double leadMin = gLeadMinMs.exchange(1e9);
     return env->NewStringUTF(json(
             "{\"open\":true,\"state\":\"%s\",\"latencyMs\":%.2f,\"leadMs\":%.1f,\"leadMinMs\":%.1f,\"jumps\":%lld,\"timestampJumps\":%lld,\"rateDevPpm\":%.0f,"
-            "\"missing\":%lld,\"xruns\":%d,\"reopens\":%lld,\"error\":%d,\"performance\":\"%s\",\"framesPerBurst\":%d,\"estimated\":%s}",
+            "\"missing\":%lld,\"xruns\":%d,\"reopens\":%lld,\"error\":%d,\"performance\":\"%s\",\"framesPerBurst\":%d,"
+            "\"engine\":%s,\"engineClockJumps\":%d,\"engineDriftPpm\":%.1f,\"estimated\":%s}",
             AAudio_convertStreamStateToText(AAudioStream_getState(gStream)), gLatencyMs.load(), gLeadMs.load(), leadMin > 1e8 ? -1.0 : leadMin,
             static_cast<long long>(gJumps), static_cast<long long>(gTimestampJumps), gRateDev.load() * 1e6, static_cast<long long>(gMissing), AAudioStream_getXRunCount(gStream),
             static_cast<long long>(gReopens), gError.load(), perf(AAudioStream_getPerformanceMode(gStream)),
-            AAudioStream_getFramesPerBurst(gStream), gEstimated.load() ? "true" : "false").c_str());
+            AAudioStream_getFramesPerBurst(gStream), gEngineOn.load() ? "true" : "false",
+            gEngine ? gEngine->clockJumps() : 0, gEngine ? gEngine->clockDriftPpm() : 0.0, gEstimated.load() ? "true" : "false").c_str());
 }
 
 extern "C" JNIEXPORT void JNICALL
@@ -310,4 +360,70 @@ Java_de_stageboard_app_NativeOutputPlugin_nativeStop(JNIEnv *, jclass) {
         AAudioStream_close(gStream);
         gStream = nullptr;
     }
+}
+
+// The engine core's control side (docs/30 §8h stage 3). Each call returns at once; the callback
+// picks the change up before its next render.
+
+extern "C" JNIEXPORT void JNICALL
+Java_de_stageboard_app_NativeOutputPlugin_nativeEngineEnable(JNIEnv *, jclass, jboolean on) {
+    gEngineOn = on;
+}
+
+/** `status`: 0 stopped, 1 playing, 2 paused. Band times in ms. */
+extern "C" JNIEXPORT void JNICALL
+Java_de_stageboard_app_NativeOutputPlugin_nativeEngineTransport(JNIEnv *, jclass, jint status, jdouble startedAt, jdouble accumulatedMs, jdouble rate,
+                                                                 jboolean hasJump, jdouble jumpAt, jdouble jumpToMs, jdouble jumpRate) {
+    std::lock_guard<std::mutex> guard(gEngineLock);
+    if (!gEngine) return;
+    stageboard::Transport t;
+    t.status = status == 1 ? stageboard::PlaybackStatus::Playing : status == 2 ? stageboard::PlaybackStatus::Paused : stageboard::PlaybackStatus::Stopped;
+    t.startedAt = startedAt;
+    t.accumulatedMs = accumulatedMs;
+    t.rate = rate;
+    t.hasJump = hasJump;
+    t.jumpAt = jumpAt;
+    t.jumpToMs = jumpToMs;
+    t.jumpRate = jumpRate;
+    gEngine->setTransport(t);
+    gEngine->collectGarbage();
+}
+
+/** The song's beats: song ms, and whether each is a downbeat. */
+extern "C" JNIEXPORT void JNICALL
+Java_de_stageboard_app_NativeOutputPlugin_nativeEngineBeats(JNIEnv *env, jclass, jdoubleArray songMs, jbooleanArray accent) {
+    const jsize n = std::min(env->GetArrayLength(songMs), env->GetArrayLength(accent));
+    auto plan = std::make_unique<stageboard::BeatPlan>();
+    plan->beats.resize(static_cast<size_t>(n));
+    std::vector<jdouble> times(static_cast<size_t>(n));
+    std::vector<jboolean> accents(static_cast<size_t>(n));
+    env->GetDoubleArrayRegion(songMs, 0, n, times.data());
+    env->GetBooleanArrayRegion(accent, 0, n, accents.data());
+    for (jsize i = 0; i < n; i++) plan->beats[static_cast<size_t>(i)] = {times[static_cast<size_t>(i)], accents[static_cast<size_t>(i)] != 0};
+    std::lock_guard<std::mutex> guard(gEngineLock);
+    if (!gEngine) return;
+    gEngine->setBeats(plan.release());
+    gEngine->collectGarbage();
+}
+
+/** Band time - wall clock: the server offset plus what AAudio can't see of this output (its trim). */
+extern "C" JNIEXPORT void JNICALL
+Java_de_stageboard_app_NativeOutputPlugin_nativeEngineOffset(JNIEnv *, jclass, jdouble offsetMs) {
+    gBandOffsetMs = offsetMs;
+}
+
+/** `bus` as engine.h's Bus (0 click); -1 the master. */
+extern "C" JNIEXPORT void JNICALL
+Java_de_stageboard_app_NativeOutputPlugin_nativeEngineGain(JNIEnv *, jclass, jint bus, jfloat gain) {
+    std::lock_guard<std::mutex> guard(gEngineLock);
+    if (!gEngine) return;
+    if (bus < 0) gEngine->setMasterGain(gain);
+    else if (bus < static_cast<int>(stageboard::Bus::Count)) gEngine->setGain(static_cast<stageboard::Bus>(bus), gain);
+    gEngine->collectGarbage();
+}
+
+/** 0 both sides, 1 left only, 2 right only - the click's side when the output is split. */
+extern "C" JNIEXPORT void JNICALL
+Java_de_stageboard_app_NativeOutputPlugin_nativeEngineSide(JNIEnv *, jclass, jint side) {
+    gEngineSide = side;
 }
