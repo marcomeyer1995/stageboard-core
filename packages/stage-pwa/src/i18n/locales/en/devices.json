@@ -141,6 +141,7 @@
     "jumps_one": "Sound: {{count}} jump in the last minute",
     "jumps_other": "Sound: {{count}} jumps in the last minute",
     "tight": "Sound: reserve tight ({{ms}} ms)",
+    "estimated": "Sound: Android gives no timestamp - timing only estimated",
     "fellBack": "Sound on fallback through the WebView - the native output lost audio"
   },
   "vitals": {
