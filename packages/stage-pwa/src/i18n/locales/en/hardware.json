@@ -162,6 +162,20 @@
     "newSetup": "Setup (copy)",
     "deleteSetup": "Delete setup",
     "deleteSetupConfirm": "Delete setup “{{name}}” with all its cables?",
+    "renameSetup": "Rename setup",
+    "pinTakenTitle": "{{output}} is taken",
+    "pluginNeeded": "For cues {{name}} needs its plugin, a device for it and a tick in the matrix.",
+    "pluginNoCable": "For cues {{name}} needs its plugin and a MIDI cable to a tablet - draw the cable first.",
+    "pluginSetUp": "Set up",
+    "pinTaken": "{{output}} already carries “{{current}}”. {{name}} puts out one signal per output.",
+    "replaceWith": "“{{next}}” instead",
+    "replace": "Replace",
+    "gigSetupLabel": "{{name}} (in the gig)",
+    "ownSetupLabel": "Mine: {{name}}",
+    "ownSetupOf": "{{name}} ({{person}})",
+    "adminEdits": "Only the admin edits the stage.",
+    "ownSetupHint": "Your own setup for practising: only you and the admin see it, it is never a choice in the Gig. What this device practises by is chosen in System → This device → Sound.",
+    "ownSetupOfHint": "{{person}}'s own setup for practising - only {{person}} and you as admin see it, it is never a choice in the Gig.",
     "nobody": "nobody signed in",
     "hint": "Tap a device or a cable.",
     "connect": "Connect",
@@ -194,7 +208,8 @@
       "midi": "MIDI",
       "dmx": "DMX",
       "net": "Network",
-      "light": "Light"
+      "light": "Light",
+      "osc": "OSC"
     },
     "class": {
       "sound": "Sound",
@@ -238,7 +253,29 @@
     "midiNone": "– none –",
     "midiAbsent": "{{name}} (not plugged in now)",
     "midiPort": "MIDI: {{name}}",
-    "midiChoose": "Choose MIDI port"
+    "midiChoose": "Choose MIDI port",
+    "pinL": "L",
+    "pinR": "R",
+    "pinN": "Pin {{n}}",
+    "groupToggle": "{{name}}: open or close",
+    "wholeSocket": "{{name}} (whole)",
+    "wholeSignal": "{{name}} (both sides)",
+    "earth": {
+      "label": "Power",
+      "earthed": "Earthed",
+      "floating": "No earth",
+      "battery": "Battery"
+    },
+    "ground": {
+      "label": "Cable and ground",
+      "auto": "As the plugs",
+      "balanced": "Balanced",
+      "unbalanced": "Unbalanced",
+      "ground": "Carries ground (USB)",
+      "isolated": "Isolated",
+      "isolator": "With isolator",
+      "fromPlugs": "By the plugs: {{what}}"
+    }
   },
   "ports": {
     "title": "Ports: {{name}}",
@@ -281,22 +318,47 @@
       "usb-audio": "USB audio + MIDI",
       "midi": "MIDI",
       "net": "Network/control",
+      "dmx": "DMX",
+      "osc": "OSC"
+    },
+    "pins": "Socket",
+    "pinsMono": "Mono (1 pin)",
+    "pinsStereo": "Stereo (2 pins)",
+    "partsHint": "What runs over this socket - one part per protocol and direction (e.g. \"Audio out\" with 4 channels). Without a count, whatever the device at the other end has applies.",
+    "partName": "Part",
+    "partPlaceholder": "e.g. Audio out, MIDI in",
+    "partRemove": "Remove part {{name}}",
+    "partAdd": "Add part",
+    "protocol": "Protocol",
+    "proto": {
+      "audio": "Audio",
+      "midi": "MIDI",
+      "osc": "OSC",
+      "net": "Network",
       "dmx": "DMX"
     }
   },
   "wiring": {
     "title": "Wiring ({{n}} cables)",
-    "allGood": "No problems: every channel has at most one cable, mono and stereo fit.",
+    "allGood": "No problems: every channel has at most one cable, mono and stereo fit through the whole chain.",
     "double": "{{where}}: {{n}} cables on the same socket",
     "width": "{{where}}: cable with {{width}} channels, room for {{capacity}}",
     "monoOfStereo": "{{where}}: stereo socket used for one channel only",
+    "monoInStereoOut": "{{where}}: mono cable in a stereo output - the right channel is shorted. Use a stereo or Y cable and put the cable on L or R.",
+    "channelLost": "{{where}}: {{signal}} is stereo, but this side arrives nowhere - one channel is lost. Plug a stereo cable or put {{signal}} on a single pin in the matrix (mixed down to mono there).",
+    "mix": "{{where}}: {{n}} signals on the same output - but {{device}} puts out one signal per output. Route only one of them there or mix before (mixer, the tablet's matrix).",
+    "usbAudioShared": "{{where}}: several USB audio devices on one socket ({{devices}}). Android plays through only one of them - Android picks which. MIDI reaches all of them.",
+    "pluginMissing": "{{name}}: plugin missing - cues to this device do nothing. Tap the device → Set up.",
     "channels": "Channels in use",
     "used": "{{name}} {{used}}/{{total}}",
     "adapters": "Pack adapters ({{n}})",
     "adapterRow": "Cable {{number}}: {{from}} → {{to}}",
     "cables": "Cables",
     "none": "No cables in this setup yet.",
-    "y": "Y cable"
+    "y": "Y cable",
+    "humLoop": "Hum loop likely: {{a}} and {{b}} are both earthed and also connected by cables – {{cables}} is unbalanced. Put a DI box or an isolator in between, or run one device without earth (laptop on battery).",
+    "humHint": "{{a}} and {{b}} are both earthed and connected over USB ({{cables}}). If it hums, a USB isolator helps.",
+    "cableNo": "cable {{number}}"
   },
   "lead": {
     "title": "Lead on Play",
@@ -316,5 +378,43 @@
     "install": "Install",
     "remove": "Remove",
     "removeConfirm": "Remove {{name}} from the Stage-Server?"
+  },
+  "live": {
+    "mode": "Map view",
+    "setup": "Setup",
+    "check": "Check",
+    "loading": "Asking for the state…",
+    "allGood": "All there: no fault reported.",
+    "faults": "Faults: {{n}}",
+    "warnings": "Notes: {{n}}",
+    "legend": "Red means: it will not play like this. Latency value of the path: ● measured · ◐ by hand · ○ missing. More per device under “Tablets & phones”.",
+    "offline": "offline",
+    "appClosed": "app is closed",
+    "background": "not in the foreground",
+    "placeholder": "no device assigned yet",
+    "online": "app open",
+    "battery": "battery {{pct}} %",
+    "batteryLow": "battery {{pct}} %, not charging",
+    "clock": "Band time ± {{ms}} ms",
+    "outputMissing": "Output missing: {{sources}} silent",
+    "serverOnline": "answers",
+    "serverOffline": "does not answer",
+    "noServer": "no Stage-Server set",
+    "driverOnline": "driver {{name}} runs",
+    "driverSilent": "driver {{name}} does not report",
+    "driverError": "driver {{name}} reports an error",
+    "midiFound": "MIDI port “{{name}}” there",
+    "midiMissing": "MIDI port “{{name}}” missing",
+    "midiUnknown": "MIDI port “{{name}}”: not known (device offline or MIDI not used there yet)",
+    "path": {
+      "measured": "latency measured",
+      "manual": "latency by hand",
+      "missing": "latency missing"
+    },
+    "source": {
+      "track": "Track",
+      "click": "Click",
+      "voice": "Announcements"
+    }
   }
 }
