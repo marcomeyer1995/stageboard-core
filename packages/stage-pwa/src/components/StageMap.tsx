@@ -11,6 +11,8 @@ import {
   DEFAULT_VIRTUAL_OUTPUTS,
   DRIVER_KINDS,
   effectiveRouting,
+  equipmentMixes,
+  type Crosspoint,
   equipmentFrom,
   equipmentOffered,
   ownSetupFrom,
@@ -210,9 +212,9 @@ export function StageMap() {
   )
   const flows = useMemo(() => (setup ? signalFlows({ equipment, setups }, setup.id, virtualPorts) : []), [equipment, setups, setup, virtualPorts])
   // The technicians' checks and the wiring list (2026-11-07).
-  const check = useMemo(() => (setup ? checkSetup({ equipment, setups }, setup.id) : { issues: [], use: [] }), [equipment, setups, setup])
+  const check = useMemo(() => (setup ? checkSetup({ equipment, setups }, setup.id, virtualPorts) : { issues: [], use: [] }), [equipment, setups, setup, virtualPorts])
   const cables = useMemo(() => (setup ? wiringList({ equipment, setups }, setup.id) : []), [equipment, setups, setup])
-  const badLinks = useMemo(() => new Set(check.issues.flatMap((i) => (i.kind === 'double' ? i.linkIds : i.kind === 'width' ? [i.linkId] : []))), [check])
+  const badLinks = useMemo(() => new Set(check.issues.flatMap((i) => (i.kind === 'double' ? i.linkIds : i.kind === 'width' || i.kind === 'mono-in-stereo-out' ? [i.linkId] : []))), [check])
   const flowsOn = (linkId: string) => flows.filter((f) => f.hops.some((h) => h.linkId === linkId))
 
   // Who may change what: the admin everything, everyone else the cables of their own device.
@@ -539,12 +541,20 @@ export function StageMap() {
 
   const removeLink = (link: StageLink) => setup && void updateSetup(setup.id, (s) => ({ ...s, links: s.links.filter((l) => l.id !== link.id) })).then(() => setSelection(null))
   // A tick in a free matrix: the setup keeps the device's whole crosspoint list from then on.
-  const toggleCross = (item: StageEquipment, from: MatrixPoint, to: MatrixPoint, on: boolean) =>
-    setup &&
-    void updateSetup(setup.id, (s) => {
-      const current = effectiveRouting(item, s).filter((c) => !(samePoint(c.from, from) && samePoint(c.to, to)))
+  // On a device that does not mix (#746), an output takes one signal: ask before replacing it.
+  const toggleCross = async (item: StageEquipment, from: MatrixPoint, to: MatrixPoint, on: boolean) => {
+    if (!setup) return
+    const clash = (c: Crosspoint) =>
+      on && !equipmentMixes(item) && to.kind === 'port' && c.to.kind === 'port' && c.to.portId === to.portId &&
+      (c.to.channel === undefined || to.channel === undefined || c.to.channel === to.channel) &&
+      (c.to.pin === undefined || to.pin === undefined || c.to.pin === to.pin) &&
+      !samePoint(c.from, from)
+    if (effectiveRouting(item, setup).some(clash) && !(await confirm(t('map.pinTaken', { name: title(item) }), { title: t('map.pinTakenTitle'), confirmLabel: t('map.replace') }))) return
+    await updateSetup(setup.id, (s) => {
+      const current = effectiveRouting(item, s).filter((c) => !(samePoint(c.from, from) && samePoint(c.to, to)) && !clash(c))
       return { ...s, routing: { ...s.routing, [item.id]: on ? [...current, { from, to }] : current } }
     })
+  }
 
   // The rows and columns of a device's matrix: physical ports, one line per channel; a container
   // (USB) unfolds into its parts, each with as many channels as the far end says (#739); a stereo
@@ -804,7 +814,7 @@ export function StageMap() {
                     routed={(from, to) => crosspoints.some((c) => samePoint(c.from, from) && samePoint(c.to, to))}
                     fixed={fixedRouting}
                     editable={selectedNode.kind === 'stageboard' || selectedNode.kind === 'stage-server' ? canWire(selectedNode) : canGear}
-                    onToggle={(from, to, on) => toggleCross(selectedNode, from, to, on)}
+                    onToggle={(from, to, on) => void toggleCross(selectedNode, from, to, on)}
                   />
                 </div>
               )
@@ -880,7 +890,7 @@ export function StageMap() {
           </div>
         )}
       </div>
-      {setup && !full && <StageWiring cables={cables} issues={check.issues} use={check.use} nameOf={(id) => { const e = byId.get(id); return e ? title(e) : id }} refText={refText} />}
+      {setup && !full && <StageWiring cables={cables} issues={check.issues} use={check.use} nameOf={(id) => { const e = byId.get(id); return e ? title(e) : id }} refText={refText} signalName={(id) => virtualPorts.find((v) => v.id === id)?.name ?? id} />}
       {portsFor && <PortListDialog item={portsFor} onClose={() => setPortsFor(null)} onSave={(ports) => void savePorts(portsFor, ports)} />}
     </section>
   )

@@ -8,7 +8,8 @@ const PLUG: Record<string, string> = { 'jack-6.3': 'jack-63', 'jack-6.3-ts': 'ja
 
 /**
  * "Verkabelung" of a setup (Marco, 2026-11-07): for the technicians - what is wrong (a channel with
- * two cables, a stereo cable into a mono input), how many channels each device has left, and every
+ * two cables, a stereo cable into a mono input; since #746 the whole chain: a shorted stereo output,
+ * a lost channel, mixing on a device that does not mix), how many channels each device has left, and every
  * physical cable numbered with its plugs and the adapters to pack. Printing/PDF comes later.
  */
 export function StageWiring({
@@ -17,17 +18,23 @@ export function StageWiring({
   use,
   nameOf,
   refText,
+  signalName,
 }: {
   cables: readonly WiringCable[]
   issues: readonly StageIssue[]
   use: readonly PortUse[]
   nameOf: (equipmentId: string) => string
   refText: (ref: PortRef, width?: number) => string
+  signalName: (virtualPortId: string) => string
 }) {
   const { t } = useTranslation('hardware')
   const [open, setOpen] = useState(false)
-  const errors = issues.filter((i) => i.kind === 'double' || i.kind === 'width')
-  const warnings = issues.filter((i) => i.kind === 'mono-of-stereo')
+  // Red only for what gives a wrong signal; adapters are packing-list entries, not findings.
+  const isWarning = (i: StageIssue) => i.kind === 'mono-of-stereo' || i.kind === 'channel-lost'
+  const warnings = issues.filter(isWarning)
+  const errors = issues.filter((i) => i.kind !== 'adapter' && !isWarning(i))
+  const slot = (i: { equipmentId: string; portId: string; channel?: number; pin?: number }) =>
+    `${nameOf(i.equipmentId)} · ${refText({ equipmentId: i.equipmentId, portId: i.portId, ...(i.channel !== undefined ? { channel: i.channel } : {}), ...(i.pin !== undefined ? { pin: i.pin } : {}) })}`
   const adapters = cables.filter((c) => c.adapter)
   const plug = (c: string) => t(`ports.plug.${(PLUG[c] ?? c) as 'xlr'}`)
   const issueText = (i: StageIssue): string => {
@@ -38,6 +45,12 @@ export function StageWiring({
         return t('wiring.width', { where: `${nameOf(i.equipmentId)} · ${refText({ equipmentId: i.equipmentId, portId: i.portId })}`, width: i.width, capacity: i.capacity })
       case 'mono-of-stereo':
         return t('wiring.monoOfStereo', { where: `${nameOf(i.equipmentId)} · ${refText({ equipmentId: i.equipmentId, portId: i.portId })}` })
+      case 'mono-in-stereo-out':
+        return t('wiring.monoInStereoOut', { where: `${nameOf(i.equipmentId)} · ${refText({ equipmentId: i.equipmentId, portId: i.portId })}` })
+      case 'channel-lost':
+        return t('wiring.channelLost', { where: slot(i), signal: signalName(i.virtualPortId) })
+      case 'mix':
+        return t('wiring.mix', { where: slot(i), n: i.sources, device: nameOf(i.equipmentId) })
       default:
         return ''
     }
@@ -58,8 +71,8 @@ export function StageWiring({
           {errors.length + warnings.length > 0 ? (
             <ul className="flex flex-col gap-1">
               {[...errors, ...warnings].map((i, k) => (
-                <li key={k} className={`flex items-start gap-2 text-base ${i.kind === 'mono-of-stereo' ? 'text-warn' : 'text-danger'}`}>
-                  <StatusDot status={i.kind === 'mono-of-stereo' ? 'warning' : 'error'} />
+                <li key={k} className={`flex items-start gap-2 text-base ${isWarning(i) ? 'text-warn' : 'text-danger'}`}>
+                  <StatusDot status={isWarning(i) ? 'warning' : 'error'} />
                   <span className="min-w-0">{issueText(i)}</span>
                 </li>
               ))}
