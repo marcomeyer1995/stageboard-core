@@ -11,6 +11,7 @@ import {
   DEFAULT_VIRTUAL_OUTPUTS,
   DRIVER_KINDS,
   effectiveRouting,
+  pluginWiring,
   equipmentMixes,
   cableGround,
   equipmentEarth,
@@ -34,6 +35,7 @@ import {
   virtualPortClass,
   virtualPortIsInput,
   type MatrixPoint,
+  type PluginInstallation,
   type Port,
   type PortRef,
   type Signal,
@@ -65,6 +67,7 @@ import { PortListDialog } from './PortListDialog'
 import { HostPlugins } from './HostPlugins'
 import { wheelZoomFactor } from '../lib/wheelZoom'
 import { listMidiOutputs } from '../lib/webMidiOutput'
+import { PLUGIN_CATALOG } from '../lib/pluginCatalog'
 import { StageWiring } from './StageWiring'
 import { StageLiveList } from './StageLiveList'
 import { PATH_MARK } from '../lib/stageLive'
@@ -233,6 +236,49 @@ export function StageMap() {
   const badLinks = useMemo(() => new Set(check.issues.flatMap((i) => (i.kind === 'double' ? i.linkIds : i.kind === 'width' || i.kind === 'mono-in-stereo-out' ? [i.linkId] : i.kind === 'hum-loop' ? i.linkIds : []))), [check])
   // The live layer (#747): only while "Prüfen" is on.
   const installedPlugins = usePluginsStore((state) => state.installed)
+  const installPlugin = usePluginsStore((state) => state.install)
+  const saveLogicalDevice = useLogicalDevicesStore((state) => state.save)
+  // A device whose model has a plugin (model id = plugin id, #812): what one tap still has to do.
+  const pluginOf = (e: StageEquipment) => PLUGIN_CATALOG.find((p) => p.id === e.modelId)
+  const pluginPatterns = (plugin: (typeof PLUGIN_CATALOG)[number]) => (plugin.hardwareIds ?? []).flatMap((h) => (h.kind === 'webmidi' && h.namePattern ? [h.namePattern] : []))
+  const pluginState = (e: StageEquipment) => {
+    const plugin = pluginOf(e)
+    if (!plugin || !setup) return null
+    const installed = installedPlugins.some((p) => p.id === plugin.id && p.enabled)
+    const device = logicalDevices.find((d) => d.pluginId === plugin.id)
+    const wiring = pluginWiring({ equipment, setups }, setup.id, e.id, pluginPatterns(plugin))
+    const box = wiring ? byId.get(wiring.boxId) : undefined
+    const routed = !!(device && wiring && box && effectiveRouting(box, setup).some((c) => c.from.kind === 'virtual' && c.from.virtualPortId === device.id && samePoint(c.to, wiring.to)))
+    return { plugin, installed, ready: installed && routed, cable: wiring !== null }
+  }
+  // One tap (#812): install the plugin, a device for its cues, its tick in the matrix of the tablet
+  // the cable goes to, and the cable's MIDI port where this tablet sees a matching one.
+  const setUpPlugin = async (e: StageEquipment) => {
+    const plugin = pluginOf(e)
+    if (!plugin || !setup) return
+    if (!installedPlugins.some((p) => p.id === plugin.id && p.enabled)) await installPlugin({ ...plugin, enabled: true, installedAt: Date.now() } as PluginInstallation)
+    let device = logicalDevices.find((d) => d.pluginId === plugin.id)
+    if (!device) {
+      device = { id: crypto.randomUUID(), name: e.name, capability: plugin.capabilities[0]!, pluginId: plugin.id, executionTarget: null }
+      await saveLogicalDevice(device)
+    }
+    const first = pluginWiring({ equipment, setups }, setup.id, e.id, pluginPatterns(plugin))
+    const box = first ? byId.get(first.boxId) : undefined
+    if (!first || !box) return
+    const seen = appsOf(box).includes(ownId) ? (await listMidiOutputs()).map((o) => o.name) : []
+    const wiring = pluginWiring({ equipment, setups }, setup.id, e.id, pluginPatterns(plugin), seen)!
+    const id = device.id
+    await updateSetup(setup.id, (cur) => ({
+      ...cur,
+      routing: { ...cur.routing, [box.id]: [...effectiveRouting(box, cur).filter((c) => !(c.from.kind === 'virtual' && c.from.virtualPortId === id)), { from: { kind: 'virtual', virtualPortId: id }, to: wiring.to }] },
+      links: cur.links.map((l) => (l.id === wiring.linkId && !l.midiName && wiring.midiName ? { ...l, midiName: wiring.midiName } : l)),
+    }))
+  }
+  // For the cable check: devices on stage whose plugin is missing - their cues would do nothing.
+  const missingPlugins = onStage.flatMap((e) => {
+    const plugin = pluginOf(e)
+    return plugin && !installedPlugins.some((p) => p.id === plugin.id && p.enabled) ? [title(e)] : []
+  })
   const liveOutputs = useMemo(
     () => logicalDevices.filter((d) => !BUILT_IN_CAPABILITIES.includes(d.capability)).map((d) => ({ id: d.id, name: d.name, pluginId: d.pluginId, client: installedPlugins.find((p) => p.id === d.pluginId)?.runtime === 'client' })),
     [logicalDevices, installedPlugins],
@@ -886,6 +932,16 @@ export function StageMap() {
                 </div>
               )
             })()}
+            {(() => {
+              const state = pluginState(selectedNode)
+              if (!state || state.ready) return null
+              return (
+                <div className="flex flex-wrap items-center gap-2 rounded-control border border-warn p-2">
+                  <span className="min-w-0 flex-1 text-base">{t(state.cable ? 'map.pluginNeeded' : 'map.pluginNoCable', { name: state.plugin.name })}</span>
+                  {canEdit && state.cable && <Button onClick={() => void setUpPlugin(selectedNode)}>{t('map.pluginSetUp')}</Button>}
+                </div>
+              )
+            })()}
             {canEdit && !UNPOWERED_KINDS.includes(selectedNode.kind) && (
               <Segmented<Earth>
                 label={t('map.earth.label')}
@@ -963,7 +1019,7 @@ export function StageMap() {
           </div>
         )}
       </div>
-      {setup && !full && <StageWiring cables={cables} issues={check.issues} use={check.use} nameOf={(id) => { const e = byId.get(id); return e ? title(e) : id }} refText={refText} signalName={(id) => virtualPorts.find((v) => v.id === id)?.name ?? id} />}
+      {setup && !full && <StageWiring cables={cables} issues={check.issues} missingPlugins={missingPlugins} use={check.use} nameOf={(id) => { const e = byId.get(id); return e ? title(e) : id }} refText={refText} signalName={(id) => virtualPorts.find((v) => v.id === id)?.name ?? id} />}
       {portsFor && <PortListDialog item={portsFor} onClose={() => setPortsFor(null)} onSave={(ports) => void savePorts(portsFor, ports)} />}
     </section>
   )

@@ -1503,6 +1503,38 @@ export function mapRoute(map: StageMap, virtualPortId: string, frontApp: Readonl
   return { app: null, midiName: null }
 }
 
+/**
+ * What one tap sets up for a device's plugin on the map (#812): the cable from a StageBoard device
+ * to it that carries MIDI, the point in that device's matrix the plugin's output goes to (the MIDI
+ * out of the cable's port - a container's part on USB), and a MIDI port name for the cable from
+ * the names that device sees (the plugin's `namePattern`, e.g. "MG-30"). Null without such a
+ * cable.
+ */
+export function pluginWiring(
+  map: StageMap,
+  setupId: string,
+  equipmentId: string,
+  namePatterns: readonly string[],
+  midiOutputs: readonly string[] = [],
+): { boxId: string; linkId: string; to: MatrixPoint; midiName: string | null } | null {
+  const setup = setupOf(map, setupId)
+  if (!setup) return null
+  for (const link of setup.links) {
+    if (!link.signals.includes('midi')) continue
+    const [mine, theirs] = link.from.equipmentId === equipmentId ? [link.from, link.to] : link.to.equipmentId === equipmentId ? [link.to, link.from] : [null, null]
+    if (!mine || !theirs) continue
+    const box = map.equipment.find((e) => e.id === theirs.equipmentId)
+    if (!box || (box.kind !== 'stageboard' && box.kind !== 'stage-server')) continue
+    const port = box.ports.find((p) => p.id === theirs.portId)
+    if (!port) continue
+    const out = port.parts?.find((part) => part.signals.includes('midi') && part.direction !== 'in')
+    if (port.parts && !out) continue
+    const name = midiOutputs.find((n) => namePatterns.some((pattern) => n.toLowerCase().includes(pattern.toLowerCase()))) ?? null
+    return { boxId: box.id, linkId: link.id, to: { kind: 'port', portId: out?.id ?? port.id }, midiName: link.midiName ?? name }
+  }
+  return null
+}
+
 /** The Logical Devices as the map says: every one but Klick/Track/Ansagen executes where mapRoute
  * sends it. Without a map, as stored. */
 export function routedLogicalDevices<T extends { id: string; capability: string; executionTarget: string | null; pluginId?: string | null }>(devices: readonly T[], map: StageMap, frontApp: Readonly<Record<string, string>> = {}, setupId?: string): T[] {
