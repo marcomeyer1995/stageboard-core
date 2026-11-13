@@ -21,12 +21,14 @@ export interface CueTransport {
   /** Server time the current play stretch started (in the future during the Play lead, docs/19). */
   startedAt: number | null
   accumulatedMs: number
+  /** How fast song time runs against the clock (#683, the loop trainer in Solo) - absent: 1. */
+  rate?: number
 }
 
 /** Song time at server time `now` - unlike computeActiveMs (playbackTransport.ts), not clamped at
  * the stretch start, so it is negative during the Play lead. */
 export function songTimeAt(transport: CueTransport, now: number): number {
-  if (transport.status === 'playing' && transport.startedAt !== null) return transport.accumulatedMs + (now - transport.startedAt)
+  if (transport.status === 'playing' && transport.startedAt !== null) return transport.accumulatedMs + (now - transport.startedAt) * (transport.rate ?? 1)
   return transport.accumulatedMs
 }
 
@@ -34,7 +36,7 @@ export function songTimeAt(transport: CueTransport, now: number): number {
  * reaches it until resumed, which gives a new startedAt). */
 export function cueDueAt(transport: CueTransport, timeMs: number): number | null {
   if (transport.status !== 'playing' || transport.startedAt === null) return null
-  return transport.startedAt + (timeMs - transport.accumulatedMs)
+  return transport.startedAt + (timeMs - transport.accumulatedMs) / (transport.rate ?? 1)
 }
 
 /** Cues already behind the song position - for a device that joins mid-song (reconnect, master

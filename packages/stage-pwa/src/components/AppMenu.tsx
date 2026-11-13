@@ -2,6 +2,8 @@ import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { BandPickRow } from './BandPickRow'
 import { GigSetlistPicker } from './GigSetlistPicker'
+import { GigSetupPicker } from './GigSetupPicker'
+import { useStageMapStore } from '../store/useStageMapStore'
 import { MasterControl } from './MasterControl'
 import { PracticeSetlistPicker } from './PracticeSetlistPicker'
 import { SessionModeControl } from './SessionModeControl'
@@ -65,6 +67,8 @@ export function AppMenu({ mode, onSelectMode, onClose, clearCornerButtons }: App
   const { t } = useTranslation(['common', 'menu'])
   const fullscreen = useFullscreen()
   const sessionMode = useAppModeStore((state) => state.mode)
+  // With one setup there is nothing to choose - no row at all (#745).
+  const hasSetupChoice = useStageMapStore((state) => state.loaded && state.setups.length > 1)
   const me = useActiveProfile()
   const [switchingProfile, setSwitchingProfile] = useState(false)
 
@@ -104,6 +108,11 @@ export function AppMenu({ mode, onSelectMode, onClose, clearCornerButtons }: App
       {/* One place for the setlist in both modes (Marco, 2026-10-16: under Modus in Solo and under
           Master in Gig made no sense) - the band's in Gig, this device's own in Solo Üben. */}
       <MenuGroup label={t('menu:group.setlist')}>{sessionMode === 'gig' ? <GigSetlistPicker /> : <PracticeSetlistPicker />}</MenuGroup>
+      {sessionMode === 'gig' && hasSetupChoice && (
+        <MenuGroup label={t('menu:group.setup')}>
+          <GigSetupPicker />
+        </MenuGroup>
+      )}
       <MenuGroup label={t('menu:group.band')}>
         {/* Who and which band at the bottom - rarely touched (Marco, 2026-10-16: what matters on stage
           first, so the views, Modus, Master and setlist fit the first screen in landscape). */}

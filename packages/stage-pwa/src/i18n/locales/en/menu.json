@@ -5,6 +5,7 @@
     "mode": "Mode",
     "master": "Master",
     "setlist": "Setlist",
+    "setup": "Setup",
     "band": "Band",
     "display": "Display"
   },
@@ -25,6 +26,10 @@
     "noneGig": "No setlist",
     "nonePractice": "No setlist (whole catalog)",
     "locked": "The setlist stays while a song is playing."
+  },
+  "setup": {
+    "title": "Setup",
+    "locked": "The setup stays while a song is playing."
   },
   "band": {
     "title": "Band",

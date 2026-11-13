@@ -41,6 +41,8 @@ interface ShowStateStore {
   startReadyCheck: () => Promise<void>
   endReadyCheck: () => Promise<void>
   setActiveSetlist: (setlistId: string | null) => Promise<void>
+  /** The stage setup the band plays by (#745) - the master's, and only while nothing plays. */
+  setActiveSetup: (setupId: string | null) => Promise<void>
   /** Master-gated raw ShowState patch - the one write path queue.ts's transport/queue-advance
    * actions go through, so "only the current master ever writes ShowState" (claimMaster's
    * trust model) stays enforced in a single place rather than duplicated per caller. */
@@ -156,6 +158,11 @@ export const useShowStateStore = create<ShowStateStore>((set, get) => ({
     // "Beendet" belonged to the old setlist's song - carried over, the pedal's next-play would skip
     // the new setlist's first song (#394 review).
     await putShowState({ activeSetlistId: setlistId, trackEnded: false })
+  },
+  setActiveSetup: async (setupId) => {
+    if (get().state.playbackStatus === 'playing') return
+    // Pushed like a transport change: every device must go by the same setup before the next Play.
+    await get().applyPatch({ activeSetupId: setupId })
   },
   applyPatch: async (patch) => {
     if (!get().isMaster) return
