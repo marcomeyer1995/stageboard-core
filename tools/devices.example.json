@@ -1,0 +1,5 @@
+[
+  { "name": "Fire", "serial": "<adb serial>", "port": 9222, "volume": "media" },
+  { "name": "Redmi", "serial": "<adb serial>", "port": 9223, "volume": "keys" },
+  { "name": "Phone", "serial": "<adb serial>", "port": 9224, "volume": "session", "app": "de.stageboard.app" }
+]
