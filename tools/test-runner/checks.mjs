@@ -32,27 +32,37 @@ async function scanScreens(ctx, size) {
   for (const tab of tabs) screens.push({ view: 'System', tab })
   for (const s of screens) {
     const name = `${size ? `${size} · ` : ''}${s.tab ? `System › ${s.tab}` : s.view}`
-    const ok = await ctx.eval(`window.__sbt.view(${JSON.stringify(s.view)})`)
-    if (s.tab) {
-      await ctx.eval(`window.__sbt.click(${JSON.stringify(s.tab)})`)
-      await wait(1200)
+    try {
+      await scanOne(ctx, s, name, size)
+    } catch (e) {
+      // One screen that hangs (a slow device) fails alone, the others still run.
+      ctx.record({ check: size ? 'gui-sizes' : 'gui', name, status: 'fail', detail: String(e.message ?? e) })
     }
-    if (!ok) {
-      ctx.record({ check: size ? 'gui-sizes' : 'gui', name, status: 'skip', detail: 'could not open it' })
-      continue
-    }
-    const scan = await ctx.eval(`window.__sbt.gui(${JSON.stringify(s.view === 'Boards' ? 'stage' : 'prep')})`)
-    const shot = await ctx.shot(`gui-${name}`)
-    const problems = scan?.problems ?? []
-    // 'note': cut on purpose (a title that scrolled through once) - in the report, never a failure.
-    const errors = problems.filter((p) => p.severity === 'error')
-    const warnings = problems.filter((p) => p.severity === 'warning')
-    const list = (ps) => ps.slice(0, 6).map((p) => `${p.kind}: "${p.text}"${p.size ? ` ${p.size}` : ''}${p.px ? ` ${p.px}px` : ''}${p.needs ? ` (${p.width}/${p.needs}px)` : ''}${p.cut ? ` ${p.cut}px cut` : ''}`).join('; ')
-    const status = errors.length > 0 ? 'fail' : warnings.length > 0 ? 'warn' : 'pass'
-    const detail = `${scan?.viewport ?? ''} · ${errors.length} errors, ${warnings.length} warnings${errors.length ? ` · ${list(errors)}` : warnings.length ? ` · ${list(warnings)}` : ''}`
-    ctx.record({ check: size ? 'gui-sizes' : 'gui', name, status, detail, shot, values: problems })
   }
   await ctx.eval("window.__sbt.view('Boards')")
+}
+
+/** One screen: open it, scan it, a screenshot, a result. */
+async function scanOne(ctx, s, name, size) {
+  const ok = await ctx.eval(`window.__sbt.view(${JSON.stringify(s.view)})`)
+  if (s.tab) {
+    await ctx.eval(`window.__sbt.click(${JSON.stringify(s.tab)})`)
+    await wait(1200)
+  }
+  if (!ok) {
+    ctx.record({ check: size ? 'gui-sizes' : 'gui', name, status: 'skip', detail: 'could not open it' })
+    return
+  }
+  const scan = await ctx.eval(`window.__sbt.gui(${JSON.stringify(s.view === 'Boards' ? 'stage' : 'prep')})`)
+  const shot = await ctx.shot(`gui-${name}`)
+  const problems = scan?.problems ?? []
+  // 'note': cut on purpose (a title that scrolled through once) - in the report, never a failure.
+  const errors = problems.filter((p) => p.severity === 'error')
+  const warnings = problems.filter((p) => p.severity === 'warning')
+  const list = (ps) => ps.slice(0, 6).map((p) => `${p.kind}: "${p.text}"${p.size ? ` ${p.size}` : ''}${p.px ? ` ${p.px}px` : ''}${p.needs ? ` (${p.width}/${p.needs}px)` : ''}${p.cut ? ` ${p.cut}px cut` : ''}`).join('; ')
+  const status = errors.length > 0 ? 'fail' : warnings.length > 0 ? 'warn' : 'pass'
+  const detail = `${scan?.viewport ?? ''} · ${errors.length} errors, ${warnings.length} warnings${errors.length ? ` · ${list(errors)}` : warnings.length ? ` · ${list(warnings)}` : ''}`
+  ctx.record({ check: size ? 'gui-sizes' : 'gui', name, status, detail, shot, values: problems })
 }
 
 /**
@@ -129,9 +139,10 @@ async function guiSizes(ctx) {
     })
     // Layout follows resize and media-query listeners; give them a moment.
     await wait(1500)
-    const real = await ctx.eval('`${innerWidth}×${innerHeight}`')
-    if (real !== `${size.width}×${size.height}`) {
-      ctx.record({ check: 'gui-sizes', name: size.name, status: 'skip', detail: `the device did not take the size (${real})` })
+    const real = await ctx.eval('[innerWidth, innerHeight]')
+    // A pixel or two off is rounding at a fractional device scale (the Redmi: 1006 × 602).
+    if (!Array.isArray(real) || Math.abs(real[0] - size.width) > 2 || Math.abs(real[1] - size.height) > 2) {
+      ctx.record({ check: 'gui-sizes', name: size.name, status: 'skip', detail: `the device did not take the size (${Array.isArray(real) ? real.join('×') : real})` })
       continue
     }
     await scanScreens(ctx, size.name)

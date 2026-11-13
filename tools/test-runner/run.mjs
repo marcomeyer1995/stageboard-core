@@ -73,9 +73,9 @@ for (const wanted of pickDevices(deviceNames)) {
   const ctx = {
     device: d,
     outDir,
-    eval: (expr) => within(30000, evaluate(page, expr)),
+    eval: (expr) => within(45000, evaluate(page, expr)),
     shot: async (name) => {
-      const r = await within(20000, page.call('Page.captureScreenshot', { format: 'png' }))
+      const r = await within(60000, page.call('Page.captureScreenshot', { format: 'png' }))
       const file = `${d.name}-${name}.png`.replace(/[^\w.-]+/g, '_')
       writeFileSync(join(outDir, file), Buffer.from(r.data, 'base64'))
       return file
