@@ -9,6 +9,7 @@ import { getTrack, putTrack, removeTrack, updateStem } from '../lib/songVariants
 import { guessStemRole, labelFromFileName, playableTracks, STEM_ROLE_LABELS, stemLengthsDiffer, stemsOf, uploadedStems } from '../lib/stems'
 import { formatVideoLength, searchYoutube, youtubeThumbnailUrl } from '../lib/youtubeSearch'
 import { useYoutubeRoute } from '../lib/useYoutubeRoute'
+import { loadYoutubeWhere, saveYoutubeWhere, type YoutubeWhere } from '../lib/youtubeDevice'
 import { newDeviceJob, runOnDevice, searchOnDevice } from '../lib/youtubeDevice'
 import { HelperError } from '../lib/nativeHelper'
 import { getDeviceId } from '../lib/deviceId'
@@ -17,7 +18,7 @@ import { useDialogStore } from '../store/useDialogStore'
 import { usePluginsStore } from '../store/usePluginsStore'
 import { StemSeparationDialog } from './StemSeparationDialog'
 import { INPUT } from './ui/styles'
-import { AddRow, Button, Dialog, IconButton } from './ui'
+import { AddRow, Button, Dialog, IconButton, Segmented } from './ui'
 import { useTranslation } from 'react-i18next'
 import { serverErrorText, serverText } from '../lib/serverMessage'
 
@@ -83,7 +84,10 @@ export function TrackManagerField({ variantId, tracks, disabled, searchQuery = '
   const [searching, setSearching] = useState(false)
   const [separating, setSeparating] = useState<TrackMeta | null>(null)
   // The host's yt-dlp, else this device's YouTube helper (docs/25 §6b) - asked when the dialog opens.
-  const youtube = useYoutubeRoute(canDownload && adding)
+  // Where it runs can be narrowed per device (#822): the host only, or this device's helper only.
+  const [youtubeWhere, setYoutubeWhere] = useState<YoutubeWhere>(loadYoutubeWhere)
+  const youtube = useYoutubeRoute(canDownload && adding, youtubeWhere)
+  const nowhereText = youtubeWhere === 'host' ? t('tm.youtubeNoHost') : youtubeWhere === 'device' ? t('tm.youtubeNoHelper') : t('tm.youtubeNowhere')
   const [uploadProgress, setUploadProgress] = useState<string | null>(null)
   // The stem being listened to, as a local object URL (fetched from the Stage-Server on demand).
   const [listening, setListening] = useState<{ trackId: string; url: string } | null>(null)
@@ -270,7 +274,7 @@ export function TrackManagerField({ variantId, tracks, disabled, searchQuery = '
     }
     if (youtube.route === 'none') {
       setSearching(false)
-      setYoutubeError(t('tm.youtubeNowhere'))
+      setYoutubeError(nowhereText)
       return
     }
     const result = await searchYoutube(query.trim())
@@ -299,7 +303,7 @@ export function TrackManagerField({ variantId, tracks, disabled, searchQuery = '
       return
     }
     if (youtube.route === 'none') {
-      setYoutubeError(t('tm.youtubeNowhere'))
+      setYoutubeError(nowhereText)
       return
     }
     await putAsyncJob({
@@ -460,6 +464,27 @@ export function TrackManagerField({ variantId, tracks, disabled, searchQuery = '
                   </Button>
                 </form>
                 {youtubeError && <span className="text-sm text-danger">{youtubeError}</span>}
+                {/* One side only (#822): where the band has both, a choice for a test or a host
+                    whose yt-dlp is broken. Most never open it. */}
+                <details className="text-sm text-ink-muted">
+                  <summary className="min-h-form cursor-pointer py-2">{t('tm.advanced')}</summary>
+                  <Segmented
+                    label={t('tm.whereLabel')}
+                    value={youtubeWhere}
+                    onChange={(value) => {
+                      const where = value as YoutubeWhere
+                      setYoutubeWhere(where)
+                      saveYoutubeWhere(where)
+                      setYoutubeError(null)
+                      setHits(null)
+                    }}
+                    options={[
+                      { value: 'auto', label: t('tm.whereAuto') },
+                      { value: 'host', label: t('tm.whereHost') },
+                      { value: 'device', label: t('tm.whereDevice') },
+                    ]}
+                  />
+                </details>
               </div>
             )}
           </div>

@@ -180,6 +180,20 @@ describe('TrackManagerField - YouTube search in "Track hinzufügen" (#618)', () 
     expect(youtube.searchYoutube).not.toHaveBeenCalled()
   })
 
+  it('"Erweitert": this device only - without its helper the message says so and how to change it (#822)', async () => {
+    usePluginsStore.setState({ installed: [ytPlugin] })
+    route.value = { route: 'none', helper: null, trusted: [] }
+    render(<TrackManagerField variantId="v1" tracks={[]} disabled={false} searchQuery="x" />)
+    fireEvent.click(screen.getByRole('button', { name: /Track hinzufügen/ }))
+    fireEvent.click(screen.getByText('Erweitert'))
+    fireEvent.click(screen.getByRole('radio', { name: 'Dieses Gerät' }))
+    expect(localStorage.getItem('sb:youtube:where')).toBe('device')
+    fireEvent.click(screen.getByRole('button', { name: 'Suchen' }))
+    expect(await screen.findByText(/Auf diesem Gerät fehlt das YouTube-Hilfsprogramm/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('radio', { name: 'Automatisch' }))
+    expect(localStorage.getItem('sb:youtube:where')).toBeNull()
+  })
+
   it('no search without the add-on', () => {
     render(<TrackManagerField variantId="v1" tracks={[]} disabled={false} searchQuery="x" />)
     fireEvent.click(screen.getByRole('button', { name: /Track hinzufügen/ }))

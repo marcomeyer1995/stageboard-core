@@ -31,6 +31,15 @@ describe('youtubeRoute', () => {
     // A host that doesn't say what it can: asked as before (it answers what is missing).
     expect(youtubeRoute(null, null, CERTS)).toBe('server')
   })
+
+  it('narrowed to one side (#822): that side or nowhere - never quietly the other', () => {
+    expect(youtubeRoute(host(true), trusted, CERTS, 'device')).toBe('device')
+    expect(youtubeRoute(host(true), null, CERTS, 'device')).toBe('none')
+    expect(youtubeRoute(host(false), trusted, CERTS, 'host')).toBe('none')
+    expect(youtubeRoute(host(true), trusted, CERTS, 'host')).toBe('server')
+    // A host that doesn't say: asked, as in auto.
+    expect(youtubeRoute(null, trusted, CERTS, 'host')).toBe('server')
+  })
 })
 
 describe('runOnDevice', () => {

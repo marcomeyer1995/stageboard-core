@@ -16,16 +16,44 @@ export const YOUTUBE_ADDON_ID = 'youtube-download'
  * from code, so an add-on from its own repository brings its own list (docs/32 §8). */
 
 export type YoutubeRoute = 'server' | 'device' | 'none'
+/** Where this device wants YouTube to run (#822, "Erweitert"): the rule below, or one side only. */
+export type YoutubeWhere = 'auto' | 'host' | 'device'
 
 /**
  * Where a search or download runs: the host when it can, else this device's helper. Nowhere only
  * when the host says it can't - a host that doesn't say (`null`: built before 2026-11-07, or not
- * reachable) is asked as before, and answers itself what is missing.
+ * reachable) is asked as before, and answers itself what is missing. `where` narrows it to one
+ * side (the device's choice, #822): then that side or nowhere.
  */
-export function youtubeRoute(host: HostCapabilities | null, helper: HelperInfo | null, trusted: readonly string[]): YoutubeRoute {
-  if (host?.plugins.some((p) => p.id === YOUTUBE_ADDON_ID && p.available)) return 'server'
-  if (trustedHelper(helper, trusted)) return 'device'
+export function youtubeRoute(host: HostCapabilities | null, helper: HelperInfo | null, trusted: readonly string[], where: YoutubeWhere = 'auto'): YoutubeRoute {
+  const hostCan = host?.plugins.some((p) => p.id === YOUTUBE_ADDON_ID && p.available) ?? false
+  const deviceCan = trustedHelper(helper, trusted)
+  if (where === 'host') return hostCan || !host ? 'server' : 'none'
+  if (where === 'device') return deviceCan ? 'device' : 'none'
+  if (hostCan) return 'server'
+  if (deviceCan) return 'device'
   return host ? 'none' : 'server'
+}
+
+const WHERE_KEY = 'sb:youtube:where'
+
+/** This device's choice - per device, like its audio settings. */
+export function loadYoutubeWhere(): YoutubeWhere {
+  try {
+    const v = localStorage.getItem(WHERE_KEY)
+    return v === 'host' || v === 'device' ? v : 'auto'
+  } catch {
+    return 'auto'
+  }
+}
+
+export function saveYoutubeWhere(where: YoutubeWhere): void {
+  try {
+    if (where === 'auto') localStorage.removeItem(WHERE_KEY)
+    else localStorage.setItem(WHERE_KEY, where)
+  } catch {
+    // Blocked storage: the choice holds until the dialog closes.
+  }
 }
 
 /** Search through this device's helper - the same hits as the host's yt-dlp search (#618). */
