@@ -43,11 +43,11 @@ export function useAudioSyncReconciler(workspaceId: string) {
 
   const alwaysKeepKeys = useMemo(() => {
     const keys = new Set<string>(stemKeys)
-    if (currentVariant && currentTrack) keys.add(cacheKey(currentVariant.id, currentTrack.id))
+    if (currentVariant && currentTrack) keys.add(cacheKey(currentVariant.id, currentTrack.id, currentTrack.fileRev))
     if (rigCheckKey) keys.add(rigCheckKey)
     return keys
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentVariant?.id, currentTrack?.id, stemKeys, rigCheckKey])
+  }, [currentVariant?.id, currentTrack?.id, currentTrack?.fileRev, stemKeys, rigCheckKey])
 
   useEffect(() => {
     // At app start the clock locks first: downloads on the same connection hold up the time requests.
