@@ -1095,10 +1095,11 @@ export const BUILT_IN_OUTPUT_CAPABILITIES: readonly CapabilityId[] = DEFAULT_VIR
  * step 2, part 2, 2026-11-07): the app that executes it - the device whose matrix routes it to one
  * of its ports, the one in front of several apps there, or the Stage-Server - and the MIDI port
  * name on the cable from that port, if one is set. `app: null`: the map routes it nowhere, nobody
- * sends. Null without a map - the old binding applies.
+ * sends. Null without a map - the old binding applies. `setupId`: a setup other than the active
+ * one (practising "as in setup …", #799).
  */
-export function mapRoute(map: StageMap, virtualPortId: string, frontApp: Readonly<Record<string, string>> = {}): { app: string | null; midiName: string | null } | null {
-  const setup = activeSetup(map)
+export function mapRoute(map: StageMap, virtualPortId: string, frontApp: Readonly<Record<string, string>> = {}, setupId?: string): { app: string | null; midiName: string | null } | null {
+  const setup = setupOf(map, setupId)
   if (!setup) return null
   for (const box of map.equipment) {
     if ((box.kind !== 'stageboard' && box.kind !== 'stage-server') || !setup.positions[box.id]) continue
@@ -1120,11 +1121,11 @@ export function mapRoute(map: StageMap, virtualPortId: string, frontApp: Readonl
 
 /** The Logical Devices as the map says: every one but Klick/Track/Ansagen executes where mapRoute
  * sends it. Without a map, as stored. */
-export function routedLogicalDevices<T extends { id: string; capability: string; executionTarget: string | null }>(devices: readonly T[], map: StageMap, frontApp: Readonly<Record<string, string>> = {}): T[] {
-  if (!activeSetup(map)) return [...devices]
+export function routedLogicalDevices<T extends { id: string; capability: string; executionTarget: string | null }>(devices: readonly T[], map: StageMap, frontApp: Readonly<Record<string, string>> = {}, setupId?: string): T[] {
+  if (!setupOf(map, setupId)) return [...devices]
   return devices.map((d) => {
     if (BUILT_IN_OUTPUT_CAPABILITIES.includes(d.capability as CapabilityId)) return d
-    const route = mapRoute(map, d.id, frontApp)
+    const route = mapRoute(map, d.id, frontApp, setupId)
     return route ? { ...d, executionTarget: route.app } : d
   })
 }

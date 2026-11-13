@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { defaultStageMap, type StageMap } from 'shared-types'
-import { outputPlan, silencedSources, type PlanInput } from './outputPlan'
+import { outputPlan, practiceRoute, silencedSources, type PlanInput } from './outputPlan'
 
 const to = (virtualPortId: string, portId: string, pin?: number) => ({ from: { kind: 'virtual' as const, virtualPortId }, to: pin === undefined ? { kind: 'port' as const, portId } : { kind: 'port' as const, portId, pin } })
 
@@ -43,5 +43,16 @@ describe('the output plan (#742, docs/31 §0d)', () => {
     expect(outputPlan(input({ mode: 'practice', map, practiceSetupId: 'home' }))).toEqual({ plan: { click: 'left', track: 'right', voice: 'both' }, fellBack: false })
     // Not offered to this device (another person's, or the Gig): gone from the map - both ears.
     expect(outputPlan(input({ mode: 'practice', practiceSetupId: 'home' }))).toEqual({ plan: { track: 'both', click: 'both', voice: 'both' }, fellBack: true })
+  })
+
+  it('plugin devices go by the practice setup (#799 step 4): one of the band, or one of this person - never somebody else\'s', () => {
+    const band = split()
+    const home = { id: 'home', name: 'Home', owner: 'marco', positions: {}, links: [], routing: {} }
+    const lists = { equipment: band.equipment, setups: band.setups, ownEquipment: [], ownSetups: [home] }
+    expect(practiceRoute(lists, 'marco', null)).toBeNull()
+    expect(practiceRoute(lists, 'marco', 'standard')?.setupId).toBe('standard')
+    expect(practiceRoute(lists, 'marco', 'home')?.map.setups.map((s) => s.id)).toEqual(['standard', 'home'])
+    expect(practiceRoute(lists, 'caro', 'home')).toBeNull()
+    expect(practiceRoute(lists, '', 'home')).toBeNull()
   })
 })

@@ -443,6 +443,15 @@ describe('plugins follow the map (docs/31 §6 step 2, part 2, 2026-11-07)', () =
     expect(mapRoute(map, 'ld-pedal')).toEqual({ app: 'fire', midiName: null })
   })
 
+  it('practising by another setup (#799 step 4): its matrix and its cable decide, not the active one', () => {
+    const map = withKemper()
+    map.setups.push({ id: 'home', name: 'Zuhause', owner: 'marco', positions: { 'device:fire': { x: 0, y: 0 }, kemper: { x: 1, y: 0 } }, links: [{ id: 'usb', from: { equipmentId: 'device:fire', portId: 'usb' }, to: { equipmentId: 'kemper', portId: 'usb' }, signals: ['midi'], midiName: 'Kemper at home' }], routing: { 'device:fire': [{ from: { kind: 'virtual', virtualPortId: 'ld-kemper' }, to: { kind: 'port', portId: 'usb' } }] } })
+    expect(mapRoute(map, 'ld-kemper')).toEqual({ app: null, midiName: null })
+    expect(mapRoute(map, 'ld-kemper', {}, 'home')).toEqual({ app: 'fire', midiName: 'Kemper at home' })
+    const stored = [{ id: 'ld-kemper', capability: 'kemper-control', executionTarget: 'redmi' }, { id: 'ld-lights', capability: 'lighting', executionTarget: 'server' }]
+    expect(routedLogicalDevices(stored, map, {}, 'home').map((d) => d.executionTarget)).toEqual(['fire', null])
+  })
+
   it('routed nowhere: nobody sends; no map: the stored binding', () => {
     expect(mapRoute(withKemper(), 'ld-kemper')).toEqual({ app: null, midiName: null })
     const stored = [{ id: 'ld-kemper', capability: 'kemper-control', executionTarget: 'fire' }]

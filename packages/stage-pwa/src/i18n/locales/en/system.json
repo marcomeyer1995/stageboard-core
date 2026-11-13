@@ -103,11 +103,11 @@
   "practiceOutput": {
     "label": "Output while practising",
     "both": "Everything on both ears",
-    "bothDetail": "Track, click and announcements on both sides - needs no map.",
+    "bothDetail": "Track, click and announcements on both sides - needs no map. No cues are sent.",
     "setup": "As in setup “{{name}}”",
-    "setupDetail": "Click, announcements and track sit as in this device's matrix in that setup.",
+    "setupDetail": "Click, announcements and track sit as in this device's matrix in that setup. Cues go to the gear that setup connects to this device.",
     "ownSetup": "My setup “{{name}}”",
-    "ownSetupDetail": "Your own setup for practising (Stage → My setups).",
+    "ownSetupDetail": "Your own setup for practising (Stage → My setups) - with cues to your own gear.",
     "fellBack": "The chosen setup does not fit right now (device not placed or output not plugged in) - everything plays on both ears."
   },
   "sync": {
