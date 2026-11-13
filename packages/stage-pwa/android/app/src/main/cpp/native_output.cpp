@@ -18,9 +18,11 @@
 #include <atomic>
 #include <cmath>
 #include <cstdarg>
+#include <chrono>
 #include <cstdint>
 #include <cstdio>
 #include <ctime>
+#include <map>
 #include <mutex>
 #include <string>
 #include <memory>
@@ -28,6 +30,7 @@
 #include <vector>
 
 #include "stageboard/engine.h"
+#include "stageboard/stream_clip.h"
 
 #define LOG(...) __android_log_print(ANDROID_LOG_INFO, "NativeOutput", __VA_ARGS__)
 
@@ -88,8 +91,11 @@ std::atomic<bool> gEngineOn{false};
 std::atomic<double> gBandOffsetMs{NAN};
 /** The clock goes to the engine this often - it learns the drift over a minute of these. */
 constexpr double ENGINE_CLOCK_MS = 500.0;
-/** Where the click goes (the app's output routing, audioMix.ts): 0 both sides, 1 left only, 2 right. */
-std::atomic<int> gEngineSide{0};
+// Clip files arriving in pieces (base64 over the plugin), by clip id - control side, gEngineLock.
+std::map<int, std::vector<uint8_t>> gStaging;
+// The streamed clips handed to the engine, by id - read for self-monitoring only (counters are atomic).
+std::map<int, stageboard::StreamedClip *> gStreamed;
+std::once_flag gPumpStarted;
 long long gEngineClockAt = 0;   // callback thread: frame of the last clock observation
 float gEngineOut[2 * 4096];
 
@@ -202,11 +208,11 @@ aaudio_data_callback_result_t onData(AAudioStream *stream, void *, void *audioDa
         for (int done = 0; done < numFrames;) {
             const int n = std::min(numFrames - done, 4096);
             gEngine->render(gEngineOut, n, gFrames + done);
-            const int side = gChannels > 1 ? gEngineSide.load() : 0;
+            // Each source's side comes from the engine's feeds (the output plan) - added as it is.
             for (int i = 0; i < n; i++) {
                 float *frame = out + (done + i) * gChannels;
-                if (side != 2) frame[0] += gEngineOut[2 * i];
-                if (gChannels > 1 && side != 1) frame[1] += gEngineOut[2 * i + 1];
+                frame[0] += gEngineOut[2 * i];
+                if (gChannels > 1) frame[1] += gEngineOut[2 * i + 1];
             }
             done += n;
         }
@@ -279,8 +285,28 @@ Java_de_stageboard_app_NativeOutputPlugin_nativeStart(JNIEnv *env, jclass, jint 
     {
         // No stream runs now: the engine may be made (again) for this rate.
         std::lock_guard<std::mutex> engine(gEngineLock);
-        if (!gEngine || gRate != sampleRate) gEngine = std::make_unique<stageboard::Engine>(sampleRate, 2);
+        if (!gEngine || gRate != sampleRate) {
+            gEngine = std::make_unique<stageboard::Engine>(sampleRate, 2);
+            gStaging.clear();
+            gStreamed.clear();
+        }
     }
+    // The decoding thread (docs/30 §8h stage 4): streamed clips decode their windows ahead of the
+    // callback, at most 100 ms of audio per window and call - the callback only reads.
+    std::call_once(gPumpStarted, [] {
+        std::thread([] {
+            for (;;) {
+                {
+                    std::lock_guard<std::mutex> engine(gEngineLock);
+                    if (gEngine) {
+                        gEngine->pump();
+                        gEngine->collectGarbage();
+                    }
+                }
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            }
+        }).detach();
+    });
     gRate = sampleRate;
     gWritten = 0;
     gBaseMs = 0;
@@ -317,6 +343,14 @@ Java_de_stageboard_app_NativeOutputPlugin_nativePush(JNIEnv *env, jclass, jlong 
     if (frame + n > gWritten.load()) gWritten = frame + n;
 }
 
+/** Self-monitoring (docs/30 §8i): streamed pieces with frames missing, or dropped (window moved). */
+int streamedReads(bool missing) {
+    std::lock_guard<std::mutex> engine(gEngineLock);
+    int sum = 0;
+    for (const auto &entry : gStreamed) sum += missing ? entry.second->missingReads() : entry.second->brokenReads();
+    return sum;
+}
+
 extern "C" JNIEXPORT jstring JNICALL
 Java_de_stageboard_app_NativeOutputPlugin_nativeStatus(JNIEnv *env, jclass) {
     std::lock_guard<std::mutex> guard(gLock);
@@ -325,12 +359,12 @@ Java_de_stageboard_app_NativeOutputPlugin_nativeStatus(JNIEnv *env, jclass) {
     return env->NewStringUTF(json(
             "{\"open\":true,\"state\":\"%s\",\"latencyMs\":%.2f,\"leadMs\":%.1f,\"leadMinMs\":%.1f,\"jumps\":%lld,\"timestampJumps\":%lld,\"rateDevPpm\":%.0f,"
             "\"missing\":%lld,\"xruns\":%d,\"reopens\":%lld,\"error\":%d,\"performance\":\"%s\",\"framesPerBurst\":%d,"
-            "\"engine\":%s,\"engineClockJumps\":%d,\"engineDriftPpm\":%.1f}",
+            "\"engine\":%s,\"engineClockJumps\":%d,\"engineDriftPpm\":%.1f,\"engineMissingReads\":%d,\"engineBrokenReads\":%d}",
             AAudio_convertStreamStateToText(AAudioStream_getState(gStream)), gLatencyMs.load(), gLeadMs.load(), leadMin > 1e8 ? -1.0 : leadMin,
             static_cast<long long>(gJumps), static_cast<long long>(gTimestampJumps), gRateDev.load() * 1e6, static_cast<long long>(gMissing), AAudioStream_getXRunCount(gStream),
             static_cast<long long>(gReopens), gError.load(), perf(AAudioStream_getPerformanceMode(gStream)),
             AAudioStream_getFramesPerBurst(gStream), gEngineOn.load() ? "true" : "false",
-            gEngine ? gEngine->clockJumps() : 0, gEngine ? gEngine->clockDriftPpm() : 0.0).c_str());
+            gEngine ? gEngine->clockJumps() : 0, gEngine ? gEngine->clockDriftPpm() : 0.0, streamedReads(true), streamedReads(false)).c_str());
 }
 
 extern "C" JNIEXPORT void JNICALL
@@ -403,8 +437,67 @@ Java_de_stageboard_app_NativeOutputPlugin_nativeEngineGain(JNIEnv *, jclass, jin
     gEngine->collectGarbage();
 }
 
-/** 0 both sides, 1 left only, 2 right only - the click's side when the output is split. */
+/** Where bus `bus` goes on the stereo output (engine.h Feed: 0 left, 1 right, 2 both, 3 none) -
+ * the output plan (#742): the click on the left for in-ear, the track summed on the right, ... */
 extern "C" JNIEXPORT void JNICALL
-Java_de_stageboard_app_NativeOutputPlugin_nativeEngineSide(JNIEnv *, jclass, jint side) {
-    gEngineSide = side;
+Java_de_stageboard_app_NativeOutputPlugin_nativeEngineFeeds(JNIEnv *, jclass, jint bus, jint left, jint right) {
+    if (bus < 0 || bus >= static_cast<int>(stageboard::Bus::Count) || left < 0 || left > 3 || right < 0 || right > 3) return;
+    std::lock_guard<std::mutex> guard(gEngineLock);
+    if (!gEngine) return;
+    gEngine->setFeeds(static_cast<stageboard::Bus>(bus), static_cast<stageboard::Feed>(left), static_cast<stageboard::Feed>(right));
+}
+
+/** A clip's Ogg Opus file in pieces: `size` bytes are coming for clip `id`. */
+extern "C" JNIEXPORT void JNICALL
+Java_de_stageboard_app_NativeOutputPlugin_nativeClipBegin(JNIEnv *, jclass, jint id, jint size) {
+    std::lock_guard<std::mutex> guard(gEngineLock);
+    auto &buf = gStaging[id];
+    buf.assign(static_cast<size_t>(std::max(0, static_cast<int>(size))), 0);
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_de_stageboard_app_NativeOutputPlugin_nativeClipChunk(JNIEnv *env, jclass, jint id, jint offset, jbyteArray data) {
+    std::lock_guard<std::mutex> guard(gEngineLock);
+    auto it = gStaging.find(id);
+    const jsize n = env->GetArrayLength(data);
+    if (it == gStaging.end() || offset < 0 || static_cast<size_t>(offset) + static_cast<size_t>(n) > it->second.size()) return JNI_FALSE;
+    env->GetByteArrayRegion(data, 0, n, reinterpret_cast<jbyte *>(it->second.data() + offset));
+    return JNI_TRUE;
+}
+
+/** The file is complete: opened (every page checked) and placed so its frame 0 sounds at song time
+ * `songStartMs`. Returns "" or why it can't play. */
+extern "C" JNIEXPORT jstring JNICALL
+Java_de_stageboard_app_NativeOutputPlugin_nativeClipCommit(JNIEnv *env, jclass, jint id, jdouble songStartMs, jint bus, jfloat gain) {
+    std::lock_guard<std::mutex> guard(gEngineLock);
+    auto it = gStaging.find(id);
+    if (!gEngine || it == gStaging.end()) return env->NewStringUTF("no file");
+    if (bus < 0 || bus >= static_cast<int>(stageboard::Bus::Count)) return env->NewStringUTF("bad bus");
+    auto clip = std::make_unique<stageboard::StreamedClip>();
+    std::string error;
+    const bool ok = clip->open(it->second.data(), it->second.size(), &error);
+    gStaging.erase(it);
+    if (!ok) return env->NewStringUTF(error.empty() ? "cannot open" : error.c_str());
+    stageboard::StreamedClip *raw = clip.release();
+    if (!gEngine->setClip(id, raw, songStartMs, static_cast<stageboard::Bus>(bus), gain)) {
+        delete raw;
+        return env->NewStringUTF("engine queue full");
+    }
+    gStreamed[id] = raw;
+    gEngine->collectGarbage();
+    return env->NewStringUTF("");
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_de_stageboard_app_NativeOutputPlugin_nativeClipRemove(JNIEnv *, jclass, jint id) {
+    std::lock_guard<std::mutex> guard(gEngineLock);
+    gStaging.erase(id);
+    gStreamed.erase(id);
+    if (gEngine) gEngine->removeClip(id);
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_de_stageboard_app_NativeOutputPlugin_nativeClipGain(JNIEnv *, jclass, jint id, jfloat gain) {
+    std::lock_guard<std::mutex> guard(gEngineLock);
+    if (gEngine) gEngine->setClipGain(id, gain);
 }

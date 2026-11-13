@@ -515,6 +515,39 @@ static void testClipBusesAndSwap() {
   CHECK_NEAR(peak, 0.5, 0.01);
 }
 
+static void testFeeds() {
+  std::printf("feeds: click in-ear left, track summed right (the output plan)\n");
+  Engine engine(kRate, 2);
+  engine.observeClock(0, 0);
+  engine.setTransport(playingFrom(0));
+  engine.setClip(0, makeClip(2 * 48000, 2, noiseSample), 0, Bus::Track);
+  engine.setBeats(beatsEvery(500, 4, 4));
+  engine.setFeeds(Bus::Click, Feed::Mix, Feed::None);
+  engine.setFeeds(Bus::Track, Feed::None, Feed::Mix);
+  engine.setGain(Bus::Click, 0.3f);  // under the limiter's ceiling - it is linked, a peak left would dip the right
+  std::vector<float> out(static_cast<size_t>(kRate) * 2);
+  engine.render(out.data(), 1024, 0);  // the feeds glide in over ~5 ms
+  for (int64_t f = 1024; f < static_cast<int64_t>(kRate); f += 512) engine.render(out.data() + f * 2, static_cast<int>(std::min<int64_t>(512, static_cast<int64_t>(kRate) - f)), f);
+  // Right: the track's two sides summed at half each; left: only the click (onsets every 500 ms).
+  double diff = 0;
+  for (long f = 4800; f < 48000; ++f) diff = std::fmax(diff, std::fabs(out[f * 2 + 1] - 0.5 * (noiseSample(f, 0) + noiseSample(f, 1))));
+  CHECK(diff < 1e-5);
+  std::vector<float> left(48000);
+  for (long f = 0; f < 48000; ++f) left[static_cast<size_t>(f)] = out[f * 2];
+  const std::vector<int> on = onsets(left);
+  // The first sample of a quiet click can round to silence - its onset then reads one frame late.
+  CHECK(on.size() == 2 && on[0] <= 1 && on[1] >= 24000 && on[1] <= 24001);
+  // Back to straight: left on left again.
+  engine.setFeeds(Bus::Track, Feed::Left, Feed::Right);
+  engine.setFeeds(Bus::Click, Feed::None, Feed::None);
+  std::vector<float> more(9600 * 2);
+  engine.render(more.data(), 4800, 48000);
+  engine.render(more.data() + 9600, 4800, 52800);
+  diff = 0;
+  for (long f = 4800; f < 9600; ++f) diff = std::fmax(diff, std::fabs(more[f * 2] - noiseSample(48000 + f, 0)));
+  CHECK(diff < 1e-5);
+}
+
 int main() {
   setvbuf(stdout, nullptr, _IONBF, 0);
   testQueue();
@@ -532,6 +565,7 @@ int main() {
   testClipFollowsDrift();
   testClipJumpAndPauseNoClick();
   testClipBusesAndSwap();
+  testFeeds();
   runOpusClipTests();
   runResampleTests();
   runStreamClipTests();
