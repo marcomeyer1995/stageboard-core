@@ -11,6 +11,7 @@
     "finished": "Finished",
     "audioError": "Audio error",
     "audioFallback": "Sound: fallback",
+    "outputMissing": "Output missing",
     "syncError": "Sync error",
     "offline": "Offline",
     "noMaster": "No master",
