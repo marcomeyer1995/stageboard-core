@@ -52,6 +52,10 @@ export const ShowStateSchema = z.object({
   /** A section repeated until released (#479): the driving device queues a jump back to `startMs`
    * before every `endMs`. Released, the song simply runs on past `endMs`. Optional, like above. */
   playbackLoop: z.object({ startMs: z.number(), endMs: z.number(), label: z.string().optional() }).nullable().optional(),
+  /** The stage setup the band plays by (docs/31 §6 step 5, #745) - chosen by the master like the
+   * setlist, only while nothing plays: it decides which device plays Klick, Track and Ansagen and
+   * where plugin devices send. Null or absent (older devices): "Standard". */
+  activeSetupId: z.string().nullable().optional(),
   /** Per-device track swap for the *shared* live audio feed - e.g. tonight's second guitarist
    * is out, so the whole band needs the "1 guitar" mix instead of the setlist's declared
    * default. Unlike the setlist's own SetlistEntry.trackId (a lasting choice for that song),

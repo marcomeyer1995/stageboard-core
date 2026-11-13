@@ -7,6 +7,7 @@ import { findLatencyProfile } from './latencyProfiles'
 import { MidiClockEngine, type ClockOutput, type MidiClockInput } from './midiClockEngine'
 import { myClockDevices, resolveClockOutput } from './midiClockOutputs'
 import { useShowModeSong } from './showMode'
+import { usePracticeDevices } from './usePracticeRoute'
 import { getDeviceId } from './deviceId'
 import { useDeviceTransportConfigStore } from '../store/useDeviceTransportConfigStore'
 import { useLatencyProfilesStore } from '../store/useLatencyProfilesStore'
@@ -47,7 +48,9 @@ export function useMidiClock(): void {
   const timeSignature = song?.timeSignature ?? '4/4'
   const timeline: ClickTimeline | null = useMemo(() => (bpm ? clickTimeline({ beatGrid, bpm, timeSignature, countInBars }) : null), [beatGrid, bpm, timeSignature, countInBars])
 
-  const clockDevices = useMemo(() => myClockDevices(logicalDevices), [logicalDevices])
+  // Practising by a setup (#799 step 4): the clock goes to the gear that setup routes here.
+  const practiceDevices = usePracticeDevices()
+  const clockDevices = useMemo(() => myClockDevices(practiceDevices ?? logicalDevices), [practiceDevices, logicalDevices])
   const outputsRef = useRef<ClockOutput[]>([])
   useEffect(() => {
     let cancelled = false

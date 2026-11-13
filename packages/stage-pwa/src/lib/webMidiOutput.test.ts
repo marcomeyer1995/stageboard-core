@@ -194,3 +194,31 @@ describe('scheduled sends (#477)', () => {
     expect(recallScheduledMidi(600)).toBe(true)
   })
 })
+
+describe('knownMidiOutputNames (#747): never asks the person', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  const access = { outputs: new Map([['o1', { id: 'o1', name: 'Kemper Player' }]]) }
+
+  it('is null in a browser that has not granted MIDI - and does not request it', async () => {
+    const requestMIDIAccess = vi.fn().mockResolvedValue(access)
+    vi.stubGlobal('navigator', { requestMIDIAccess, permissions: { query: () => Promise.resolve({ state: 'prompt' }) } })
+    const { knownMidiOutputNames } = await freshModule()
+    expect(await knownMidiOutputNames()).toBeNull()
+    expect(requestMIDIAccess).not.toHaveBeenCalled()
+  })
+
+  it('lists the names where MIDI is granted, or already open', async () => {
+    const requestMIDIAccess = vi.fn().mockResolvedValue(access)
+    vi.stubGlobal('navigator', { requestMIDIAccess, permissions: { query: () => Promise.resolve({ state: 'granted' }) } })
+    const granted = await freshModule()
+    expect(await granted.knownMidiOutputNames()).toEqual(['Kemper Player'])
+
+    vi.stubGlobal('navigator', { requestMIDIAccess, permissions: { query: () => Promise.resolve({ state: 'prompt' }) } })
+    const opened = await freshModule()
+    await opened.listMidiOutputs()
+    expect(await opened.knownMidiOutputNames()).toEqual(['Kemper Player'])
+  })
+})

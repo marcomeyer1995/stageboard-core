@@ -70,6 +70,13 @@ export const ROSTER_VALIDATOR_SOURCE = `function(newDoc, oldDoc, userCtx) {
   if (newDoc._id === 'host-accounts' && userCtx.roles.indexOf('_admin') === -1) {
     throw({forbidden: 'Only the Stage-Server writes the host accounts.'});
   }
+  if (newDoc._id.indexOf('hosts:') === 0 && userCtx.roles.indexOf('_admin') === -1) {
+    var device = newDoc._id.slice(6);
+    var own = typeof userCtx.name === 'string' && userCtx.name.slice(-(device.length + 1)) === '~' + device;
+    if (!own && !(newDoc._deleted && isAdmin)) {
+      throw({forbidden: 'Only the tablet itself announces itself as a server.'});
+    }
+  }
   if (newDoc._id.indexOf('band-settings:') === 0 && !isAdmin) {
     throw({forbidden: 'Only a band admin may change the band settings.'});
   }
