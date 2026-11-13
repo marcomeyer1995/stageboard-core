@@ -348,6 +348,7 @@
     "output": "Ausgabe",
     "outputBrowser": "Browser (eigene Ausgabe)",
     "native": "Nativ, {{ms}} ms vom Rechnen bis zum Hören",
+    "nativeEstimated": "Nativ, aber Android meldet keine Zeitangabe - Zeitpunkt nur geschätzt (hilft: Gerät neu starten)",
     "webview": "WebView",
     "fellBack": "Notbetrieb über die WebView seit {{time}} ({{ms}} ms Ton fehlten) - bis zum Neustart der App",
     "missing": "Aussetzer (letzte Minute)",

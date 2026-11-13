@@ -48,6 +48,12 @@ describe('DeviceVitalsPanel', () => {
     expect(useNativeOutputStore.getState().wanted).toBe(true)
   })
 
+  it('without a timestamp from Android says the timing is only estimated', () => {
+    useDeviceVitalsStore.setState({ snapshot: { ...PHONE, audio: { path: 'native', delayMs: 420, missingMs: 0, jumps: 0, leadMinMs: 300, estimated: true } } })
+    render(<DeviceVitalsPanel />)
+    expect(screen.getByText(/Zeitpunkt nur geschätzt/)).toBeInTheDocument()
+  })
+
   it('a healthy browser: all good, memory only in the app', () => {
     useDeviceVitalsStore.setState({ snapshot: { ...PHONE, audio: null, native: null, audioClock: null, clock: { offsetMs: 0, uncertaintyMs: null, rttMs: null, ageMs: null } } })
     render(<DeviceVitalsPanel />)
