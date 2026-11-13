@@ -219,6 +219,10 @@ jedem Drag-Frame neu und ohne Gedächtnis an den letzten Frame gelöst wurde, pl
 `compactType`-Detail von react-grid-layout, das den Aktiv-Widget selbst verschob) direkt am
 Gerät nachvollziehen, statt raten zu müssen.
 
+### 1b. Device tools (`tools/`, #793)
+
+Scripts for the test devices live in [`tools/`](../tools/README.md): `cdp` (evaluate, navigate, screenshot in the app's WebView over adb or any CDP port), `device` (install an APK, volume per device, wake, info), `night-test` (locked screen, #724/#789), `phone-check` (headless Chrome at phone size), `stage-map-harness` (the stage map in a browser without a server), `measure` (click/track offset, crosstalk, silence after unplugging) and `server/deploy-ref.sh` (run the Stage-Server from another ref for a test). Device serials go into the git-ignored `tools/devices.json`.
+
 ## 2. Testing-Strategie (Hardware-Abstraktion)
 KI-Entwicklung funktioniert am besten mit Test-Driven Development (TDD). Die Herausforderung: Die KI (und die CI/CD-Pipeline) hat physisch keinen Kemper-Amp und kein Soundcraft-Mischpult angeschlossen.
 

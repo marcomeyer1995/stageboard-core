@@ -14,7 +14,7 @@ import { BackupManager } from './BackupManager'
 import { KeybindingSettings } from './KeybindingSettings'
 import { LanguageSettings } from './LanguageSettings'
 import { FlashSettings } from './FlashSettings'
-import { OutputRoutingSettings } from './OutputRoutingSettings'
+import { PracticeOutputSettings } from './PracticeOutputSettings'
 import { useTranslation } from 'react-i18next'
 
 /**
@@ -131,7 +131,7 @@ export function DeviceSettings() {
           title={t('device.output')}
           info={t('device.outputInfo')}
         >
-          <OutputRoutingSettings />
+          <PracticeOutputSettings />
         </Section>
       </Group>
 

@@ -51,6 +51,47 @@ export function getMidiAccess(): Promise<MIDIAccess | null> {
   return getAccess()
 }
 
+/**
+ * The MIDI access without ever asking the person (#747, the device's report to the map's check):
+ * the one already open, or a new one where the permission is granted anyway (the app grants it,
+ * a browser remembers it) - null otherwise.
+ */
+async function quietAccess(): Promise<MIDIAccess | null> {
+  if (cachedAccess) return cachedAccess
+  if (!isWebMidiSupported()) return null
+  // The Capacitor shell grants MIDI itself. Read from the global, not through lib/native: that
+  // would pull the whole app (i18n, stores) into this module.
+  if ((globalThis as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.()) return getAccess()
+  try {
+    const status = await navigator.permissions.query({ name: 'midi', sysex: true } as unknown as PermissionDescriptor)
+    return status.state === 'granted' ? getAccess() : null
+  } catch {
+    return null
+  }
+}
+
+/** The names of the MIDI outputs this device sees - null when that is not known without asking. */
+export async function knownMidiOutputNames(): Promise<string[] | null> {
+  const access = await quietAccess()
+  return access ? [...access.outputs.values()].map((output) => output.name ?? output.id) : null
+}
+
+/** Calls `onChange` whenever a MIDI port comes or goes (a cable pulled) - nothing where MIDI is
+ * not open (see quietAccess). Returns the stop function. */
+export function watchMidiPorts(onChange: () => void): () => void {
+  let stopped = false
+  let access: MIDIAccess | null = null
+  void quietAccess().then((a) => {
+    if (stopped || !a) return
+    access = a
+    a.addEventListener('statechange', onChange)
+  })
+  return () => {
+    stopped = true
+    access?.removeEventListener('statechange', onChange)
+  }
+}
+
 /** Per output, the latest moment (`performance.now()` time base) a message was scheduled for -
  * what `recallScheduledMidi` would have to take back. */
 const pendingUntil = new Map<MIDIOutput, number>()
