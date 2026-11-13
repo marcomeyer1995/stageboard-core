@@ -1,6 +1,6 @@
 import type { ClickEngineState } from '../clickEngine'
 import type { TransportState } from '../playbackTransport'
-import { mixGain, sideOf, useOutputRoutingStore } from '../audioMix'
+import { mixGain, useOutputPlanStore, type SourceSide } from '../audioMix'
 import { getServerTime } from '../clockSync'
 import { nativeEngine, useNativeOutputStore } from '../nativeOutput'
 import { createFollower } from './engineClick'
@@ -58,9 +58,19 @@ function sendUpdate(state: ClickEngineState): void {
   // On the transport's clock: in Solo Üben the device's own - with the server's, the click came
   // the device's clock offset early (650 ms on the Redmi, 2026-11-13).
   nativeEngine.offset(bandOffsetMs((state.transportNow ?? getServerTime)(), Date.now(), state.outputLatencyMs ?? delayMs, delayMs))
-  nativeEngine.gain(ENGINE_BUS.click, mixGain('click'))
-  const side = sideOf('click', useOutputRoutingStore.getState().routing)
-  nativeEngine.side(side === 'left' ? 1 : side === 'right' ? 2 : 0)
+  // The click's place in the output plan (the sound follows the map, #742): silent where the plan
+  // says so - never a wrong signal.
+  const place = useOutputPlanStore.getState().plan.click
+  nativeEngine.gain(ENGINE_BUS.click, place === null ? 0 : mixGain('click'))
+  nativeEngine.side(engineSide(place))
+}
+
+/** The engine's side for the mono click: 1 left only, 2 right only, 0 both. */
+export function engineSide(place: SourceSide): 0 | 1 | 2 {
+  if (place === null) return 0
+  if (place.left !== null && place.right === null) return 1
+  if (place.left === null && place.right !== null) return 2
+  return 0
 }
 
 /** As clickEngine.ts `startClick`: safe to call repeatedly; the state is polled for changes. */

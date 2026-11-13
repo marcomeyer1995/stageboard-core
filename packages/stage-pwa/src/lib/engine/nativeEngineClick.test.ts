@@ -17,7 +17,7 @@ vi.mock('../nativeOutput', () => {
 })
 vi.mock('../clockSync', () => ({ getServerTime: () => Date.now() + 2126 }))
 
-const { useOutputRoutingStore } = await import('../audioMix')
+const { useOutputPlanStore, PLAIN_PLAN } = await import('../audioMix')
 const { bandOffsetMs, nativeTransport, startNativeEngineClick, stopNativeEngineClick } = await import('./nativeEngineClick')
 
 const state = (over: Partial<ClickEngineState> = {}): ClickEngineState => ({
@@ -31,7 +31,7 @@ const state = (over: Partial<ClickEngineState> = {}): ClickEngineState => ({
 afterEach(() => {
   stopNativeEngineClick()
   calls.length = 0
-  useOutputRoutingStore.setState({ routing: 'mixed' })
+  useOutputPlanStore.setState({ plan: PLAIN_PLAN })
 })
 
 describe('nativeEngineClick', () => {
@@ -73,10 +73,15 @@ describe('nativeEngineClick', () => {
     expect(offset).toBeLessThan(15 + 5)
   })
 
-  it('puts the click on its side when the output is split for in-ear', () => {
-    useOutputRoutingStore.setState({ routing: 'click-left' })
+  it('puts the click where the output plan has it (the map, #742): left only for in-ear, silent where the plan says so', () => {
+    useOutputPlanStore.setState({ plan: { ...PLAIN_PLAN, click: { left: 'mix', right: null } } })
     startNativeEngineClick(() => state())
     expect(calls.find(([name]) => name === 'side')![1]).toEqual([1])
+    stopNativeEngineClick()
+    calls.length = 0
+    useOutputPlanStore.setState({ plan: { ...PLAIN_PLAN, click: null } })
+    startNativeEngineClick(() => state())
+    expect(calls.find(([name]) => name === 'gain')![1][1]).toBe(0)
   })
 
   it('on stop: stopped transport, then disabled', () => {
