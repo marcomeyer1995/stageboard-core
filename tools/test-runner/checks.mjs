@@ -39,9 +39,10 @@ async function gui(ctx) {
     const scan = await ctx.eval(`window.__sbt.gui(${JSON.stringify(s.view === 'Boards' ? 'stage' : 'prep')})`)
     const shot = await ctx.shot(`gui-${name}`)
     const problems = scan?.problems ?? []
+    // 'note': cut on purpose (a title that scrolled through once) - in the report, never a failure.
     const errors = problems.filter((p) => p.severity === 'error')
     const warnings = problems.filter((p) => p.severity === 'warning')
-    const list = (ps) => ps.slice(0, 6).map((p) => `${p.kind}: "${p.text}"${p.size ? ` ${p.size}` : ''}${p.px ? ` ${p.px}px` : ''}${p.needs ? ` (${p.width}/${p.needs}px)` : ''}`).join('; ')
+    const list = (ps) => ps.slice(0, 6).map((p) => `${p.kind}: "${p.text}"${p.size ? ` ${p.size}` : ''}${p.px ? ` ${p.px}px` : ''}${p.needs ? ` (${p.width}/${p.needs}px)` : ''}${p.cut ? ` ${p.cut}px cut` : ''}`).join('; ')
     const status = errors.length > 0 ? 'fail' : warnings.length > 0 ? 'warn' : 'pass'
     const detail = `${scan?.viewport ?? ''} · ${errors.length} errors, ${warnings.length} warnings${errors.length ? ` · ${list(errors)}` : warnings.length ? ` · ${list(warnings)}` : ''}`
     ctx.record({ check: 'gui', name, status, detail, shot, values: problems })

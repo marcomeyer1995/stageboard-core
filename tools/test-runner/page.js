@@ -13,13 +13,19 @@ window.__sbt = {
     return window.__sbt.header().match(/(\d+:\d\d) \//)?.[1] ?? null
   },
 
-  visible: (el) => !!el && (el.offsetParent !== null || getComputedStyle(el).position === 'fixed'),
+  // Laid out and not hidden on purpose (the status bar ranks its items and hides what does not
+  // fit with visibility: hidden, #429).
+  visible: (el) => !!el && (el.offsetParent !== null || getComputedStyle(el).position === 'fixed') && getComputedStyle(el).visibility !== 'hidden',
 
-  /** A visible button by its text or accessible name. */
+  /** Every name a control goes by: aria-label, its text, the label of its icon (<Icon label=…>),
+   * its title (a Segmented option's title is its explanation, not its name - so all of them). */
+  namesOf(b) {
+    return [b.getAttribute('aria-label'), b.textContent, b.querySelector('[aria-label]')?.getAttribute('aria-label'), b.title].map((n) => (n ?? '').trim()).filter(Boolean)
+  },
+
+  /** A visible button by one of its names. */
   button(name) {
-    return [...document.querySelectorAll('button,[role=button],[role=tab],[role=radio]')].find(
-      (b) => window.__sbt.visible(b) && ((b.getAttribute('aria-label') ?? '').trim() === name || b.title === name || b.textContent.trim() === name),
-    )
+    return [...document.querySelectorAll('button,[role=button],[role=tab],[role=radio]')].find((b) => window.__sbt.visible(b) && window.__sbt.namesOf(b).includes(name))
   },
 
   click(name) {
@@ -54,14 +60,9 @@ window.__sbt = {
     return [...document.querySelectorAll('[role=tab]')].filter(window.__sbt.visible).map((t) => t.textContent.trim())
   },
 
-  /** The transport of the Boards view: by name (Play, Pause, Stop), else - a widget size whose
-   * icon buttons carry no name - the first three icon buttons without one. */
+  /** The transport of the Boards view, by name. */
   transport(which) {
-    if (window.__sbt.click({ play: 'Play', pause: 'Pause', stop: 'Stop' }[which])) return true
-    const icons = [...document.querySelectorAll('button')].filter((b) => window.__sbt.visible(b) && !b.textContent.trim() && !b.getAttribute('aria-label') && !b.title)
-    const b = icons[{ play: 0, pause: 1, stop: 2 }[which]]
-    if (b) b.click()
-    return !!b
+    return window.__sbt.click({ play: 'Play', pause: 'Pause', stop: 'Stop' }[which])
   },
 
   /** Steps through the songs (Solo, no setlist: the catalogue) until the status bar names
@@ -130,19 +131,41 @@ window.__sbt = {
       if (r.width === 0 || r.height === 0) continue
       const cs = getComputedStyle(el)
       const ownText = [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim())
+      // Up to a space's width over the edge is a hanging space of a wrapped line (pre-wrap), no glyph.
+      const slack = parseFloat(cs.fontSize) * 0.65
       const cutHere = ownText && el.scrollWidth > el.clientWidth + 1 && (cs.textOverflow === 'ellipsis' || cs.overflowX === 'hidden' || cs.overflow === 'hidden')
-      if (cutHere) add('cut', 'error', el, { width: Math.round(el.clientWidth), needs: el.scrollWidth })
+      // A text that scrolls through once and then rests with "…" is cut on purpose (#373).
+      if (cutHere) add('cut', el.closest('[data-scroll-once]') ? 'note' : 'error', el, { width: Math.round(el.clientWidth), needs: el.scrollWidth })
       if (ownText && !cutHere && !scrollsX(el)) {
         // Where the text ends, not the box - a full-width block is not cut because its box is.
-        const range = document.createRange()
-        range.selectNodeContents(el)
-        const tr = range.getBoundingClientRect()
+        // Only its own text: a hidden child (the status bar's "/ 2:11", hidden by rank) does not count.
+        let right = -Infinity
+        for (const n of el.childNodes) {
+          if (n.nodeType !== 3 || !n.textContent.trim()) continue
+          const range = document.createRange()
+          range.selectNodeContents(n)
+          right = Math.max(right, range.getBoundingClientRect().right)
+        }
+        const tr = { right }
         const box = clipper(el)
         const edge = box ? Math.min(box.getBoundingClientRect().right, vw) : vw
         // Grouped by the landmark it sits in (the status bar), else by the clipping box.
         const group = el.closest('header,[role=banner],nav,[role=tablist],[role=dialog]') ?? box
-        if (tr.right > edge + 1 && box) clipped.set(group, [...(clipped.get(group) ?? []), label(el)])
-        else if (tr.right > vw + 1) add('off-screen', 'error', el, { right: Math.round(tr.right), viewport: vw })
+        if (el.closest('[data-scroll-once]')) {
+          // cut on purpose, see above
+        } else if (tr.right > edge + slack && box) clipped.set(group, [...(clipped.get(group) ?? []), label(el)])
+        else if (tr.right > vw + slack) add('off-screen', 'error', el, { right: Math.round(tr.right), viewport: vw })
+      }
+      // A control cut at the top or bottom by the box around it (a widget too low for its content).
+      if (el.matches('button,[role=button],[role=tab],[role=radio],a[href],select')) {
+        for (let p = el.parentElement; p; p = p.parentElement) {
+          const o = getComputedStyle(p).overflowY
+          if (o === 'visible') continue
+          const pr = p.getBoundingClientRect()
+          const cut = Math.max(0, r.bottom - pr.bottom, pr.top - r.top)
+          if (cut > 2 && cut < r.height) add('control-cut', tier === 'stage' ? 'error' : 'warning', el, { cut: Math.round(cut) })
+          break
+        }
       }
       if (el.matches('button,[role=button],[role=tab],[role=radio],[role=switch],a[href],select') && (r.height < minTarget || r.width < minTarget))
         add('small-target', 'warning', el, { size: `${Math.round(r.width)}×${Math.round(r.height)}` })
