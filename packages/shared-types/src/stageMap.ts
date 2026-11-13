@@ -975,9 +975,6 @@ export function activeSetup(map: StageMap): StageSetup | null {
   return map.setups.find((s) => s.id === DEFAULT_SETUP_ID) ?? map.setups[0] ?? null
 }
 
-/** Which side of a stereo output a signal sits on. */
-export type OutputSide = 'both' | 'left' | 'right'
-
 /**
  * The own setups a member gets to see (#799, docs/31 §0d): their own; the admin everybody's.
  */
