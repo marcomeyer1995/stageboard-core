@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { OutputSide } from 'shared-types'
+import { STEREO_FEEDS, type SideFeed, type SourceFeeds } from 'shared-types'
 import { getSharedAudioContext } from './sharedAudioContext'
 import { masterOutput } from './nativeOutput'
 
@@ -97,14 +97,18 @@ const outputs = new Map<MixSource, { ctx: AudioContext; gain: GainNode }>()
 
 /**
  * Where every source sits on this device's stereo output - the sound follows the map (#742,
- * docs/31 §0d): `both` (as always), one side (the click on the left pin for the in-ear mix, the
- * track on the right for FOH; a stereo source on one side is summed to mono) or null - silent,
- * because the output the map names for it is not the one Android plays on (never a wrong signal,
- * docs/28). Written by `useOutputPlan`; not stored, it follows the map and the output route.
+ * docs/31 §0d): what each side gets from it (`SourceFeeds`: left on left and right on right as
+ * always, the click on the left pin for the in-ear mix, the track summed on the right for FOH,
+ * only the track's left side, ...) or null - silent, because the output the map names for it is
+ * not the one Android plays on (never a wrong signal, docs/28). Written by `useOutputPlan`; not
+ * stored, it follows the map and the output route.
  */
-export type SourceSide = OutputSide | null
+export type SourceSide = SourceFeeds | null
 export type OutputPlan = Record<MixSource, SourceSide>
-export const PLAIN_PLAN: OutputPlan = { track: 'both', click: 'both', voice: 'both' }
+export const PLAIN_PLAN: OutputPlan = { track: STEREO_FEEDS, click: STEREO_FEEDS, voice: STEREO_FEEDS }
+
+/** Two placements are the same (plans are rebuilt, compare by value). */
+export const sameSide = (a: SourceSide, b: SourceSide): boolean => (a === null || b === null ? a === b : a.left === b.left && a.right === b.right)
 
 interface OutputPlanState {
   plan: OutputPlan
@@ -118,7 +122,7 @@ export const useOutputPlanStore = create<OutputPlanState>((set, get) => ({
   fellBack: false,
   setPlan: (plan, fellBack = false) => {
     const now = get()
-    if (now.fellBack === fellBack && MIX_SOURCES.every((s) => now.plan[s] === plan[s])) return
+    if (now.fellBack === fellBack && MIX_SOURCES.every((s) => sameSide(now.plan[s], plan[s]))) return
     set({ plan, fellBack })
   },
 }))
@@ -147,11 +151,28 @@ function sideBus(ctx: AudioContext, side: 'left' | 'right'): GainNode {
 }
 
 /** Connects a source's gain to the output as the plan says - again on every change (`rewire`:
- * it is connected already and comes off first). A silent source stays unconnected. */
+ * it is connected already and comes off first). A silent source stays unconnected. Left on left
+ * and right on right goes straight to the output as always; otherwise each side's bus gets the
+ * sum (`mix`, the bus's own down-mix) or one channel of the source through a splitter. */
 function route(ctx: AudioContext, gain: GainNode, side: SourceSide, rewire = false): void {
   if (rewire) gain.disconnect()
   if (side === null) return
-  gain.connect(side === 'both' ? masterOutput(ctx) : sideBus(ctx, side))
+  if (side.left === 'L' && side.right === 'R') {
+    gain.connect(masterOutput(ctx))
+    return
+  }
+  let splitter: ChannelSplitterNode | null = null
+  const feed = (to: 'left' | 'right', what: SideFeed) => {
+    if (what === null) return
+    if (what === 'mix') return gain.connect(sideBus(ctx, to))
+    if (!splitter) {
+      splitter = ctx.createChannelSplitter(2)
+      gain.connect(splitter)
+    }
+    splitter.connect(sideBus(ctx, to), what === 'L' ? 0 : 1)
+  }
+  feed('left', side.left)
+  feed('right', side.right)
 }
 
 /**
@@ -169,7 +190,7 @@ export function sourceOutput(source: MixSource, ctx: AudioContext = getSharedAud
 }
 
 useOutputPlanStore.subscribe((state, before) => {
-  for (const [source, { ctx, gain }] of outputs) if (state.plan[source] !== before.plan[source]) route(ctx, gain, state.plan[source], true)
+  for (const [source, { ctx, gain }] of outputs) if (!sameSide(state.plan[source], before.plan[source])) route(ctx, gain, state.plan[source], true)
 })
 
 /** Volume for an `<audio>` element playing the track (0..1). */

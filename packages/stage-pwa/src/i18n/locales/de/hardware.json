@@ -256,6 +256,7 @@
     "pinN": "Pin {{n}}",
     "groupToggle": "{{name}}: auf- oder zuklappen",
     "wholeSocket": "{{name}} (ganz)",
+    "wholeSignal": "{{name}} (beide Seiten)",
     "earth": {
       "label": "Strom",
       "earthed": "Geerdet (Schuko)",

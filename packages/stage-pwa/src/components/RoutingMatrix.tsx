@@ -19,8 +19,13 @@ export interface MatrixGroup {
   key: string
   label: string
   /** What a tap on the closed group means, when it has a meaning of its own: the whole socket for
-   * a pins group. Without one, a tap takes the next free lines of the group (smart assignment). */
+   * a pins group, the whole signal for a stereo source. Without one, a tap takes the next free
+   * lines of the group (smart assignment). */
   closedPoint?: MatrixPoint
+  /** A source group closed: as wide as the signal (the track: 2) when it lands on a closed group. */
+  width?: number
+  /** False: the closed group shows its name only, no "routed/total" (a source's sides). */
+  count?: boolean
 }
 
 /** A row or column as drawn: one line, or a closed group standing for its lines. */
@@ -69,10 +74,13 @@ export function RoutingMatrix({
   editable,
   onToggle,
   label,
+  badge,
 }: {
   columns: MatrixLine[]
   rows: MatrixLine[]
   routed: (from: MatrixPoint, to: MatrixPoint) => boolean
+  /** A letter in a routed cell: which side of a stereo source sits there ("L", "R"). */
+  badge?: (from: MatrixPoint, to: MatrixPoint) => string | undefined
   fixed: boolean
   editable: boolean
   onToggle: (from: MatrixPoint, to: MatrixPoint, on: boolean) => void
@@ -104,6 +112,7 @@ export function RoutingMatrix({
     linesOf(d).filter((l) => others.some((o) => linesOf(o).some((x) => (asColumn ? routed(l.point, x.point) : routed(x.point, l.point))))).length
   const labelOf = (d: Drawn, others: Drawn[], asColumn: boolean) => {
     if (d.kind === 'line') return d.line.label
+    if (d.group.count === false) return d.group.label
     // A pins group counts its pins (a headphone socket 2, not 3): the line for the whole socket
     // fills all of them.
     const closed = d.group.closedPoint
@@ -114,8 +123,25 @@ export function RoutingMatrix({
     return `${d.group.label} · ${whole ? pins.lines.length : routedCount(pins, others, asColumn)}/${pins.lines.length}`
   }
 
+  // The letter in a routed cell: the first routed pair inside it that has one.
+  const badgeOf = (col: Drawn, row: Drawn): string | undefined => {
+    if (!badge) return undefined
+    for (const c of linesOf(col)) for (const r of linesOf(row)) if (routed(c.point, r.point)) {
+      const text = badge(c.point, r.point)
+      if (text) return text
+    }
+    return undefined
+  }
+
+  // A closed group that stands for one point of its own (a stereo socket, a stereo source) taps
+  // like that one line.
+  const asLine = (d: Drawn): Drawn =>
+    d.kind === 'group' && d.group.closedPoint ? { kind: 'line', line: { key: d.group.key, label: d.group.label, point: d.group.closedPoint, ...(d.group.width ? { width: d.group.width } : {}) } } : d
+
   // A tap: both single lines toggle the cell; a closed group assigns or clears (docs/31 §7c).
-  const tap = (col: Drawn, row: Drawn) => {
+  const tap = (tappedCol: Drawn, tappedRow: Drawn) => {
+    const col = asLine(tappedCol)
+    const row = asLine(tappedRow)
     if (col.kind === 'line' && row.kind === 'line') return onToggle(col.line.point, row.line.point, !routed(col.line.point, row.line.point))
     if (col.kind === 'group' && row.kind === 'group') {
       // Two closed groups: nothing to guess - open both.
@@ -127,11 +153,6 @@ export function RoutingMatrix({
     const target = (col.kind === 'group' ? col : row) as { kind: 'group'; group: MatrixGroup; lines: MatrixLine[] }
     const on = (a: MatrixLine, b: MatrixLine, value: boolean) => (fromCol ? onToggle(a.point, b.point, value) : onToggle(b.point, a.point, value))
     const has = (a: MatrixLine, b: MatrixLine) => (fromCol ? routed(a.point, b.point) : routed(b.point, a.point))
-    if (target.group.closedPoint) {
-      const whole = target.group.closedPoint
-      const value = fromCol ? !routed(source.point, whole) : !routed(whole, source.point)
-      return fromCol ? onToggle(source.point, whole, value) : onToggle(whole, source.point, value)
-    }
     const mine = target.lines.filter((l) => has(source, l))
     if (mine.length > 0) return mine.forEach((l) => on(source, l, false))
     // The next free lines of the group, as many as the source is wide, adjacent.
@@ -187,7 +208,19 @@ export function RoutingMatrix({
               isRouted(col, row) ? (
                 <g key={`${r}|${c}`}>
                   <line x1={cx(c)} y1={cy(r)} x2={width} y2={cy(r)} className={lineClass} strokeWidth={3} />
-                  <circle cx={cx(c)} cy={cy(r)} r={8} className={dotClass} />
+                  {(() => {
+                    const text = badgeOf(col, row)
+                    return text ? (
+                      <>
+                        <circle cx={cx(c)} cy={cy(r)} r={13} className={dotClass} />
+                        <text x={cx(c)} y={cy(r)} textAnchor="middle" dominantBaseline="central" className="fill-accent-ink text-[15px] font-bold">
+                          {text}
+                        </text>
+                      </>
+                    ) : (
+                      <circle cx={cx(c)} cy={cy(r)} r={8} className={dotClass} />
+                    )
+                  })()}
                 </g>
               ) : null,
             ),

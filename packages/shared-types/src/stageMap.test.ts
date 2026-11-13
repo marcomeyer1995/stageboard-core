@@ -24,7 +24,8 @@ import {
   visibleOwnSetups,
   equipmentOffered,
   ownSetupFrom,
-  outputSide,
+  outputFeeds,
+  STEREO_FEEDS,
   mapRoute,
   routedLogicalDevices,
   joinDevices,
@@ -376,7 +377,7 @@ describe('the sound follows the map (#742, docs/31 §0d)', () => {
     const map = defaultStageMap([{ id: 'redmi', name: 'Redmi' }])
     const outputs = mapOutputs(map, 'redmi', CAPABILITIES.clickTrack)!
     expect(outputs).toEqual([{ portId: 'speaker', route: 'any', side: 'both' }])
-    expect(outputSide(outputs, 'wired')).toBe('both')
+    expect(outputFeeds(outputs, 'wired', false)).toEqual(STEREO_FEEDS)
   })
 
   it('click on the left pin of the headphones, track on the right; only on that output', () => {
@@ -385,12 +386,13 @@ describe('the sound follows the map (#742, docs/31 §0d)', () => {
     const click = mapOutputs(map, 'redmi', CAPABILITIES.clickTrack)!
     const track = mapOutputs(map, 'redmi', CAPABILITIES.audioPlayback)!
     expect(click).toEqual([{ portId: 'headphones', route: 'wired', side: 'left' }])
-    expect(outputSide(click, 'wired')).toBe('left')
-    expect(outputSide(track, 'wired')).toBe('right')
+    expect(outputFeeds(click, 'wired', false)).toEqual({ left: 'mix', right: null })
+    // The stereo track on one pin is summed there.
+    expect(outputFeeds(track, 'wired')).toEqual({ left: null, right: 'mix' })
     // Headphones pulled: Android is on the speaker - the click does not come out there.
-    expect(outputSide(click, 'speaker')).toBeNull()
+    expect(outputFeeds(click, 'speaker', false)).toBeNull()
     // A browser cannot tell the route.
-    expect(outputSide(click, 'unknown')).toBe('left')
+    expect(outputFeeds(click, 'unknown', false)).toEqual({ left: 'mix', right: null })
     expect(mapOutputs(map, 'redmi', CAPABILITIES.sectionAnnouncements)).toEqual([])
   })
 
@@ -402,11 +404,26 @@ describe('the sound follows the map (#742, docs/31 §0d)', () => {
       { from: { kind: 'virtual', virtualPortId: 'track' }, to: { kind: 'port', portId: 'usb/audio-out', channel: 2 } },
       { from: { kind: 'virtual', virtualPortId: 'ansagen' }, to: { kind: 'port', portId: 'usb/audio-out', channel: 3 } },
     ]
-    expect(outputSide(mapOutputs(map, 'redmi', CAPABILITIES.clickTrack)!, 'wired')).toBe('both')
+    expect(outputFeeds(mapOutputs(map, 'redmi', CAPABILITIES.clickTrack)!, 'wired', false)).toEqual(STEREO_FEEDS)
     expect(mapOutputs(map, 'redmi', CAPABILITIES.audioPlayback)).toEqual([{ portId: 'usb/audio-out', route: 'usb', side: 'right' }])
     const voice = mapOutputs(map, 'redmi', CAPABILITIES.sectionAnnouncements)!
     expect(voice[0]!.route).toBe('none')
-    expect(outputSide(voice, 'usb')).toBeNull()
+    expect(outputFeeds(voice, 'usb', false)).toBeNull()
+  })
+
+  it('the sides of a stereo source alone (2026-11-12): a point may name "Track L" or "Track R"', () => {
+    const map = defaultStageMap([{ id: 'redmi', name: 'Redmi' }])
+    const side = (channel: 1 | 2, cross: { channel?: number; pin?: number }) => ({ from: { kind: 'virtual' as const, virtualPortId: 'track', channel }, to: { kind: 'port' as const, portId: 'usb/audio-out', ...cross } })
+    map.setups[0]!.routing['device:redmi'] = [side(2, { channel: 1 }), side(1, { channel: 2 })]
+    const track = mapOutputs(map, 'redmi', CAPABILITIES.audioPlayback)!
+    expect(track).toEqual([
+      { portId: 'usb/audio-out', route: 'usb', side: 'left', channel: 2 },
+      { portId: 'usb/audio-out', route: 'usb', side: 'right', channel: 1 },
+    ])
+    expect(outputFeeds(track, 'usb')).toEqual({ left: 'R', right: 'L' })
+    // Both sides of the track on one channel: summed there.
+    map.setups[0]!.routing['device:redmi'] = [side(1, { channel: 1 }), side(2, { channel: 1 })]
+    expect(outputFeeds(mapOutputs(map, 'redmi', CAPABILITIES.audioPlayback)!, 'usb')).toEqual({ left: 'mix', right: null })
   })
 
   it('another setup by id (practising "as in setup …")', () => {
@@ -802,3 +819,51 @@ describe('hum loops (#748, docs/31 §7e)', () => {
   })
 })
 
+describe('a tablet takes its ports from its model (2026-11-12)', () => {
+  it('a copy stored before #739 (mono headphones) reads as the model has it; other gear keeps its own', () => {
+    const map = defaultStageMap([{ id: 'redmi', name: 'Redmi' }])
+    const tablet = map.equipment.find((e) => e.kind === 'stageboard')!
+    const old = { ...tablet, ports: tablet.ports.map((p) => (p.id === 'headphones' ? { id: p.id, name: p.name, connector: p.connector, signals: p.signals, direction: p.direction } : p)) }
+    expect(old.ports.find((p) => p.id === 'headphones')!.pins).toBeUndefined()
+    expect(normalizeEquipment(old).ports.find((p) => p.id === 'headphones')!.pins).toBe(2)
+    // Gear that can be set up keeps what was set up, even on the same model id.
+    const gear = { ...old, kind: 'mixer' as const }
+    expect(normalizeEquipment(gear).ports.find((p) => p.id === 'headphones')!.pins).toBeUndefined()
+  })
+})
+
+describe('the Behringer UMC204HD in detail (2026-11-12)', () => {
+  it('playback 1/2 on Main Out, Playback A and the Phones, 3/4 on Playback B; the inputs to the host; MIDI through', () => {
+    const umc = BUILTIN_MODELS.find((m) => m.id === 'behringer-umc204hd')!
+    expect(umc.kind).toBe('audio-interface')
+    expect(umc.routing?.mode).toBe('fixed')
+    const to = (portId: string, channel?: number) =>
+      umc.routing!.default.filter((c) => c.from.kind === 'port' && c.from.portId === portId && c.from.channel === channel).map((c) => (c.to.kind === 'port' ? `${c.to.portId}${c.to.channel ?? ''}${c.to.pin ? `.${c.to.pin}` : ''}` : ''))
+    expect(to('usb/audio-in', 1)).toEqual(['main1', 'playback-a1', 'phones.1'])
+    expect(to('usb/audio-in', 4)).toEqual(['playback-b2'])
+    expect(to('in', 2)).toEqual(['usb/audio-out2'])
+    expect(to('usb/midi-in')).toEqual(['midi-out'])
+    // Every point names a port the model has.
+    const ids = new Set(umc.ports.flatMap((p) => [p.id, ...(p.parts ?? []).map((x) => x.id)]))
+    for (const c of umc.routing!.default) for (const end of [c.from, c.to]) expect(end.kind === 'port' && ids.has(end.portId)).toBe(true)
+  })
+})
+
+
+describe('the NUX MG-30 in detail (2026-11-12)', () => {
+  it('the guitar through the FX loop to Main Out, the Phones and the host; MIDI only over USB', () => {
+    const mg = BUILTIN_MODELS.find((m) => m.id === 'nux-mg30')!
+    expect(mg.kind).toBe('amp-modeller')
+    expect(mg.routing?.mode).toBe('fixed')
+    const to = (portId: string, channel?: number) =>
+      mg.routing!.default.filter((c) => c.from.kind === 'port' && c.from.portId === portId && c.from.channel === channel && c.from.pin === undefined).map((c) => (c.to.kind === 'port' ? `${c.to.portId}${c.to.channel ?? ''}${c.to.pin ? `.${c.to.pin}` : ''}` : ''))
+    expect(to('in')).toEqual(['send', 'main1', 'main2', 'phones.1', 'phones.2', 'usb/audio-out1', 'usb/audio-out2'])
+    expect(to('usb/audio-in', 2)).toEqual(['main2', 'phones.2'])
+    expect(to('usb/midi-in')).toEqual(['main1'])
+    expect(mg.ports.some((p) => p.connector === 'din5')).toBe(false)
+    // A wall wart, no earth: no hum loop of its own (device test 2026-11-12).
+    expect(equipmentEarth(equipmentFrom(mg, 'mg', 'MG-30'))).toBe('floating')
+    const ids = new Set(mg.ports.flatMap((p) => [p.id, ...(p.parts ?? []).map((x) => x.id)]))
+    for (const c of mg.routing!.default) for (const end of [c.from, c.to]) expect(end.kind === 'port' && ids.has(end.portId)).toBe(true)
+  })
+})

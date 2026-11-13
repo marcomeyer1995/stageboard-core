@@ -256,6 +256,7 @@
     "pinN": "Pin {{n}}",
     "groupToggle": "{{name}}: open or close",
     "wholeSocket": "{{name}} (whole)",
+    "wholeSignal": "{{name}} (both sides)",
     "earth": {
       "label": "Power",
       "earthed": "Earthed",

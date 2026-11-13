@@ -132,10 +132,11 @@ export const LISTENER_KINDS: readonly EquipmentKind[] = ['person', 'hall']
 export const DRIVER_KINDS: readonly EquipmentKind[] = ['stageboard', 'stage-server']
 
 /** One row or column of a routing matrix: a physical port (one channel of a group), or a virtual
- * port of StageBoard (a Logical Device id) on a StageBoard device. */
+ * port of StageBoard (a Logical Device id) on a StageBoard device - for a stereo one (the track)
+ * `channel` 1 or 2 names its left or right side alone ("Track L"), without it the whole signal. */
 export const MatrixPointSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('port'), portId: z.string().min(1), channel: z.number().int().positive().optional(), pin: z.number().int().positive().optional() }),
-  z.object({ kind: z.literal('virtual'), virtualPortId: z.string().min(1) }),
+  z.object({ kind: z.literal('virtual'), virtualPortId: z.string().min(1), channel: z.number().int().min(1).max(2).optional() }),
 ])
 export type MatrixPoint = z.infer<typeof MatrixPointSchema>
 
@@ -357,6 +358,45 @@ export const BUILTIN_MODELS: readonly EquipmentModel[] = [
     ],
     free(via(at('usb/audio-in', 1), at('out', 1)), via(at('usb/audio-in', 2), at('out', 2))),
   ),
+  // The band's own interface in detail (Marco, 2026-11-12; Behringer's panel layout). Its routing is
+  // the hardware's own, so fixed: playback 1/2 goes to Main Out and Playback A, 3/4 to Playback B,
+  // the Phones play A (the A/B button switches them to 3/4 - not modelled, nor the Mix knob's
+  // direct monitoring of the inputs). The inputs are what the host records; MIDI passes through.
+  builtin(
+    'behringer-umc204hd',
+    'Behringer UMC204HD',
+    'audio-interface',
+    [
+      container(port('usb', 'USB', 'usb-b', ['usb-audio', 'midi'], 'both'), [
+        part('usb/audio-in', 'Audio ein (vom Host)', ['usb-audio'], 'in', 4),
+        part('usb/audio-out', 'Audio aus (zum Host)', ['usb-audio'], 'out', 2),
+        part('usb/midi-in', 'MIDI ein', ['midi'], 'in'),
+        part('usb/midi-out', 'MIDI aus', ['midi'], 'out'),
+      ]),
+      port('in', 'Eingang', 'xlr-jack', ['audio'], 'in', 2),
+      port('insert', 'Insert', 'jack-6.3', ['audio'], 'both', 2),
+      port('main', 'Main Out', 'jack-6.3', ['audio'], 'out', 2),
+      port('playback-a', 'Playback A', 'rca', ['audio'], 'out', 2),
+      { ...port('playback-b', 'Playback B', 'rca', ['audio'], 'out', 2), firstChannel: 3 },
+      stereo(port('phones', 'Phones', 'jack-6.3', ['audio'], 'out')),
+      port('midi-in', 'MIDI In', 'din5', ['midi'], 'in'),
+      port('midi-out', 'MIDI Out', 'din5', ['midi'], 'out'),
+    ],
+    fixed(
+      via(at('usb/audio-in', 1), at('main', 1)),
+      via(at('usb/audio-in', 2), at('main', 2)),
+      via(at('usb/audio-in', 1), at('playback-a', 1)),
+      via(at('usb/audio-in', 2), at('playback-a', 2)),
+      via(at('usb/audio-in', 3), at('playback-b', 1)),
+      via(at('usb/audio-in', 4), at('playback-b', 2)),
+      via(at('usb/audio-in', 1), { kind: 'port', portId: 'phones', pin: 1 }),
+      via(at('usb/audio-in', 2), { kind: 'port', portId: 'phones', pin: 2 }),
+      via(at('in', 1), at('usb/audio-out', 1)),
+      via(at('in', 2), at('usb/audio-out', 2)),
+      via(at('usb/midi-in'), at('midi-out')),
+      via(at('midi-in'), at('usb/midi-out')),
+    ),
+  ),
   builtin('midi-device', 'MIDI-Gerät', 'midi-device', [port('midi-in', 'MIDI In', 'din5', ['midi'], 'in'), port('main', 'Audio Out', 'jack-6.3', ['audio'], 'out')], fixed(via(at('midi-in'), at('main'))), true),
   builtin('midi-controller', 'Pedal / Keyboard', 'midi-controller', [port('midi-out', 'MIDI Out', 'din5', ['midi'], 'out'), port('usb', 'USB', 'usb-b', ['midi'], 'both')], null),
   builtin(
@@ -367,6 +407,53 @@ export const BUILTIN_MODELS: readonly EquipmentModel[] = [
     fixed(via(at('midi-in'), at('main')), via(at('usb'), at('main'))),
     true,
   ),
+  // Marco's modeller (2026-11-12; NUX's panel: no MIDI DIN, MIDI only over USB). The guitar runs
+  // through the effects to Main Out L/R and the Phones; the FX loop sits in that chain, Aux In and
+  // the host's playback are mixed in. USB audio is 2 in / 2 out - NUX gives no channel count, to
+  // check on the device. The expression jack carries no signal the map knows, so it is left out.
+  // It runs on a 9 V wall wart or its battery - no earth, so it closes no hum loop itself.
+  {
+    ...builtin(
+      'nux-mg30',
+      'NUX MG-30',
+      'amp-modeller',
+      [
+        container(port('usb', 'USB', 'usb-c', ['usb-audio', 'midi'], 'both'), [
+          part('usb/audio-in', 'Audio ein (vom Host)', ['usb-audio'], 'in', 2),
+          part('usb/audio-out', 'Audio aus (zum Host)', ['usb-audio'], 'out', 2),
+          part('usb/midi-in', 'MIDI ein', ['midi'], 'in'),
+          part('usb/midi-out', 'MIDI aus', ['midi'], 'out'),
+        ]),
+        port('in', 'Eingang', 'jack-6.3-ts', ['audio'], 'in'),
+        stereo(port('aux', 'Aux In', 'jack-3.5', ['audio'], 'in')),
+        port('send', 'FX Send', 'jack-6.3-ts', ['audio'], 'out'),
+        port('return', 'FX Return', 'jack-6.3-ts', ['audio'], 'in'),
+        port('main', 'Main Out L/Mono, R', 'jack-6.3', ['audio'], 'out', 2),
+        stereo(port('phones', 'Phones', 'jack-3.5', ['audio'], 'out')),
+      ],
+      fixed(
+        via(at('in'), at('send')),
+        via(at('return'), at('main', 1)),
+        via(at('return'), at('main', 2)),
+        via(at('in'), at('main', 1)),
+        via(at('in'), at('main', 2)),
+        via(at('in'), { kind: 'port', portId: 'phones', pin: 1 }),
+        via(at('in'), { kind: 'port', portId: 'phones', pin: 2 }),
+        via(at('in'), at('usb/audio-out', 1)),
+        via(at('in'), at('usb/audio-out', 2)),
+        via({ kind: 'port', portId: 'aux', pin: 1 }, at('main', 1)),
+        via({ kind: 'port', portId: 'aux', pin: 2 }, at('main', 2)),
+        via(at('usb/audio-in', 1), at('main', 1)),
+        via(at('usb/audio-in', 2), at('main', 2)),
+        via(at('usb/audio-in', 1), { kind: 'port', portId: 'phones', pin: 1 }),
+        via(at('usb/audio-in', 2), { kind: 'port', portId: 'phones', pin: 2 }),
+        // Program changes and CCs arrive over USB and change what comes out.
+        via(at('usb/midi-in'), at('main', 1)),
+      ),
+      true,
+    ),
+    earth: 'floating',
+  },
   // Two mono inputs (L/R): one channel for a mono mix, both for stereo (Marco, 2026-11-07).
   builtin(
     'iem-sender',
@@ -1103,7 +1190,8 @@ export function checkSetup(map: StageMap, setupId: string, virtualPorts: readonl
   for (const e of onStage) {
     if (!DRIVER_KINDS.includes(e.kind)) continue
     for (const c of effectiveRouting(e, setup)) {
-      if (c.from.kind !== 'virtual' || c.to.kind !== 'port' || c.to.channel !== undefined || c.to.pin !== undefined) continue
+      // One side of the source alone ("Track L") is one channel - nothing to lose.
+      if (c.from.kind !== 'virtual' || c.from.channel !== undefined || c.to.kind !== 'port' || c.to.channel !== undefined || c.to.pin !== undefined) continue
       const virtualPortId = c.from.virtualPortId
       const vp = virtualPorts.find((v) => v.id === virtualPortId)
       const builtIn = DEFAULT_VIRTUAL_OUTPUTS.find((v) => v.id === virtualPortId)
@@ -1257,6 +1345,8 @@ export interface MapOutput {
   portId: string
   route: OutputRouteKind
   side: OutputSide
+  /** Only this side of a stereo source goes there (1 = its left, 2 = its right) - absent: all of it. */
+  channel?: 1 | 2
 }
 
 function routeOfConnector(connector: Connector): OutputRouteKind {
@@ -1299,7 +1389,8 @@ export function mapOutputs(map: StageMap, deviceId: string, capability: Capabili
     const index = c.to.pin ?? c.to.channel
     const side: OutputSide = index === undefined ? 'both' : index === 1 ? 'left' : 'right'
     const playable = port !== undefined && (index === undefined || index <= 2)
-    out.push({ portId: c.to.portId, route: untouched ? 'any' : playable ? routeOfConnector(port.connector) : 'none', side })
+    const channel = c.from.channel === 1 || c.from.channel === 2 ? c.from.channel : undefined
+    out.push({ portId: c.to.portId, route: untouched ? 'any' : playable ? routeOfConnector(port.connector) : 'none', side, ...(channel ? { channel } : {}) })
   }
   return out
 }
@@ -1313,17 +1404,41 @@ export function mapPlays(map: StageMap, deviceId: string, capability: Capability
   return outputs === null ? null : outputs.length > 0
 }
 
+/** What one side of the device's output gets from a source: its left (`L`), its right (`R`), both
+ * summed (`mix`), or nothing. */
+export type SideFeed = 'L' | 'R' | 'mix' | null
+/** A source on the device's stereo output: what its left and its right side get. */
+export interface SourceFeeds {
+  left: SideFeed
+  right: SideFeed
+}
+/** As always: left on the left, right on the right (a mono source on both). */
+export const STEREO_FEEDS: SourceFeeds = { left: 'L', right: 'R' }
+
 /**
- * The side a source plays on while Android is on `route`, from its `mapOutputs`: the points on
- * that output together (left and right = both). Null: none of its points is on that output - the
- * source stays silent, never played somewhere else (docs/28). A browser cannot tell the route
- * (`unknown`): every playable point counts there.
+ * What a source gives each side while Android is on `route`, from its `mapOutputs` (#742; the
+ * sides of a stereo source alone since 2026-11-12): only the points on that output count. The
+ * whole source on both sides keeps its left left and its right right - on one side only it is
+ * summed there; "Track L" or "Track R" goes alone wherever it is put, two things on one side are
+ * summed. Null: none of its points is on that output - the source stays silent, never played
+ * somewhere else (docs/28). A browser cannot tell the route (`unknown`): every playable point
+ * counts there. `stereo` false (click, announcements): one signal, `mix` wherever it goes.
  */
-export function outputSide(outputs: readonly MapOutput[], route: string): OutputSide | null {
+export function outputFeeds(outputs: readonly MapOutput[], route: string, stereo = true): SourceFeeds | null {
   const here = outputs.filter((o) => o.route === 'any' || (o.route !== 'none' && (route === 'unknown' || o.route === route)))
   if (here.length === 0) return null
-  if (here.some((o) => o.side === 'both')) return 'both'
-  return here.every((o) => o.side === here[0]!.side) ? here[0]!.side : 'both'
+  const sidesOf = (o: MapOutput): ('left' | 'right')[] => (o.side === 'both' ? ['left', 'right'] : [o.side])
+  const got = { left: new Set<'L' | 'R'>(), right: new Set<'L' | 'R'>() }
+  const whole = new Set(here.filter((o) => o.channel === undefined).flatMap(sidesOf))
+  if (whole.size === 2) {
+    got.left.add('L')
+    got.right.add('R')
+  } else for (const side of whole) got[side].add('L').add('R')
+  for (const o of here) if (o.channel) for (const side of sidesOf(o)) got[side].add(o.channel === 1 ? 'L' : 'R')
+  const feed = (set: Set<'L' | 'R'>): SideFeed => (set.size === 0 ? null : !stereo || set.size === 2 ? 'mix' : set.has('L') ? 'L' : 'R')
+  const feeds = { left: feed(got.left), right: feed(got.right) }
+  // A mono source on both sides is the same signal on both - as always.
+  return !stereo && feeds.left && feeds.right ? STEREO_FEEDS : feeds
 }
 
 /** Klick, Track and Ansagen - decided by mapPlays, not by mapRoute. */
@@ -1441,9 +1556,13 @@ export function normalizePort(port: Port): Port {
   return { ...rest, ...(pins === undefined ? {} : { pins }), ...(parts === undefined ? {} : { parts }) }
 }
 
-/** Equipment from the database read the new way (#739) - no write, the band's documents stay as they are. */
+/** Equipment from the database read the new way (#739) - no write, the band's documents stay as
+ * they are. A StageBoard device on a built-in model takes its ports from the model: nobody can set
+ * a tablet's ports up, so the copy stored when it joined only goes stale (2026-11-12: tablets added
+ * before #739 had mono headphones). */
 export function normalizeEquipment(equipment: StageEquipment): StageEquipment {
-  return { ...equipment, ports: equipment.ports.map(normalizePort) }
+  const model = equipment.kind === 'stageboard' ? BUILTIN_MODELS.find((m) => m.id === equipment.modelId && m.kind === 'stageboard') : undefined
+  return { ...equipment, ports: (model?.ports ?? equipment.ports).map(normalizePort) }
 }
 
 /**
