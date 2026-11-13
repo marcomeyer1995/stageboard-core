@@ -181,4 +181,13 @@ describe('stageLive (#747, docs/31 §9)', () => {
     const gone = stageLive(stage({ outputs, health: { plugins: {} }, deviceInfo: { devices: { redmi: entry({ midiOutputs: [] }), fire: entry() } } }))
     expect(gone.equipment.kemper!.notes.map((n) => n.key)).toEqual(['midiMissing'])
   })
+
+  it('a device whose last report said "hidden" (minimised, swiped away) is "nicht im Vordergrund", orange - not "App ist zu" (#815)', () => {
+    const stale = NOW - 60_000
+    const live = stageLive(stage({ deviceInfo: { devices: { redmi: entry({ lastSeenAt: stale, foreground: false }), fire: entry() } } }))
+    expect(live.equipment['device:redmi']).toMatchObject({ status: 'warning', notes: [{ status: 'warning', key: 'background' }] })
+    // Stale without that word: closed, as before.
+    const closed = stageLive(stage({ deviceInfo: { devices: { redmi: entry({ lastSeenAt: stale }), fire: entry() } } }))
+    expect(closed.equipment['device:redmi']!.notes[0]).toMatchObject({ status: 'error', key: 'appClosed' })
+  })
 })

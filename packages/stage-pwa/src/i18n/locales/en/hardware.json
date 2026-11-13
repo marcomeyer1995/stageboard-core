@@ -386,6 +386,7 @@
     "legend": "Red means: it will not play like this. Latency value of the path: ● measured · ◐ by hand · ○ missing. More per device under “Tablets & phones”.",
     "offline": "offline",
     "appClosed": "app is closed",
+    "background": "not in the foreground",
     "placeholder": "no device assigned yet",
     "online": "app open",
     "battery": "battery {{pct}} %",
