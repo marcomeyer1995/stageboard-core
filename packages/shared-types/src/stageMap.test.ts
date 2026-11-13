@@ -867,3 +867,40 @@ describe('the NUX MG-30 in detail (2026-11-12)', () => {
     for (const c of mg.routing!.default) for (const end of [c.from, c.to]) expect(end.kind === 'port' && ids.has(end.portId)).toBe(true)
   })
 })
+
+describe('a hub on the tablet: UMC204HD and NUX MG-30 on one USB-C (#813, device test 2026-11-12)', () => {
+  const hub = () => {
+    const map = defaultStageMap([{ id: 'redmi', name: 'Redmi' }])
+    const setup = map.setups[0]!
+    for (const [modelId, id] of [['behringer-umc204hd', 'umc'], ['nux-mg30', 'mg30']] as const) {
+      map.equipment.push(equipmentFrom(BUILTIN_MODELS.find((m) => m.id === modelId)!, id, id))
+      setup.positions[id] = { x: 0, y: 0 }
+    }
+    // The UMC's cable comes first, as it did on the Redmi.
+    setup.links.push({ id: 'to-umc', from: { equipmentId: 'umc', portId: 'usb' }, to: { equipmentId: 'device:redmi', portId: 'usb' }, signals: ['usb-audio', 'midi'] })
+    setup.links.push({ id: 'to-mg30', from: { equipmentId: 'mg30', portId: 'usb' }, to: { equipmentId: 'device:redmi', portId: 'usb' }, signals: ['usb-audio', 'midi'], midiName: 'NUX MG-30' })
+    setup.routing['device:redmi'] = [
+      { from: { kind: 'virtual', virtualPortId: 'klick' }, to: { kind: 'port', portId: 'usb/audio-out', channel: 1 } },
+      { from: { kind: 'virtual', virtualPortId: 'ld-mg30' }, to: { kind: 'port', portId: 'usb/midi-out' } },
+    ]
+    return map
+  }
+
+  it('the MG-30 plugin gets the MG-30 cable, whatever the order', () => {
+    const map = hub()
+    expect(mapRoute(map, 'ld-mg30', {}, undefined, 'nux-mg30')).toEqual({ app: 'redmi', midiName: 'NUX MG-30' })
+    // Without the plugin: the cable that names a port before the first one.
+    expect(mapRoute(map, 'ld-mg30')).toEqual({ app: 'redmi', midiName: 'NUX MG-30' })
+    const lds = routedLogicalDevices([{ id: 'ld-mg30', capability: 'mg30-control', executionTarget: null, pluginId: 'nux-mg30' }], map)
+    expect(lds[0]!.executionTarget).toBe('redmi')
+  })
+
+  it('the cable checker says Android plays through only one of the two', () => {
+    const { issues } = checkSetup(hub(), hub().setups[0]!.id)
+    expect(issues).toContainEqual({ kind: 'usb-audio-shared', equipmentId: 'device:redmi', portId: 'usb', linkIds: ['to-umc', 'to-mg30'] })
+    // MIDI only to the MG-30: nothing to say.
+    const map = hub()
+    map.setups[0]!.links[1]!.signals = ['midi']
+    expect(checkSetup(map, map.setups[0]!.id).issues.some((i) => i.kind === 'usb-audio-shared')).toBe(false)
+  })
+})

@@ -344,6 +344,7 @@
     "monoInStereoOut": "{{where}}: mono cable in a stereo output - the right channel is shorted. Use a stereo or Y cable and put the cable on L or R.",
     "channelLost": "{{where}}: {{signal}} is stereo, but this side arrives nowhere - one channel is lost. Plug a stereo cable or put {{signal}} on a single pin in the matrix (mixed down to mono there).",
     "mix": "{{where}}: {{n}} signals on the same output - but {{device}} puts out one signal per output. Route only one of them there or mix before (mixer, the tablet's matrix).",
+    "usbAudioShared": "{{where}}: several USB audio devices on one socket ({{devices}}). Android plays through only one of them - Android picks which. MIDI reaches all of them.",
     "channels": "Channels in use",
     "used": "{{name}} {{used}}/{{total}}",
     "adapters": "Pack adapters ({{n}})",

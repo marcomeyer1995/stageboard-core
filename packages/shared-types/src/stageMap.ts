@@ -1115,6 +1115,9 @@ export type StageIssue =
   | { kind: 'hum-loop'; equipmentIds: [string, string]; linkIds: string[] }
   /** The same over USB/DMX only: possible, worth a look (#748). */
   | { kind: 'hum-hint'; equipmentIds: [string, string]; linkIds: string[] }
+  /** Several USB audio devices on one tablet socket (a hub, #813): Android plays through only one
+   * of them, and which one it picks is Android's choice (device test 2026-11-12, docs/28 §3a). */
+  | { kind: 'usb-audio-shared'; equipmentId: string; portId: string; linkIds: string[] }
 
 export interface PortUse {
   equipmentId: string
@@ -1184,6 +1187,21 @@ export function checkSetup(map: StageMap, setupId: string, virtualPorts: readonl
     issues.push({ kind: 'double', equipmentId, portId, channel: ch === '' ? undefined : Number(ch), ...(pin === '' ? {} : { pin: Number(pin) }), linkIds })
   }
   const onStage = map.equipment.filter((e) => setup.positions[e.id])
+  // Two USB audio devices on one tablet socket (#813): their cables both carry USB audio and both
+  // far ends take it - Android plays through only one.
+  for (const e of onStage) {
+    if (e.kind !== 'stageboard') continue
+    for (const port of e.ports) {
+      if (!port.parts?.some((x) => x.signals.includes('usb-audio') && x.direction !== 'in')) continue
+      const audio = setup.links.filter((l) => {
+        if (!l.signals.includes('usb-audio')) return false
+        const far = l.from.equipmentId === e.id && l.from.portId === port.id ? l.to : l.to.equipmentId === e.id && l.to.portId === port.id ? l.from : null
+        const farPort = far ? byId.get(far.equipmentId)?.ports.find((p) => p.id === far.portId) : undefined
+        return !!farPort?.parts?.some((x) => x.signals.includes('usb-audio') && x.direction !== 'out')
+      })
+      if (audio.length > 1) issues.push({ kind: 'usb-audio-shared', equipmentId: e.id, portId: port.id, linkIds: audio.map((l) => l.id) })
+    }
+  }
   // The whole chain (#746): a stereo signal put on a whole socket or group goes side by side -
   // when one side arrives somewhere and the other ends on the way, a channel is lost.
   const follow = tracer(map, setup)
@@ -1452,7 +1470,7 @@ export const BUILT_IN_OUTPUT_CAPABILITIES: readonly CapabilityId[] = DEFAULT_VIR
  * sends. Null without a map - the old binding applies. `setupId`: a setup other than the active
  * one (practising "as in setup …", #799).
  */
-export function mapRoute(map: StageMap, virtualPortId: string, frontApp: Readonly<Record<string, string>> = {}, setupId?: string): { app: string | null; midiName: string | null } | null {
+export function mapRoute(map: StageMap, virtualPortId: string, frontApp: Readonly<Record<string, string>> = {}, setupId?: string, pluginId?: string | null): { app: string | null; midiName: string | null } | null {
   const setup = setupOf(map, setupId)
   if (!setup) return null
   for (const box of map.equipment) {
@@ -1467,7 +1485,11 @@ export function mapRoute(map: StageMap, virtualPortId: string, frontApp: Readonl
     const portId = cablePortId(box.ports, point.portId)
     const apps = appsOf(box)
     const app = box.kind === 'stage-server' ? SERVER_EXECUTION_TARGET : frontApp[box.id] && apps.includes(frontApp[box.id]!) ? frontApp[box.id]! : (box.deviceId ?? apps[0] ?? null)
-    const cable = setup.links.find((l) => (l.from.equipmentId === box.id && l.from.portId === portId) || (l.to.equipmentId === box.id && l.to.portId === portId))
+    const cables = setup.links.filter((l) => (l.from.equipmentId === box.id && l.from.portId === portId) || (l.to.equipmentId === box.id && l.to.portId === portId))
+    // Several cables on one socket (a hub on the tablet's USB-C, #813): the one to the device this
+    // plugin drives (MG-30 model ↔ MG-30 plugin), else one that names its MIDI port, else the first.
+    const farModel = (l: StageLink) => map.equipment.find((e) => e.id === (l.from.equipmentId === box.id ? l.to.equipmentId : l.from.equipmentId))?.modelId
+    const cable = (pluginId ? cables.find((l) => farModel(l) === pluginId) : undefined) ?? cables.find((l) => l.midiName) ?? cables[0]
     return { app, midiName: cable?.midiName ?? null }
   }
   return { app: null, midiName: null }
@@ -1475,11 +1497,11 @@ export function mapRoute(map: StageMap, virtualPortId: string, frontApp: Readonl
 
 /** The Logical Devices as the map says: every one but Klick/Track/Ansagen executes where mapRoute
  * sends it. Without a map, as stored. */
-export function routedLogicalDevices<T extends { id: string; capability: string; executionTarget: string | null }>(devices: readonly T[], map: StageMap, frontApp: Readonly<Record<string, string>> = {}, setupId?: string): T[] {
+export function routedLogicalDevices<T extends { id: string; capability: string; executionTarget: string | null; pluginId?: string | null }>(devices: readonly T[], map: StageMap, frontApp: Readonly<Record<string, string>> = {}, setupId?: string): T[] {
   if (!setupOf(map, setupId)) return [...devices]
   return devices.map((d) => {
     if (BUILT_IN_OUTPUT_CAPABILITIES.includes(d.capability as CapabilityId)) return d
-    const route = mapRoute(map, d.id, frontApp, setupId)
+    const route = mapRoute(map, d.id, frontApp, setupId, d.pluginId)
     return route ? { ...d, executionTarget: route.app } : d
   })
 }
