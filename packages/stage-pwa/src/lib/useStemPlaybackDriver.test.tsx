@@ -6,6 +6,8 @@ import { __resetStemMixForTests, useStemMixStore } from './stemMix'
 import { loadStems, setStemGains, unloadStems } from './stemEngine'
 import { setLocalTrackSilenced } from './localAudioEngine'
 import { useStemPlaybackDriver } from './useStemPlaybackDriver'
+import { useNativeTrackStore } from './engine/nativeTrackStore'
+import { useStemPlaybackStore } from '../store/useStemPlaybackStore'
 
 vi.mock('./showMode', () => {
   const show = vi.fn()
@@ -65,6 +67,19 @@ describe('useStemPlaybackDriver (docs/22 §3)', () => {
     act(() => useStemMixStore.getState().setOn('v1', true))
     rerender()
     await waitFor(() => expect(loadStems).toHaveBeenLastCalledWith('v1', ['drums', 'bass']))
+  })
+
+  it('while the native engine plays the track (nativeEngineTrack.ts): only real stems, never the track twice', async () => {
+    mockMode('practice')
+    useNativeTrackStore.setState({ active: true })
+    const { rerender } = renderHook(() => useStemPlaybackDriver())
+    expect(loadStems).not.toHaveBeenCalled()
+    expect(useStemPlaybackStore.getState()).toMatchObject({ status: 'off', stems: false })
+    act(() => useStemMixStore.getState().setOn('v1', true))
+    rerender()
+    await waitFor(() => expect(loadStems).toHaveBeenLastCalledWith('v1', ['drums', 'bass']))
+    await waitFor(() => expect(useStemPlaybackStore.getState()).toMatchObject({ status: 'ready', stems: true }))
+    useNativeTrackStore.setState({ active: false })
   })
 
   it('leaves Gig mode alone - the element plays there', () => {

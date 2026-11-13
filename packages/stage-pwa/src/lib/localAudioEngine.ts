@@ -184,7 +184,6 @@ export function setLocalTrackSilenced(on: boolean): void {
 }
 
 export function setLocalTrackHeldByEngine(on: boolean): void {
-  if (typeof window !== 'undefined') (window as unknown as { __sbTrackHeld: boolean }).__sbTrackHeld = on
   if (heldByEngine === on) return
   heldByEngine = on
   if (audioEl && !fade) audioEl.volume = elementVolume()
