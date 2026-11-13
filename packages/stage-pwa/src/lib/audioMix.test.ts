@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { __resetAudioMixForTests, DEFAULT_MIX, mixGain, parseMix, sideOf, sourceOutput, trackElementVolume, useAudioMixStore, useOutputRoutingStore } from './audioMix'
+import { __resetAudioMixForTests, DEFAULT_MIX, mixGain, parseMix, sourceOutput, trackElementVolume, useAudioMixStore, useOutputPlanStore } from './audioMix'
 import { masterOutput } from './nativeOutput'
+import { STEREO_FEEDS, type SourceFeeds } from 'shared-types'
 
 class FakeGain {
   gain = {
@@ -31,8 +32,21 @@ class FakeMerger {
     this.connectedTo = node
   }
 }
+class FakeSplitter {
+  constructor(public outputs: number) {}
+  to: { node: unknown; output: number }[] = []
+  connect(node: unknown, output = 0) {
+    this.to.push({ node, output })
+  }
+}
 const fakeCtx = () =>
-  ({ currentTime: 0, destination: { name: 'out' }, createGain: () => new FakeGain(), createChannelMerger: (n: number) => new FakeMerger(n) }) as unknown as AudioContext
+  ({
+    currentTime: 0,
+    destination: { name: 'out' },
+    createGain: () => new FakeGain(),
+    createChannelMerger: (n: number) => new FakeMerger(n),
+    createChannelSplitter: (n: number) => new FakeSplitter(n),
+  }) as unknown as AudioContext
 
 afterEach(() => {
   __resetAudioMixForTests()
@@ -78,20 +92,16 @@ describe('Mein Mix (docs/21 §9.3)', () => {
   })
 })
 
-describe('Klick und Track trennen (#481 step 1)', () => {
-  it('click and announcements on one side, the track on the other', () => {
-    expect(sideOf('click', 'click-left')).toBe('left')
-    expect(sideOf('voice', 'click-left')).toBe('left')
-    expect(sideOf('track', 'click-left')).toBe('right')
-    expect(sideOf('track', 'click-right')).toBe('left')
-    expect(sideOf('track', 'mixed')).toBeNull()
-  })
+describe('the sound follows the map (#742)', () => {
+  type Side = 'both' | 'left' | 'right' | null
+  const feeds = (side: Side): SourceFeeds | null => (side === null ? null : side === 'both' ? STEREO_FEEDS : side === 'left' ? { left: 'mix', right: null } : { left: null, right: 'mix' })
+  const plan = (click: Side, track: Side) => useOutputPlanStore.getState().setPlan({ click: feeds(click), voice: feeds(click), track: feeds(track) })
 
-  it('split: each source into a mono bus on its merger input; back to mixed: straight to the output', () => {
+  it('a side: each source into a mono bus on its merger input; back to both: straight to the output', () => {
     const ctx = fakeCtx()
     const click = sourceOutput('click', ctx) as unknown as FakeGain
     const track = sourceOutput('track', ctx) as unknown as FakeGain
-    useOutputRoutingStore.getState().setRouting('click-left')
+    plan('left', 'right')
     const left = click.connectedTo as FakeGain
     const right = track.connectedTo as FakeGain
     expect(left.input).toBe(0)
@@ -101,16 +111,45 @@ describe('Klick und Track trennen (#481 step 1)', () => {
     const merger = left.connectedTo as FakeMerger
     expect(right.connectedTo).toBe(merger)
     expect(merger.connectedTo).toBe(masterOutput(ctx))
-    // A source created later follows the routing too.
+    // A source created later follows the plan too.
     const voice = sourceOutput('voice', ctx) as unknown as FakeGain
     expect(voice.connectedTo).toBe(left)
-    useOutputRoutingStore.getState().setRouting('mixed')
+    plan('both', 'both')
     expect(click.connectedTo).toBe(masterOutput(ctx))
     expect(track.connectedTo).toBe(masterOutput(ctx))
   })
 
-  it('is kept per device', () => {
-    useOutputRoutingStore.getState().setRouting('click-right')
-    expect(localStorage.getItem('sb:audio:routing')).toBe('click-right')
+  it('a source whose output is missing is silent, the others keep playing; it comes back with the output', () => {
+    const ctx = fakeCtx()
+    const click = sourceOutput('click', ctx) as unknown as FakeGain
+    const track = sourceOutput('track', ctx) as unknown as FakeGain
+    plan('left', null)
+    expect(track.connectedTo).toBeNull()
+    expect((click.connectedTo as FakeGain).input).toBe(0)
+    plan('left', 'right')
+    expect((track.connectedTo as FakeGain).input).toBe(1)
+  })
+
+  it('the sides of the track alone (2026-11-12): through a splitter, swapped or one side on both', () => {
+    const ctx = fakeCtx()
+    const track = sourceOutput('track', ctx) as unknown as FakeGain
+    const setTrack = (left: SourceFeeds['left'], right: SourceFeeds['right']) => useOutputPlanStore.getState().setPlan({ click: STEREO_FEEDS, voice: STEREO_FEEDS, track: { left, right } })
+    setTrack('R', 'L')
+    const splitter = track.connectedTo as FakeSplitter
+    expect(splitter.outputs).toBe(2)
+    expect(splitter.to.map(({ node, output }) => [(node as FakeGain).input, output])).toEqual([
+      [0, 1],
+      [1, 0],
+    ])
+    // Only its left side, on both: channel 0 into both buses.
+    setTrack('L', 'L')
+    expect((track.connectedTo as FakeSplitter).to.map(({ node, output }) => [(node as FakeGain).input, output])).toEqual([
+      [0, 0],
+      [1, 0],
+    ])
+    // The same placement again is no change - nothing is rewired.
+    const before = track.connectedTo
+    setTrack('L', 'L')
+    expect(track.connectedTo).toBe(before)
   })
 })

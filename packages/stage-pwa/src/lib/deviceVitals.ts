@@ -182,6 +182,7 @@ export function summarizeVitals(v: VitalsSnapshot): DeviceVitalsSummary {
     audioClockPct: v.audioClock?.pct ?? null,
     stallsPerMin: v.stallsPerMin,
     uptimeMin: Math.floor(v.uptimeMs / MINUTE_MS),
+    clockUncertaintyMs: v.clock.uncertaintyMs === null ? null : Math.round(v.clock.uncertaintyMs * 10) / 10,
   }
 }
 

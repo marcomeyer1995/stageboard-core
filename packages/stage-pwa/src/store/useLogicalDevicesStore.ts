@@ -69,9 +69,9 @@ export const useLogicalDevicesStore = create<LogicalDevicesState>((set) => ({
   },
 }))
 
-// The map changed (a tick, a cable, another app in front): route again.
+// The map changed (a tick, a cable, another app in front, another setup for the Gig): route again.
 useStageMapStore.subscribe((map, before) => {
-  if (map.setups === before.setups && map.equipment === before.equipment && map.front === before.front && map.loaded === before.loaded) return
+  if (map.setups === before.setups && map.equipment === before.equipment && map.front === before.front && map.active === before.active && map.loaded === before.loaded) return
   const { stored } = useLogicalDevicesStore.getState()
   useLogicalDevicesStore.setState({ devices: routed(stored) })
 })

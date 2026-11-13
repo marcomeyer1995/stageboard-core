@@ -17,6 +17,8 @@ export async function reportDeviceInfo(workspaceId: string, report: DeviceInfoRe
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(report),
+      // Sent while the page hides (#815): keepalive lets it finish after the app went away.
+      keepalive: true,
     })
   } catch {
     // Network failure or server down - nothing to recover from here, see doc comment above.
