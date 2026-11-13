@@ -247,6 +247,8 @@ export type StageSetup = z.infer<typeof StageSetupSchema>
 export const StageMapSchema = z.object({
   equipment: z.array(StageEquipmentSchema),
   setups: z.array(StageSetupSchema).min(1),
+  /** The setup the Gig chose (`ShowState.activeSetupId`, #745) - absent: "Standard". */
+  active: z.string().optional(),
 })
 export type StageMap = z.infer<typeof StageMapSchema>
 
@@ -970,9 +972,14 @@ export function wiringList(map: StageMap, setupId: string): WiringCable[] {
   return out
 }
 
-/** The setup a band plays by, until the Gig chooses one (docs/31 §6 step 5): "Standard", else the first. */
+/**
+ * The setup a band plays by (docs/31 §6 step 5, #745): the one the master chose for the Gig
+ * (`map.active`), else - nothing chosen, or the chosen one is gone - "Standard", else the first.
+ * Never somebody's own setup (#799).
+ */
 export function activeSetup(map: StageMap): StageSetup | null {
-  return map.setups.find((s) => s.id === DEFAULT_SETUP_ID) ?? map.setups[0] ?? null
+  const chosen = map.active !== undefined ? map.setups.find((s) => s.id === map.active && s.owner === undefined) : undefined
+  return chosen ?? map.setups.find((s) => s.id === DEFAULT_SETUP_ID) ?? map.setups[0] ?? null
 }
 
 /**

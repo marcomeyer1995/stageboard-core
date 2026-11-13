@@ -13,6 +13,10 @@ interface StageMapState {
    * (`visibleOwnSetups`). */
   ownSetups: StageSetup[]
   ownEquipment: StageEquipment[]
+  /** The setup the Gig chose (`ShowState.activeSetupId`, #745), kept in step by useOutputPlan
+   * (this store stays free of the show state) - undefined:
+   * "Standard". Part of the map every Gig reader passes on (`activeSetup`). */
+  active: string | undefined
   /** Device box id → the app on it that came to the front last (mapPlays). */
   front: Record<string, string>
   loaded: boolean
@@ -50,6 +54,7 @@ export const useStageMapStore = create<StageMapState>((set) => ({
   setups: [],
   ownSetups: [],
   ownEquipment: [],
+  active: undefined,
   front: {},
   loaded: false,
   init: async (workspaceId) => {

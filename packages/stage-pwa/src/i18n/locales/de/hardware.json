@@ -165,6 +165,7 @@
     "newOwnSetup": "Mein Aufbau (neu)",
     "ownSetupDefaultName": "Zuhause",
     "renameSetup": "Aufbau umbenennen",
+    "gigSetupLabel": "{{name}} (im Gig)",
     "ownSetupLabel": "Mein: {{name}}",
     "ownSetupOf": "{{name}} ({{person}})",
     "ownSetupHint": "Dein eigener Aufbau zum Üben: nur du und der Admin sehen ihn, im Gig steht er nicht zur Wahl. Womit dieses Gerät übt, wählst du unter System → Dieses Gerät → Ton.",
