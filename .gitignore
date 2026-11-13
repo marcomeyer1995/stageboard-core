@@ -12,3 +12,7 @@ docker/couchdb-credentials.env
 
 # C++ build output (native/engine)
 /build/
+
+# tools/ (#793): device serials and local results
+tools/devices.json
+tools/*/out/

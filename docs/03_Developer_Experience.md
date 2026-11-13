@@ -219,6 +219,10 @@ jedem Drag-Frame neu und ohne Gedächtnis an den letzten Frame gelöst wurde, pl
 `compactType`-Detail von react-grid-layout, das den Aktiv-Widget selbst verschob) direkt am
 Gerät nachvollziehen, statt raten zu müssen.
 
+### 1b. Device tools (`tools/`, #793)
+
+Scripts for the test devices live in [`tools/`](../tools/README.md): `cdp` (evaluate, navigate, screenshot in the app's WebView over adb or any CDP port), `device` (install an APK, volume per device, wake, info), `night-test` (locked screen, #724/#789), `phone-check` (headless Chrome at phone size), `stage-map-harness` (the stage map in a browser without a server), `measure` (click/track offset, crosstalk, silence after unplugging) and `server/deploy-ref.sh` (run the Stage-Server from another ref for a test). Device serials go into the git-ignored `tools/devices.json`.
+
 ## 2. Testing-Strategie (Hardware-Abstraktion)
 KI-Entwicklung funktioniert am besten mit Test-Driven Development (TDD). Die Herausforderung: Die KI (und die CI/CD-Pipeline) hat physisch keinen Kemper-Amp und kein Soundcraft-Mischpult angeschlossen.
 
@@ -254,3 +258,12 @@ Das gesamte Projektmanagement, die Versionierung und die Plugin-Verwaltung finde
 * **Direkter Repo-Zugriff:** Claude (z.B. über die `claude-code` CLI) läuft lokal in deiner Entwicklungsumgebung und hat direkten Lese- und Schreibzugriff auf das geklonte GitHub-Repository.
 * **Issue-Driven Development:** Du erstellst Anforderungen als GitHub Issues. Du gibst Claude den simplen Befehl: "Setze Issue #42 um". Claude analysiert das Issue, sucht die relevanten Dateien im Repo, schreibt den Code, führt die lokalen Tests aus und erstellt selbstständig einen Git-Commit.
 * **CI/CD Integration:** Das Repository nutzt GitHub Actions. Sobald Code gepusht wird, laufen Linter, Typ-Checks und Tests. Claude kann als Agent auf diese Pipeline-Ergebnisse reagieren und Fehler selbstständig nachbessern, bevor ein Pull Request für ein neues Plugin in den Core gemerged wird.
+
+## 6. Language (decided 2026-11-10, #785)
+
+Everything in the repository and the issue tracker is written in **English**: code, comments, commit messages, PR titles and bodies, issues, docs, README. The reason: the add-on model (docs/32) invites contributors from outside, and a mixed tracker (older issues English, newer German) is the first thing they see. Conversations with the maintainer may be in German; what lands in the repo is English.
+
+- UI strings stay in the i18n files, `de` and `en` both maintained.
+- Existing German docs (docs/01–docs/31) are translated **when they are next touched**, one PR per doc, docs/32 first; new docs are written in English. The index in CLAUDE.md gives every doc an English summary already.
+- Commit messages: `<area>: <what changed>`, English, with the issue number.
+- Quoted decisions keep their original German wording only where the exact words matter.
