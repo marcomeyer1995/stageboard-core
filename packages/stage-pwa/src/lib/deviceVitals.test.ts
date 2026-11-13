@@ -106,6 +106,6 @@ describe('assessVitals', () => {
 describe('summarizeVitals', () => {
   it('reports the light with the numbers that explain it', () => {
     const snapshot: VitalsSnapshot = { ...CLEAN, at: 0, jsHeapMb: 80, jsHeapLimitMb: 1000, worstFrameMs: 40, framesWatched: true, uptimeMs: 63 * 60_000 }
-    expect(summarizeVitals(snapshot)).toEqual({ level: 'ok', issues: [], memAvailMb: 3000, audioClockPct: -0.17, stallsPerMin: 0, uptimeMin: 63 })
+    expect(summarizeVitals(snapshot)).toEqual({ level: 'ok', issues: [], memAvailMb: 3000, audioClockPct: -0.17, stallsPerMin: 0, uptimeMin: 63, clockUncertaintyMs: 1 })
   })
 })

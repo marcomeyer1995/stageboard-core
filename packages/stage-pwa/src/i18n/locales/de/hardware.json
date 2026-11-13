@@ -162,6 +162,20 @@
     "newSetup": "Aufbau (Kopie)",
     "deleteSetup": "Aufbau löschen",
     "deleteSetupConfirm": "Aufbau „{{name}}“ mit allen Kabeln löschen?",
+    "renameSetup": "Aufbau umbenennen",
+    "pinTakenTitle": "{{output}} ist schon belegt",
+    "pluginNeeded": "Für Cues braucht {{name}} sein Plugin, ein Gerät dafür und einen Haken in der Matrix.",
+    "pluginNoCable": "Für Cues braucht {{name}} sein Plugin und ein MIDI-Kabel zu einem Tablet - erst das Kabel ziehen.",
+    "pluginSetUp": "Einrichten",
+    "pinTaken": "Auf {{output}} liegt schon „{{current}}“. {{name}} gibt pro Ausgang nur ein Signal aus.",
+    "replaceWith": "„{{next}}“ stattdessen",
+    "replace": "Ersetzen",
+    "gigSetupLabel": "{{name}} (im Gig)",
+    "ownSetupLabel": "Mein: {{name}}",
+    "ownSetupOf": "{{name}} ({{person}})",
+    "adminEdits": "Die Bühne bearbeitet nur der Admin.",
+    "ownSetupHint": "Dein eigener Aufbau zum Üben: nur du und der Admin sehen ihn, im Gig steht er nicht zur Wahl. Womit dieses Gerät übt, wählst du unter System → Dieses Gerät → Ton.",
+    "ownSetupOfHint": "Eigener Aufbau von {{person}} zum Üben - nur {{person}} und du als Admin sehen ihn, im Gig steht er nicht zur Wahl.",
     "nobody": "niemand angemeldet",
     "hint": "Tippe ein Gerät oder ein Kabel an.",
     "connect": "Verbinden",
@@ -194,7 +208,8 @@
       "midi": "MIDI",
       "dmx": "DMX",
       "net": "Netzwerk",
-      "light": "Licht"
+      "light": "Licht",
+      "osc": "OSC"
     },
     "class": {
       "sound": "Ton",
@@ -238,7 +253,29 @@
     "midiNone": "– keiner –",
     "midiAbsent": "{{name}} (gerade nicht angesteckt)",
     "midiPort": "MIDI: {{name}}",
-    "midiChoose": "MIDI-Port wählen"
+    "midiChoose": "MIDI-Port wählen",
+    "pinL": "L",
+    "pinR": "R",
+    "pinN": "Pin {{n}}",
+    "groupToggle": "{{name}}: auf- oder zuklappen",
+    "wholeSocket": "{{name}} (ganz)",
+    "wholeSignal": "{{name}} (beide Seiten)",
+    "earth": {
+      "label": "Strom",
+      "earthed": "Geerdet (Schuko)",
+      "floating": "Ohne Erde",
+      "battery": "Akku"
+    },
+    "ground": {
+      "label": "Kabel und Masse",
+      "auto": "Wie die Stecker",
+      "balanced": "Symmetrisch",
+      "unbalanced": "Unsymmetrisch",
+      "ground": "Führt Masse (USB)",
+      "isolated": "Getrennt",
+      "isolator": "Mit Trenner",
+      "fromPlugs": "Nach den Steckern: {{what}}"
+    }
   },
   "ports": {
     "title": "Anschlüsse: {{name}}",
@@ -281,22 +318,47 @@
       "usb-audio": "USB-Audio + MIDI",
       "midi": "MIDI",
       "net": "Netzwerk/Steuerung",
+      "dmx": "DMX",
+      "osc": "OSC"
+    },
+    "pins": "Buchse",
+    "pinsMono": "Mono (1 Pin)",
+    "pinsStereo": "Stereo (2 Pins)",
+    "partsHint": "Was über diese Buchse läuft - je Protokoll und Richtung ein Teil (z. B. „Audio aus“ mit 4 Kanälen). Ohne Anzahl gilt, was das Gerät am anderen Ende hat.",
+    "partName": "Teil",
+    "partPlaceholder": "z. B. Audio aus, MIDI ein",
+    "partRemove": "Teil {{name}} entfernen",
+    "partAdd": "Teil hinzufügen",
+    "protocol": "Protokoll",
+    "proto": {
+      "audio": "Audio",
+      "midi": "MIDI",
+      "osc": "OSC",
+      "net": "Netzwerk",
       "dmx": "DMX"
     }
   },
   "wiring": {
     "title": "Verkabelung ({{n}} Kabel)",
-    "allGood": "Keine Probleme: jeder Kanal hat höchstens ein Kabel, Mono und Stereo passen.",
+    "allGood": "Keine Probleme: jeder Kanal hat höchstens ein Kabel, Mono und Stereo passen durch die ganze Kette.",
     "double": "{{where}}: {{n}} Kabel auf demselben Anschluss",
     "width": "{{where}}: Kabel mit {{width}} Kanälen, dort ist Platz für {{capacity}}",
     "monoOfStereo": "{{where}}: Stereo-Buchse nur mit einem Kanal belegt",
+    "monoInStereoOut": "{{where}}: Mono-Kabel im Stereo-Ausgang - der rechte Kanal wird kurzgeschlossen. Stereo-Kabel oder Y-Kabel nehmen und das Kabel auf L oder R legen.",
+    "channelLost": "{{where}}: {{signal}} ist stereo, diese Seite kommt aber nirgends an - ein Kanal geht verloren. Stereo-Kabel stecken oder {{signal}} in der Matrix auf einen einzelnen Pin legen (wird dort zu Mono gemischt).",
+    "mix": "{{where}}: {{n}} Signale auf demselben Ausgang - {{device}} gibt pro Ausgang aber nur ein Signal aus. In der Matrix nur eines darauf legen oder vorher mischen (Mischpult, Matrix des Tablets).",
+    "usbAudioShared": "{{where}}: mehrere USB-Audiogeräte an einer Buchse ({{devices}}). Android spielt nur über eines davon - welches, entscheidet Android. MIDI geht an alle.",
+    "pluginMissing": "{{name}}: Plugin fehlt - Cues an dieses Gerät tun nichts. Gerät antippen → Einrichten.",
     "channels": "Belegte Kanäle",
     "used": "{{name}} {{used}}/{{total}}",
     "adapters": "Adapter einpacken ({{n}})",
     "adapterRow": "Kabel {{number}}: {{from}} → {{to}}",
     "cables": "Kabel",
     "none": "Noch keine Kabel in diesem Aufbau.",
-    "y": "Y-Kabel"
+    "y": "Y-Kabel",
+    "humLoop": "Brummschleife wahrscheinlich: {{a}} und {{b}} sind beide geerdet und zusätzlich über Kabel verbunden – {{cables}} ist unsymmetrisch. Eine DI-Box oder ein Trenner dazwischen, oder ein Gerät ohne Erde (Laptop auf Akku).",
+    "humHint": "{{a}} und {{b}} sind beide geerdet und über USB verbunden ({{cables}}). Brummt es, hilft ein USB-Trenner.",
+    "cableNo": "Kabel {{number}}"
   },
   "lead": {
     "title": "Vorlauf bei Play",
@@ -316,5 +378,43 @@
     "install": "Installieren",
     "remove": "Entfernen",
     "removeConfirm": "{{name}} vom Stage-Server entfernen?"
+  },
+  "live": {
+    "mode": "Ansicht der Karte",
+    "setup": "Aufbau",
+    "check": "Prüfen",
+    "loading": "Zustand wird abgefragt…",
+    "allGood": "Alles da: kein Fehler gemeldet.",
+    "faults": "Fehler: {{n}}",
+    "warnings": "Hinweise: {{n}}",
+    "legend": "Rot heißt: so spielt es nicht. Latenz-Wert des Wegs: ● gemessen · ◐ von Hand · ○ fehlt. Mehr je Gerät unter „Tablets & Handys“.",
+    "offline": "offline",
+    "appClosed": "App ist zu",
+    "background": "nicht im Vordergrund",
+    "placeholder": "noch kein Gerät zugeordnet",
+    "online": "App offen",
+    "battery": "Akku {{pct}} %",
+    "batteryLow": "Akku {{pct}} %, lädt nicht",
+    "clock": "Bandzeit ± {{ms}} ms",
+    "outputMissing": "Ausgang fehlt: {{sources}} still",
+    "serverOnline": "antwortet",
+    "serverOffline": "antwortet nicht",
+    "noServer": "kein Stage-Server eingestellt",
+    "driverOnline": "Treiber {{name}} läuft",
+    "driverSilent": "Treiber {{name}} meldet sich nicht",
+    "driverError": "Treiber {{name}} meldet einen Fehler",
+    "midiFound": "MIDI-Port „{{name}}“ da",
+    "midiMissing": "MIDI-Port „{{name}}“ fehlt",
+    "midiUnknown": "MIDI-Port „{{name}}“: nicht bekannt (Gerät offline oder MIDI dort noch nicht benutzt)",
+    "path": {
+      "measured": "Latenz gemessen",
+      "manual": "Latenz von Hand",
+      "missing": "Latenz fehlt"
+    },
+    "source": {
+      "track": "Track",
+      "click": "Klick",
+      "voice": "Ansagen"
+    }
   }
 }
