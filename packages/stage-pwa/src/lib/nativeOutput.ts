@@ -33,6 +33,9 @@ interface NativeOutputStatus {
   engine?: boolean
   engineClockJumps?: number
   engineDriftPpm?: number
+  /** Streamed clips: pieces with frames missing (decoder behind, unannounced jump) / dropped (§8i). */
+  engineMissingReads?: number
+  engineBrokenReads?: number
   /** No timestamp from Android: playing on an estimated one - on time only roughly (2026-11-12). */
   estimated?: boolean
 }
@@ -47,7 +50,12 @@ interface NativeOutputPlugin {
   engineBeats(options: { songMs: number[]; accent: number[] }): Promise<void>
   engineOffset(options: { offsetMs: number }): Promise<void>
   engineGain(options: { bus: number; gain: number }): Promise<void>
-  engineSide(options: { side: number }): Promise<void>
+  engineFeeds(options: { bus: number; left: number; right: number }): Promise<void>
+  clipBegin(options: { id: number; size: number }): Promise<void>
+  clipChunk(options: { id: number; offset: number; data: string }): Promise<{ ok: boolean }>
+  clipCommit(options: { id: number; songStartMs: number; bus: number; gain: number }): Promise<{ error: string }>
+  clipRemove(options: { id: number }): Promise<void>
+  clipGain(options: { id: number; gain: number }): Promise<void>
 }
 
 const NativeOutput = registerPlugin<NativeOutputPlugin>('NativeOutput')
@@ -71,8 +79,15 @@ export const nativeEngine = {
   offset: (offsetMs: number) => send(NativeOutput.engineOffset({ offsetMs })),
   /** `bus` as engine.h (0 click), -1 the master. */
   gain: (bus: number, gain: number) => send(NativeOutput.engineGain({ bus, gain })),
-  /** 0 both sides, 1 left only, 2 right only. */
-  side: (side: 0 | 1 | 2) => send(NativeOutput.engineSide({ side })),
+  /** Where bus `bus` goes on the output: each side engine.h's Feed (nativeEngineSession.ts FEED). */
+  feeds: (bus: number, left: number, right: number) => send(NativeOutput.engineFeeds({ bus, left, right })),
+  /** A streamed clip (docs/30 §8h stage 4): the Ogg Opus file in pieces, then placed - awaited,
+   * a song change loads its track before it plays (nativeEngineTrack.ts). */
+  clipBegin: (id: number, size: number) => NativeOutput.clipBegin({ id, size }),
+  clipChunk: (id: number, offset: number, data: string) => NativeOutput.clipChunk({ id, offset, data }),
+  clipCommit: (id: number, songStartMs: number, bus: number, gain: number) => NativeOutput.clipCommit({ id, songStartMs, bus, gain }),
+  clipRemove: (id: number) => send(NativeOutput.clipRemove({ id })),
+  clipGain: (id: number, gain: number) => send(NativeOutput.clipGain({ id, gain })),
 }
 
 const SWITCH_KEY = 'sb:audio:native-output'

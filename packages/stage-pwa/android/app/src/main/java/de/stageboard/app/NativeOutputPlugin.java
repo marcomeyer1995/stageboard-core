@@ -74,7 +74,18 @@ public class NativeOutputPlugin extends Plugin {
 
     private static native void nativeEngineGain(int bus, float gain);
 
-    private static native void nativeEngineSide(int side);
+    private static native void nativeEngineFeeds(int bus, int left, int right);
+
+    // Streamed Opus clips (docs/30 §8h stage 4): the file in pieces, then placed.
+    private static native void nativeClipBegin(int id, int size);
+
+    private static native boolean nativeClipChunk(int id, int offset, byte[] data);
+
+    private static native String nativeClipCommit(int id, double songStartMs, int bus, float gain);
+
+    private static native void nativeClipRemove(int id);
+
+    private static native void nativeClipGain(int id, float gain);
 
     /** A JS number of any size: a large one without decimals arrives as a Long, which
      * getDouble() doesn't handle - it falls back to its default then. */
@@ -255,9 +266,47 @@ public class NativeOutputPlugin extends Plugin {
         call.resolve();
     }
 
+    /** {bus, left, right}: where a source goes on the output - engine.h Feed (0 L, 1 R, 2 both, 3 none). */
     @PluginMethod
-    public synchronized void engineSide(PluginCall call) {
-        if (available()) nativeEngineSide((int) num(call, "side"));
+    public synchronized void engineFeeds(PluginCall call) {
+        if (available()) nativeEngineFeeds((int) num(call, "bus"), (int) num(call, "left"), (int) num(call, "right"));
+        call.resolve();
+    }
+
+    @PluginMethod
+    public synchronized void clipBegin(PluginCall call) {
+        if (available()) nativeClipBegin((int) num(call, "id"), (int) num(call, "size"));
+        call.resolve();
+    }
+
+    /** {id, offset, data}: `data` base64 - the bridge carries strings. */
+    @PluginMethod
+    public synchronized void clipChunk(PluginCall call) {
+        String data = call.getString("data", "");
+        boolean ok = available() && nativeClipChunk((int) num(call, "id"), (int) num(call, "offset"), android.util.Base64.decode(data, android.util.Base64.DEFAULT));
+        com.getcapacitor.JSObject r = new com.getcapacitor.JSObject();
+        r.put("ok", ok);
+        call.resolve(r);
+    }
+
+    /** {id, songStartMs, bus, gain} → {error}: "" when the clip plays. */
+    @PluginMethod
+    public synchronized void clipCommit(PluginCall call) {
+        String error = available() ? nativeClipCommit((int) num(call, "id"), num(call, "songStartMs"), (int) num(call, "bus"), (float) call.getData().optDouble("gain", 1.0)) : "native output not available";
+        com.getcapacitor.JSObject r = new com.getcapacitor.JSObject();
+        r.put("error", error);
+        call.resolve(r);
+    }
+
+    @PluginMethod
+    public synchronized void clipRemove(PluginCall call) {
+        if (available()) nativeClipRemove((int) num(call, "id"));
+        call.resolve();
+    }
+
+    @PluginMethod
+    public synchronized void clipGain(PluginCall call) {
+        if (available()) nativeClipGain((int) num(call, "id"), (float) call.getData().optDouble("gain", 1.0));
         call.resolve();
     }
 

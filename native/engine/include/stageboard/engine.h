@@ -26,6 +26,10 @@ struct BeatPlan {
 /** Where a source is mixed - each with its own level (Mein Mix / Bühnen-Mix). */
 enum class Bus { Click = 0, Track, Stem, Announce, Count };
 
+/** What one side of a stereo output takes from a source (the output plan, audioMix.ts
+ * `SourceFeeds`, #742): its left, its right, both summed (a mono click: itself) or nothing. */
+enum class Feed { Left = 0, Right, Mix, None };
+
 /**
  * The audio engine's core, stage 1 of docs/30 §8h: no output of its own - `render` fills a buffer,
  * so it runs the same in a test, in AAudio's callback and (stage 2) as WASM in an AudioWorklet.
@@ -59,6 +63,10 @@ class Engine {
   bool setClipGain(int id, float gain);
   bool setGain(Bus bus, float gain);
   bool setMasterGain(float gain);
+  /** Where a bus goes on a stereo output (the click in-ear on the left, the track summed to the
+   * right for FOH, ...), glided like a gain. Default: left on left, right on right. Mono output
+   * ignores it. */
+  bool setFeeds(Bus bus, Feed left, Feed right);
   /** Output frame `frame` is heard at band time `bandMs` (output timestamp + clock sync). */
   bool observeClock(int64_t frame, double bandMs);
   /** Deletes what the audio thread no longer uses. */
@@ -88,7 +96,7 @@ class Engine {
 
  private:
   struct Command {
-    enum class Type { Transport, Beats, Clip, RemoveClip, ClipGain, Gain, MasterGain, Clock } type;
+    enum class Type { Transport, Beats, Clip, RemoveClip, ClipGain, Gain, MasterGain, Clock, Feeds } type;
     Transport transport;
     BeatPlan* plan;
     ClipSource* clip;
@@ -98,6 +106,7 @@ class Engine {
     float gain;
     int64_t frame;
     double bandMs;
+    float feeds[4];  // left from L, left from R, right from L, right from R
   };
 
   /** A stretch of one block in which the song runs on one line (a jump splits a block in two). */
@@ -148,6 +157,9 @@ class Engine {
   static constexpr int kBuses = static_cast<int>(Bus::Count);
   float targetGain_[kBuses];
   float gain_[kBuses];
+  // Per bus: left from L, left from R, right from L, right from R.
+  float targetFeeds_[kBuses][4];
+  float feeds_[kBuses][4];
   float targetMaster_ = 1;
   float master_ = 1;
   float gainStep_;

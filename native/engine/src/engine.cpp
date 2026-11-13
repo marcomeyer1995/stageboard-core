@@ -13,7 +13,11 @@ Engine::Engine(double sampleRate, int channels)
       // A gain change glides over ~5 ms - no click from the fader itself.
       gainStep_(static_cast<float>(1 - std::exp(-1.0 / (0.005 * sampleRate)))),
       limiter_(sampleRate) {
-  for (int b = 0; b < kBuses; ++b) targetGain_[b] = gain_[b] = 1;
+  for (int b = 0; b < kBuses; ++b) {
+    targetGain_[b] = gain_[b] = 1;
+    const float straight[4] = {1, 0, 0, 1};
+    for (int k = 0; k < 4; ++k) targetFeeds_[b][k] = feeds_[b][k] = straight[k];
+  }
 }
 
 Engine::~Engine() {
@@ -112,6 +116,20 @@ bool Engine::setGain(Bus bus, float gain) {
   return commands_.push(command);
 }
 
+bool Engine::setFeeds(Bus bus, Feed left, Feed right) {
+  // What a side takes from the source's left and right.
+  auto from = [](Feed feed, float* l, float* r) {
+    *l = feed == Feed::Left ? 1.0f : feed == Feed::Mix ? 0.5f : 0.0f;
+    *r = feed == Feed::Right ? 1.0f : feed == Feed::Mix ? 0.5f : 0.0f;
+  };
+  Command command{};
+  command.type = Command::Type::Feeds;
+  command.bus = static_cast<int>(bus);
+  from(left, &command.feeds[0], &command.feeds[1]);
+  from(right, &command.feeds[2], &command.feeds[3]);
+  return commands_.push(command);
+}
+
 bool Engine::setMasterGain(float gain) {
   Command command{};
   command.type = Command::Type::MasterGain;
@@ -178,6 +196,9 @@ void Engine::apply(const Command& command) {
       break;
     case Command::Type::MasterGain:
       targetMaster_ = command.gain;
+      break;
+    case Command::Type::Feeds:
+      for (int k = 0; k < 4; ++k) targetFeeds_[command.bus][k] = command.feeds[k];
       break;
     case Command::Type::Clock:
       clock_.observe(command.frame, command.bandMs);
@@ -279,13 +300,25 @@ void Engine::renderBlock(float* out, int frames, int64_t firstFrame) {
   for (int f = 0; f < frames; ++f) {
     for (int b = 0; b < kBuses; ++b) gain_[b] += (targetGain_[b] - gain_[b]) * gainStep_;
     master_ += (targetMaster_ - master_) * gainStep_;
-    for (int c = 0; c < channels_; ++c) {
-      const size_t i = static_cast<size_t>(f) * static_cast<size_t>(channels_) + static_cast<size_t>(c);
+    if (channels_ == 1) {
       float sum = click_[f] * gain_[click];
       for (int b = 0; b < kBuses; ++b)
-        if (b != click) sum += bus_[b][i] * gain_[b];
-      out[i] = sum * master_;
+        if (b != click) sum += bus_[b][f] * gain_[b];
+      out[f] = sum * master_;
+      continue;
     }
+    // Stereo: every bus through its feeds (the output plan) - the click is mono, both its sides alike.
+    float left = 0, right = 0;
+    for (int b = 0; b < kBuses; ++b) {
+      float* m = feeds_[b];
+      for (int k = 0; k < 4; ++k) m[k] += (targetFeeds_[b][k] - m[k]) * gainStep_;
+      const float l = b == click ? click_[f] : bus_[b][2 * f];
+      const float r = b == click ? click_[f] : bus_[b][2 * f + 1];
+      left += (m[0] * l + m[1] * r) * gain_[b];
+      right += (m[2] * l + m[3] * r) * gain_[b];
+    }
+    out[2 * f] = left * master_;
+    out[2 * f + 1] = right * master_;
   }
   limiter_.process(out, frames, channels_);
 }

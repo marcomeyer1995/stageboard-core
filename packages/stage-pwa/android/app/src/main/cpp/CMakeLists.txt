@@ -6,9 +6,16 @@ project(stageboard_native_output LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # The engine core (docs/30 §8h stage 3) - its sources straight from native/engine, the same files
-# the laptop's tests and the WebAssembly build use. Opus decoding comes with stage 4.
+# the laptop's tests and the WebAssembly build use; with stage 4 the Opus tracks (libopus, vendored
+# in native/engine/third_party, decoder only).
 set(ENGINE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../../../../../../native/engine)
-add_library(native_output SHARED native_output.cpp ${ENGINE_DIR}/src/clock_map.cpp ${ENGINE_DIR}/src/engine.cpp)
+set(OPUS_BUILD_TESTING OFF CACHE BOOL "" FORCE)
+set(OPUS_BUILD_PROGRAMS OFF CACHE BOOL "" FORCE)
+set(OPUS_INSTALL_PKG_CONFIG_MODULE OFF CACHE BOOL "" FORCE)
+set(OPUS_INSTALL_CMAKE_CONFIG_MODULE OFF CACHE BOOL "" FORCE)
+add_subdirectory(${ENGINE_DIR}/third_party/opus ${CMAKE_CURRENT_BINARY_DIR}/opus EXCLUDE_FROM_ALL)
+add_library(native_output SHARED native_output.cpp ${ENGINE_DIR}/src/clock_map.cpp ${ENGINE_DIR}/src/engine.cpp
+            ${ENGINE_DIR}/src/opus_clip.cpp ${ENGINE_DIR}/src/stream_clip.cpp)
 target_include_directories(native_output PRIVATE ${ENGINE_DIR}/include)
 target_compile_definitions(native_output PRIVATE __ANDROID_UNAVAILABLE_SYMBOLS_ARE_WEAK__)
 target_compile_options(native_output PRIVATE -Wall -Wno-unguarded-availability-new -Wno-unguarded-availability)
@@ -22,4 +29,4 @@ elseif(ANDROID_ABI STREQUAL "x86_64")
 else()
   set(AAUDIO_TRIPLE i686-linux-android)
 endif()
-target_link_libraries(native_output ${CMAKE_SYSROOT}/usr/lib/${AAUDIO_TRIPLE}/26/libaaudio.so log)
+target_link_libraries(native_output ${CMAKE_SYSROOT}/usr/lib/${AAUDIO_TRIPLE}/26/libaaudio.so log opus)

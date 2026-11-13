@@ -11,13 +11,14 @@ vi.mock('../nativeOutput', () => {
     (...args: unknown[]) =>
       void calls.push([name, args])
   return {
-    nativeEngine: { enable: record('enable'), transport: record('transport'), beats: record('beats'), offset: record('offset'), gain: record('gain'), side: record('side') },
+    nativeEngine: { enable: record('enable'), transport: record('transport'), beats: record('beats'), offset: record('offset'), gain: record('gain'), feeds: record('feeds') },
     useNativeOutputStore: { getState: () => ({ delayMs: 410 }) },
   }
 })
 vi.mock('../clockSync', () => ({ getServerTime: () => Date.now() + 2126 }))
 
 const { useOutputPlanStore, PLAIN_PLAN } = await import('../audioMix')
+const { __resetNativeEngineSessionForTests, acquireNativeEngine, releaseNativeEngine } = await import('./nativeEngineSession')
 const { bandOffsetMs, nativeTransport, startNativeEngineClick, stopNativeEngineClick } = await import('./nativeEngineClick')
 
 const state = (over: Partial<ClickEngineState> = {}): ClickEngineState => ({
@@ -30,6 +31,8 @@ const state = (over: Partial<ClickEngineState> = {}): ClickEngineState => ({
 
 afterEach(() => {
   stopNativeEngineClick()
+  releaseNativeEngine('track')
+  __resetNativeEngineSessionForTests()
   calls.length = 0
   useOutputPlanStore.setState({ plan: PLAIN_PLAN })
 })
@@ -54,13 +57,13 @@ describe('nativeEngineClick', () => {
     expect(nativeTransport({ status: 'playing', startedAt: null, accumulatedMs: 0 }).status).toBe(2)
   })
 
-  it('on start: offset, level, side, enable, then transport and the whole plan', () => {
+  it('on start: offset, level, place, enable, then transport and the whole plan', () => {
     startNativeEngineClick(() => state())
-    expect(calls.map(([name]) => name)).toEqual(['offset', 'gain', 'side', 'enable', 'transport', 'beats'])
+    expect(calls.map(([name]) => name)).toEqual(['offset', 'gain', 'feeds', 'enable', 'transport', 'beats'])
     const offset = calls[0]![1][0] as number
     expect(offset).toBeGreaterThan(2126 + 15 - 5)
     expect(offset).toBeLessThan(2126 + 15 + 5)
-    expect(calls[2]![1]).toEqual([0])
+    expect(calls[2]![1]).toEqual([0, 0, 1]) // the click bus, left on left, right on right
     expect(calls[3]![1]).toEqual([true])
     const songMs = calls[5]![1][0] as Float64Array
     expect(Array.from(songMs.slice(0, 3))).toEqual([0, 500, 1000])
@@ -76,20 +79,29 @@ describe('nativeEngineClick', () => {
   it('puts the click where the output plan has it (the map, #742): left only for in-ear, silent where the plan says so', () => {
     useOutputPlanStore.setState({ plan: { ...PLAIN_PLAN, click: { left: 'mix', right: null } } })
     startNativeEngineClick(() => state())
-    expect(calls.find(([name]) => name === 'side')![1]).toEqual([1])
+    expect(calls.find(([name]) => name === 'feeds')![1]).toEqual([0, 2, 3])
     stopNativeEngineClick()
     calls.length = 0
     useOutputPlanStore.setState({ plan: { ...PLAIN_PLAN, click: null } })
     startNativeEngineClick(() => state())
-    expect(calls.find(([name]) => name === 'gain')![1][1]).toBe(0)
+    expect(calls.find(([name]) => name === 'feeds')![1]).toEqual([0, 3, 3])
   })
 
-  it('on stop: stopped transport, then disabled', () => {
+  it('on stop: no more beats, stopped transport, then disabled', () => {
     startNativeEngineClick(() => state())
     calls.length = 0
     stopNativeEngineClick()
-    expect(calls.map(([name]) => name)).toEqual(['transport', 'enable'])
-    expect((calls[0]![1][0] as { status: number }).status).toBe(0)
-    expect(calls[1]![1]).toEqual([false])
+    expect(calls.map(([name]) => name)).toEqual(['beats', 'transport', 'enable'])
+    expect((calls[0]![1][0] as Float64Array).length).toBe(0)
+    expect((calls[1]![1][0] as { status: number }).status).toBe(0)
+    expect(calls[2]![1]).toEqual([false])
+  })
+
+  it('"Klick aus" while the track plays in the engine: only the beats go, the engine keeps running', () => {
+    acquireNativeEngine('track')
+    startNativeEngineClick(() => state())
+    calls.length = 0
+    stopNativeEngineClick()
+    expect(calls.map(([name]) => name)).toEqual(['beats'])
   })
 })
