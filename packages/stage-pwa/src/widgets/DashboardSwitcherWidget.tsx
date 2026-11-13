@@ -1,4 +1,6 @@
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Icon } from '../components/Icon'
 import { useTouchSizes } from '../components/ui/PrepTier'
 import { Segmented } from '../components/ui'
 import { DEFAULT_SIZE_RATIO, type DashboardSwitcherConfig } from './dashboardSwitcherConfig'
@@ -40,30 +42,65 @@ export function DashboardSwitcherView({ config }: { config: DashboardSwitcherCon
   const vertical = config.orientation === 'vertical'
   const touchSizes = useTouchSizes()
   const { wrap } = switcherLayout(box.height, touchSizes)
+  // A bar that scrolls sideways says so (#829, as #373 for the System tabs): "›" while more lies to
+  // the right, "‹" once it has moved - the phone hid "Prompter" with nothing to show it was there.
+  const stripRef = useRef<HTMLDivElement | null>(null)
+  const [more, setMore] = useState({ left: false, right: false })
+  const sideways = !vertical && !wrap
+  useEffect(() => {
+    const strip = stripRef.current
+    if (!strip || !sideways) {
+      setMore({ left: false, right: false })
+      return
+    }
+    const update = () => setMore({ left: strip.scrollLeft > 2, right: strip.scrollLeft + strip.clientWidth < strip.scrollWidth - 2 })
+    update()
+    strip.addEventListener('scroll', update, { passive: true })
+    return () => strip.removeEventListener('scroll', update)
+  }, [sideways, box.width, visible.length])
+  // Opaque, in the bar's own surface: the name under it must not show through ("PRON›PT").
+  const hint = 'pointer-events-none absolute inset-y-0 flex w-10 items-center justify-center bg-surface text-ink'
 
   return (
-    <div
-      ref={boxRef}
-      className={`flex h-full w-full gap-2 ${
-        vertical ? 'flex-col overflow-y-auto' : wrap ? 'flex-row flex-wrap overflow-y-auto' : 'flex-row overflow-x-auto'
-      }`}
-    >
-      {visible.map((dashboard) => (
-        <button
-          key={dashboard.id}
-          type="button"
-          onClick={() => setActive(workspaceId, dashboard.id)}
-          className={`min-h-touch min-w-max flex-1 rounded-control px-4 font-bold uppercase tracking-wide transition-colors ${
-            dashboard.id === activeId
-              ? 'bg-accent text-accent-ink'
-              : 'bg-control-strong text-ink [@media(hover:hover)]:hover:bg-control-strong-hover'
-          }`}
-        >
-          <span style={{ fontSize }} className="whitespace-nowrap">
-            {dashboard.name}
-          </span>
-        </button>
-      ))}
+    <div className="relative h-full w-full">
+      <div
+        ref={(node) => {
+          boxRef(node)
+          stripRef.current = node
+        }}
+        className={`flex h-full w-full gap-2 ${
+          // No scrollbar under the buttons: it took 3 px off them on the phone; "‹ ›" say there is more.
+          vertical ? 'flex-col overflow-y-auto' : wrap ? 'flex-row flex-wrap overflow-y-auto' : 'flex-row overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
+        }`}
+      >
+        {visible.map((dashboard) => (
+          <button
+            key={dashboard.id}
+            type="button"
+            onClick={() => setActive(workspaceId, dashboard.id)}
+            // One row: as high as the tile (53 px on the phone cut 56 px buttons by 3 px, #829).
+            className={`${sideways ? 'h-full min-h-0' : 'min-h-touch'} min-w-max flex-1 rounded-control px-4 font-bold uppercase tracking-wide transition-colors ${
+              dashboard.id === activeId
+                ? 'bg-accent text-accent-ink'
+                : 'bg-control-strong text-ink [@media(hover:hover)]:hover:bg-control-strong-hover'
+            }`}
+          >
+            <span style={{ fontSize }} className="whitespace-nowrap">
+              {dashboard.name}
+            </span>
+          </button>
+        ))}
+      </div>
+      {more.left && (
+        <span aria-hidden data-more="left" className={`${hint} left-0`}>
+          <Icon name="previous" size="1.4em" />
+        </span>
+      )}
+      {more.right && (
+        <span aria-hidden data-more="right" className={`${hint} right-0`}>
+          <Icon name="next" size="1.4em" />
+        </span>
+      )}
     </div>
   )
 }

@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -42,10 +43,13 @@ class OpusClip {
 
   /** False with a reason in `error` when the file is damaged, cut off or not supported. */
   bool open(const uint8_t* data, size_t size, std::string* error = nullptr);
+  /** The same file as `other` (opened), with a decoder of its own - the packets are shared, not
+   * copied: a streamed clip decodes at two places at once (stream_clip.h). */
+  bool openLike(const OpusClip& other);
 
-  int channels() const { return channels_; }
+  int channels() const { return index_ ? index_->channels : 0; }
   /** Playable frames at 48 kHz. */
-  long frames() const { return frames_; }
+  long frames() const { return index_ ? index_->frames : 0; }
   /** The frame the next `read` starts at. */
   long position() const { return position_; }
 
@@ -59,18 +63,25 @@ class OpusClip {
     size_t offset;
     int size;
     int samples;
-    int64_t start;  // in granule positions: the pre-skip counts, the song's frame 0 is at preSkip_
+    int64_t start;  // in granule positions: the pre-skip counts, the song's frame 0 is at preSkip
+  };
+
+  /** What `open` found in the file - shared by every OpusClip opened like it, never changed. */
+  struct Index {
+    int channels = 0;
+    int preSkip = 0;
+    int16_t gain = 0;
+    long frames = 0;
+    std::vector<uint8_t> data;
+    std::vector<Packet> packets;
   };
 
   /** Decodes packet `index` into `buffer_`; a damaged packet is concealed by libopus. */
   void decodePacket(size_t index);
+  bool startDecoder();
 
   OpusDecoder* decoder_ = nullptr;
-  int channels_ = 0;
-  int preSkip_ = 0;
-  long frames_ = 0;
-  std::vector<uint8_t> data_;
-  std::vector<Packet> packets_;
+  std::shared_ptr<const Index> index_;
 
   long position_ = 0;
   size_t next_ = 0;  // packet to decode after the one in buffer_

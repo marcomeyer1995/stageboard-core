@@ -43,7 +43,8 @@ export function ScrollOnceText({ cycleKey, className = '', children }: { cycleKe
   }, [cycleKey])
 
   return (
-    <span ref={outer} className={`block overflow-hidden ${className}`}>
+    // data-scroll-once: cut on purpose - the device test runner's GUI check accepts it (#829).
+    <span ref={outer} data-scroll-once="" className={`block overflow-hidden ${className}`}>
       <span ref={inner} className={scrolling ? 'inline-block whitespace-nowrap' : 'block truncate'}>
         {children}
       </span>

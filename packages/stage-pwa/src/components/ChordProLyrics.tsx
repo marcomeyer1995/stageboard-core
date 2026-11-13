@@ -66,6 +66,9 @@ interface ChordProLyricsProps {
    * the tapped word or chord - so the song editor can put its cursor there (#607). Unset: the
    * lines are not tappable. */
   onSourceTap?: (sourceLine: number, column: number) => void
+  /** A tap on a line with a time ("[00:34.00]") reports that time - Solo starts there (#817).
+   * Unset: the time is not tappable. */
+  onTimeTap?: (timeMs: number) => void
   /** Chords open their guitar shape and piano keys (#609): a click with the mouse, a long press on
    * touch. Unset: chords are plain text - the Prompter leaves it off during a running Gig. */
   chordInfo?: boolean
@@ -94,6 +97,7 @@ export function ChordProLyrics({
   commentFontSize,
   headerContent,
   onSourceTap,
+  onTimeTap,
   chordInfo = false,
 }: ChordProLyricsProps) {
   const [popover, setPopover] = useState<{ symbol: string; anchor: DOMRect } | null>(null)
@@ -138,7 +142,7 @@ export function ChordProLyrics({
     <div
       // No text selection where chords open their shape: a long press is for the chord, never the
       // copy/cut bar.
-      className={`space-y-3 pt-4 font-sb-mono leading-loose text-ink ${onSourceTap ? 'cursor-text' : ''} ${chordInfo ? 'select-none [-webkit-touch-callout:none]' : ''}`}
+      className={`space-y-3 pt-4 font-sb-mono leading-loose text-ink ${onSourceTap ? 'cursor-text' : onTimeTap ? 'cursor-pointer' : ''} ${chordInfo ? 'select-none [-webkit-touch-callout:none]' : ''}`}
       style={{ fontSize }}
       onPointerDown={chordInfo ? onPointerDown : undefined}
       onPointerMove={chordInfo ? onPointerMove : undefined}
@@ -152,9 +156,13 @@ export function ChordProLyrics({
         }
         const chord = pointerType.current === 'mouse' ? chordAt(event.target) : null
         if (chord) return open(chord)
-        if (!onSourceTap) return
         const lineElement = (event.target as HTMLElement).closest<HTMLElement>('[data-source-line]')
-        if (lineElement) onSourceTap(Number(lineElement.dataset.sourceLine), tappedColumn(event, lineElement))
+        if (!lineElement) return
+        if (onTimeTap) {
+          const timeMs = lines.find((l) => l.sourceLine === Number(lineElement.dataset.sourceLine))?.timeMs
+          if (timeMs !== null && timeMs !== undefined) onTimeTap(timeMs)
+        }
+        if (onSourceTap) onSourceTap(Number(lineElement.dataset.sourceLine), tappedColumn(event, lineElement))
       }}
     >
       {popover && <ChordPopover symbol={popover.symbol} anchor={popover.anchor} onClose={closePopover} />}
