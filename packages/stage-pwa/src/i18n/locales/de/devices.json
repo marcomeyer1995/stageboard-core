@@ -141,6 +141,7 @@
     "jumps_one": "Ton: {{count}} Sprung in der letzten Minute",
     "jumps_other": "Ton: {{count}} Sprünge in der letzten Minute",
     "tight": "Ton: Reserve knapp ({{ms}} ms)",
+    "estimated": "Ton: Android meldet keine Zeitangabe - Zeitpunkt nur geschätzt",
     "fellBack": "Ton im Notbetrieb über die WebView - die native Ausgabe verlor Ton"
   },
   "vitals": {
