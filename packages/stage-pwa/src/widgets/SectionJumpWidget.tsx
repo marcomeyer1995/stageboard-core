@@ -136,7 +136,15 @@ export function SectionJumpWidget() {
       }}
       className={`flex h-full flex-col gap-2 ${compact ? 'overflow-hidden' : 'overflow-y-auto'}`}
     >
-      <div className={`flex gap-2 ${compact ? 'h-full' : 'flex-wrap'}`} role="group" aria-label={t('sj.aria')} title={compact ? (message ?? status ?? undefined) : undefined}>
+      <div
+        // Compact: a grid that wraps and shares the tile's height between its rows - one squeezed row
+        // cut the names of a song with six sections ("Intr", "Chc"; test runner, 2026-11-13).
+        className={compact ? 'grid h-full gap-2' : 'flex flex-wrap gap-2'}
+        style={compact ? { gridTemplateColumns: 'repeat(auto-fit, minmax(7.5rem, 1fr))', gridAutoRows: '1fr' } : undefined}
+        role="group"
+        aria-label={t('sj.aria')}
+        title={compact ? (message ?? status ?? undefined) : undefined}
+      >
         {sections.map((section, index) => {
           const queued = jump?.toMs === section.startMs
           const isCurrent = index === currentIndex
@@ -149,7 +157,7 @@ export function SectionJumpWidget() {
               aria-current={isCurrent ? 'true' : undefined}
               onClick={() => void tap(section)}
               // Compact: the tile's height, not the 56 px stage minimum it cannot hold (#829).
-              className={`${compact ? `${BUTTON.replace('min-h-touch ', '')} h-full min-w-0` : BUTTON} flex-1 ${queued ? 'bg-accent text-accent-ink' : 'bg-control-strong text-ink [@media(hover:hover)]:hover:bg-control-strong-hover'} ${
+              className={`${compact ? `${BUTTON.replace('min-h-touch ', '')} h-full min-h-0 px-2 [overflow-wrap:anywhere]` : `${BUTTON} flex-1`} ${queued ? 'bg-accent text-accent-ink' : 'bg-control-strong text-ink [@media(hover:hover)]:hover:bg-control-strong-hover'} ${
                 isCurrent ? 'outline outline-2 -outline-offset-2 outline-accent' : ''
               }`}
             >
