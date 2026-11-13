@@ -349,6 +349,7 @@
     "output": "Output",
     "outputBrowser": "Browser (its own output)",
     "native": "Native, {{ms}} ms from rendering to hearing",
+    "nativeEstimated": "Native, but Android gives no timestamp - timing only estimated (restarting the device helps)",
     "webview": "WebView",
     "fellBack": "Fallback through the WebView since {{time}} ({{ms}} ms of audio were missing) - until the app restarts",
     "missing": "Dropouts (last minute)",
