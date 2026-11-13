@@ -436,6 +436,7 @@
     "repeating": "Wiederholt: {{name}}",
     "masterOnly": "Springen kann der Master",
     "whilePlaying": "Springen, während der Song läuft",
+    "startPoint": "Tippen setzt den Startpunkt - Play beginnt dort",
     "aria": "Abschnitte",
     "when": "Springen am",
     "bar": "Ende Takt",

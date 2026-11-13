@@ -82,6 +82,13 @@ describe('DeviceLedgerView', () => {
     expect(screen.getByText('Ton: 120 ms Aussetzer in der letzten Minute')).toBeInTheDocument()
   })
 
+  it('does not call an output clean whose timing is only estimated (no timestamp, 2026-11-12)', () => {
+    const native = { path: 'native' as const, delayMs: 420, missingMs: 0, jumps: 0, leadMinMs: 300, estimated: true }
+    useDeviceInfoStore.setState({ deviceInfo: { devices: { 'device-1': { ...DEVICE_INFO_ENTRY, audioOutput: native } } } })
+    render(<DeviceLedgerView />)
+    expect(screen.getByText('Ton: Android meldet keine Zeitangabe - Zeitpunkt nur geschätzt')).toHaveClass('text-danger')
+  })
+
   it('shows the device condition and the audio fallback in red (the phone after 17 h, 2026-11-06)', () => {
     const fellBack = { path: 'webview' as const, delayMs: null, missingMs: 0, jumps: 0, leadMinMs: null, fellBack: true }
     const vitals = { level: 'error' as const, issues: ['audioFallback' as const, 'memoryTight' as const], memAvailMb: 250, audioClockPct: -0.6, stallsPerMin: 0, uptimeMin: 1055 }

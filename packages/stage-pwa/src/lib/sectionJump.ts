@@ -132,6 +132,22 @@ export async function queueSectionJump(target: ShowSection, when: JumpWhen, sect
   return 'queued'
 }
 
+/**
+ * Solo: start here (#817, Marco 2026-11-12) - a tapped line or section. Stopped or paused, it
+ * becomes where Play starts (paused at that point, so the next Play is a take from there and the
+ * gear gets the state the song holds there); playing, it jumps there at once. Not in the Gig,
+ * where the master's transport is the band's. False when it did nothing.
+ */
+export function practiceStartAt(ms: number): boolean {
+  if (useAppModeStore.getState().mode !== 'practice') return false
+  const workspaceId = useWorkspaceStore.getState().activeWorkspaceId
+  const store = usePracticeStateStore.getState()
+  const playing = store.get(workspaceId).playbackStatus === 'playing'
+  const at = Math.max(0, ms)
+  store.patch(workspaceId, playing ? { playbackStartedAt: Date.now(), playbackAccumulatedMs: at, playbackJump: null } : { playbackStatus: 'paused', playbackStartedAt: null, playbackAccumulatedMs: at, playbackJump: null })
+  return true
+}
+
 /** Calls off a queued jump - unless it is too close to undo. */
 export async function cancelSectionJump(): Promise<void> {
   const h = host()
