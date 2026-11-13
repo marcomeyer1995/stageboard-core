@@ -54,7 +54,10 @@ export function NextSongWidget({ config }: { config: NextSongConfig }) {
   }, [box.height, overflow.key, sizeKey, planned.stacked])
   // Buttons fill the widget's height (or the row under the info when stacked), at least the
   // touch size - "Weiter" is the action hit mid-show (lib/gigWidgetLayout.ts).
-  const buttonClass = `h-full min-h-touch min-w-touch rounded-control bg-control-strong px-4 font-bold text-ink [@media(hover:hover)]:hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-40`
+  // A tile lower than a stage button (30 px in a phone's landscape dashboard, #829): the buttons
+  // fill it whole - small, never cut. The dashboard then needs more room for this widget.
+  const tooLow = box.height > 0 && box.height < touchSizes.touch
+  const buttonClass = `h-full ${tooLow ? 'min-h-0' : 'min-h-touch'} min-w-touch rounded-control bg-control-strong px-4 font-bold text-ink [@media(hover:hover)]:hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-40`
 
   // Each line can be hidden in the ⋯ menu (Marco, 2026-10-17); with both off only the buttons stay.
   const showCurrent = showCurrentLine
