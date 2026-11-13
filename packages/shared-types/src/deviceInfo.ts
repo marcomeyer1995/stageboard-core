@@ -29,6 +29,9 @@ export const AudioOutputHealthSchema = z.object({
   /** The native output lost audio and this device switched itself to the WebView's output until
    * the app restarts (Marco, 2026-11-06) - absent from older apps. */
   fellBack: z.boolean().optional(),
+  /** Android gives the native output no timestamp: it plays on an estimated one, on time only
+   * roughly (2026-11-12) - absent from older apps. */
+  estimated: z.boolean().optional(),
 })
 export type AudioOutputHealth = z.infer<typeof AudioOutputHealthSchema>
 
