@@ -98,7 +98,10 @@ window.__sbt = {
    * counts once per box ("Statusleiste: 5 cut off"), not once per hidden item.
    */
   gui(tier = 'stage') {
-    const [minTarget, minText] = tier === 'stage' ? [47.5, 15.5] : [39.5, 13.5]
+    // Phone (< 600 px wide, Marco 2026-11-13): text may be a step smaller there - the screen is
+    // small. Touch targets stay: the finger is not smaller on a phone.
+    const phone = document.documentElement.clientWidth < 600
+    const [minTarget, minText] = tier === 'stage' ? [47.5, phone ? 13.5 : 15.5] : [39.5, phone ? 11.5 : 13.5]
     const vw = document.documentElement.clientWidth
     const out = []
     const scrollsX = (el) => {
