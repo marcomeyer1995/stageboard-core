@@ -353,5 +353,42 @@
     "install": "Install",
     "remove": "Remove",
     "removeConfirm": "Remove {{name}} from the Stage-Server?"
+  },
+  "live": {
+    "mode": "Map view",
+    "setup": "Setup",
+    "check": "Check",
+    "loading": "Asking for the state…",
+    "allGood": "All there: no fault reported.",
+    "faults": "Faults: {{n}}",
+    "warnings": "Notes: {{n}}",
+    "legend": "Red means: it will not play like this. Latency value of the path: ● measured · ◐ by hand · ○ missing. More per device under “Tablets & phones”.",
+    "offline": "offline",
+    "appClosed": "app is closed",
+    "placeholder": "no device assigned yet",
+    "online": "app open",
+    "battery": "battery {{pct}} %",
+    "batteryLow": "battery {{pct}} %, not charging",
+    "clock": "Band time ± {{ms}} ms",
+    "outputMissing": "Output missing: {{sources}} silent",
+    "serverOnline": "answers",
+    "serverOffline": "does not answer",
+    "noServer": "no Stage-Server set",
+    "driverOnline": "driver {{name}} runs",
+    "driverSilent": "driver {{name}} does not report",
+    "driverError": "driver {{name}} reports an error",
+    "midiFound": "MIDI port “{{name}}” there",
+    "midiMissing": "MIDI port “{{name}}” missing",
+    "midiUnknown": "MIDI port “{{name}}”: not known (device offline or MIDI not used there yet)",
+    "path": {
+      "measured": "latency measured",
+      "manual": "latency by hand",
+      "missing": "latency missing"
+    },
+    "source": {
+      "track": "Track",
+      "click": "Click",
+      "voice": "Announcements"
+    }
   }
 }

@@ -1,12 +1,16 @@
 import { useEffect } from 'react'
 import { deriveSyncStatus, useSyncStore } from '../store/useSyncStore'
+import { batteryState } from './battery'
 import { detectEnvironment } from './detectEnvironment'
 import { summarizeVitals, vitalsSnapshot } from './deviceVitals'
 import { getDeviceId } from './deviceId'
 import { guessDeviceName } from './guessDeviceName'
 import { nativeOutputHealth } from './nativeOutput'
 import { reportDeviceInfo } from './reportDeviceInfo'
+import { knownMidiOutputNames, watchMidiPorts } from './webMidiOutput'
 import { useLeadNeededStore } from './leadCheck'
+import { useOutputPlanStore } from './audioMix'
+import { silencedSources } from './outputPlan'
 
 /** Comfortably inside DEVICE_INFO_TIMEOUT_MS (shared-types), same margin usePresenceReporter.ts
  * keeps against PRESENCE_TIMEOUT_MS. */
@@ -29,8 +33,9 @@ export function useDeviceInfoReporter(workspaceId: string): void {
   useEffect(() => {
     if (!workspaceId) return
     const deviceId = getDeviceId()
-    const report = () =>
-      void reportDeviceInfo(workspaceId, {
+    const report = async () => {
+      const [battery, midiOutputs] = await Promise.all([batteryState(), knownMidiOutputNames()])
+      await reportDeviceInfo(workspaceId, {
         deviceId,
         os: guessDeviceName(),
         environment: detectEnvironment(),
@@ -38,9 +43,28 @@ export function useDeviceInfoReporter(workspaceId: string): void {
         audioOutput: nativeOutputHealth(),
         vitals: summarizeVitals(vitalsSnapshot()),
         leadNeededMs: useLeadNeededStore.getState().neededMs,
+        battery,
+        midiOutputs,
+        silenced: silencedSources(useOutputPlanStore.getState().plan),
       })
-    report()
-    const interval = setInterval(report, REPORT_INTERVAL_MS)
-    return () => clearInterval(interval)
+    }
+    void report()
+    const interval = setInterval(() => void report(), REPORT_INTERVAL_MS)
+    // A MIDI cable pulled or plugged: the map's check on the other devices should see it soon (#747).
+    const stopWatching = watchMidiPorts(() => void report())
+    // An output gone or back (headphones pulled): the same, for the sources it silences.
+    const silencedKey = () => silencedSources(useOutputPlanStore.getState().plan).join(',')
+    let lastSilenced = silencedKey()
+    const stopPlan = useOutputPlanStore.subscribe(() => {
+      const key = silencedKey()
+      if (key === lastSilenced) return
+      lastSilenced = key
+      void report()
+    })
+    return () => {
+      clearInterval(interval)
+      stopWatching()
+      stopPlan()
+    }
   }, [workspaceId])
 }

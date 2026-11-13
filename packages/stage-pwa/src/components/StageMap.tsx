@@ -60,6 +60,9 @@ import { HostPlugins } from './HostPlugins'
 import { wheelZoomFactor } from '../lib/wheelZoom'
 import { listMidiOutputs } from '../lib/webMidiOutput'
 import { StageWiring } from './StageWiring'
+import { StageLiveList } from './StageLiveList'
+import { PATH_MARK } from '../lib/stageLive'
+import { useStageLive } from '../lib/useStageLive'
 import { AddRow, Badge, Button, IconButton, InfoHint, Segmented, Switch } from './ui'
 
 /** The map's own coordinates - positions are stored in these. */
@@ -68,6 +71,8 @@ const H = 640
 const NODE_W = 170
 const NODE_H = 64
 
+/** The live layer's dot on a device (#747) - red only for faults. */
+const LIVE_FILL = { ok: 'fill-ok', warning: 'fill-warn', error: 'fill-danger', off: 'fill-control-strong' } as const
 const CLASS_STROKE: Record<SignalClass, string> = { sound: 'stroke-accent', midi: 'stroke-accent-2', light: 'stroke-warn' }
 
 /** Capabilities that are the built-in virtual outputs (DEFAULT_VIRTUAL_OUTPUTS) - their old
@@ -80,6 +85,7 @@ function withMidiName(link: StageLink, name: string): StageLink {
 }
 
 const BUILT_IN_CAPABILITIES: readonly string[] = [CAPABILITIES.clickTrack, CAPABILITIES.audioPlayback, CAPABILITIES.sectionAnnouncements]
+const BUILT_IN_IDS: readonly string[] = DEFAULT_VIRTUAL_OUTPUTS.map((v) => v.id)
 
 /** What a tap shows (Marco, 2026-11-06): a device its interfaces and matrix; a cable first its two
  * ends, tapped again (`chain`) the full way of every signal on it; a signal its full way. */
@@ -133,6 +139,8 @@ export function StageMap() {
   const [selection, setSelection] = useState<Selection>(null)
   const [portsFor, setPortsFor] = useState<StageEquipment | null>(null)
   const [editing, setEditing] = useState(false)
+  /** "Prüfen" (#747): the map shows what every device and cable reports right now. */
+  const [checking, setChecking] = useState(false)
   const [showPorts, setShowPorts] = useState(false)
   const [connectFrom, setConnectFrom] = useState<PortRef | null>(null)
   const [full, setFull] = useState(false)
@@ -215,6 +223,9 @@ export function StageMap() {
   const check = useMemo(() => (setup ? checkSetup({ equipment, setups }, setup.id, virtualPorts) : { issues: [], use: [] }), [equipment, setups, setup, virtualPorts])
   const cables = useMemo(() => (setup ? wiringList({ equipment, setups }, setup.id) : []), [equipment, setups, setup])
   const badLinks = useMemo(() => new Set(check.issues.flatMap((i) => (i.kind === 'double' ? i.linkIds : i.kind === 'width' || i.kind === 'mono-in-stereo-out' ? [i.linkId] : []))), [check])
+  // The live layer (#747): only while "Prüfen" is on.
+  const liveOutputs = useMemo(() => logicalDevices.filter((d) => !BUILT_IN_CAPABILITIES.includes(d.capability)).map((d) => ({ id: d.id, name: d.name, pluginId: d.pluginId })), [logicalDevices])
+  const live = useStageLive(checking, { equipment: onStage, setup, flows, outputs: liveOutputs, builtInIds: BUILT_IN_IDS })
   const flowsOn = (linkId: string) => flows.filter((f) => f.hops.some((h) => h.linkId === linkId))
 
   // Who may change what: the admin everything, everyone else the cables of their own device.
@@ -647,9 +658,24 @@ export function StageMap() {
       )}
       {ownSetup && <p className="mb-2 text-base text-ink-muted">{setup.owner === myProfileId ? t('map.ownSetupHint') : t('map.ownSetupOfHint', { person: personName(setup.owner) ?? '?' })}</p>}
       <div className="mb-2 flex flex-wrap items-center gap-2">
+        <Segmented
+          label={t('live.mode')}
+          value={checking ? 'check' : 'setup'}
+          onChange={(mode) => {
+            setChecking(mode === 'check')
+            if (mode === 'check') {
+              setEditing(false)
+              setConnectFrom(null)
+            }
+          }}
+          options={[
+            { value: 'setup', label: t('live.setup') },
+            { value: 'check', label: t('live.check') },
+          ]}
+        />
         <Button onClick={showWhole}>{t('map.whole')}</Button>
         <Switch layout="inline" label={t('map.ports')} checked={showPorts} onChange={setShowPorts} />
-        {signedIn && <Switch layout="inline" label={t('map.edit')} checked={editing} onChange={(on) => { setEditing(on); setConnectFrom(null) }} />}
+        {signedIn && !checking && <Switch layout="inline" label={t('map.edit')} checked={editing} onChange={(on) => { setEditing(on); setConnectFrom(null) }} />}
         <span className="flex-1" />
         <IconButton icon={full ? 'exitFullscreen' : 'fullscreen'} label={full ? t('map.exitFull') : t('map.full')} onClick={() => toggleFull(!full)} />
       </div>
@@ -683,9 +709,13 @@ export function StageMap() {
           const labels = linkLabel(l)
           const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }
           const portText = showPorts || highlighted.has(l.id)
+          const liveLink = live?.links[l.id]
+          const bad = badLinks.has(l.id)
+          const dead = liveLink?.status === 'error'
+          if (liveLink?.path) labels.unshift(PATH_MARK[liveLink.path])
           return (
             <g key={l.id} className={on ? '' : 'opacity-25'}>
-              <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} className={badLinks.has(l.id) ? 'stroke-danger' : CLASS_STROKE[cls]} strokeWidth={selectedLink?.id === l.id ? 6 : 3} strokeDasharray={badLinks.has(l.id) ? '10 6' : undefined} />
+              <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} className={bad || dead ? 'stroke-danger' : CLASS_STROKE[cls]} strokeWidth={selectedLink?.id === l.id || dead ? 6 : 3} strokeDasharray={bad ? '10 6' : undefined} data-live={liveLink?.status} />
               <line
                 x1={a.x}
                 y1={a.y}
@@ -720,6 +750,8 @@ export function StageMap() {
           const candidate = connectFrom ? fitsFrom(e).length > 0 : false
           const dim = connectFrom ? !candidate && e.id !== connectFrom.equipmentId : false
           const own = e.deviceId === ownId
+          const liveNode = live?.equipment[e.id]
+          const liveShown = liveNode && liveNode.notes.length > 0 ? liveNode.status : null
           return (
             <g
               key={e.id}
@@ -733,8 +765,8 @@ export function StageMap() {
                 width={NODE_W}
                 height={NODE_H}
                 rx={12}
-                className={`${DRIVER_KINDS.includes(e.kind) ? 'fill-control-strong' : 'fill-control'} ${selected || candidate ? 'stroke-accent' : own ? 'stroke-accent-2' : 'stroke-ink-faint'}`}
-                strokeWidth={selected || candidate ? 4 : 2}
+                className={`${DRIVER_KINDS.includes(e.kind) ? 'fill-control-strong' : 'fill-control'} ${selected || candidate ? 'stroke-accent' : liveShown === 'error' ? 'stroke-danger' : own ? 'stroke-accent-2' : 'stroke-ink-faint'}`}
+                strokeWidth={selected || candidate || liveShown === 'error' ? 4 : 2}
               />
               <text x={NODE_W / 2} y={26} textAnchor="middle" className="fill-ink text-[19px] font-bold">
                 {title(e).length > 16 ? `${title(e).slice(0, 15)}…` : title(e)}
@@ -742,12 +774,14 @@ export function StageMap() {
               <text x={NODE_W / 2} y={50} textAnchor="middle" className="fill-ink-muted text-[16px]">
                 {subtitle(e).slice(0, 20)}
               </text>
+              {liveShown && <circle cx={NODE_W - 14} cy={14} r={9} className={LIVE_FILL[liveShown]} stroke="rgb(var(--sb-surface))" strokeWidth={2} data-live={liveShown} />}
             </g>
           )
         })}
       </svg>
 
       <div className={`mt-2 flex flex-col gap-3 ${full ? 'max-h-[40%] overflow-y-auto' : ''}`}>
+        {checking && <StageLiveList live={live} links={setup.links} nameOf={(id) => { const e = byId.get(id); return e ? title(e) : id }} linkName={(l) => `${listenerName(l.from.equipmentId)} → ${listenerName(l.to.equipmentId)}`} />}
         {selectedNode && (
           <div className="flex flex-col gap-2 rounded-container border border-line p-3">
             <div className="flex flex-wrap items-center gap-2">
