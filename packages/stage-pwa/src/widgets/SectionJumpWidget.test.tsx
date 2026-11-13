@@ -96,7 +96,12 @@ describe('SectionJumpWidget (#479)', () => {
 
   it('too low for its rows (49 px on the phone, #829): only the section buttons, at full height', () => {
     size.height = 49
+    // The full widget overflows its 49 px.
+    const sh = vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockReturnValue(223)
+    const ch = vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(49)
     render(<SectionJumpWidget />)
+    sh.mockRestore()
+    ch.mockRestore()
     expect(screen.getByRole('button', { name: 'Chorus' })).toHaveClass('h-full')
     expect(screen.queryByRole('radio', { name: 'Ende Takt' })).toBeNull()
     expect(screen.queryByRole('button', { name: /Wiederholen/ })).toBeNull()

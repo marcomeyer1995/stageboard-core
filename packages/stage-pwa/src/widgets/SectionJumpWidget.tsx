@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import { useMemo, useState } from 'react'
+import { useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { isSongEntry } from 'shared-types'
 import { Icon } from '../components/Icon'
 import { Segmented } from '../components/ui'
@@ -25,9 +25,7 @@ function storedWhen(): JumpWhen {
 }
 
 const BUTTON = 'min-h-touch rounded-control px-4 font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-40'
-/** Below this height the widget shows only its section buttons (#829): one row of buttons, the
- * when/repeat row and the status line need about this much. */
-const COMPACT_BELOW_PX = 150
+
 
 /**
  * Abschnitte (#479): the song's sections from its timeline parts. The master taps one - the band
@@ -44,9 +42,12 @@ export function SectionJumpWidget() {
   const showWhen = useShowPart('when')
   const showLoop = useShowPart('loop')
   // Too low for its rows (a phone dashboard gave it 49 px, #829): only the section buttons, the
-  // full height - a dashboard never scrolls, and a cut-off button is no button.
+  // full height - a dashboard never scrolls, and a cut-off button is no button. Measured, not a
+  // fixed height: stage buttons are bigger on a tablet. For each height the full widget is tried
+  // once; if it overflows, it turns compact for that height.
   const [boxRef, box] = useElementSize()
-  const compact = box.height > 0 && box.height < COMPACT_BELOW_PX
+  const rootRef = useRef<HTMLDivElement | null>(null)
+  const [fit, setFit] = useState({ key: '', compact: false })
   const [message, setMessage] = useState<string | null>(null)
 
   const { currentEntry, currentSong, currentVariant } = queue
@@ -67,6 +68,14 @@ export function SectionJumpWidget() {
   const content = song?.chordProContent ?? ''
   const sections = useMemo(() => (timeline ? showSections(content, timeline, durationMs) : []), [content, timeline, durationMs])
 
+  // Measured again for another height or another number of sections (a new song).
+  const fitKey = `${box.height}|${sections.length}`
+  const compact = fit.key === fitKey && fit.compact
+  useLayoutEffect(() => {
+    const root = rootRef.current
+    if (!root || box.height === 0 || fit.key === fitKey) return
+    setFit({ key: fitKey, compact: root.scrollHeight > root.clientHeight + 1 })
+  }, [box.height, fit.key, fitKey])
   const playing = playbackStatus === 'playing' && elapsedNow() !== null
   // Re-renders when the song enters another section, not every frame (#457). Before the early
   // return below - a hook after it crashed the app when a song without sections came first.
@@ -120,7 +129,13 @@ export function SectionJumpWidget() {
           : null
 
   return (
-    <div ref={boxRef} className={`flex h-full flex-col gap-2 ${compact ? 'overflow-hidden' : 'overflow-y-auto'}`}>
+    <div
+      ref={(node) => {
+        boxRef(node)
+        rootRef.current = node
+      }}
+      className={`flex h-full flex-col gap-2 ${compact ? 'overflow-hidden' : 'overflow-y-auto'}`}
+    >
       <div className={`flex gap-2 ${compact ? 'h-full' : 'flex-wrap'}`} role="group" aria-label={t('sj.aria')} title={compact ? (message ?? status ?? undefined) : undefined}>
         {sections.map((section, index) => {
           const queued = jump?.toMs === section.startMs

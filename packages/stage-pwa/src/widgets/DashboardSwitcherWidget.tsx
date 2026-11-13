@@ -78,7 +78,8 @@ export function DashboardSwitcherView({ config }: { config: DashboardSwitcherCon
             key={dashboard.id}
             type="button"
             onClick={() => setActive(workspaceId, dashboard.id)}
-            className={`min-h-touch min-w-max flex-1 rounded-control px-4 font-bold uppercase tracking-wide transition-colors ${
+            // One row: as high as the tile (53 px on the phone cut 56 px buttons by 3 px, #829).
+            className={`${sideways ? 'h-full min-h-0' : 'min-h-touch'} min-w-max flex-1 rounded-control px-4 font-bold uppercase tracking-wide transition-colors ${
               dashboard.id === activeId
                 ? 'bg-accent text-accent-ink'
                 : 'bg-control-strong text-ink [@media(hover:hover)]:hover:bg-control-strong-hover'
