@@ -6,8 +6,10 @@ import type { EngineMessage } from './engineMessages'
 
 vi.mock('./engineProcessor.ts?worker&url', () => ({ default: 'processor.js' }))
 vi.mock('./stageboard_engine.wasm?url', () => ({ default: 'engine.wasm' }))
+vi.mock('../audioClock', () => ({ sharedAudioClock: { now: () => 2 } }))
+vi.mock('../clockSync', () => ({ getServerTime: () => 100_650 }))
 
-const { HORIZON_MS, audibleBeats, createFollower, nudgedBeats, planBeats } = await import('./engineClick')
+const { HORIZON_MS, audibleBeats, clockPair, createFollower, nudgedBeats, planBeats } = await import('./engineClick')
 
 const at120 = clickTimeline({ bpm: 120, timeSignature: '4/4', countInBars: 1 })
 const playing: TransportState = { status: 'playing', startedAt: 1000, accumulatedMs: -2000 }
@@ -76,5 +78,13 @@ describe('createFollower', () => {
     f.update(state({ timeline: grid, elapsedMs: 1300 }))
     const placed = sent[sent.length - 1]!
     expect(placed.type === 'beats' && placed.songMs[0]).toBe(100)
+  })
+})
+
+describe('clockPair', () => {
+  const ctx = { sampleRate: 48000 } as AudioContext
+  it("is on the transport's clock: the server's by default, the device's in Solo Üben (650 ms apart on the Redmi)", () => {
+    expect(clockPair(ctx, 20)).toEqual({ type: 'clock', frame: 96000, bandMs: 100_670 })
+    expect(clockPair(ctx, 20, () => 100_000)).toEqual({ type: 'clock', frame: 96000, bandMs: 100_020 })
   })
 })
