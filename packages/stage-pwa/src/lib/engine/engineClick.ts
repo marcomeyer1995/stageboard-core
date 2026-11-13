@@ -160,8 +160,10 @@ function attach(ctx: AudioContext): Promise<Host> {
 
 /** Frame being rendered now ↔ the band time it will be heard at: the same pair clickEngine.ts
  * schedules with (audio clock now, song clock now, output latency). */
-function clockPair(ctx: AudioContext, outputLatencyMs: number): EngineMessage {
-  return { type: 'clock', frame: Math.round(sharedAudioClock.now(ctx) * ctx.sampleRate), bandMs: getServerTime() + outputLatencyMs }
+/** "This frame is heard at transport time …" - on the transport's own clock (Solo Üben: the
+ * device's, not the server's - 650 ms apart on the Redmi, 2026-11-13). */
+export function clockPair(ctx: AudioContext, outputLatencyMs: number, now: () => number = getServerTime): EngineMessage {
+  return { type: 'clock', frame: Math.round(sharedAudioClock.now(ctx) * ctx.sampleRate), bandMs: now() + outputLatencyMs }
 }
 
 export function wasmClickWanted(): boolean {
@@ -185,7 +187,7 @@ export function startEngineClick(getState: () => ClickEngineState): void {
     node = h.node
     for (const m of pending.splice(0)) node.port.postMessage(m)
   })
-  const sendClock = () => post(clockPair(ctx, getState().outputLatencyMs ?? 0))
+  const sendClock = () => post(clockPair(ctx, getState().outputLatencyMs ?? 0, getState().transportNow))
   sendClock()
   follower.update(getState())
   poll = setInterval(() => follower?.update(getState()), POLL_MS)
