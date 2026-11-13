@@ -20,6 +20,9 @@ import {
   numberPorts,
   mapPlays,
   mapOutputs,
+  visibleOwnSetups,
+  equipmentOffered,
+  ownSetupFrom,
   outputSide,
   mapRoute,
   routedLogicalDevices,
@@ -573,5 +576,41 @@ describe('port model 2 (docs/31 §7b, #739): pins, container ports, OSC', () => 
   it('mapRoute finds the cable on the container of a part', () => {
     const setup: StageSetup = { id: DEFAULT_SETUP_ID, name: 'Standard', positions: { redmi: { x: 0, y: 0 }, umc: { x: 0, y: 0 } }, routing: { redmi: [{ from: { kind: 'virtual', virtualPortId: 'kemper' }, to: { kind: 'port', portId: 'usb/midi-out' } }] }, links: [{ id: 'c', from: { equipmentId: 'redmi', portId: 'usb' }, to: { equipmentId: 'umc', portId: 'usb' }, signals: ['usb-audio', 'midi'], midiName: 'UMC204HD MIDI' }] }
     expect(mapRoute({ equipment: [tablet, iface], setups: [setup] }, 'kemper')).toEqual({ app: 'redmi', midiName: 'UMC204HD MIDI' })
+  })
+})
+
+describe('own setups per person (#799, docs/31 §0d)', () => {
+  const map = defaultStageMap([
+    { id: 'redmi', name: 'Redmi' },
+    { id: 'fire', name: 'Fire' },
+  ])
+  const band = map.setups[0]!
+
+  it('starts from the member\'s own device with its listener, nothing of the others', () => {
+    const home = ownSetupFrom(map, band, 'marco', ['device:redmi'], 'home', 'Home')
+    expect(home.owner).toBe('marco')
+    expect(Object.keys(home.positions)).toContain('device:redmi')
+    expect(Object.keys(home.positions)).not.toContain('device:fire')
+    expect(home.links.length).toBeGreaterThan(0)
+    expect(home.links.every((l) => [l.from.equipmentId, l.to.equipmentId].includes('device:redmi'))).toBe(true)
+    // The device plays by it: the sound follows the map there, too.
+    expect(mapOutputs({ ...map, setups: [band, home] }, 'redmi', CAPABILITIES.clickTrack, {}, 'home')).toEqual([{ portId: 'speaker', route: 'any', side: 'both' }])
+  })
+
+  it('is seen by its owner and the admin only', () => {
+    const home = ownSetupFrom(map, band, 'marco', ['device:redmi'], 'home', 'Home')
+    const all = [band, home]
+    expect(visibleOwnSetups(all, 'marco', false)).toEqual([home])
+    expect(visibleOwnSetups(all, 'caro', false)).toEqual([])
+    expect(visibleOwnSetups(all, 'caro', true)).toEqual([home])
+    expect(visibleOwnSetups(all, '', false)).toEqual([])
+  })
+
+  it('offers own equipment only in its owner\'s setups', () => {
+    const unit = { ...equipmentFrom(BUILTIN_MODELS.find((m) => m.kind === 'mixer')!, 'unit', 'Effects unit'), owner: 'marco' }
+    const equipment = [...map.equipment, unit]
+    expect(equipmentOffered(equipment, band)).not.toContain(unit)
+    expect(equipmentOffered(equipment, { owner: 'caro' })).not.toContain(unit)
+    expect(equipmentOffered(equipment, { owner: 'marco' })).toContain(unit)
   })
 })

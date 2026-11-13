@@ -106,6 +106,8 @@
     "bothDetail": "Track, click and announcements on both sides - needs no map.",
     "setup": "As in setup “{{name}}”",
     "setupDetail": "Click, announcements and track sit as in this device's matrix in that setup.",
+    "ownSetup": "My setup “{{name}}”",
+    "ownSetupDetail": "Your own setup for practising (Stage → My setups).",
     "fellBack": "The chosen setup does not fit right now (device not placed or output not plugged in) - everything plays on both ears."
   },
   "sync": {

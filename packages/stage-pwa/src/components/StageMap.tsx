@@ -11,6 +11,9 @@ import {
   DRIVER_KINDS,
   effectiveRouting,
   equipmentFrom,
+  equipmentOffered,
+  ownSetupFrom,
+  visibleOwnSetups,
   linkPlaceholder,
   appsOf,
   joinDevices,
@@ -110,7 +113,7 @@ const portOf = (equipment: StageEquipment | undefined, portId: string): PortView
  */
 export function StageMap() {
   const { t } = useTranslation('hardware')
-  const { equipment, setups, front, loaded, saveEquipment, removeEquipment, saveSetup, updateSetup, removeSetup } = useStageMapStore()
+  const { equipment: bandEquipment, setups: bandSetups, ownSetups, ownEquipment, front, loaded, saveEquipment, removeEquipment, saveSetup, updateSetup, removeSetup } = useStageMapStore()
   const devices = useDevicesStore((state) => state.devices)
   const devicesLoaded = useDevicesStore((state) => state.loaded)
   const logicalDevices = useLogicalDevicesStore((state) => state.devices)
@@ -137,7 +140,7 @@ export function StageMap() {
   const writing = useRef(false)
   useEffect(() => {
     if (!loaded || !devicesLoaded || writing.current) return
-    const writes = stageMapDefaults({ equipment, setups }, devices, ownId)
+    const writes = stageMapDefaults({ equipment: bandEquipment, setups: bandSetups }, devices, ownId)
     if (writes.equipment.length + writes.newSetups.length + writes.addTo.length === 0) return
     writing.current = true
     void (async () => {
@@ -149,9 +152,14 @@ export function StageMap() {
       .finally(() => {
         writing.current = false
       })
-  }, [loaded, devicesLoaded, equipment, setups, devices, ownId, saveEquipment, saveSetup, updateSetup])
+  }, [loaded, devicesLoaded, bandEquipment, bandSetups, devices, ownId, saveEquipment, saveSetup, updateSetup])
 
+  // The band's setups, then the own ones this person may see (#799): their own, the admin everybody's.
+  const setups = useMemo(() => [...bandSetups, ...visibleOwnSetups(ownSetups, myProfileId, isAdmin)], [bandSetups, ownSetups, myProfileId, isAdmin])
   const setup: StageSetup | undefined = setups.find((s) => s.id === setupId) ?? setups[0]
+  const ownSetup = setup?.owner !== undefined
+  // Own equipment is only offered in its owner's setups.
+  const equipment = useMemo(() => [...bandEquipment, ...equipmentOffered(ownEquipment, setup)], [bandEquipment, ownEquipment, setup])
   const byId = useMemo(() => new Map(equipment.map((e) => [e.id, e])), [equipment])
   const onStage = useMemo(() => (setup ? equipment.filter((e) => setup.positions[e.id]) : []), [equipment, setup])
   const offStage = useMemo(() => (setup ? equipment.filter((e) => !setup.positions[e.id]) : []), [equipment, setup])
@@ -168,6 +176,8 @@ export function StageMap() {
   const showWhole = () => setup && setView(fitView(onStage.map((e) => setup.positions[e.id]!)))
 
   const personName = (profileId: string | undefined) => people.find((p) => p.id === profileId)?.name ?? null
+  // An own setup says whose it is: "Mein: Zuhause", for the admin "Zuhause (Caro)".
+  const setupLabel = (s: StageSetup) => (s.owner === undefined ? s.name : s.owner === myProfileId ? t('map.ownSetupLabel', { name: s.name }) : t('map.ownSetupOf', { name: s.name, person: personName(s.owner) ?? '?' }))
   const subtitle = (e: StageEquipment): string => {
     if (e.kind === 'stageboard' && e.deviceId) return personName(presence.devices[e.deviceId]?.profileId) ?? t('map.nobody')
     if (e.kind === 'stageboard') return t('map.placeholder')
@@ -205,10 +215,16 @@ export function StageMap() {
   // Who may change what: the admin everything, everyone else the cables of their own device.
   const signedIn = myProfileId !== ''
   const ownsDevice = (e: StageEquipment | undefined) => !!e?.deviceId && (e.deviceId === ownId || presence.devices[e.deviceId]?.profileId === myProfileId)
-  const canWire = (e: StageEquipment | undefined) => editing && signedIn && (isAdmin || ownsDevice(e))
-  const canMove = (e: StageEquipment) => editing && signedIn && (isAdmin || ownsDevice(e))
+  // An own setup (#799) is its owner's as a whole - and the admin's; only they see it.
+  const canWire = (e: StageEquipment | undefined) => editing && signedIn && (isAdmin || ownSetup || ownsDevice(e))
+  const canMove = (e: StageEquipment) => editing && signedIn && (isAdmin || ownSetup || ownsDevice(e))
   const canWireLink = (l: StageLink) => canWire(byId.get(l.from.equipmentId)) || canWire(byId.get(l.to.equipmentId))
-  const canGear = editing && isAdmin
+  /** What belongs to the band as a whole: the host's plugins, which apps are one device. */
+  const canAdmin = editing && isAdmin
+  /** This setup: what stands in it, its matrices, the setup itself. */
+  const canGear = editing && (isAdmin || (ownSetup && signedIn))
+  /** A piece of equipment itself (name, ports, delete) - in every setup it stands in. */
+  const canChange = (e: StageEquipment) => editing && (isAdmin || (signedIn && e.owner !== undefined && e.owner === myProfileId))
 
   // A pin of a socket: left/right of a stereo jack, else its number (#739).
   const pinText = (pin: number | undefined) => (pin === undefined ? '' : ` ${pin === 1 ? t('map.pinL') : pin === 2 ? t('map.pinR') : t('map.pinN', { n: pin })}`)
@@ -400,7 +416,8 @@ export function StageMap() {
     )
     const model = models.find((m) => m.id === answer?.model)
     if (!answer || !model) return
-    const item = equipmentFrom(model, crypto.randomUUID(), answer.name?.trim() || model.name)
+    // In an own setup the equipment is its owner's: offered in that person's setups only (#799).
+    const item: StageEquipment = { ...equipmentFrom(model, crypto.randomUUID(), answer.name?.trim() || model.name), ...(setup.owner !== undefined ? { owner: setup.owner } : {}) }
     await saveEquipment(item)
     const at = { x: Math.round(viewBox.x + viewBox.w / 2), y: Math.round(viewBox.y + viewBox.h / 2) }
     await updateSetup(setup.id, (s) => ({ ...s, positions: { ...s.positions, [item.id]: at } }))
@@ -491,8 +508,27 @@ export function StageMap() {
     await saveSetup(copy)
     setSetupId(copy.id)
   }
+  // An own setup (#799): started from the band's setup with this person's own devices in it.
+  const addOwnSetup = async () => {
+    const from = setup && !ownSetup ? setup : bandSetups[0]
+    if (!from || !signedIn) return
+    const answer = await promptFields(t('map.newOwnSetup'), [{ key: 'name', label: t('map.name'), defaultValue: t('map.ownSetupDefaultName') }], t('map.add'))
+    const name = answer?.name?.trim()
+    if (!name) return
+    const mine = bandEquipment.filter(ownsDevice).map((e) => e.id)
+    const own = ownSetupFrom({ equipment: bandEquipment, setups: bandSetups }, from, myProfileId, mine, crypto.randomUUID(), name)
+    await saveSetup(own)
+    setSetupId(own.id)
+    setSelection(null)
+  }
+  const renameSetup = async () => {
+    if (!setup) return
+    const answer = await promptFields(t('map.renameSetup'), [{ key: 'name', label: t('map.name'), defaultValue: setup.name }], t('map.save'))
+    const name = answer?.name?.trim()
+    if (name) await updateSetup(setup.id, (s) => ({ ...s, name }))
+  }
   const deleteSetup = async () => {
-    if (!setup || setups.length < 2) return
+    if (!setup || (!ownSetup && bandSetups.length < 2)) return
     if (!(await confirm(t('map.deleteSetupConfirm', { name: setup.name }), { danger: true, confirmLabel: t('map.delete') }))) return
     await removeSetup(setup.id)
     setSetupId(null)
@@ -593,9 +629,10 @@ export function StageMap() {
       )}
       {setups.length > 1 && (
         <div className="mb-2">
-          <Segmented label={t('map.setup')} value={setup.id} onChange={(id) => { setSetupId(id); setSelection(null) }} options={setups.map((s) => ({ value: s.id, label: s.name }))} />
+          <Segmented label={t('map.setup')} value={setup.id} onChange={(id) => { setSetupId(id); setSelection(null) }} options={setups.map((s) => ({ value: s.id, label: setupLabel(s) }))} />
         </div>
       )}
+      {ownSetup && <p className="mb-2 text-base text-ink-muted">{setup.owner === myProfileId ? t('map.ownSetupHint') : t('map.ownSetupOfHint', { person: personName(setup.owner) ?? '?' })}</p>}
       <div className="mb-2 flex flex-wrap items-center gap-2">
         <Button onClick={showWhole}>{t('map.whole')}</Button>
         <Switch layout="inline" label={t('map.ports')} checked={showPorts} onChange={setShowPorts} />
@@ -706,7 +743,7 @@ export function StageMap() {
               {selectedNode.deviceId === ownId && <Badge tone="accent">{t('stage.thisDevice')}</Badge>}
             </div>
             {/* The host: its server plugins, installable where it can run them (docs/25 §6). */}
-            {(selectedNode.kind === 'stage-server' || appsOf(selectedNode).includes(SERVER_EXECUTION_TARGET)) && <HostPlugins canInstall={canGear} />}
+            {(selectedNode.kind === 'stage-server' || appsOf(selectedNode).includes(SERVER_EXECUTION_TARGET)) && <HostPlugins canInstall={canAdmin} />}
             {appsOf(selectedNode).length > 1 && (
               <div className="flex flex-col gap-1">
                 <span className="text-base font-semibold">{t('map.appsHere')}</span>
@@ -716,7 +753,7 @@ export function StageMap() {
                       {appName(appId)}
                       {front[selectedNode.id] === appId && ` · ${t('map.inFront')}`}
                     </span>
-                    {canGear && appId !== selectedNode.deviceId && (
+                    {canAdmin && appId !== selectedNode.deviceId && (
                       <Button variant="quiet" onClick={() => separate(selectedNode, appId)}>
                         {t('map.separate')}
                       </Button>
@@ -771,14 +808,16 @@ export function StageMap() {
             })()}
             {canGear && (
               <div className="flex flex-wrap gap-2">
-                <Button icon="rename" onClick={() => void renameEquipment(selectedNode)}>
-                  {t('map.rename')}
-                </Button>
-                {selectedNode.kind !== 'stageboard' && selectedNode.kind !== 'person' && selectedNode.kind !== 'hall' && <Button onClick={() => setPortsFor(selectedNode)}>{t('map.setUp')}</Button>}
-                {selectedNode.kind === 'stageboard' && !selectedNode.deviceId && <Button onClick={() => void linkDevice(selectedNode)}>{t('map.link')}</Button>}
-                {(selectedNode.kind === 'stageboard' || selectedNode.kind === 'stage-server') && <Button onClick={() => void sameDevice(selectedNode)}>{t('map.same')}</Button>}
+                {canChange(selectedNode) && (
+                  <Button icon="rename" onClick={() => void renameEquipment(selectedNode)}>
+                    {t('map.rename')}
+                  </Button>
+                )}
+                {canChange(selectedNode) && selectedNode.kind !== 'stageboard' && selectedNode.kind !== 'person' && selectedNode.kind !== 'hall' && <Button onClick={() => setPortsFor(selectedNode)}>{t('map.setUp')}</Button>}
+                {canAdmin && selectedNode.kind === 'stageboard' && !selectedNode.deviceId && <Button onClick={() => void linkDevice(selectedNode)}>{t('map.link')}</Button>}
+                {canAdmin && (selectedNode.kind === 'stageboard' || selectedNode.kind === 'stage-server') && <Button onClick={() => void sameDevice(selectedNode)}>{t('map.same')}</Button>}
                 <Button onClick={() => void takeOffStage(selectedNode)}>{t('map.offStage')}</Button>
-                {selectedNode.kind !== 'stageboard' && (
+                {canChange(selectedNode) && selectedNode.kind !== 'stageboard' && (
                   <Button variant="danger" icon="delete" onClick={() => void deleteEquipment(selectedNode)}>
                     {t('map.delete')}
                   </Button>
@@ -810,18 +849,24 @@ export function StageMap() {
         )}
 
         {!selectedNode && !selectedLink && !connectFrom && <p className="text-base text-ink-muted">{t('map.hint')}</p>}
-        {canGear && !selectedNode && !selectedLink && (
+        {editing && (canGear || signedIn) && !selectedNode && !selectedLink && (
           <div className="flex flex-col gap-2">
-            <AddRow label={t('map.addEquipment')} onClick={() => void addEquipment()} />
+            {canGear && <AddRow label={t('map.addEquipment')} onClick={() => void addEquipment()} />}
             <div className="flex flex-wrap gap-2">
-              <AddRow inline label={t('map.newSetup')} onClick={() => void addSetup()} />
-              {setups.length > 1 && (
+              {canGear && <AddRow inline label={t('map.newSetup')} onClick={() => void addSetup()} />}
+              {signedIn && <AddRow inline label={t('map.newOwnSetup')} onClick={() => void addOwnSetup()} />}
+              {canGear && (
+                <Button icon="rename" onClick={() => void renameSetup()}>
+                  {t('map.renameSetup')}
+                </Button>
+              )}
+              {canGear && (ownSetup || bandSetups.length > 1) && (
                 <Button variant="danger" icon="delete" onClick={() => void deleteSetup()}>
                   {t('map.deleteSetup')}
                 </Button>
               )}
             </div>
-            {offStage.length > 0 && (
+            {canGear && offStage.length > 0 && (
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-base text-ink-muted">{t('map.offStageList')}</span>
                 {offStage.map((e) => (

@@ -106,6 +106,8 @@
     "bothDetail": "Track, Klick und Ansagen auf beiden Seiten - braucht keine Karte.",
     "setup": "Wie im Aufbau „{{name}}“",
     "setupDetail": "Klick, Ansagen und Track liegen wie in der Matrix dieses Geräts in dem Aufbau.",
+    "ownSetup": "Mein Aufbau „{{name}}“",
+    "ownSetupDetail": "Dein eigener Aufbau zum Üben (Bühne → Meine Aufbauten).",
     "fellBack": "Der gewählte Aufbau passt gerade nicht (Gerät nicht platziert oder Ausgang nicht angesteckt) - alles spielt auf beiden Ohren."
   },
   "sync": {

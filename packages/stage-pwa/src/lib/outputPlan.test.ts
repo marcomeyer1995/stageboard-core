@@ -36,4 +36,12 @@ describe('the output plan (#742, docs/31 §0d)', () => {
     // Announcements are routed nowhere in that setup: they stay on both ears while practising.
     expect(outputPlan(input({ mode: 'practice', practiceSetupId: 'standard', map }))).toEqual({ plan: { click: 'left', track: 'right', voice: 'both' }, fellBack: false })
   })
+
+  it('practice by an own setup (#799): the sides come from this device\'s matrix there', () => {
+    const map = split()
+    map.setups.push({ id: 'home', name: 'Home', owner: 'marco', positions: { 'device:redmi': { x: 0, y: 0 } }, links: [], routing: { 'device:redmi': [to('klick', 'headphones', 1), to('track', 'headphones', 2)] } })
+    expect(outputPlan(input({ mode: 'practice', map, practiceSetupId: 'home' }))).toEqual({ plan: { click: 'left', track: 'right', voice: 'both' }, fellBack: false })
+    // Not offered to this device (another person's, or the Gig): gone from the map - both ears.
+    expect(outputPlan(input({ mode: 'practice', practiceSetupId: 'home' }))).toEqual({ plan: { track: 'both', click: 'both', voice: 'both' }, fellBack: true })
+  })
 })

@@ -195,6 +195,9 @@ export const StageEquipmentSchema = z.object({
   appIds: z.array(z.string().min(1)).optional(),
   /** Who this is (kind `person`). */
   listener: ListenerSchema.nullable().default(null),
+  /** The member (profile id) this belongs to (#799, docs/31 §0d): own equipment, only offered in
+   * that person's own setups. Absent: the band's. */
+  owner: z.string().min(1).optional(),
 })
 export type StageEquipment = z.infer<typeof StageEquipmentSchema>
 
@@ -234,6 +237,10 @@ export const StageSetupSchema = z.object({
   positions: z.record(z.string(), z.object({ x: z.number(), y: z.number() })),
   links: z.array(StageLinkSchema),
   routing: z.record(z.string(), z.array(CrosspointSchema)),
+  /** The member (profile id) whose own setup this is (#799, docs/31 §0d): for practising at home,
+   * never a choice in the Gig, hidden from the other members (the admin sees and edits it).
+   * Absent: a setup of the band. */
+  owner: z.string().min(1).optional(),
 })
 export type StageSetup = z.infer<typeof StageSetupSchema>
 
@@ -966,6 +973,34 @@ export function wiringList(map: StageMap, setupId: string): WiringCable[] {
 /** The setup a band plays by, until the Gig chooses one (docs/31 §6 step 5): "Standard", else the first. */
 export function activeSetup(map: StageMap): StageSetup | null {
   return map.setups.find((s) => s.id === DEFAULT_SETUP_ID) ?? map.setups[0] ?? null
+}
+
+/**
+ * The own setups a member gets to see (#799, docs/31 §0d): their own; the admin everybody's.
+ */
+export function visibleOwnSetups(setups: readonly StageSetup[], profileId: string, isAdmin: boolean): StageSetup[] {
+  return setups.filter((s) => s.owner !== undefined && (isAdmin || (profileId !== '' && s.owner === profileId)))
+}
+
+/** The equipment a setup may place (#799): the band's, in an own setup also its owner's. */
+export function equipmentOffered(equipment: readonly StageEquipment[], setup: Pick<StageSetup, 'owner'> | null | undefined): StageEquipment[] {
+  return equipment.filter((e) => e.owner === undefined || (setup?.owner !== undefined && e.owner === setup.owner))
+}
+
+/**
+ * A new own setup started from a band setup (#799): the member's own devices as they stand there,
+ * with the listeners that hang directly on them (the headphones into the ears) - everything else
+ * is placed by hand.
+ */
+export function ownSetupFrom(map: StageMap, from: StageSetup, owner: string, ownEquipmentIds: readonly string[], id: string, name: string): StageSetup {
+  const keep = new Set(ownEquipmentIds.filter((e) => from.positions[e]))
+  const person = (e: string) => map.equipment.find((x) => x.id === e)?.kind === 'person'
+  for (const l of from.links) {
+    if (keep.has(l.from.equipmentId) && person(l.to.equipmentId)) keep.add(l.to.equipmentId)
+    if (keep.has(l.to.equipmentId) && person(l.from.equipmentId)) keep.add(l.from.equipmentId)
+  }
+  const pick = <T,>(record: Record<string, T>) => Object.fromEntries(Object.entries(record).filter(([e]) => keep.has(e)))
+  return { id, name, owner, positions: pick(from.positions), links: from.links.filter((l) => keep.has(l.from.equipmentId) && keep.has(l.to.equipmentId)), routing: pick(from.routing) }
 }
 
 /** Which side of a stereo output a signal sits on. */
