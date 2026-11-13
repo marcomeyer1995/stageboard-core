@@ -9,11 +9,12 @@ const here = dirname(fileURLToPath(import.meta.url))
 export const DEVICES_FILE = process.env.SB_DEVICES ?? join(here, '..', 'devices.json')
 
 /**
- * @typedef {{ name: string, serial: string, port: number, volume?: 'media' | 'keys' | 'session', app?: string, model?: string }} Device
+ * @typedef {{ name: string, serial: string, port: number, volume?: 'media' | 'keys' | 'session', app?: string, model?: string, sizes?: 'all' }} Device
  * `port`: the local port the app's DevTools socket is forwarded to. `volume`: how media volume
  * really changes on that device (see tools/device/README.md). `app`: the package (default: the
  * dev app). `model`: the adb model (`adb devices -l`, e.g. 24075RP89G) - with it the device is
- * found whatever its serial is now: wireless adb ports change on every restart.
+ * found whatever its serial is now: wireless adb ports change on every restart. `sizes: 'all'`:
+ * the test runner's reference device for every screen size (the others: their own, turned round).
  */
 
 /** @returns {Device[]} */

@@ -16,6 +16,7 @@ code 1 when anything failed.
 |---|---|
 | `app` | the app runs - build, mode, status bar |
 | `gui` | Boards, Bibliothek and every System tab on the device's real size: text cut off, content past the right edge or clipped (the status bar counted once), the page scrolling sideways (errors); touch targets and text below the screen's tier - Boards 48/16 px, preparation screens 40/14 px (docs/15); on a phone (< 600 px wide) text may be a step smaller, 14 and 12 px, targets stay (Marco 2026-11-13) (warnings). A screenshot of each. |
+| `gui-sizes` | the `gui` check at other sizes, laid out by CDP on the device itself (the APK's build, not the server's): the reference device (`"sizes": "all"`) at phone portrait/landscape, small phone, tablet portrait/landscape, laptop; every other device at its own size turned round (#819 step 2). |
 | `solo-start` | Solo, StageBoard Referenz-Song: tap "Takt 35" stopped → 1:13, Play starts there, a tap while playing jumps, a section button from a stop (#817). Opens the song itself by stepping through the catalogue. |
 
 **Devices** are found by their adb `model` when their serial moved (wireless adb ports change on

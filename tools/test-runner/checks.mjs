@@ -21,19 +21,24 @@ async function app(ctx) {
  * never scrolling sideways (errors); touch targets and text sizes (warnings). A screenshot each.
  */
 async function gui(ctx) {
+  await scanScreens(ctx, '')
+}
+
+/** Every main screen as it is now: a result and a screenshot each, named with `size` in front. */
+async function scanScreens(ctx, size) {
   const screens = [{ view: 'Boards' }, { view: 'Bibliothek' }]
   await ctx.eval("window.__sbt.view('System')")
   const tabs = (await ctx.eval('window.__sbt.systemTabs()')) ?? []
   for (const tab of tabs) screens.push({ view: 'System', tab })
   for (const s of screens) {
-    const name = s.tab ? `System › ${s.tab}` : s.view
+    const name = `${size ? `${size} · ` : ''}${s.tab ? `System › ${s.tab}` : s.view}`
     const ok = await ctx.eval(`window.__sbt.view(${JSON.stringify(s.view)})`)
     if (s.tab) {
       await ctx.eval(`window.__sbt.click(${JSON.stringify(s.tab)})`)
       await wait(1200)
     }
     if (!ok) {
-      ctx.record({ check: 'gui', name, status: 'skip', detail: 'could not open it' })
+      ctx.record({ check: size ? 'gui-sizes' : 'gui', name, status: 'skip', detail: 'could not open it' })
       continue
     }
     const scan = await ctx.eval(`window.__sbt.gui(${JSON.stringify(s.view === 'Boards' ? 'stage' : 'prep')})`)
@@ -45,7 +50,7 @@ async function gui(ctx) {
     const list = (ps) => ps.slice(0, 6).map((p) => `${p.kind}: "${p.text}"${p.size ? ` ${p.size}` : ''}${p.px ? ` ${p.px}px` : ''}${p.needs ? ` (${p.width}/${p.needs}px)` : ''}${p.cut ? ` ${p.cut}px cut` : ''}`).join('; ')
     const status = errors.length > 0 ? 'fail' : warnings.length > 0 ? 'warn' : 'pass'
     const detail = `${scan?.viewport ?? ''} · ${errors.length} errors, ${warnings.length} warnings${errors.length ? ` · ${list(errors)}` : warnings.length ? ` · ${list(warnings)}` : ''}`
-    ctx.record({ check: 'gui', name, status, detail, shot, values: problems })
+    ctx.record({ check: size ? 'gui-sizes' : 'gui', name, status, detail, shot, values: problems })
   }
   await ctx.eval("window.__sbt.view('Boards')")
 }
@@ -88,4 +93,51 @@ async function soloStart(ctx) {
   if (wasGig) await ctx.eval("window.__sbt.mode('Gig')")
 }
 
-export const CHECKS = { app: { run: app }, gui: { run: gui }, 'solo-start': { run: soloStart } }
+/**
+ * The sizes other devices have (#819 step 2), on this device: CDP makes its WebView lay out as a
+ * phone or a tablet in either orientation - the very build in the APK, not the Stage-Server's.
+ * Width × height in CSS px; `mobile` for touch layouts.
+ */
+export const SIZES = [
+  { name: 'phone portrait', width: 375, height: 834, mobile: true },
+  { name: 'phone landscape', width: 834, height: 375, mobile: true },
+  { name: 'small phone', width: 360, height: 740, mobile: true },
+  { name: 'tablet portrait', width: 800, height: 1280, mobile: true },
+  { name: 'tablet landscape', width: 1280, height: 800, mobile: true },
+  { name: 'laptop', width: 1440, height: 900, mobile: false },
+]
+
+/**
+ * The reference device (devices.json `"sizes": "all"`, the Fire) checks every size; the others
+ * their own size turned round - their own dashboards and font setting in the other orientation.
+ * A phone pretending to be a laptop keeps its small font: no real case, only warnings.
+ */
+async function guiSizes(ctx) {
+  let sizes = SIZES
+  if (ctx.device.sizes !== 'all') {
+    const own = await ctx.eval('[innerWidth, innerHeight]')
+    const [w, h] = Array.isArray(own) ? own : [0, 0]
+    sizes = [{ name: w > h ? 'own size, portrait' : 'own size, landscape', width: h, height: w, mobile: true }]
+  }
+  for (const size of sizes) {
+    await ctx.cdp('Emulation.setDeviceMetricsOverride', {
+      width: size.width,
+      height: size.height,
+      deviceScaleFactor: 0,
+      mobile: size.mobile,
+      screenOrientation: { type: size.width > size.height ? 'landscapePrimary' : 'portraitPrimary', angle: size.width > size.height ? 90 : 0 },
+    })
+    // Layout follows resize and media-query listeners; give them a moment.
+    await wait(1500)
+    const real = await ctx.eval('`${innerWidth}×${innerHeight}`')
+    if (real !== `${size.width}×${size.height}`) {
+      ctx.record({ check: 'gui-sizes', name: size.name, status: 'skip', detail: `the device did not take the size (${real})` })
+      continue
+    }
+    await scanScreens(ctx, size.name)
+  }
+  await ctx.cdp('Emulation.clearDeviceMetricsOverride', {})
+  await wait(1000)
+}
+
+export const CHECKS = { app: { run: app }, gui: { run: gui }, 'gui-sizes': { run: guiSizes }, 'solo-start': { run: soloStart } }

@@ -81,6 +81,8 @@ for (const wanted of pickDevices(deviceNames)) {
       return file
     },
     quiet: () => (night() ? setVolume(d, 0) : null),
+    /** A raw DevTools call on the page (Emulation, Page, …). */
+    cdp: (method, params) => within(20000, page.call(method, params)),
     record: (r) => record({ device: d.name, ...r }),
   }
   for (const id of checkIds) {
