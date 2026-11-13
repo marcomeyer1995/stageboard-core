@@ -14,7 +14,14 @@
 #include <jni.h>
 #include <aaudio/AAudio.h>
 #include <android/log.h>
+#include <linux/usbdevice_fs.h>
+#include <sys/ioctl.h>
+#include <sys/resource.h>
+#include <unistd.h>
 #include <algorithm>
+#include <cerrno>
+#include <cstdlib>
+#include <cstring>
 #include <atomic>
 #include <cmath>
 #include <cstdarg>
@@ -142,48 +149,35 @@ float ringAt(long long f, int ch, long long written, bool &missing) {
     return gRing[2 * static_cast<int>(f & (RING_FRAMES - 1)) + ch];
 }
 
-aaudio_data_callback_result_t onData(AAudioStream *stream, void *, void *audioData, int32_t numFrames) {
-    auto *out = static_cast<float *>(audioData);
+/** The wall-clock time frame gFrames - the next one written - is heard, `measured` from the output's
+ * own timestamp: taken at once the first time, a jump only once confirmed, jitter followed slowly. */
+void followHeard(double measured) {
     const double msPerFrame = 1000.0 / gRate;
-    int64_t framePos = 0, timeNs = 0;
-    if (AAudioStream_getTimestamp(stream, CLOCK_MONOTONIC, &framePos, &timeNs) == AAUDIO_OK) {
-        gEstimated = false;
-        const int64_t mono = clockNs(CLOCK_MONOTONIC);
-        const int64_t real = clockNs(CLOCK_REALTIME);
-        // Frames between the timestamp's frame and the next one we write - a fraction of a second.
-        // Taken modulo 2^32: Android 9's AAudio (legacy AudioTrack path, the Fire) reports a 32-bit
-        // position, which wraps after 2^31 frames (12.4 h at 48 kHz) - with the app kept awake
-        // overnight the output then sat 2^32 frames (24.9 h) "late" and played nothing.
-        const auto ahead = static_cast<int32_t>(static_cast<uint32_t>(static_cast<uint64_t>(gFrames - framePos)));
-        const double heardMonoNs = static_cast<double>(timeNs) + static_cast<double>(ahead) * 1e9 / gRate;
-        gLatencyMs.store((heardMonoNs - static_cast<double>(mono)) / 1e6);
-        const double measured = (heardMonoNs + static_cast<double>(real - mono)) / 1e6;
-        const double err = measured - gHeardMs0;
-        if (!gLocked) {
+    const double err = measured - gHeardMs0;
+    if (!gLocked) {
+        gHeardMs0 = measured;
+        gLocked = true;
+    } else if (std::fabs(err) > TIMESTAMP_JUMP_MS) {
+        if (gPendingSince < 0 || std::fabs(err - gPendingErr) > TIMESTAMP_JUMP_MS) gPendingSince = gFrames;
+        gPendingErr = err;
+        if ((gFrames - gPendingSince) * msPerFrame >= TIMESTAMP_CONFIRM_MS) {
+            gTimestampJumps.fetch_add(1);
             gHeardMs0 = measured;
-            gLocked = true;
-        } else if (std::fabs(err) > TIMESTAMP_JUMP_MS) {
-            if (gPendingSince < 0 || std::fabs(err - gPendingErr) > TIMESTAMP_JUMP_MS) gPendingSince = gFrames;
-            gPendingErr = err;
-            if ((gFrames - gPendingSince) * msPerFrame >= TIMESTAMP_CONFIRM_MS) {
-                gTimestampJumps.fetch_add(1);
-                gHeardMs0 = measured;
-                gPendingSince = -1;
-            }
-        } else {
             gPendingSince = -1;
-            gHeardMs0 += 0.02 * err;   // timestamps jitter by a burst; follow slowly
         }
-    } else if (!gLocked) {
-        gNoStampFrames += numFrames;
-        if (gNoStampFrames * msPerFrame >= NO_TIMESTAMP_MS) {
-            const double bufferMs = AAudioStream_getBufferSizeInFrames(stream) * msPerFrame;
-            gLatencyMs.store(bufferMs);
-            gHeardMs0 = static_cast<double>(clockNs(CLOCK_REALTIME)) / 1e6 + bufferMs;
-            gLocked = true;
-            gEstimated = true;
-        }
+    } else {
+        gPendingSince = -1;
+        gHeardMs0 += 0.02 * err;   // timestamps jitter by a burst; follow slowly
     }
+}
+
+/**
+ * Renders `numFrames` frames of `gChannels` into `out`: the pipe (the WebView's mix, placed by its
+ * band time) plus the engine core - for whichever output runs, AAudio's callback or the own USB
+ * driver (docs/28 §4). Frame gFrames is heard at gHeardMs0.
+ */
+void produce(float *out, int numFrames) {
+    const double msPerFrame = 1000.0 / gRate;
     const long long written = gWritten.load();
     const double base = gBaseMs.load();
     double step = 1.0;
@@ -239,6 +233,34 @@ aaudio_data_callback_result_t onData(AAudioStream *stream, void *, void *audioDa
     }
     gFrames += numFrames;
     if (gLocked) gHeardMs0 += numFrames * msPerFrame;
+}
+
+aaudio_data_callback_result_t onData(AAudioStream *stream, void *, void *audioData, int32_t numFrames) {
+    const double msPerFrame = 1000.0 / gRate;
+    int64_t framePos = 0, timeNs = 0;
+    if (AAudioStream_getTimestamp(stream, CLOCK_MONOTONIC, &framePos, &timeNs) == AAUDIO_OK) {
+        gEstimated = false;
+        const int64_t mono = clockNs(CLOCK_MONOTONIC);
+        const int64_t real = clockNs(CLOCK_REALTIME);
+        // Frames between the timestamp's frame and the next one we write - a fraction of a second.
+        // Taken modulo 2^32: Android 9's AAudio (legacy AudioTrack path, the Fire) reports a 32-bit
+        // position, which wraps after 2^31 frames (12.4 h at 48 kHz) - with the app kept awake
+        // overnight the output then sat 2^32 frames (24.9 h) "late" and played nothing.
+        const auto ahead = static_cast<int32_t>(static_cast<uint32_t>(static_cast<uint64_t>(gFrames - framePos)));
+        const double heardMonoNs = static_cast<double>(timeNs) + static_cast<double>(ahead) * 1e9 / gRate;
+        gLatencyMs.store((heardMonoNs - static_cast<double>(mono)) / 1e6);
+        followHeard((heardMonoNs + static_cast<double>(real - mono)) / 1e6);
+    } else if (!gLocked) {
+        gNoStampFrames += numFrames;
+        if (gNoStampFrames * msPerFrame >= NO_TIMESTAMP_MS) {
+            const double bufferMs = AAudioStream_getBufferSizeInFrames(stream) * msPerFrame;
+            gLatencyMs.store(bufferMs);
+            gHeardMs0 = static_cast<double>(clockNs(CLOCK_REALTIME)) / 1e6 + bufferMs;
+            gLocked = true;
+            gEstimated = true;
+        }
+    }
+    produce(static_cast<float *>(audioData), numFrames);
     return AAUDIO_CALLBACK_RESULT_CONTINUE;
 }
 
@@ -295,15 +317,208 @@ aaudio_result_t openStream() {
 const char *perf(aaudio_performance_mode_t m) {
     return m == AAUDIO_PERFORMANCE_MODE_LOW_LATENCY ? "low-latency" : m == AAUDIO_PERFORMANCE_MODE_POWER_SAVING ? "power-saving" : "none";
 }
+// ---- The own USB driver (docs/28 §4, #837) ---------------------------------------------------
+// Some devices never get a working isochronous stream through Android's USB audio (the Redmi's
+// MediaTek HAL: "cannot prepare channel: Device or resource busy" after a re-plug, even after a
+// reboot, 2026-11-13) - while a driver in the app over the same cable works (spike, docs/28 §4).
+// The Java side claims the interfaces, picks the alt setting and sets the rate; here isochronous
+// OUT URBs stay queued (1 ms each), packet sizes follow the interface's feedback endpoint, and the
+// frames come from produce() - the same pipe and engine as AAudio's callback.
+
+constexpr int kUsbUrbs = 8;             // 8 ms queued
+constexpr int kUsbMaxChannels = 8;
+/** From the last frame leaving the bus to it being heard: the interface's DAC and output stage
+ * (UMC204HD: ~1 ms). A first value - the per-device trim (latencyProfiles.ts) covers the rest. */
+constexpr double kUsbDeviceMs = 1.0;
+
+struct UsbConfig {
+    int fd, epOut, maxPacket, epFb, fbMaxPacket, channels, subslot, rate, packetsPerUrb;
+    bool highSpeed;
+};
+
+UsbConfig gUsb{};
+std::thread gUsbThread;
+std::atomic<bool> gUsbStop{false};
+std::atomic<bool> gUsbRunning{false};
+std::atomic<bool> gUsbDisconnected{false};
+std::atomic<long long> gUsbUrbs{0}, gUsbPacketErrors{0}, gUsbFbCount{0};
+std::atomic<double> gUsbFbFrames{0.0};  // frames per packet, from the feedback endpoint
+std::atomic<int> gUsbErrno{0};
+std::vector<float> gUsbScratch;         // rendered frames of one URB, float, gChannels each
+
+usbdevfs_urb *allocUrb(int packets, int bufferSize) {
+    const size_t size = sizeof(usbdevfs_urb) + static_cast<size_t>(packets) * sizeof(usbdevfs_iso_packet_desc);
+    auto *urb = static_cast<usbdevfs_urb *>(calloc(1, size));
+    urb->buffer = calloc(1, static_cast<size_t>(bufferSize));
+    urb->number_of_packets = packets;
+    return urb;
+}
+
+void freeUrb(usbdevfs_urb *urb) {
+    free(urb->buffer);
+    free(urb);
+}
+
+void prepareIso(usbdevfs_urb *urb, int endpoint, int packets, int packetLength) {
+    urb->type = USBDEVFS_URB_TYPE_ISO;
+    urb->endpoint = static_cast<unsigned char>(endpoint);
+    urb->flags = USBDEVFS_URB_ISO_ASAP;
+    urb->buffer_length = packets * packetLength;
+    urb->actual_length = 0;
+    urb->status = 0;
+    urb->number_of_packets = packets;
+    for (int i = 0; i < packets; i++) {
+        urb->iso_frame_desc[i].length = static_cast<unsigned>(packetLength);
+        urb->iso_frame_desc[i].actual_length = 0;
+        urb->iso_frame_desc[i].status = 0;
+    }
+}
+
+/** High speed 16.16 frames per microframe, full speed 10.14 per ms - devices get it wrong both ways,
+ * so take the scaling that lands near nominal (spike, docs/28 §4). */
+void parseFeedback(const usbdevfs_urb *urb) {
+    const unsigned len = urb->iso_frame_desc[0].actual_length;
+    if (len < 3) return;
+    const auto *b = static_cast<const unsigned char *>(urb->buffer);
+    const unsigned v = b[0] | (b[1] << 8) | (b[2] << 16) | (len >= 4 ? (static_cast<unsigned>(b[3]) << 24) : 0u);
+    const double nominal = gUsb.rate / (gUsb.highSpeed ? 8000.0 : 1000.0);
+    const double candidates[] = {v / 65536.0, v / 65536.0 / 8.0, v / 16384.0, v / 16384.0 / 8.0};
+    for (double f : candidates) {
+        if (std::fabs(f - nominal) < nominal * 0.05) {
+            gUsbFbFrames.store(f);
+            gUsbFbCount.fetch_add(1);
+            return;
+        }
+    }
+}
+
+/** Fills one OUT URB from produce(); `queuedFrames` are already on their way ahead of it. */
+void fillUsb(usbdevfs_urb *urb, double &acc, long long queuedFrames, int &frames) {
+    const UsbConfig &c = gUsb;
+    const int frameBytes = c.channels * c.subslot;
+    const int maxFrames = c.maxPacket / frameBytes;
+    int sizes[64];
+    int total = 0;
+    for (int i = 0; i < c.packetsPerUrb; i++) {
+        acc += gUsbFbFrames.load();
+        int n = static_cast<int>(acc);
+        acc -= n;
+        n = std::min(n, maxFrames);
+        sizes[i] = n;
+        total += n;
+    }
+    // Heard when everything queued before it has played, plus the interface's own delay.
+    const double msPerFrame = 1000.0 / gRate;
+    const double now = static_cast<double>(clockNs(CLOCK_REALTIME)) / 1e6;
+    const double heard = now + static_cast<double>(queuedFrames) * msPerFrame + kUsbDeviceMs;
+    gLatencyMs.store(heard - now);
+    followHeard(heard);
+    if (gUsbScratch.size() < static_cast<size_t>(total * c.channels)) gUsbScratch.resize(static_cast<size_t>(total * c.channels));
+    produce(gUsbScratch.data(), total);
+    // UAC: the significant bits sit at the top of the subslot, little endian.
+    auto *p = static_cast<unsigned char *>(urb->buffer);
+    const float *src = gUsbScratch.data();
+    for (int k = 0; k < total * c.channels; k++) {
+        const float v = std::fmax(-1.f, std::fmin(1.f, src[k]));
+        const auto sample = static_cast<int32_t>(static_cast<double>(v) * 2147483647.0);
+        for (int b = 0; b < c.subslot; b++) *p++ = static_cast<unsigned char>(sample >> (8 * (4 - c.subslot + b)));
+    }
+    urb->type = USBDEVFS_URB_TYPE_ISO;
+    urb->endpoint = static_cast<unsigned char>(c.epOut);
+    urb->flags = USBDEVFS_URB_ISO_ASAP;
+    urb->buffer_length = total * frameBytes;
+    urb->actual_length = 0;
+    urb->status = 0;
+    urb->number_of_packets = c.packetsPerUrb;
+    for (int i = 0; i < c.packetsPerUrb; i++) {
+        urb->iso_frame_desc[i].length = static_cast<unsigned>(sizes[i] * frameBytes);
+        urb->iso_frame_desc[i].actual_length = 0;
+        urb->iso_frame_desc[i].status = 0;
+    }
+    frames = total;
+}
+
+void runUsb() {
+    const UsbConfig &c = gUsb;
+    // Audio priority (ANDROID_PRIORITY_URGENT_AUDIO) - apps may set it for their own threads.
+    setpriority(PRIO_PROCESS, static_cast<id_t>(gettid()), -19);
+    std::vector<usbdevfs_urb *> outs, fbs;
+    std::map<usbdevfs_urb *, int> framesOf;
+    double acc = 0.0;
+    long long queued = 0;
+    auto fail = [](const char *what) {
+        const int e = errno;
+        gUsbErrno.store(e);
+        if (e == ENODEV || e == ESHUTDOWN || e == EPROTO) gUsbDisconnected = true;
+        LOG("usb %s: %s (errno %d)", what, strerror(e), e);
+    };
+    for (int i = 0; i < kUsbUrbs; i++) outs.push_back(allocUrb(c.packetsPerUrb, c.maxPacket * c.packetsPerUrb));
+    if (c.epFb) for (int i = 0; i < 2; i++) fbs.push_back(allocUrb(1, c.fbMaxPacket));
+    bool ok = true;
+    for (auto *u : fbs) {
+        prepareIso(u, c.epFb, 1, c.fbMaxPacket);
+        if (ioctl(c.fd, USBDEVFS_SUBMITURB, u) < 0) { fail("submit feedback"); ok = false; break; }
+    }
+    for (size_t i = 0; ok && i < outs.size(); i++) {
+        int n = 0;
+        fillUsb(outs[i], acc, queued, n);
+        if (ioctl(c.fd, USBDEVFS_SUBMITURB, outs[i]) < 0) { fail("submit out"); ok = false; break; }
+        framesOf[outs[i]] = n;
+        queued += n;
+    }
+    gUsbRunning = ok;
+    while (ok && !gUsbStop.load()) {
+        usbdevfs_urb *urb = nullptr;
+        if (ioctl(c.fd, USBDEVFS_REAPURB, &urb) < 0) {
+            if (errno == EINTR) continue;
+            fail("reap");
+            break;
+        }
+        if (c.epFb && urb->endpoint == static_cast<unsigned char>(c.epFb)) {
+            if (urb->status == 0) parseFeedback(urb);
+            prepareIso(urb, c.epFb, 1, c.fbMaxPacket);
+            if (ioctl(c.fd, USBDEVFS_SUBMITURB, urb) < 0) { fail("resubmit feedback"); break; }
+            continue;
+        }
+        gUsbUrbs.fetch_add(1);
+        for (int i = 0; i < urb->number_of_packets; i++)
+            if (urb->iso_frame_desc[i].status != 0) gUsbPacketErrors.fetch_add(1);
+        if (urb->status != 0 && urb->status != -EXDEV) {
+            errno = -urb->status;
+            fail("out urb");
+            break;
+        }
+        queued -= framesOf[urb];
+        int n = 0;
+        fillUsb(urb, acc, queued, n);
+        if (ioctl(c.fd, USBDEVFS_SUBMITURB, urb) < 0) { fail("resubmit out"); break; }
+        framesOf[urb] = n;
+        queued += n;
+    }
+    // Whatever is still queued is cancelled and reaped before the buffers go.
+    for (auto *u : outs) ioctl(c.fd, USBDEVFS_DISCARDURB, u);
+    for (auto *u : fbs) ioctl(c.fd, USBDEVFS_DISCARDURB, u);
+    for (size_t i = 0; i < outs.size() + fbs.size(); i++) {
+        usbdevfs_urb *urb = nullptr;
+        if (ioctl(c.fd, USBDEVFS_REAPURB, &urb) < 0) break;
+    }
+    for (auto *u : outs) freeUrb(u);
+    for (auto *u : fbs) freeUrb(u);
+    gUsbRunning = false;
+}
+
+void stopUsb() {
+    gUsbStop = true;
+    if (gUsbThread.joinable()) gUsbThread.join();
+    gUsbStop = false;
+    gUsbRunning = false;
+}
+
 }  // namespace
 
-extern "C" JNIEXPORT jstring JNICALL
-Java_de_stageboard_app_NativeOutputPlugin_nativeStart(JNIEnv *env, jclass, jint sampleRate, jboolean lowLatency) {
-    std::lock_guard<std::mutex> guard(gLock);
-    if (gStream) {
-        AAudioStream_close(gStream);
-        gStream = nullptr;
-    }
+/** What both outputs need before they run: the engine for this rate, the decoding thread, the
+ * counters from zero. Under gLock, nothing playing. */
+void prepareOutput(int sampleRate) {
     {
         // No stream runs now: the engine may be made (again) for this rate.
         std::lock_guard<std::mutex> engine(gEngineLock);
@@ -330,7 +545,6 @@ Java_de_stageboard_app_NativeOutputPlugin_nativeStart(JNIEnv *env, jclass, jint 
         }).detach();
     });
     gRate = sampleRate;
-    gLowLatency = lowLatency;
     gWritten = 0;
     gBaseMs = 0;
     gLatencyMs = -1;
@@ -342,6 +556,18 @@ Java_de_stageboard_app_NativeOutputPlugin_nativeStart(JNIEnv *env, jclass, jint 
     gMissing = 0;
     gReopens = 0;
     gError = 0;
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_de_stageboard_app_NativeOutputPlugin_nativeStart(JNIEnv *env, jclass, jint sampleRate, jboolean lowLatency) {
+    std::lock_guard<std::mutex> guard(gLock);
+    stopUsb();
+    if (gStream) {
+        AAudioStream_close(gStream);
+        gStream = nullptr;
+    }
+    prepareOutput(sampleRate);
+    gLowLatency = lowLatency;
     const aaudio_result_t r = openStream();
     if (!gStream) return env->NewStringUTF(json("{\"error\":\"%s\"}", AAudio_convertResultToText(r)).c_str());
     return env->NewStringUTF(json("{\"started\":%s,\"sampleRate\":%d,\"channels\":%d,\"performance\":\"%s\",\"framesPerBurst\":%d,\"bufferFrames\":%d}",
@@ -377,6 +603,22 @@ int streamedReads(bool missing) {
 extern "C" JNIEXPORT jstring JNICALL
 Java_de_stageboard_app_NativeOutputPlugin_nativeStatus(JNIEnv *env, jclass) {
     std::lock_guard<std::mutex> guard(gLock);
+    if (gUsbThread.joinable()) {
+        const double leadMin = gLeadMinMs.exchange(1e9);
+        // The own USB driver: gone when unplugged - "disconnected", nothing plays any more.
+        return env->NewStringUTF(json(
+                "{\"open\":%s,\"path\":\"usb\",\"state\":\"%s\",\"latencyMs\":%.2f,\"leadMs\":%.1f,\"leadMinMs\":%.1f,\"jumps\":%lld,\"timestampJumps\":%lld,"
+                "\"rateDevPpm\":%.0f,\"missing\":%lld,\"xruns\":%lld,\"reopens\":0,\"error\":%d,\"performance\":\"usb\",\"framesPerBurst\":%d,"
+                "\"usbRate\":%.2f,\"usbFeedback\":%lld,\"usbUrbs\":%lld,\"usbDisconnected\":%s,"
+                "\"engine\":%s,\"engineClockJumps\":%d,\"engineDriftPpm\":%.1f,\"engineMissingReads\":%d,\"engineBrokenReads\":%d,\"estimated\":false}",
+                gUsbRunning.load() ? "true" : "false", gUsbRunning.load() ? "USB_RUNNING" : gUsbDisconnected.load() ? "USB_DISCONNECTED" : "USB_STOPPED",
+                gLatencyMs.load(), gLeadMs.load(), leadMin > 1e8 ? -1.0 : leadMin, static_cast<long long>(gJumps), static_cast<long long>(gTimestampJumps),
+                gRateDev.load() * 1e6, static_cast<long long>(gMissing), static_cast<long long>(gUsbPacketErrors), gUsbErrno.load(),
+                static_cast<int>(gUsbFbFrames.load() * gUsb.packetsPerUrb), gUsbFbFrames.load() * (gUsb.highSpeed ? 8000.0 : 1000.0),
+                static_cast<long long>(gUsbFbCount), static_cast<long long>(gUsbUrbs), gUsbDisconnected.load() ? "true" : "false",
+                gEngineOn.load() ? "true" : "false", gEngine ? gEngine->clockJumps() : 0, gEngine ? gEngine->clockDriftPpm() : 0.0,
+                streamedReads(true), streamedReads(false)).c_str());
+    }
     if (!gStream) return env->NewStringUTF("{\"open\":false}");
     const double leadMin = gLeadMinMs.exchange(1e9);
     return env->NewStringUTF(json(
@@ -390,9 +632,53 @@ Java_de_stageboard_app_NativeOutputPlugin_nativeStatus(JNIEnv *env, jclass) {
             gEngine ? gEngine->clockJumps() : 0, gEngine ? gEngine->clockDriftPpm() : 0.0, streamedReads(true), streamedReads(false), gEstimated.load() ? "true" : "false").c_str());
 }
 
+/** The own USB driver instead of AAudio (docs/28 §4): the interface's file descriptor and what the
+ * Java side picked from its descriptors. */
+extern "C" JNIEXPORT jstring JNICALL
+Java_de_stageboard_app_NativeOutputPlugin_nativeUsbStart(JNIEnv *env, jclass, jint fd, jint epOut, jint maxPacket, jint epFb, jint fbMaxPacket,
+                                                         jint channels, jint subslot, jint sampleRate, jboolean highSpeed) {
+    std::lock_guard<std::mutex> guard(gLock);
+    stopUsb();
+    if (gStream) {
+        AAudioStream_close(gStream);
+        gStream = nullptr;
+    }
+    if (channels < 1 || channels > kUsbMaxChannels || subslot < 2 || subslot > 4 || maxPacket <= 0)
+        return env->NewStringUTF(json("{\"error\":\"unsupported format: %d channels, %d bytes\"}", channels, subslot).c_str());
+    prepareOutput(sampleRate);
+    resetCallbackState();
+    gChannels = channels;
+    gUsb = UsbConfig{fd, epOut, maxPacket, epFb, fbMaxPacket, channels, subslot, sampleRate, highSpeed ? 8 : 1, static_cast<bool>(highSpeed)};
+    gUsbFbFrames = sampleRate / (highSpeed ? 8000.0 : 1000.0);  // nominal until the feedback arrives
+    gUsbUrbs = 0;
+    gUsbPacketErrors = 0;
+    gUsbFbCount = 0;
+    gUsbErrno = 0;
+    gUsbDisconnected = false;
+    gUsbThread = std::thread(runUsb);
+    for (int i = 0; i < 100 && !gUsbRunning.load() && gUsbErrno.load() == 0; i++) std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    if (!gUsbRunning.load()) {
+        stopUsb();
+        return env->NewStringUTF(json("{\"error\":\"usb start: %s\"}", strerror(gUsbErrno.load())).c_str());
+    }
+    return env->NewStringUTF(json("{\"started\":true,\"path\":\"usb\",\"sampleRate\":%d,\"channels\":%d,\"performance\":\"usb\",\"framesPerBurst\":%d}",
+                                  sampleRate, channels, static_cast<int>(gUsbFbFrames.load() * gUsb.packetsPerUrb)).c_str());
+}
+
+/** After releasing an interface: Android's own driver binds it again (usbfs leaves it without one). */
+extern "C" JNIEXPORT jint JNICALL
+Java_de_stageboard_app_NativeOutputPlugin_nativeUsbReattach(JNIEnv *, jclass, jint fd, jint ifno) {
+    usbdevfs_ioctl command{};
+    command.ifno = ifno;
+    command.ioctl_code = USBDEVFS_CONNECT;
+    command.data = nullptr;
+    return ioctl(fd, USBDEVFS_IOCTL, &command);
+}
+
 extern "C" JNIEXPORT void JNICALL
 Java_de_stageboard_app_NativeOutputPlugin_nativeStop(JNIEnv *, jclass) {
     std::lock_guard<std::mutex> guard(gLock);
+    stopUsb();
     if (gStream) {
         AAudioStream_requestStop(gStream);
         AAudioStream_close(gStream);

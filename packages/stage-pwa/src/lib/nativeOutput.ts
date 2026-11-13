@@ -52,13 +52,18 @@ interface NativeOutputStatus {
   /** Streamed clips: pieces with frames missing (decoder behind, unannounced jump) / dropped (§8i). */
   engineMissingReads?: number
   engineBrokenReads?: number
+  /** 'usb': the own USB driver plays (docs/28 §4); absent: AAudio. */
+  path?: 'usb'
+  /** The interface's real rate from its feedback endpoint, Hz. */
+  usbRate?: number
+  usbDisconnected?: boolean
   /** No timestamp from Android: playing on an estimated one - on time only roughly (2026-11-12). */
   estimated?: boolean
 }
 
 interface NativeOutputPlugin {
   /** Opens the stream and the loopback WebSocket the frames go to (`ws://127.0.0.1:port/token`). */
-  start(options: { sampleRate: number; lowLatency?: boolean }): Promise<{ started?: boolean; error?: string; performance?: string; framesPerBurst?: number; port: number; token: string }>
+  start(options: { sampleRate: number; lowLatency?: boolean; usb?: boolean }): Promise<{ started?: boolean; error?: string; path?: 'usb'; usbError?: string; performance?: string; framesPerBurst?: number; port: number; token: string }>
   status(): Promise<NativeOutputStatus>
   stop(): Promise<void>
   engineEnable(options: { on: boolean }): Promise<void>
@@ -189,6 +194,10 @@ interface NativeOutputStore {
   /** The stream was opened again this run: it came up broken (timestamp jumps piling up), or an
    * output device came or went (#837) - for the diagnosis. */
   reopened: { at: number; reason: 'broken' | 'device' }[]
+  /** The own USB driver plays (docs/28 §4) - not AAudio. */
+  usb: boolean
+  /** Why the own USB driver was wanted but AAudio plays (permission denied, no output alt setting, …). */
+  usbError: string | null
   setWanted: (wanted: boolean) => void
 }
 
@@ -210,6 +219,8 @@ export const useNativeOutputStore = create<NativeOutputStore>((set) => ({
   error: null,
   fellBack: null,
   reopened: [],
+  usb: false,
+  usbError: null,
   setWanted: (wanted) => {
     try {
       localStorage.setItem(SWITCH_KEY, wanted ? '1' : '0')
@@ -219,6 +230,19 @@ export const useNativeOutputStore = create<NativeOutputStore>((set) => ({
     set({ wanted })
   },
 }))
+
+/**
+ * The own USB driver instead of AAudio when a USB audio interface is plugged in (docs/28 §4, #837) -
+ * behind a switch until it is measured on the devices; Android asks for the permission once per
+ * plug-in.
+ */
+export function wantsUsbDriver(): boolean {
+  try {
+    return localStorage.getItem('sb:debug:usb-driver') === '1'
+  } catch {
+    return false
+  }
+}
 
 /** Whether this device can use the native output at all. */
 export function nativeOutputAvailable(): boolean {
@@ -468,7 +492,8 @@ async function attach(ctx: AudioContext): Promise<void> {
     URL.revokeObjectURL(workerUrl)
     const p: Pipe = { ctx, tap, worker, silent, rate: ctx.sampleRate, chunk, delayMs: null, line: null, history: [], timer: null, unwatch: null, soundAt: null, closed: false }
     pipe = p
-    const started = await NativeOutput.start({ sampleRate: ctx.sampleRate, lowLatency: !safeMode })
+    const started = await NativeOutput.start({ sampleRate: ctx.sampleRate, lowLatency: !safeMode, usb: wantsUsbDriver() })
+    useNativeOutputStore.setState({ usb: started.path === 'usb', usbError: started.usbError ?? null })
     if (!started.started) throw new Error(started.error ?? 'start')
     const opened = new Promise<void>((resolve, reject) => {
       worker.onmessage = (e: MessageEvent<{ type: string; at: number; line: number }>) => {
@@ -509,6 +534,13 @@ async function attach(ctx: AudioContext): Promise<void> {
       void NativeOutput.status().then((s) => {
         if (p.closed) return
         const now = Date.now()
+        // The interface was pulled while the own USB driver played: it stopped at once (nothing
+        // plays on) - open again, on whatever is there now.
+        if (s.path === 'usb' && s.usbDisconnected) {
+          console.warn('[native-output] USB interface gone - opening the output again')
+          reopen(ctx, 'device')
+          return
+        }
         // A stream that came up broken (#837): timestamp jumps piling up, in silence as well - opened
         // again once, then the WebView's output. Not while the screen is locked.
         if (now >= quiet && now - startedAt >= BROKEN_GRACE_MS) {
@@ -632,7 +664,7 @@ function detach(): void {
   p.tap.disconnect()
   p.silent.disconnect()
   void NativeOutput.stop().catch(() => {})
-  useNativeOutputStore.setState({ state: 'off', delayMs: null, status: null })
+  useNativeOutputStore.setState({ state: 'off', delayMs: null, status: null, usb: false })
 }
 
 let current: AudioContext | null = null
