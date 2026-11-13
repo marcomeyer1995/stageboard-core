@@ -255,7 +255,23 @@
     "pinR": "R",
     "pinN": "Pin {{n}}",
     "groupToggle": "{{name}}: auf- oder zuklappen",
-    "wholeSocket": "{{name}} (ganz)"
+    "wholeSocket": "{{name}} (ganz)",
+    "earth": {
+      "label": "Strom",
+      "earthed": "Geerdet (Schuko)",
+      "floating": "Ohne Erde",
+      "battery": "Akku"
+    },
+    "ground": {
+      "label": "Kabel und Masse",
+      "auto": "Wie die Stecker",
+      "balanced": "Symmetrisch",
+      "unbalanced": "Unsymmetrisch",
+      "ground": "Führt Masse (USB)",
+      "isolated": "Getrennt",
+      "isolator": "Mit Trenner",
+      "fromPlugs": "Nach den Steckern: {{what}}"
+    }
   },
   "ports": {
     "title": "Anschlüsse: {{name}}",
@@ -333,7 +349,10 @@
     "adapterRow": "Kabel {{number}}: {{from}} → {{to}}",
     "cables": "Kabel",
     "none": "Noch keine Kabel in diesem Aufbau.",
-    "y": "Y-Kabel"
+    "y": "Y-Kabel",
+    "humLoop": "Brummschleife wahrscheinlich: {{a}} und {{b}} sind beide geerdet und zusätzlich über Kabel verbunden – {{cables}} ist unsymmetrisch. Eine DI-Box oder ein Trenner dazwischen, oder ein Gerät ohne Erde (Laptop auf Akku).",
+    "humHint": "{{a}} und {{b}} sind beide geerdet und über USB verbunden ({{cables}}). Brummt es, hilft ein USB-Trenner.",
+    "cableNo": "Kabel {{number}}"
   },
   "lead": {
     "title": "Vorlauf bei Play",

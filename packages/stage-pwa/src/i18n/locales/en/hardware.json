@@ -255,7 +255,23 @@
     "pinR": "R",
     "pinN": "Pin {{n}}",
     "groupToggle": "{{name}}: open or close",
-    "wholeSocket": "{{name}} (whole)"
+    "wholeSocket": "{{name}} (whole)",
+    "earth": {
+      "label": "Power",
+      "earthed": "Earthed",
+      "floating": "No earth",
+      "battery": "Battery"
+    },
+    "ground": {
+      "label": "Cable and ground",
+      "auto": "As the plugs",
+      "balanced": "Balanced",
+      "unbalanced": "Unbalanced",
+      "ground": "Carries ground (USB)",
+      "isolated": "Isolated",
+      "isolator": "With isolator",
+      "fromPlugs": "By the plugs: {{what}}"
+    }
   },
   "ports": {
     "title": "Ports: {{name}}",
@@ -333,7 +349,10 @@
     "adapterRow": "Cable {{number}}: {{from}} → {{to}}",
     "cables": "Cables",
     "none": "No cables in this setup yet.",
-    "y": "Y cable"
+    "y": "Y cable",
+    "humLoop": "Hum loop likely: {{a}} and {{b}} are both earthed and also connected by cables – {{cables}} is unbalanced. Put a DI box or an isolator in between, or run one device without earth (laptop on battery).",
+    "humHint": "{{a}} and {{b}} are both earthed and connected over USB ({{cables}}). If it hums, a USB isolator helps.",
+    "cableNo": "cable {{number}}"
   },
   "lead": {
     "title": "Lead on Play",

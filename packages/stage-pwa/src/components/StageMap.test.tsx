@@ -276,7 +276,8 @@ describe('StageMap (docs/31 §7)', () => {
     expect(routedTo(2)).toContainEqual({ from: { kind: 'virtual', virtualPortId: 'track' }, to: { kind: 'port', portId: 'usb/audio-out', channel: 3 } })
     expect(screen.queryByRole('switch', { name: 'Track → USB-C · Audio aus 5' })).toBeNull()
     // The headphone jack closed is the whole socket (as before); opened it offers L and R.
-    fireEvent.click(screen.getByRole('switch', { name: 'Klick → Kopfhörer · 1/3' }))
+    // The whole socket counts as both pins taken.
+    fireEvent.click(screen.getByRole('switch', { name: 'Klick → Kopfhörer · 2/2' }))
     expect(routedTo(3)).not.toContainEqual({ from: { kind: 'virtual', virtualPortId: 'klick' }, to: { kind: 'port', portId: 'headphones' } })
     fireEvent.click(screen.getAllByRole('button', { name: 'Kopfhörer: auf- oder zuklappen' })[0]!)
     fireEvent.click(screen.getByRole('switch', { name: 'Klick → Kopfhörer L' }))
@@ -311,6 +312,29 @@ describe('StageMap (docs/31 §7)', () => {
     }))
     fireEvent.click(screen.getByRole('button', { name: /Verkabelung \(/ }))
     expect(screen.getByText(/^UMC204HD · Ausgang 1: 2 Signale auf demselben Ausgang, aber UMC204HD mischt nicht/)).toBeInTheDocument()
+  })
+
+  it('hum loops (#748): "Strom" per device, the cable list warns, an isolator on the cable clears it', async () => {
+    setUp(true)
+    render(<StageMap />)
+    fireEvent.click(screen.getByRole('switch', { name: 'Bearbeiten' }))
+    tapNode('Pult')
+    expect(screen.getByRole('radio', { name: 'Geerdet (Schuko)' })).toHaveAttribute('aria-checked', 'true')
+    tapNode('Redmi')
+    expect(screen.getByRole('radio', { name: 'Akku' })).toHaveAttribute('aria-checked', 'true')
+    fireEvent.click(screen.getByRole('radio', { name: 'Geerdet (Schuko)' }))
+    await vi.waitFor(() => expect(saveEquipment).toHaveBeenCalledWith(expect.objectContaining({ name: 'Redmi', earth: 'earthed' })))
+    // The Redmi on an earthed charger, its headphone jack into the earthed desk: a loop.
+    useStageMapStore.setState((s) => ({ equipment: s.equipment.map((e) => (e.name === 'Redmi' ? { ...e, earth: 'earthed' as const } : e)) }))
+    fireEvent.click(screen.getByRole('button', { name: /Verkabelung \(/ }))
+    expect(screen.getByText(/^Brummschleife wahrscheinlich: Redmi und Pult sind beide geerdet/)).toBeInTheDocument()
+    // On the cable: by its plugs unbalanced; "Mit Trenner" is written to the cable.
+    fireEvent.click(screen.getByRole('button', { name: '→ Pult · Eingang 15' }))
+    expect(screen.getByText('Nach den Steckern: Unsymmetrisch')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('radio', { name: 'Mit Trenner' }))
+    await vi.waitFor(() => expect(updateSetup).toHaveBeenCalled())
+    const after = (updateSetup.mock.calls[updateSetup.mock.calls.length - 1]![1] as (s: StageSetup) => StageSetup)(useStageMapStore.getState().setups[0]!)
+    expect(after.links.find((l) => l.id === 'cable')!.ground).toBe('isolated')
   })
 
   it('a cable: first its two ends and what runs on it, tapped again the whole way of each signal', () => {

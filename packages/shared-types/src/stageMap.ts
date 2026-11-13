@@ -120,6 +120,12 @@ export const EquipmentKindSchema = z.enum([
 ])
 export type EquipmentKind = z.infer<typeof EquipmentKindSchema>
 
+/** How a device is powered (#748, Marco 2026-11-10: no phases): on an earthed socket, on a plug
+ * without earth (a wall wart, a two-pin charger), or on its battery. Only earthed devices can close
+ * a hum loop. */
+export const EarthSchema = z.enum(['earthed', 'floating', 'battery'])
+export type Earth = z.infer<typeof EarthSchema>
+
 /** Where a path ends: whoever hears or sees it. */
 export const LISTENER_KINDS: readonly EquipmentKind[] = ['person', 'hall']
 /** StageBoard itself: its matrix has the virtual ports. */
@@ -165,6 +171,8 @@ export const EquipmentModelSchema = z.object({
   /** Whether the gear mixes several signals routed onto one output (#746) - absent: by its kind
    * (`equipmentMixes`). */
   mixes: z.boolean().optional(),
+  /** How it is powered (#748) - absent: by its kind (`equipmentEarth`). */
+  earth: EarthSchema.optional(),
   ports: z.array(PortSchema),
   routing: RoutingSchema.nullable().default(null),
 })
@@ -190,6 +198,8 @@ export const StageEquipmentSchema = z.object({
   sounds: z.boolean().default(false),
   /** Copied from the model where it says so (#746); absent: by kind (`equipmentMixes`). */
   mixes: z.boolean().optional(),
+  /** How this one is powered (#748): set on the map ("Strom"), else the model's, else by kind. */
+  earth: EarthSchema.optional(),
   ports: z.array(PortSchema),
   routing: RoutingSchema.nullable().default(null),
   /** The StageBoard device this is (kind `stageboard`). */
@@ -230,6 +240,9 @@ export const StageLinkSchema = z.object({
   /** The MIDI port this cable reaches, by the name the sending app sees it ("Kemper Player") - set
    * by the device's owner when wiring (docs/31 §7, resolved by name as MIDI always was). */
   midiName: z.string().min(1).optional(),
+  /** What the cable does with ground (#748), where it is not what its plugs suggest: a balanced TRS
+   * cable, one with an isolator (ground lift) in it. Absent: from the plugs (`cableGround`). */
+  ground: z.enum(['balanced', 'unbalanced', 'ground', 'isolated']).optional(),
 })
 export type StageLink = z.infer<typeof StageLinkSchema>
 
@@ -478,6 +491,7 @@ export function equipmentFrom(model: EquipmentModel, id: string, name: string, e
     kind: model.kind,
     sounds: model.sounds,
     ...(model.mixes === undefined ? {} : { mixes: model.mixes }),
+    ...(model.earth === undefined ? {} : { earth: model.earth }),
     ports: clone(model.ports),
     routing: clone(model.routing),
     deviceId: extra.deviceId ?? null,
@@ -548,6 +562,128 @@ const MIXING_KINDS: readonly EquipmentKind[] = ['stageboard', 'mixer']
  * by kind - an interface, a stagebox or a splitter does not. */
 export function equipmentMixes(equipment: Pick<StageEquipment, 'kind' | 'mixes'>): boolean {
   return equipment.mixes ?? MIXING_KINDS.includes(equipment.kind)
+}
+
+/** Gear that usually hangs on an earthed socket (#748): the desk, amps and modellers, active
+ * speakers, lights, a stagebox. A laptop on its charger is set on the map ("Strom: geerdet"). */
+const EARTHED_KINDS: readonly EquipmentKind[] = ['mixer', 'amp-modeller', 'instrument-amp', 'stagebox', 'pa', 'wedge', 'light']
+/** Runs on its battery unless told otherwise: tablets and phones, mics and senders, receivers on the belt. */
+const BATTERY_KINDS: readonly EquipmentKind[] = ['stageboard', 'mic-sender', 'iem-receiver', 'microphone', 'instrument', 'person', 'hall']
+/** No power of its own, and the ground stops there (a DI box's transformer, an isolator, #748). */
+const ISOLATING_KINDS: readonly EquipmentKind[] = ['di-box']
+
+/** How a device is powered (#748): set on the map, else by kind. */
+export function equipmentEarth(equipment: Pick<StageEquipment, 'kind' | 'earth'>): Earth {
+  return equipment.earth ?? (EARTHED_KINDS.includes(equipment.kind) ? 'earthed' : BATTERY_KINDS.includes(equipment.kind) ? 'battery' : 'floating')
+}
+
+/** What a cable does with ground (#748, docs/31 §7e): a balanced audio cable (XLR, TRS on a mono
+ * socket) carries the shield but the signal does not ride on it; an unbalanced one (TS jack,
+ * stereo/headphone jack, RCA) carries the signal on the shield; USB and DMX tie the grounds with
+ * no audio on them; MIDI DIN (opto-coupled at the input), network (transformers) and anything
+ * without a wire are isolated. */
+export type CableGround = 'balanced' | 'unbalanced' | 'ground' | 'isolated'
+
+type PlugView = Pick<Port, 'connector' | 'pins'>
+
+function endGround(port: PlugView | undefined): CableGround {
+  if (!port) return 'isolated'
+  switch (port.connector) {
+    case 'xlr':
+    case 'xlr-jack':
+      return 'balanced'
+    case 'jack-6.3':
+      // A TRS socket (the map's "Klinke 6,3 symmetrisch") is balanced as one channel; with two pins
+      // it is left and right - a stereo/headphone socket, unbalanced. A mono (TS) cable in it:
+      // "Kabel und Masse: Unsymmetrisch" on the cable.
+      return (port.pins ?? 1) > 1 ? 'unbalanced' : 'balanced'
+    case 'jack-6.3-ts':
+    case 'jack-3.5':
+    case 'rca':
+      return 'unbalanced'
+    case 'usb-a':
+    case 'usb-b':
+    case 'usb-c':
+    case 'dmx':
+      return 'ground'
+    default:
+      return 'isolated'
+  }
+}
+
+const GROUND_RANK: Record<CableGround, number> = { isolated: 3, unbalanced: 2, ground: 1, balanced: 0 }
+
+/** A cable is what it says it is (an isolator in it, a balanced TRS cable), else as isolated as its
+ * most isolated end, else as unbalanced as its weaker end. */
+export function cableGround(a: PlugView | undefined, b: PlugView | undefined, own?: CableGround): CableGround {
+  if (own) return own
+  const [x, y] = [endGround(a), endGround(b)]
+  if (x === 'isolated' || y === 'isolated') return 'isolated'
+  return GROUND_RANK[x] >= GROUND_RANK[y] ? x : y
+}
+
+/**
+ * Hum loops (#748): two earthed devices whose grounds also meet through cables. A cable carries
+ * the loop current when it lies on a way between two earthed devices - it is a bridge with earthed
+ * devices on both sides, or it sits in a ring of cables with two earthed devices in it. An
+ * unbalanced cable there: red, "DI box or isolator". Only USB/DMX there (a laptop on its charger
+ * on a Kemper's USB): a quiet hint. Balanced cables only: no finding - the shield carries it, every
+ * desk to every active speaker is wired so. A DI box stops the ground; a device on battery or
+ * without earth passes it on but closes no loop itself.
+ */
+function humLoops(onStage: readonly StageEquipment[], setup: StageSetup): StageIssue[] {
+  const byId = new Map(onStage.map((e) => [e.id, e]))
+  const order = new Map(onStage.map((e, i) => [e.id, i]))
+  const cables: { id: string; a: string; b: string; ground: CableGround }[] = []
+  for (const link of setup.links) {
+    const [a, b] = [byId.get(link.from.equipmentId), byId.get(link.to.equipmentId)]
+    if (!a || !b || a === b || ISOLATING_KINDS.includes(a.kind) || ISOLATING_KINDS.includes(b.kind)) continue
+    const ground = cableGround(lookupPort(a.ports, link.from.portId), lookupPort(b.ports, link.to.portId), link.ground)
+    if (ground !== 'isolated') cables.push({ id: link.id, a: a.id, b: b.id, ground })
+  }
+  const earthed = (id: string) => equipmentEarth(byId.get(id)!) === 'earthed'
+  /** Earthed devices reachable from `start` without the cable `skip`, nearest first. */
+  const reach = (start: string, skip: string): { all: Set<string>; earthed: string[] } => {
+    const all = new Set([start])
+    const found: string[] = []
+    const queue = [start]
+    while (queue.length > 0) {
+      const at = queue.shift()!
+      if (earthed(at)) found.push(at)
+      for (const c of cables) {
+        if (c.id === skip || (c.a !== at && c.b !== at)) continue
+        const next = c.a === at ? c.b : c.a
+        if (!all.has(next)) {
+          all.add(next)
+          queue.push(next)
+        }
+      }
+    }
+    return { all, earthed: found }
+  }
+  const byPair = new Map<string, { kind: 'hum-loop' | 'hum-hint'; equipmentIds: [string, string]; linkIds: string[] }>()
+  for (const c of cables) {
+    if (c.ground === 'balanced') continue
+    const side = reach(c.a, c.id)
+    let pair: string[]
+    if (side.all.has(c.b)) {
+      // In a ring: two earthed devices in it close the loop through this cable as well.
+      pair = side.earthed.slice(0, 2)
+    } else {
+      const other = reach(c.b, c.id)
+      pair = side.earthed[0] && other.earthed[0] ? [side.earthed[0], other.earthed[0]] : []
+    }
+    if (pair.length < 2) continue
+    const equipmentIds = [...pair].sort((x, y) => order.get(x)! - order.get(y)!) as [string, string]
+    const kind = c.ground === 'unbalanced' ? 'hum-loop' : 'hum-hint'
+    const key = `${kind}|${equipmentIds.join('|')}`
+    const entry = byPair.get(key) ?? { kind, equipmentIds, linkIds: [] }
+    entry.linkIds.push(c.id)
+    byPair.set(key, entry)
+  }
+  const loops = [...byPair.values()]
+  // Where an unbalanced cable is the culprit, the USB on the same way is no news.
+  return loops.filter((l) => l.kind === 'hum-loop' || !loops.some((o) => o.kind === 'hum-loop' && o.equipmentIds.join() === l.equipmentIds.join()))
 }
 
 /** The crosspoints that apply to a device in a setup: a fixed routing always its own, a free one
@@ -888,6 +1024,10 @@ export type StageIssue =
   /** Several signals on one output of a device that does not mix (#746). */
   | { kind: 'mix'; equipmentId: string; portId: string; channel?: number; pin?: number; sources: number }
   | { kind: 'adapter'; linkId: string }
+  /** Two earthed devices whose grounds meet again over an unbalanced cable (#748): hum likely. */
+  | { kind: 'hum-loop'; equipmentIds: [string, string]; linkIds: string[] }
+  /** The same over USB/DMX only: possible, worth a look (#748). */
+  | { kind: 'hum-hint'; equipmentIds: [string, string]; linkIds: string[] }
 
 export interface PortUse {
   equipmentId: string
@@ -1006,6 +1146,7 @@ export function checkSetup(map: StageMap, setupId: string, virtualPorts: readonl
     }
     for (const { slot, portId, from } of sources.values()) if (from.size > 1) issues.push({ kind: 'mix', equipmentId: e.id, portId, ...slot, sources: from.size })
   }
+  issues.push(...humLoops(onStage, setup))
   const use: PortUse[] = []
   for (const e of onStage) {
     for (const p of e.ports) {

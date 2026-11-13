@@ -12,13 +12,13 @@ const TONE: Record<LiveStatus, string> = { error: 'text-danger', warning: 'text-
  * reports right now, faults first. The diagnostics in depth stay in "Tablets & Handys".
  */
 export function StageLiveList({ live, links, nameOf, linkName }: { live: StageLive | null; links: readonly StageLink[]; nameOf: (equipmentId: string) => string; linkName: (link: StageLink) => string }) {
-  const { t } = useTranslation(['hardware', 'devices'])
+  const { t, i18n } = useTranslation(['hardware', 'devices'])
   if (!live) return <p className="text-base text-ink-muted">{t('live.loading')}</p>
 
   const noteText = (n: LiveNote): string =>
     n.key === 'vitals'
       ? t(`devices:vitals.issue.${n.issue!}`)
-      : t(`live.${n.key}`, { name: n.name ?? '', pct: n.pct ?? 0, ms: n.ms ?? 0, sources: (n.sources ?? []).map((s) => t(`live.source.${s}`)).join(', ') })
+      : t(`live.${n.key}`, { name: n.name ?? '', pct: n.pct ?? 0, ms: (n.ms ?? 0).toLocaleString(i18n.language, { maximumFractionDigits: 1 }), sources: (n.sources ?? []).map((s) => t(`live.source.${s}`)).join(', ') })
   const rows = [
     ...Object.entries(live.equipment).map(([id, state]) => ({ key: `e:${id}`, name: nameOf(id), status: state.status, notes: state.notes, path: null as StagePathState | null })),
     ...links.flatMap((l) => {

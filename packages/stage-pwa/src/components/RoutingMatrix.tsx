@@ -102,8 +102,17 @@ export function RoutingMatrix({
   const isRouted = (col: Drawn, row: Drawn) => linesOf(col).some((c) => linesOf(row).some((r) => routed(c.point, r.point)))
   const routedCount = (d: Drawn, others: Drawn[], asColumn: boolean) =>
     linesOf(d).filter((l) => others.some((o) => linesOf(o).some((x) => (asColumn ? routed(l.point, x.point) : routed(x.point, l.point))))).length
-  const labelOf = (d: Drawn, others: Drawn[], asColumn: boolean) =>
-    d.kind === 'line' ? d.line.label : `${d.group.label} · ${routedCount(d, others, asColumn)}/${d.lines.length}`
+  const labelOf = (d: Drawn, others: Drawn[], asColumn: boolean) => {
+    if (d.kind === 'line') return d.line.label
+    // A pins group counts its pins (a headphone socket 2, not 3): the line for the whole socket
+    // fills all of them.
+    const closed = d.group.closedPoint
+    const wholeLine = closed ? d.lines.find((l) => JSON.stringify(l.point) === JSON.stringify(closed)) : undefined
+    if (!wholeLine) return `${d.group.label} · ${routedCount(d, others, asColumn)}/${d.lines.length}`
+    const pins: Drawn = { ...d, lines: d.lines.filter((l) => l !== wholeLine) }
+    const whole = routedCount({ kind: 'line', line: wholeLine }, others, asColumn) > 0
+    return `${d.group.label} · ${whole ? pins.lines.length : routedCount(pins, others, asColumn)}/${pins.lines.length}`
+  }
 
   // A tap: both single lines toggle the cell; a closed group assigns or clears (docs/31 §7c).
   const tap = (col: Drawn, row: Drawn) => {

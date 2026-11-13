@@ -9,7 +9,7 @@ const PLUG: Record<string, string> = { 'jack-6.3': 'jack-63', 'jack-6.3-ts': 'ja
 /**
  * "Verkabelung" of a setup (Marco, 2026-11-07): for the technicians - what is wrong (a channel with
  * two cables, a stereo cable into a mono input; since #746 the whole chain: a shorted stereo output,
- * a lost channel, mixing on a device that does not mix), how many channels each device has left, and every
+ * a lost channel, mixing on a device that does not mix; since #748 hum loops), how many channels each device has left, and every
  * physical cable numbered with its plugs and the adapters to pack. Printing/PDF comes later.
  */
 export function StageWiring({
@@ -30,7 +30,7 @@ export function StageWiring({
   const { t } = useTranslation('hardware')
   const [open, setOpen] = useState(false)
   // Red only for what gives a wrong signal; adapters are packing-list entries, not findings.
-  const isWarning = (i: StageIssue) => i.kind === 'mono-of-stereo' || i.kind === 'channel-lost'
+  const isWarning = (i: StageIssue) => i.kind === 'mono-of-stereo' || i.kind === 'channel-lost' || i.kind === 'hum-hint'
   const warnings = issues.filter(isWarning)
   const errors = issues.filter((i) => i.kind !== 'adapter' && !isWarning(i))
   const slot = (i: { equipmentId: string; portId: string; channel?: number; pin?: number }) =>
@@ -51,9 +51,17 @@ export function StageWiring({
         return t('wiring.channelLost', { where: slot(i), signal: signalName(i.virtualPortId) })
       case 'mix':
         return t('wiring.mix', { where: slot(i), n: i.sources, device: nameOf(i.equipmentId) })
+      case 'hum-loop':
+      case 'hum-hint':
+        return t(i.kind === 'hum-loop' ? 'wiring.humLoop' : 'wiring.humHint', { a: nameOf(i.equipmentIds[0]), b: nameOf(i.equipmentIds[1]), cables: i.linkIds.map(cableName).join(', ') })
       default:
         return ''
     }
+  }
+  /** A cable by its number in the list below, else by its ends. */
+  const cableName = (linkId: string): string => {
+    const c = cables.find((x) => x.linkId === linkId)
+    return c ? t('wiring.cableNo', { number: c.number }) : linkId
   }
   const byDevice = new Map<string, PortUse[]>()
   for (const u of use) if (u.used > 0) byDevice.set(u.equipmentId, [...(byDevice.get(u.equipmentId) ?? []), u])

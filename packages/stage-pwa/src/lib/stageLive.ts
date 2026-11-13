@@ -197,7 +197,13 @@ export function stageLive(input: StageLiveInput): StageLive {
       else {
         const app = appOf(e, front)
         const info = (app && app !== SERVER_EXECUTION_TARGET ? fresh(app) : null) ?? apps.map(fresh).find((i) => i !== null) ?? null
-        if (!info) {
+        // This device is open - it is the one looking - even while its own report does not get
+        // through (no Stage-Server, Wi-Fi gone): never "offline" for itself.
+        const self = apps.includes(ownDeviceId)
+        if (!info && self) {
+          notes.push({ status: 'ok', key: 'online' })
+          if (ownSilenced.length > 0) notes.push({ status: 'error', key: 'outputMissing', sources: [...ownSilenced] })
+        } else if (!info) {
           // On the network but the app closed is still not there for the show.
           const pinged = apps.some((id) => deviceInfo.devices[id]?.networkReachable === true)
           notes.push({ status: 'error', key: pinged ? 'appClosed' : 'offline' })
