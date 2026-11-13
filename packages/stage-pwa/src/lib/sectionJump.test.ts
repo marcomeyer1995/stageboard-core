@@ -26,7 +26,7 @@ const mode = vi.hoisted(() => ({ value: 'gig' as 'gig' | 'practice' }))
 vi.mock('../store/useAppModeStore', () => ({ useAppModeStore: { getState: () => ({ mode: mode.value }) } }))
 vi.mock('../store/useWorkspaceStore', () => ({ useWorkspaceStore: { getState: () => ({ activeWorkspaceId: 'band' }) } }))
 
-const { cancelSectionJump, queueSectionJump, setSectionLoop, useSectionJumpDriver } = await import('./sectionJump')
+const { cancelSectionJump, practiceStartAt, queueSectionJump, setSectionLoop, useSectionJumpDriver } = await import('./sectionJump')
 const { usePracticeStateStore, DEFAULT_PRACTICE_STATE } = await import('../store/usePracticeStateStore')
 
 const timeline = clickTimeline({ bpm: 120, timeSignature: '4/4' })
@@ -163,5 +163,34 @@ describe('Solo Üben - the same jump on this device\'s own practice state (#479,
     clock.now = 104_000
     await setSectionLoop(null)
     expect(practice()).toMatchObject({ playbackStartedAt: 104_000, playbackAccumulatedMs: 10_000, playbackRate: 1, playbackLoop: null })
+  })
+})
+
+describe('Solo: start at a tapped line or section (#817)', () => {
+  const practice = () => usePracticeStateStore.getState().get('band')
+  beforeEach(() => {
+    mode.value = 'practice'
+    vi.spyOn(Date, 'now').mockImplementation(() => clock.now)
+  })
+  afterEach(() => vi.restoreAllMocks())
+
+  it('stopped: paused at that point, so Play starts there', () => {
+    usePracticeStateStore.setState({ byWorkspace: { band: { ...DEFAULT_PRACTICE_STATE, playbackStatus: 'stopped' } } })
+    expect(practiceStartAt(73_620)).toBe(true)
+    expect(practice()).toMatchObject({ playbackStatus: 'paused', playbackStartedAt: null, playbackAccumulatedMs: 73_620, playbackJump: null })
+  })
+
+  it('playing: jumps there at once', () => {
+    clock.now = 200_000
+    usePracticeStateStore.setState({ byWorkspace: { band: { ...DEFAULT_PRACTICE_STATE, playbackStatus: 'playing', playbackStartedAt: 100_000, playbackAccumulatedMs: 0 } } })
+    practiceStartAt(34_000)
+    expect(practice()).toMatchObject({ playbackStatus: 'playing', playbackStartedAt: 200_000, playbackAccumulatedMs: 34_000 })
+  })
+
+  it("never in the Gig - the master's transport is the band's", () => {
+    mode.value = 'gig'
+    usePracticeStateStore.setState({ byWorkspace: { band: { ...DEFAULT_PRACTICE_STATE } } })
+    expect(practiceStartAt(5000)).toBe(false)
+    expect(practice().playbackAccumulatedMs).toBe(DEFAULT_PRACTICE_STATE.playbackAccumulatedMs)
   })
 })

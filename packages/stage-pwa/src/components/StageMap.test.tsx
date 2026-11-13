@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { defaultStageMap, equipmentFrom, BUILTIN_MODELS, type StageSetup } from 'shared-types'
 
@@ -14,6 +14,10 @@ vi.mock('pouchdb-browser', () => ({
 // The MIDI ports this tablet sees (WebMIDI isn't in happy-dom).
 vi.mock('../lib/webMidiOutput', async (importOriginal) => ({ ...(await importOriginal<object>()), listMidiOutputs: async () => [{ id: 'k1', name: 'Kemper Player' }] }))
 
+// What the devices report to the Stage-Server (the map's "Prüfen", #747).
+const reported = { devices: {} as Record<string, unknown> }
+vi.mock('../lib/fetchDeviceInfo', () => ({ fetchDeviceInfo: async () => ({ devices: { ...reported.devices } }) }))
+
 const { getDeviceId } = await import('../lib/deviceId')
 const { useDevicesStore } = await import('../store/useDevicesStore')
 const { useWorkspaceStore } = await import('../store/useWorkspaceStore')
@@ -21,6 +25,8 @@ const { useActiveProfileStore } = await import('../store/useActiveProfileStore')
 const { useProfilesStore } = await import('../store/useProfilesStore')
 const { usePresenceStore } = await import('../store/usePresenceStore')
 const { useStageMapStore } = await import('../store/useStageMapStore')
+const { usePluginsStore } = await import('../store/usePluginsStore')
+const { useLogicalDevicesStore } = await import('../store/useLogicalDevicesStore')
 const { StageMap } = await import('./StageMap')
 const { wheelZoomFactor } = await import('../lib/wheelZoom')
 const { DialogHost } = await import('./DialogHost')
@@ -36,7 +42,7 @@ function setUp(isAdmin: boolean) {
   map.setups[0]!.positions.pult = { x: 400, y: 600 }
   map.setups[0]!.links.push({ id: 'cable', from: { equipmentId: `device:${me}`, portId: 'headphones' }, to: { equipmentId: 'pult', portId: 'in', channel: 15 }, signals: ['audio'] })
   map.setups[0]!.routing[`device:${me}`] = [{ from: { kind: 'virtual', virtualPortId: 'klick' }, to: { kind: 'port', portId: 'headphones' } }]
-  useStageMapStore.setState({ ...map, loaded: true, updateSetup, saveEquipment })
+  useStageMapStore.setState({ ...map, ownSetups: [], ownEquipment: [], loaded: true, updateSetup, saveEquipment })
   useDevicesStore.setState({
     loaded: true,
     devices: [
@@ -221,15 +227,14 @@ describe('StageMap (docs/31 §7)', () => {
     expect(saveEquipment).toHaveBeenCalledWith(expect.objectContaining({ id: `device:${me}`, appIds: ['fire'] }))
   })
 
-  it('a member wires their own device but not the mixer; equipment stays with the admin', () => {
+  it('only the admin edits: a member has no "Bearbeiten" and is told who does (#810)', () => {
     setUp(false)
     render(<StageMap />)
-    fireEvent.click(screen.getByRole('switch', { name: 'Bearbeiten' }))
+    expect(screen.queryByRole('switch', { name: 'Bearbeiten' })).toBeNull()
+    expect(screen.getByText('Die Bühne bearbeitet nur der Admin.')).toBeInTheDocument()
     tapNode('Redmi')
-    expect(screen.getAllByRole('button', { name: 'Verbinden' }).length).toBeGreaterThan(0)
-    tapNode('Pult')
     expect(screen.queryByRole('button', { name: 'Verbinden' })).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Löschen' })).toBeNull()
+    expect(screen.queryByRole('button', { name: /Mein Aufbau \(neu\)/ })).toBeNull()
   })
 
   it('a device shows its interfaces and its routing matrix; a tick in the mixer is written for this setup', () => {
@@ -238,11 +243,142 @@ describe('StageMap (docs/31 §7)', () => {
     fireEvent.click(screen.getByRole('switch', { name: 'Bearbeiten' }))
     tapNode('Pult')
     expect(screen.getByRole('group', { name: 'Routing von Pult' })).toBeInTheDocument()
+    // Groups are closed until opened (#744): the inputs as a column, the Aux outs as a row.
+    expect(screen.getByRole('switch', { name: 'Eingang · 0/16 → Aux · 0/4' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Eingang: auf- oder zuklappen' }))
+    fireEvent.click(screen.getAllByRole('button', { name: 'Aux: auf- oder zuklappen' })[0]!)
     fireEvent.click(screen.getByRole('switch', { name: 'Eingang 15 → Aux 1' }))
     expect(updateSetup).toHaveBeenCalledTimes(1)
     const [, patch] = updateSetup.mock.calls[0]!
     const after = patch(useStageMapStore.getState().setups[0])
     expect(after.routing.pult).toEqual([{ from: { kind: 'port', portId: 'in', channel: 15 }, to: { kind: 'port', portId: 'aux', channel: 1 } }])
+  })
+
+  it("a USB interface on this tablet's USB-C: the matrix shows 'USB-C · Audio aus 1-4' from the interface's count, and the headphone jack its L and R (#739)", () => {
+    setUp(true)
+    const base = BUILTIN_MODELS.find((m) => m.id === 'audio-interface')!
+    const umc = equipmentFrom({ ...base, ports: base.ports.map((p) => (p.id === 'usb' ? { ...p, parts: p.parts!.map((x) => (x.id === 'usb/audio-in' ? { ...x, channels: 4 } : x)) } : p)) }, 'umc', 'UMC204HD')
+    useStageMapStore.setState((s) => ({
+      equipment: [...s.equipment, umc],
+      setups: s.setups.map((x) => ({ ...x, positions: { ...x.positions, umc: { x: 900, y: 900 } }, links: [...x.links, { id: 'usb', from: { equipmentId: `device:${me}`, portId: 'usb' }, to: { equipmentId: 'umc', portId: 'usb' }, signals: ['usb-audio', 'midi'] }] })),
+    }))
+    render(<StageMap />)
+    fireEvent.click(screen.getByRole('switch', { name: 'Bearbeiten' }))
+    tapNode('Redmi')
+    // Smart matrix (#744): the stereo track dropped on the closed USB audio group takes channels 1 and 2.
+    fireEvent.click(screen.getByRole('switch', { name: 'Track → USB-C · Audio aus · 0/4' }))
+    expect(updateSetup).toHaveBeenCalledTimes(2)
+    const routedTo = (call: number) => updateSetup.mock.calls[call]![1](useStageMapStore.getState().setups[0]).routing[`device:${me}`]
+    expect(routedTo(0)).toContainEqual({ from: { kind: 'virtual', virtualPortId: 'track' }, to: { kind: 'port', portId: 'usb/audio-out', channel: 1 } })
+    expect(routedTo(1)).toContainEqual({ from: { kind: 'virtual', virtualPortId: 'track' }, to: { kind: 'port', portId: 'usb/audio-out', channel: 2 } })
+    // Opened, the single channels are there - four of them, from the interface's count.
+    fireEvent.click(screen.getAllByRole('button', { name: 'USB-C · Audio aus: auf- oder zuklappen' })[0]!)
+    fireEvent.click(screen.getByRole('switch', { name: 'Track → USB-C · Audio aus 3' }))
+    expect(routedTo(2)).toContainEqual({ from: { kind: 'virtual', virtualPortId: 'track' }, to: { kind: 'port', portId: 'usb/audio-out', channel: 3 } })
+    expect(screen.queryByRole('switch', { name: 'Track → USB-C · Audio aus 5' })).toBeNull()
+    // The headphone jack closed is the whole socket (as before); opened it offers L and R.
+    // The whole socket counts as both pins taken.
+    fireEvent.click(screen.getByRole('switch', { name: 'Klick → Kopfhörer · 2/2' }))
+    expect(routedTo(3)).not.toContainEqual({ from: { kind: 'virtual', virtualPortId: 'klick' }, to: { kind: 'port', portId: 'headphones' } })
+    fireEvent.click(screen.getAllByRole('button', { name: 'Kopfhörer: auf- oder zuklappen' })[0]!)
+    fireEvent.click(screen.getByRole('switch', { name: 'Klick → Kopfhörer L' }))
+    expect(routedTo(4)).toContainEqual({ from: { kind: 'virtual', virtualPortId: 'klick' }, to: { kind: 'port', portId: 'headphones', pin: 1 } })
+  })
+
+  it('the track opens into its sides (2026-11-12): "Track L" on the right pin; the whole track on channels 1 and 2 shows L and R', () => {
+    setUp(true)
+    useStageMapStore.setState((s) => ({
+      setups: s.setups.map((x) => ({
+        ...x,
+        routing: {
+          ...x.routing,
+          [`device:${me}`]: [
+            { from: { kind: 'virtual', virtualPortId: 'track' }, to: { kind: 'port', portId: 'headphones', pin: 1 } },
+            { from: { kind: 'virtual', virtualPortId: 'track' }, to: { kind: 'port', portId: 'headphones', pin: 2 } },
+          ],
+        },
+      })),
+    }))
+    render(<StageMap />)
+    fireEvent.click(screen.getByRole('switch', { name: 'Bearbeiten' }))
+    tapNode('Redmi')
+    const matrix = screen.getByRole('group', { name: 'Routing von Redmi' })
+    fireEvent.click(within(matrix).getAllByRole('button', { name: 'Kopfhörer: auf- oder zuklappen' })[0]!)
+    // Left on L, right on R - said in the cells.
+    expect(within(matrix).getAllByText('L', { selector: 'text' })).toHaveLength(1)
+    expect(within(matrix).getAllByText('R', { selector: 'text' })).toHaveLength(1)
+    fireEvent.click(within(matrix).getByRole('button', { name: 'Track: auf- oder zuklappen' }))
+    fireEvent.click(within(matrix).getByRole('switch', { name: 'Track L → Kopfhörer R' }))
+    const routedTo = updateSetup.mock.calls[0]![1](useStageMapStore.getState().setups[0]).routing[`device:${me}`]
+    expect(routedTo).toContainEqual({ from: { kind: 'virtual', virtualPortId: 'track', channel: 1 }, to: { kind: 'port', portId: 'headphones', pin: 2 } })
+    expect(within(matrix).getByRole('switch', { name: 'Track (beide Seiten) → Kopfhörer L' })).toHaveAttribute('aria-checked', 'true')
+  })
+
+  it('an interface puts out one signal per output: a second signal on a taken output asks "replace?" - and the cable list names what is wrong (#746)', async () => {
+    setUp(true)
+    const umc = equipmentFrom(BUILTIN_MODELS.find((m) => m.id === 'audio-interface')!, 'umc', 'UMC204HD')
+    useStageMapStore.setState((s) => ({ equipment: [...s.equipment, umc], setups: s.setups.map((x) => ({ ...x, positions: { ...x.positions, umc: { x: 900, y: 900 } } })) }))
+    render(
+      <>
+        <StageMap />
+        <DialogHost />
+      </>,
+    )
+    fireEvent.click(screen.getByRole('switch', { name: 'Bearbeiten' }))
+    tapNode('UMC204HD')
+    fireEvent.click(screen.getAllByRole('button', { name: 'USB · Audio ein (vom Host): auf- oder zuklappen' })[0]!)
+    fireEvent.click(screen.getAllByRole('button', { name: 'Ausgang: auf- oder zuklappen' })[0]!)
+    // Output 1 already carries "Audio ein 1" (the model's default).
+    fireEvent.click(screen.getByRole('switch', { name: /Audio ein \(vom Host\) 2 → Ausgang 1$/ }))
+    expect(updateSetup).not.toHaveBeenCalled()
+    // It says what is where, not "does not mix" (device test 2026-11-12).
+    await vi.waitFor(() => expect(screen.getByRole('alertdialog', { name: 'Ausgang 1 ist schon belegt' })).toBeInTheDocument())
+    expect(screen.getByText('Auf Ausgang 1 liegt schon „USB · Audio ein (vom Host) 1“. UMC204HD gibt pro Ausgang nur ein Signal aus.')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '„USB · Audio ein (vom Host) 2“ stattdessen' }))
+    await vi.waitFor(() => expect(updateSetup).toHaveBeenCalledTimes(1))
+    const after = (updateSetup.mock.calls[0]![1] as (s: StageSetup) => StageSetup)(useStageMapStore.getState().setups[0]!)
+    expect(after.routing.umc!.filter((c) => c.to.kind === 'port' && c.to.channel === 1)).toEqual([{ from: { kind: 'port', portId: 'usb/audio-in', channel: 2 }, to: { kind: 'port', portId: 'out', channel: 1 } }])
+    // Both on the output anyway (an older map): the cable list says so, naming device and port.
+    useStageMapStore.setState((s) => ({
+      setups: s.setups.map((x) => ({ ...x, routing: { ...x.routing, umc: [1, 2].map((channel) => ({ from: { kind: 'port' as const, portId: 'usb/audio-in', channel }, to: { kind: 'port' as const, portId: 'out', channel: 1 } })) } })),
+    }))
+    fireEvent.click(screen.getByRole('button', { name: /Verkabelung \(/ }))
+    expect(screen.getByText(/^UMC204HD · Ausgang 1: 2 Signale auf demselben Ausgang - UMC204HD gibt pro Ausgang aber nur ein Signal aus/)).toBeInTheDocument()
+  })
+
+  it('the matrix offers only crosspoints whose signals meet: no MIDI onto an audio output (device test 2026-11-12)', () => {
+    setUp(true)
+    const ifc = equipmentFrom(BUILTIN_MODELS.find((m) => m.id === 'audio-interface')!, 'ifc', 'Interface')
+    useStageMapStore.setState((s) => ({ equipment: [...s.equipment, ifc], setups: s.setups.map((x) => ({ ...x, positions: { ...x.positions, ifc: { x: 900, y: 900 } } })) }))
+    render(<StageMap />)
+    fireEvent.click(screen.getByRole('switch', { name: 'Bearbeiten' }))
+    tapNode('Interface')
+    expect(screen.queryByRole('switch', { name: /^USB · MIDI ein → Ausgang/ })).toBeNull()
+    expect(screen.getByRole('switch', { name: /^USB · MIDI ein → USB · MIDI aus$/ })).toBeInTheDocument()
+    expect(screen.getAllByRole('switch', { name: /^USB · Audio ein \(vom Host\).* → Ausgang/ }).length).toBeGreaterThan(0)
+  })
+
+  it('hum loops (#748): "Strom" per device, the cable list warns, an isolator on the cable clears it', async () => {
+    setUp(true)
+    render(<StageMap />)
+    fireEvent.click(screen.getByRole('switch', { name: 'Bearbeiten' }))
+    tapNode('Pult')
+    expect(screen.getByRole('radio', { name: 'Geerdet (Schuko)' })).toHaveAttribute('aria-checked', 'true')
+    tapNode('Redmi')
+    expect(screen.getByRole('radio', { name: 'Akku' })).toHaveAttribute('aria-checked', 'true')
+    fireEvent.click(screen.getByRole('radio', { name: 'Geerdet (Schuko)' }))
+    await vi.waitFor(() => expect(saveEquipment).toHaveBeenCalledWith(expect.objectContaining({ name: 'Redmi', earth: 'earthed' })))
+    // The Redmi on an earthed charger, its headphone jack into the earthed desk: a loop.
+    useStageMapStore.setState((s) => ({ equipment: s.equipment.map((e) => (e.name === 'Redmi' ? { ...e, earth: 'earthed' as const } : e)) }))
+    fireEvent.click(screen.getByRole('button', { name: /Verkabelung \(/ }))
+    expect(screen.getByText(/^Brummschleife wahrscheinlich: Redmi und Pult sind beide geerdet/)).toBeInTheDocument()
+    // On the cable: by its plugs unbalanced; "Mit Trenner" is written to the cable.
+    fireEvent.click(screen.getByRole('button', { name: '→ Pult · Eingang 15' }))
+    expect(screen.getByText('Nach den Steckern: Unsymmetrisch')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('radio', { name: 'Mit Trenner' }))
+    await vi.waitFor(() => expect(updateSetup).toHaveBeenCalled())
+    const after = (updateSetup.mock.calls[updateSetup.mock.calls.length - 1]![1] as (s: StageSetup) => StageSetup)(useStageMapStore.getState().setups[0]!)
+    expect(after.links.find((l) => l.id === 'cable')!.ground).toBe('isolated')
   })
 
   it('a cable: first its two ends and what runs on it, tapped again the whole way of each signal', () => {
@@ -254,5 +390,97 @@ describe('StageMap (docs/31 §7)', () => {
     expect(screen.queryByText(/kommt nirgends an/)).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Klick (Redmi)' }))
     expect(screen.getByText('kommt nirgends an')).toBeInTheDocument()
+  })
+
+  describe('own setups (#799, docs/31 §0d)', () => {
+    const home = (owner: string, name: string): StageSetup => ({ id: `home-${owner}`, name, owner, positions: { [`device:${me}`]: { x: 0, y: 0 } }, links: [], routing: {} })
+
+    it('is listed for its owner and the admin, not for the other members', () => {
+      setUp(false)
+      useStageMapStore.setState({ ownSetups: [home('p-kai', 'Keller')] })
+      const member = render(<StageMap />)
+      expect(screen.queryByText(/Keller/)).toBeNull()
+      member.unmount()
+
+      setUp(true)
+      useStageMapStore.setState({ ownSetups: [home('p-kai', 'Keller')] })
+      const admin = render(<StageMap />)
+      expect(screen.getByRole('radio', { name: 'Keller (Kai)' })).toBeInTheDocument()
+      admin.unmount()
+
+      setUp(false)
+      useStageMapStore.setState({ ownSetups: [home('p-marco', 'Zuhause')] })
+      render(<StageMap />)
+      fireEvent.click(screen.getByRole('radio', { name: 'Mein: Zuhause' }))
+      expect(screen.getByText(/nur du und der Admin sehen ihn/)).toBeInTheDocument()
+    })
+
+    it('own equipment is offered in its owner\'s setup only, and what the admin adds there is the owner\'s', async () => {
+      setUp(true)
+      const unit = { ...equipmentFrom(BUILTIN_MODELS.find((m) => m.id === 'mixer')!, 'unit', 'Effektgerät'), owner: 'p-kai' }
+      useStageMapStore.setState({ ownSetups: [home('p-kai', 'Keller')], ownEquipment: [unit] })
+      render(
+        <>
+          <StageMap />
+          <DialogHost />
+        </>,
+      )
+      fireEvent.click(screen.getByRole('switch', { name: 'Bearbeiten' }))
+      // The band's setup does not offer the own unit.
+      expect(screen.queryByRole('button', { name: /Effektgerät/ })).toBeNull()
+      fireEvent.click(screen.getByRole('radio', { name: 'Keller (Kai)' }))
+      expect(screen.getByRole('button', { name: /Effektgerät/ })).toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button', { name: /Ausrüstung hinzufügen/ }))
+      fireEvent.click(await screen.findByRole('button', { name: 'Hinzufügen' }))
+      await vi.waitFor(() => expect(saveEquipment).toHaveBeenCalled())
+      expect(saveEquipment.mock.calls[0]![0]).toMatchObject({ owner: 'p-kai' })
+    })
+  })
+
+  it('"Prüfen" shows what each device reports: an offline tablet is red, on the map and in the list, and editing is off (#747)', async () => {
+    setUp(true)
+    const { getServerTime } = await import('../lib/clockSync')
+    reported.devices = { [me]: { ip: '10.0.0.2', os: 'Android', environment: 'native', syncStatus: 'idle', lastSeenAt: getServerTime(), networkReachable: true, hostname: null, battery: { pct: 64, charging: false } } }
+    const { container } = render(<StageMap />)
+    expect(container.querySelector('circle[data-live]')).toBeNull()
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Prüfen' }))
+    await vi.waitFor(() => expect(screen.getByText('Fehler: 1')).toBeInTheDocument())
+    expect(screen.getByText(/App offen/)).toBeInTheDocument()
+    expect(screen.getByText(/Akku 64 %/)).toBeInTheDocument()
+    expect(screen.getByText(/offline/)).toBeInTheDocument()
+    expect([...container.querySelectorAll('circle[data-live]')].map((c) => c.getAttribute('data-live')).sort()).toEqual(['error', 'ok'])
+    expect(screen.queryByRole('switch', { name: 'Bearbeiten' })).toBeNull()
+
+    // Back to "Aufbau": the layer is gone.
+    fireEvent.click(screen.getByRole('radio', { name: 'Aufbau' }))
+    expect(container.querySelector('circle[data-live]')).toBeNull()
+    expect(screen.queryByText('Fehler: 1')).toBeNull()
+  })
+
+  it('a device with a plugin (#812): the hint at the device, one tap installs, adds its device and ticks the matrix; the cable check names what is missing', async () => {
+    setUp(true)
+    const mg = equipmentFrom(BUILTIN_MODELS.find((m) => m.id === 'nux-mg30')!, 'mg30', 'NUX MG-30')
+    useStageMapStore.setState((s) => ({
+      equipment: [...s.equipment, mg],
+      setups: s.setups.map((x) => ({ ...x, positions: { ...x.positions, mg30: { x: 700, y: 700 } }, links: [...x.links, { id: 'usb-mg', from: { equipmentId: 'mg30', portId: 'usb' }, to: { equipmentId: `device:${me}`, portId: 'usb' }, signals: ['usb-audio', 'midi'] }] })),
+    }))
+    const install = vi.fn<(plugin: unknown) => Promise<void>>(async () => {})
+    const save = vi.fn<(device: { id: string }) => Promise<void>>(async () => {})
+    usePluginsStore.setState({ installed: [], install } as never)
+    useLogicalDevicesStore.setState({ devices: [], save } as never)
+    render(<StageMap />)
+    fireEvent.click(screen.getByRole('button', { name: /Verkabelung \(/ }))
+    expect(screen.getByText(/NUX MG-30: Plugin fehlt/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('switch', { name: 'Bearbeiten' }))
+    tapNode('NUX MG-30')
+    expect(screen.getByText(/Für Cues braucht NUX MG-30 sein Plugin/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Einrichten' }))
+    await vi.waitFor(() => expect(updateSetup).toHaveBeenCalled())
+    expect(install).toHaveBeenCalledWith(expect.objectContaining({ id: 'nux-mg30', enabled: true }))
+    expect(save).toHaveBeenCalledWith(expect.objectContaining({ name: 'NUX MG-30', capability: 'mg30-control', pluginId: 'nux-mg30' }))
+    const deviceId = save.mock.calls[0]![0].id
+    const after = (updateSetup.mock.calls[0]![1] as (s: StageSetup) => StageSetup)(useStageMapStore.getState().setups[0]!)
+    expect(after.routing[`device:${me}`]).toContainEqual({ from: { kind: 'virtual', virtualPortId: deviceId }, to: { kind: 'port', portId: 'usb/midi-out' } })
   })
 })
