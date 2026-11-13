@@ -194,7 +194,8 @@
       "midi": "MIDI",
       "dmx": "DMX",
       "net": "Network",
-      "light": "Light"
+      "light": "Light",
+      "osc": "OSC"
     },
     "class": {
       "sound": "Sound",
@@ -238,7 +239,10 @@
     "midiNone": "– none –",
     "midiAbsent": "{{name}} (not plugged in now)",
     "midiPort": "MIDI: {{name}}",
-    "midiChoose": "Choose MIDI port"
+    "midiChoose": "Choose MIDI port",
+    "pinL": "L",
+    "pinR": "R",
+    "pinN": "Pin {{n}}"
   },
   "ports": {
     "title": "Ports: {{name}}",
@@ -281,6 +285,23 @@
       "usb-audio": "USB audio + MIDI",
       "midi": "MIDI",
       "net": "Network/control",
+      "dmx": "DMX",
+      "osc": "OSC"
+    },
+    "pins": "Socket",
+    "pinsMono": "Mono (1 pin)",
+    "pinsStereo": "Stereo (2 pins)",
+    "partsHint": "What runs over this socket - one part per protocol and direction (e.g. \"Audio out\" with 4 channels). Without a count, whatever the device at the other end has applies.",
+    "partName": "Part",
+    "partPlaceholder": "e.g. Audio out, MIDI in",
+    "partRemove": "Remove part {{name}}",
+    "partAdd": "Add part",
+    "protocol": "Protocol",
+    "proto": {
+      "audio": "Audio",
+      "midi": "MIDI",
+      "osc": "OSC",
+      "net": "Network",
       "dmx": "DMX"
     }
   },

@@ -14,7 +14,7 @@ import { SERVER_EXECUTION_TARGET } from './executionTarget.js'
  */
 
 /** What a port carries. USB carries several at once; a cable carries what both ends share. */
-export const SignalSchema = z.enum(['audio', 'usb-audio', 'midi', 'dmx', 'net', 'light'])
+export const SignalSchema = z.enum(['audio', 'usb-audio', 'midi', 'osc', 'dmx', 'net', 'light'])
 export type Signal = z.infer<typeof SignalSchema>
 
 /** The signal classes a path runs in (Ton, MIDI, Licht). */
@@ -24,6 +24,8 @@ export const SIGNAL_CLASS: Record<Signal, SignalClass> = {
   audio: 'sound',
   'usb-audio': 'sound',
   midi: 'midi',
+  /** Show control for lighting/video software (#484) - a light-class signal over the network. */
+  osc: 'light',
   dmx: 'light',
   net: 'light',
   light: 'light',
@@ -57,8 +59,24 @@ export type Connector = z.infer<typeof ConnectorSchema>
 export const PortDirectionSchema = z.enum(['in', 'out', 'both'])
 export type PortDirection = z.infer<typeof PortDirectionSchema>
 
+/**
+ * One part of a container port (docs/31 §7b, #739): what a USB or network socket carries, by
+ * protocol and direction - "Audio aus · 4", "MIDI ein". A cable always sits on the container; the
+ * matrix and the port list unfold it into its parts. `channels` absent: as many as the far end
+ * has (a tablet's USB audio has whatever the interface on the cable offers, `partChannels`).
+ */
+export const PortPartSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  signals: z.array(SignalSchema).min(1),
+  direction: PortDirectionSchema,
+  channels: z.number().int().min(1).max(128).optional(),
+})
+export type PortPart = z.infer<typeof PortPartSchema>
+
 /** One physical port. `channels`: a group ("Eingänge 1–16") instead of 16 ports - a cable and a
- * matrix point then name the channel. */
+ * matrix point then name the channel. `pins`: the contacts of one socket (a mono jack 1, a stereo
+ * jack or headphone socket 2) - a matrix point may name one ("Klick left, Track right", #742). */
 export const PortSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
@@ -66,10 +84,13 @@ export const PortSchema = z.object({
   signals: z.array(SignalSchema).min(1),
   direction: PortDirectionSchema,
   channels: z.number().int().min(2).max(128).optional(),
-  /** One socket carrying left and right (Main L/R, a headphone jack) - a stereo cable fits it whole. */
+  pins: z.number().int().min(1).max(8).optional(),
+  /** Before `pins` (#739): one socket carrying left and right. Read as `pins: 2` (`normalizePort`). */
   stereo: z.boolean().optional(),
   /** The desk's number of channel 1 of this group ("XLR 11–20" after 10 combo inputs) - labels only. */
   firstChannel: z.number().int().min(1).max(256).optional(),
+  /** A container's parts (USB, network): protocol → direction → channels. */
+  parts: z.array(PortPartSchema).optional(),
 })
 export type Port = z.infer<typeof PortSchema>
 
@@ -107,7 +128,7 @@ export const DRIVER_KINDS: readonly EquipmentKind[] = ['stageboard', 'stage-serv
 /** One row or column of a routing matrix: a physical port (one channel of a group), or a virtual
  * port of StageBoard (a Logical Device id) on a StageBoard device. */
 export const MatrixPointSchema = z.discriminatedUnion('kind', [
-  z.object({ kind: z.literal('port'), portId: z.string().min(1), channel: z.number().int().positive().optional() }),
+  z.object({ kind: z.literal('port'), portId: z.string().min(1), channel: z.number().int().positive().optional(), pin: z.number().int().positive().optional() }),
   z.object({ kind: z.literal('virtual'), virtualPortId: z.string().min(1) }),
 ])
 export type MatrixPoint = z.infer<typeof MatrixPointSchema>
@@ -177,11 +198,14 @@ export const StageEquipmentSchema = z.object({
 })
 export type StageEquipment = z.infer<typeof StageEquipmentSchema>
 
-/** One end of a cable: a port of a piece of equipment, and the channel inside a port group. */
+/** One end of a cable: a port of a piece of equipment, the channel inside a port group, and the
+ * pin of a socket where only one is meant (the left of a stereo jack). A cable on a container port
+ * names the container, never a part. */
 export const PortRefSchema = z.object({
   equipmentId: z.string().min(1),
   portId: z.string().min(1),
   channel: z.number().int().positive().optional(),
+  pin: z.number().int().positive().optional(),
 })
 export type PortRef = z.infer<typeof PortRefSchema>
 
@@ -223,7 +247,12 @@ const port = (id: string, name: string, connector: Connector, signals: Signal[],
   channels === undefined ? { id, name, connector, signals, direction } : { id, name, connector, signals, direction, channels }
 
 /** A single socket carrying left and right. */
-const stereo = (p: Port): Port => ({ ...p, stereo: true })
+const stereo = (p: Port): Port => ({ ...p, pins: 2 })
+
+/** A container port with its parts (docs/31 §7b). */
+const container = (p: Port, parts: PortPart[]): Port => ({ ...p, parts })
+const part = (id: string, name: string, signals: Signal[], direction: PortDirection, channels?: number): PortPart =>
+  channels === undefined ? { id, name, signals, direction } : { id, name, signals, direction, channels }
 
 const at = (portId: string, channel?: number): MatrixPoint => (channel === undefined ? { kind: 'port', portId } : { kind: 'port', portId, channel })
 const via = (from: MatrixPoint, to: MatrixPoint): Crosspoint => ({ from, to })
@@ -262,7 +291,14 @@ export const BUILTIN_MODELS: readonly EquipmentModel[] = [
     [
       port('speaker', 'Lautsprecher', 'builtin', ['audio'], 'out'),
       stereo(port('headphones', 'Kopfhörer', 'jack-3.5', ['audio'], 'out')),
-      port('usb', 'USB-C', 'usb-c', ['usb-audio', 'midi'], 'both'),
+      // Over USB (docs/31 §7b): audio to the interface (as many channels as it has), audio from it,
+      // MIDI both ways - one cable, one container.
+      container(port('usb', 'USB-C', 'usb-c', ['usb-audio', 'midi'], 'both'), [
+        part('usb/audio-out', 'Audio aus', ['usb-audio'], 'out'),
+        part('usb/audio-in', 'Audio ein', ['usb-audio'], 'in'),
+        part('usb/midi-out', 'MIDI aus', ['midi'], 'out'),
+        part('usb/midi-in', 'MIDI ein', ['midi'], 'in'),
+      ]),
       stereo(port('bluetooth', 'Bluetooth', 'wireless', ['audio'], 'out')),
       port('bt-midi', 'Bluetooth-MIDI', 'wireless', ['midi'], 'both'),
       port('wifi-midi', 'WLAN-MIDI', 'wireless', ['midi'], 'both'),
@@ -282,8 +318,17 @@ export const BUILTIN_MODELS: readonly EquipmentModel[] = [
     'audio-interface',
     'Audio-Interface',
     'audio-interface',
-    [port('usb', 'USB', 'usb-b', ['usb-audio', 'midi'], 'both'), port('out12', 'Out 1/2', 'jack-6.3', ['audio'], 'out')],
-    free(via(at('usb'), at('out12'))),
+    // Playback from the host lands on the outputs 1:1; what the host records is "Audio aus".
+    [
+      container(port('usb', 'USB', 'usb-b', ['usb-audio', 'midi'], 'both'), [
+        part('usb/audio-in', 'Audio ein (vom Host)', ['usb-audio'], 'in', 2),
+        part('usb/audio-out', 'Audio aus (zum Host)', ['usb-audio'], 'out', 2),
+        part('usb/midi-in', 'MIDI ein', ['midi'], 'in'),
+        part('usb/midi-out', 'MIDI aus', ['midi'], 'out'),
+      ]),
+      port('out', 'Ausgang', 'jack-6.3', ['audio'], 'out', 2),
+    ],
+    free(via(at('usb/audio-in', 1), at('out', 1)), via(at('usb/audio-in', 2), at('out', 2))),
   ),
   builtin('midi-device', 'MIDI-Gerät', 'midi-device', [port('midi-in', 'MIDI In', 'din5', ['midi'], 'in'), port('main', 'Audio Out', 'jack-6.3', ['audio'], 'out')], fixed(via(at('midi-in'), at('main'))), true),
   builtin('midi-controller', 'Pedal / Keyboard', 'midi-controller', [port('midi-out', 'MIDI Out', 'din5', ['midi'], 'out'), port('usb', 'USB', 'usb-b', ['midi'], 'both')], null),
@@ -377,7 +422,9 @@ export interface PortFit {
  * Whether a cable may run from `from` to `to` (decision 2, lenient): an output into an input
  * sharing at least one signal. Null: not possible. A different plug only sets `adapter`.
  */
-export function portFit(from: Port, to: Port): PortFit | null {
+type PortLike = { direction: PortDirection; signals: readonly Signal[]; connector: Connector }
+
+export function portFit(from: PortLike, to: PortLike): PortFit | null {
   if (from.direction === 'in' || to.direction === 'out') return null
   const signals = from.signals.filter((s) => to.signals.includes(s))
   if (signals.length === 0) return null
@@ -521,12 +568,17 @@ export interface SignalFlow {
   virtualInputs: { equipmentId: string; virtualPortId: string }[]
 }
 
-const pointMatches = (point: MatrixPoint, portId: string, channel: number | undefined): boolean =>
-  point.kind === 'port' && point.portId === portId && (point.channel === undefined || channel === undefined || point.channel === channel)
+/** Whether a matrix point names where a signal arrived: the port (or, from before parts, its
+ * container), and its channel and pin where both sides name one. */
+const pointMatches = (point: MatrixPoint, ports: readonly Port[], portId: string, channel: number | undefined, pin: number | undefined): boolean =>
+  point.kind === 'port' &&
+  (point.portId === portId || point.portId === cablePortId(ports, portId)) &&
+  (point.channel === undefined || channel === undefined || point.channel === channel) &&
+  (point.pin === undefined || pin === undefined || point.pin === pin)
 
 /** The class a signal has on `port`, or null when the port cannot carry it. Gear that sounds
  * turns MIDI into sound. */
-function classOn(port: Port, cls: SignalClass, sounds: boolean): SignalClass | null {
+function classOn(port: { signals: readonly Signal[] }, cls: SignalClass, sounds: boolean): SignalClass | null {
   const classes = port.signals.map((s) => SIGNAL_CLASS[s])
   if (classes.includes(cls)) return cls
   if (sounds && cls === 'midi' && classes.includes('sound')) return 'sound'
@@ -546,8 +598,12 @@ export function signalFlows(map: StageMap, setupId: string, virtualPorts: readon
 
   // Cables leaving `equipment` at (port, channel) that can carry `cls` away from it.
   // A cable `width` channels wide carries channel `mine.channel + k` to `theirs.channel + k`.
-  const cablesOut = (equipment: StageEquipment, portId: string, channel: number | undefined, cls: SignalClass) => {
+  const cablesOut = (equipment: StageEquipment, portId: string, channel: number | undefined, pin: number | undefined, cls: SignalClass) => {
     const out: { link: StageLink; from: PortRef; to: PortRef }[] = []
+    const myPort = lookupPort(equipment.ports, portId)
+    if (!myPort || myPort.direction === 'in') return out
+    // A cable sits on the container of a part (docs/31 §7b).
+    const attach = myPort.container?.id ?? portId
     for (const link of setup.links) {
       if (!link.signals.some((s) => SIGNAL_CLASS[s] === cls)) continue
       const width = link.width ?? 1
@@ -555,32 +611,44 @@ export function signalFlows(map: StageMap, setupId: string, virtualPorts: readon
         [link.from, link.to],
         [link.to, link.from],
       ] as const) {
-        if (mine.equipmentId !== equipment.id || mine.portId !== portId) continue
+        if (mine.equipmentId !== equipment.id || mine.portId !== attach) continue
         if (channel !== undefined && mine.channel !== undefined && (channel < mine.channel || channel >= mine.channel + width)) continue
-        const myPort = equipment.ports.find((p) => p.id === portId)
         const other = byId.get(theirs.equipmentId)
         const theirPort = other?.ports.find((p) => p.id === theirs.portId)
-        if (!myPort || !theirPort || myPort.direction === 'in' || theirPort.direction === 'out') continue
-        if (theirs.channel === undefined) out.push({ link, from: mine, to: theirs })
-        else if (channel !== undefined && mine.channel !== undefined) out.push({ link, from: { ...mine, channel }, to: { ...theirs, channel: theirs.channel + channel - mine.channel } })
+        if (!theirPort || theirPort.direction === 'out') continue
+        if (myPort.container) {
+          // Container to container: the far part that takes this class, channel for channel.
+          const farPart = theirPort.parts?.find((x) => x.direction !== 'out' && classOn(x, cls, false))
+          if (theirPort.parts && !farPart) continue
+          const to: PortRef = farPart ? { equipmentId: theirs.equipmentId, portId: farPart.id, ...(channel === undefined ? {} : { channel }) } : theirs
+          out.push({ link, from: { ...mine, portId, ...(channel === undefined ? {} : { channel }) }, to })
+          continue
+        }
+        const from: PortRef = { ...mine, ...(channel === undefined ? {} : { channel }), ...(pin === undefined ? {} : { pin }) }
+        if (theirs.channel === undefined) {
+          // Onto one socket: a pin of a stereo jack lands on the same pin of a stereo socket.
+          out.push({ link, from, to: pin !== undefined && (theirPort.pins ?? 1) > 1 ? { ...theirs, pin } : theirs })
+        } else if (channel !== undefined && mine.channel !== undefined) out.push({ link, from, to: { ...theirs, channel: theirs.channel + channel - mine.channel } })
+        // One pin of a stereo jack onto a group: the left on the first channel, the right on the next.
+        else if (pin !== undefined) out.push({ link, from, to: { ...theirs, channel: theirs.channel + pin - 1 } })
         // The whole port (a stereo jack) onto a group: every channel the cable is wide.
-        else for (let k = 0; k < width; k++) out.push({ link, from: mine, to: { ...theirs, channel: theirs.channel + k } })
+        else for (let k = 0; k < width; k++) out.push({ link, from, to: { ...theirs, channel: theirs.channel + k } })
       }
     }
     return out
   }
 
-  const follow = (flow: SignalFlow, start: { equipment: StageEquipment; portId: string; channel: number | undefined; cls: SignalClass }[]) => {
+  const follow = (flow: SignalFlow, start: { equipment: StageEquipment; portId: string; channel: number | undefined; pin: number | undefined; cls: SignalClass }[]) => {
     const queue = [...start]
     const seen = new Set<string>()
     while (queue.length > 0) {
-      const { equipment, portId, channel, cls } = queue.shift()!
-      for (const cable of cablesOut(equipment, portId, channel, cls)) {
-        const visit = `${cable.link.id}>${cable.to.equipmentId}#${cable.to.channel ?? ''}:${cls}`
+      const { equipment, portId, channel, pin, cls } = queue.shift()!
+      for (const cable of cablesOut(equipment, portId, channel, pin, cls)) {
+        const visit = `${cable.link.id}>${cable.to.equipmentId}/${cable.to.portId}#${cable.to.channel ?? ''}.${cable.to.pin ?? ''}:${cls}`
         if (seen.has(visit)) continue
         seen.add(visit)
         const target = byId.get(cable.to.equipmentId)
-        const inPort = target?.ports.find((p) => p.id === cable.to.portId)
+        const inPort = target ? lookupPort(target.ports, cable.to.portId) : undefined
         if (!target || !inPort || !classOn(inPort, cls, false)) continue
         flow.hops.push({ linkId: cable.link.id, from: cable.from, to: cable.to })
         if (LISTENER_KINDS.includes(target.kind)) {
@@ -589,15 +657,15 @@ export function signalFlows(map: StageMap, setupId: string, virtualPorts: readon
         }
         const inChannel = cable.to.channel
         for (const cross of effectiveRouting(target, setup)) {
-          if (!pointMatches(cross.from, cable.to.portId, inChannel)) continue
+          if (!pointMatches(cross.from, target.ports, cable.to.portId, inChannel, cable.to.pin)) continue
           if (cross.to.kind === 'virtual') {
             if (DRIVER_KINDS.includes(target.kind)) flow.virtualInputs.push({ equipmentId: target.id, virtualPortId: cross.to.virtualPortId })
             continue
           }
-          const outPort = target.ports.find((p) => p.id === (cross.to as { portId: string }).portId)
+          const outPort = lookupPort(target.ports, cross.to.portId)
           const nextCls = outPort ? classOn(outPort, cls, target.sounds) : null
           if (!outPort || !nextCls) continue
-          queue.push({ equipment: target, portId: outPort.id, channel: cross.to.channel ?? (outPort.channels ? undefined : inChannel), cls: nextCls })
+          queue.push({ equipment: target, portId: outPort.id, channel: cross.to.channel ?? (outPort.channels ? undefined : inChannel), pin: cross.to.pin, cls: nextCls })
         }
       }
     }
@@ -615,9 +683,9 @@ export function signalFlows(map: StageMap, setupId: string, virtualPorts: readon
         const starts = routing
           .filter((c) => c.from.kind === 'virtual' && c.from.virtualPortId === id && c.to.kind === 'port')
           .flatMap((c) => {
-            const to = c.to as { portId: string; channel?: number }
-            const p = equipment.ports.find((x) => x.id === to.portId)
-            return p && classOn(p, cls, false) ? [{ equipment, portId: p.id, channel: to.channel, cls }] : []
+            const to = c.to as { portId: string; channel?: number; pin?: number }
+            const p = lookupPort(equipment.ports, to.portId)
+            return p && classOn(p, cls, false) ? [{ equipment, portId: p.id, channel: to.channel, pin: to.pin, cls }] : []
           })
         follow(flow, starts)
         flows.push(flow)
@@ -627,7 +695,7 @@ export function signalFlows(map: StageMap, setupId: string, virtualPorts: readon
       for (const p of equipment.ports) {
         for (const cls of [...new Set(p.signals.map((s) => SIGNAL_CLASS[s]))]) {
           const flow: SignalFlow = { key: `${equipment.id}/${p.id}`, name: `${equipment.name} · ${p.name}`, signalClass: cls, originEquipmentId: equipment.id, hops: [], listenerIds: [], virtualInputs: [] }
-          follow(flow, [{ equipment, portId: p.id, channel: undefined, cls }])
+          follow(flow, [{ equipment, portId: p.id, channel: undefined, pin: undefined, cls }])
           if (flow.hops.length > 0) flows.push(flow)
         }
       }
@@ -638,25 +706,25 @@ export function signalFlows(map: StageMap, setupId: string, virtualPorts: readon
 
 /** The number a channel of a port group has on the device ("Eingang 11" for channel 1 of the XLR
  * inputs after 10 combo ones). */
-export function channelNumber(port: Port | undefined, channel: number): number {
+export function channelNumber(port: Pick<Port, 'firstChannel'> | undefined, channel: number): number {
   return (port?.firstChannel ?? 1) + channel - 1
 }
 
-/** Whether `point` on `ports` still exists (the port, and its channel within the group). */
-function pointExists(ports: readonly Port[], portId: string, channel: number | undefined): boolean {
-  const p = ports.find((x) => x.id === portId)
+/** Whether `point` on `ports` still exists (the port or part, its channel within the group, its pin). */
+function pointExists(ports: readonly Port[], portId: string, channel: number | undefined, pin: number | undefined): boolean {
+  const p = lookupPort(ports, portId)
   if (!p) return false
-  if (channel === undefined) return true
-  return p.channels !== undefined && channel <= p.channels
+  if (channel !== undefined && (p.channels === undefined || channel > p.channels)) return false
+  return pin === undefined || pin <= (p.pins ?? 1)
 }
 
 /** A setup without the cables and matrix points of `equipmentId` that its new `ports` no longer
  * have - and how many went. */
 export function pruneForPorts(setup: StageSetup, equipmentId: string, ports: readonly Port[]): { setup: StageSetup; links: number; crosspoints: number } {
-  const endFits = (end: { equipmentId: string; portId: string; channel?: number }) => end.equipmentId !== equipmentId || pointExists(ports, end.portId, end.channel)
+  const endFits = (end: PortRef) => end.equipmentId !== equipmentId || pointExists(ports, end.portId, end.channel, end.pin)
   const links = setup.links.filter((l) => endFits(l.from) && endFits(l.to))
   const own = setup.routing[equipmentId]
-  const pointFits = (pt: MatrixPoint) => pt.kind === 'virtual' || pointExists(ports, pt.portId, pt.channel)
+  const pointFits = (pt: MatrixPoint) => pt.kind === 'virtual' || pointExists(ports, pt.portId, pt.channel, pt.pin)
   const kept = own?.filter((c) => pointFits(c.from) && pointFits(c.to))
   const routing = own ? { ...setup.routing, [equipmentId]: kept! } : setup.routing
   return { setup: { ...setup, links, routing }, links: setup.links.length - links.length, crosspoints: (own?.length ?? 0) - (kept?.length ?? 0) }
@@ -712,7 +780,8 @@ export const PORT_SIGNALS = {
   audio: ['audio'],
   'usb-audio': ['usb-audio', 'midi'],
   midi: ['midi'],
-  net: ['net', 'midi'],
+  net: ['net', 'midi', 'osc'],
+  osc: ['osc'],
   dmx: ['dmx'],
 } as const satisfies Record<string, readonly Signal[]>
 export type PortSignalKind = keyof typeof PORT_SIGNALS
@@ -721,6 +790,7 @@ export function portSignalKind(port: Pick<Port, 'signals'>): PortSignalKind {
   const s = port.signals
   if (s.includes('usb-audio')) return 'usb-audio'
   if (s.includes('net')) return 'net'
+  if (s.includes('osc')) return 'osc'
   if (s.includes('dmx')) return 'dmx'
   if (s.includes('audio')) return 'audio'
   return 'midi'
@@ -735,17 +805,33 @@ export function defaultSignalKind(connector: Connector): PortSignalKind {
   return 'audio'
 }
 
-/** Channels a port takes from its `channel` on: the rest of its group, or 2 for a stereo socket. */
-export function portCapacity(port: Port, channel: number | undefined): number {
-  if (port.channels !== undefined) return port.channels - (channel ?? 1) + 1
-  return port.stereo ? 2 : 1
+/** The mono slots of a port in order - socket by socket, pin by pin: a group of 4 mono jacks has
+ * 4, a stereo jack 2 (its pins), a headphone amp with 4 stereo sockets 8. */
+export function portSlots(port: Pick<PortView, 'channels' | 'pins'>): { channel?: number; pin?: number }[] {
+  const sockets = port.channels ?? 1
+  const pins = port.pins ?? 1
+  const out: { channel?: number; pin?: number }[] = []
+  for (let c = 1; c <= sockets; c++) for (let p = 1; p <= pins; p++) out.push({ ...(port.channels ? { channel: c } : {}), ...(pins > 1 ? { pin: p } : {}) })
+  return out
+}
+
+/** Where a cable end starts among a port's slots: its channel and pin, the first of each when unnamed. */
+function slotIndex(port: Pick<PortView, 'channels' | 'pins'>, channel: number | undefined, pin: number | undefined): number {
+  const i = portSlots(port).findIndex((s) => (s.channel ?? 1) === (channel ?? 1) && (s.pin ?? 1) === (pin ?? 1))
+  return i < 0 ? 0 : i
+}
+
+/** Channels a port takes from its `channel` (and `pin`) on: the rest of its group, or the rest of
+ * a stereo socket's pins. */
+export function portCapacity(port: Pick<PortView, 'channels' | 'pins'>, channel: number | undefined, pin?: number): number {
+  return portSlots(port).length - slotIndex(port, channel, pin)
 }
 
 /** Soft connectors share freely - a radio link or a speaker reaches many. */
 const SHARED_CONNECTORS: readonly Connector[] = ['wireless', 'room', 'builtin', 'ear', 'eye']
 
 export type StageIssue =
-  | { kind: 'double'; equipmentId: string; portId: string; channel: number | undefined; linkIds: string[] }
+  | { kind: 'double'; equipmentId: string; portId: string; channel: number | undefined; pin?: number; linkIds: string[] }
   | { kind: 'width'; linkId: string; equipmentId: string; portId: string; width: number; capacity: number }
   | { kind: 'mono-of-stereo'; linkId: string; equipmentId: string; portId: string }
   | { kind: 'adapter'; linkId: string }
@@ -759,11 +845,16 @@ export interface PortUse {
   total: number
 }
 
-/** The channels a cable end occupies: one per channel of its width, or the whole socket. */
-function occupied(end: PortRef, width: number, port: Port): (number | undefined)[] {
-  if (end.channel === undefined) return port.channels === undefined ? [undefined] : Array.from({ length: Math.min(width, port.channels) }, (_, k) => k + 1)
-  return Array.from({ length: width }, (_, k) => end.channel! + k)
+/** The slots a cable end occupies: `width` of them from where it starts - the whole socket when it
+ * is a single mono one. */
+function occupied(end: PortRef, width: number, port: PortView): { channel?: number; pin?: number }[] {
+  const slots = portSlots(port)
+  if (end.channel === undefined && end.pin === undefined && slots.length === 1) return [{}]
+  const start = slotIndex(port, end.channel, end.pin)
+  // A stereo cable onto a whole stereo socket takes both pins; onto a group, `width` sockets.
+  return slots.slice(start, start + Math.max(1, width))
 }
+const slotKey = (s: { channel?: number; pin?: number }) => `${s.channel ?? ''}.${s.pin ?? ''}`
 
 /**
  * The checks for technicians (Marco, 2026-11-07): a socket or channel with two cables (a real plug
@@ -779,15 +870,17 @@ export function checkSetup(map: StageMap, setupId: string): { issues: StageIssue
   const taken = new Map<string, string[]>()
   for (const link of setup.links) {
     const width = link.width ?? 1
-    const ends = [link.from, link.to].map((end) => ({ end, port: byId.get(end.equipmentId)?.ports.find((p) => p.id === end.portId) }))
+    const ends = [link.from, link.to].map((end) => ({ end, port: lookupPort(byId.get(end.equipmentId)?.ports ?? [], end.portId) }))
     for (const { end, port } of ends) {
       if (!port) continue
-      const capacity = portCapacity(port, end.channel)
+      // A container carries every part at once - channels are counted on the parts, not the cable;
+      // radio and sound carry the whole signal, nothing to count there either.
+      if (port.parts || SHARED_CONNECTORS.includes(port.connector)) continue
+      const capacity = portCapacity(port, end.channel, end.pin)
       if (width > capacity) issues.push({ kind: 'width', linkId: link.id, equipmentId: end.equipmentId, portId: end.portId, width, capacity })
-      else if (width === 1 && port.stereo && port.channels === undefined) issues.push({ kind: 'mono-of-stereo', linkId: link.id, equipmentId: end.equipmentId, portId: end.portId })
-      if (SHARED_CONNECTORS.includes(port.connector)) continue
-      for (const ch of occupied(end, width, port)) {
-        const key = `${end.equipmentId}|${end.portId}|${ch ?? ''}`
+      else if (width === 1 && (port.pins ?? 1) > 1 && end.pin === undefined && port.channels === undefined) issues.push({ kind: 'mono-of-stereo', linkId: link.id, equipmentId: end.equipmentId, portId: end.portId })
+      for (const slot of occupied(end, width, port)) {
+        const key = `${end.equipmentId}|${end.portId}|${slotKey(slot)}`
         taken.set(key, [...(taken.get(key) ?? []), link.id])
       }
     }
@@ -799,17 +892,18 @@ export function checkSetup(map: StageMap, setupId: string): { issues: StageIssue
   }
   for (const [key, linkIds] of taken) {
     if (linkIds.length < 2) continue
-    const [equipmentId, portId, ch] = key.split('|') as [string, string, string]
-    issues.push({ kind: 'double', equipmentId, portId, channel: ch === '' ? undefined : Number(ch), linkIds })
+    const [equipmentId, portId, slot] = key.split('|') as [string, string, string]
+    const [ch, pin] = slot.split('.') as [string, string]
+    issues.push({ kind: 'double', equipmentId, portId, channel: ch === '' ? undefined : Number(ch), ...(pin === '' ? {} : { pin: Number(pin) }), linkIds })
   }
   const use: PortUse[] = []
   for (const e of map.equipment) {
     if (!setup.positions[e.id]) continue
     for (const p of e.ports) {
-      if (SHARED_CONNECTORS.includes(p.connector)) continue
+      if (SHARED_CONNECTORS.includes(p.connector) || p.parts) continue
       const total = p.channels ?? 1
-      const used = new Set([...taken.keys()].filter((k) => k.startsWith(`${e.id}|${p.id}|`))).size
-      use.push({ equipmentId: e.id, portId: p.id, name: p.name, direction: p.direction, used: Math.min(used, total), total })
+      const usedSockets = new Set([...taken.keys()].filter((k) => k.startsWith(`${e.id}|${p.id}|`)).map((k) => k.split('|')[2]!.split('.')[0])).size
+      use.push({ equipmentId: e.id, portId: p.id, name: p.name, direction: p.direction, used: Math.min(usedSockets, total), total })
     }
   }
   return { issues, use }
@@ -841,15 +935,15 @@ export function wiringList(map: StageMap, setupId: string): WiringCable[] {
   const links = [...setup.links].sort((a, b) => name(a.from.equipmentId).localeCompare(name(b.from.equipmentId)) || a.from.portId.localeCompare(b.from.portId) || (a.from.channel ?? 0) - (b.from.channel ?? 0))
   const out: WiringCable[] = []
   for (const link of links) {
-    const fromPort = byId.get(link.from.equipmentId)?.ports.find((p) => p.id === link.from.portId)
-    const toPort = byId.get(link.to.equipmentId)?.ports.find((p) => p.id === link.to.portId)
+    const fromPort = lookupPort(byId.get(link.from.equipmentId)?.ports ?? [], link.from.portId)
+    const toPort = lookupPort(byId.get(link.to.equipmentId)?.ports ?? [], link.to.portId)
     if (!fromPort || !toPort) continue
     // Radio, a speaker to the ears: no cable to lay.
     if (SHARED_CONNECTORS.includes(fromPort.connector) || SHARED_CONNECTORS.includes(toPort.connector)) continue
     const fit = portFit(fromPort, toPort) ?? portFit(toPort, fromPort)
     const base = { linkId: link.id, fromConnector: fromPort.connector, toConnector: toPort.connector, adapter: fit?.adapter ?? false }
     const width = link.width ?? 1
-    const split = (end: PortRef, port: Port) => end.channel !== undefined || port.channels !== undefined
+    const split = (end: PortRef, port: PortView) => end.channel !== undefined || port.channels !== undefined
     if (width > 1 && split(link.from, fromPort) && split(link.to, toPort)) {
       for (let k = 0; k < width; k++) {
         const at = (end: PortRef): PortRef => ({ ...end, channel: (end.channel ?? 1) + k })
@@ -905,7 +999,8 @@ export function mapRoute(map: StageMap, virtualPortId: string, frontApp: Readonl
     const inp = routing.find((c) => c.to.kind === 'virtual' && c.to.virtualPortId === virtualPortId && c.from.kind === 'port')
     const point = out?.to ?? inp?.from
     if (!point || point.kind !== 'port') continue
-    const portId = point.portId
+    // The cable sits on the container of a part (docs/31 §7b).
+    const portId = cablePortId(box.ports, point.portId)
     const apps = appsOf(box)
     const app = box.kind === 'stage-server' ? SERVER_EXECUTION_TARGET : frontApp[box.id] && apps.includes(frontApp[box.id]!) ? frontApp[box.id]! : (box.deviceId ?? apps[0] ?? null)
     const cable = setup.links.find((l) => (l.from.equipmentId === box.id && l.from.portId === portId) || (l.to.equipmentId === box.id && l.to.portId === portId))
@@ -923,4 +1018,106 @@ export function routedLogicalDevices<T extends { id: string; capability: string;
     const route = mapRoute(map, d.id, frontApp)
     return route ? { ...d, executionTarget: route.app } : d
   })
+}
+
+/**
+ * A port, or a part of a container port, seen through one shape (docs/31 §7b): a part's signals,
+ * direction and channels with its container's plug and name in front. `container`: the port a
+ * cable sits on when this is a part.
+ */
+export interface PortView {
+  id: string
+  name: string
+  connector: Connector
+  signals: readonly Signal[]
+  direction: PortDirection
+  channels: number | undefined
+  pins: number | undefined
+  parts: readonly PortPart[] | undefined
+  /** The desk's number of channel 1 (`Port.firstChannel`) - a part has none. */
+  firstChannel: number | undefined
+  container: Port | null
+}
+
+export function lookupPort(ports: readonly Port[], id: string): PortView | undefined {
+  for (const p of ports) {
+    if (p.id === id) return { id: p.id, name: p.name, connector: p.connector, signals: p.signals, direction: p.direction, channels: p.channels, pins: p.pins ?? (p.stereo ? 2 : undefined), parts: p.parts, firstChannel: p.firstChannel, container: null }
+    const part = p.parts?.find((x) => x.id === id)
+    if (part) return { id: part.id, name: `${p.name} · ${part.name}`, connector: p.connector, signals: part.signals, direction: part.direction, channels: part.channels, pins: undefined, parts: undefined, firstChannel: undefined, container: p }
+  }
+  return undefined
+}
+
+/** The port a cable sits on for `id`: the container of a part, else `id` itself. */
+export function cablePortId(ports: readonly Port[], id: string): string {
+  return lookupPort(ports, id)?.container?.id ?? id
+}
+
+/** Plugs whose socket is a container of protocols (docs/31 §7b). */
+const CONTAINER_CONNECTORS: readonly Connector[] = ['usb-a', 'usb-b', 'usb-c', 'ethernet']
+
+/**
+ * The parts a container port has by what it carries, when none were written: audio to and from
+ * the far end, MIDI both ways, network/OSC as one. Channel counts stay open - the far end tells
+ * (`partChannels`).
+ */
+export function defaultParts(port: Port): PortPart[] | undefined {
+  if (!CONTAINER_CONNECTORS.includes(port.connector) || port.parts) return undefined
+  const out: PortPart[] = []
+  const can = (d: PortDirection) => port.direction === 'both' || port.direction === d
+  const add = (suffix: string, name: string, signals: Signal[], direction: PortDirection) => {
+    if (can(direction)) out.push({ id: `${port.id}/${suffix}`, name, signals, direction })
+  }
+  if (port.signals.includes('usb-audio') || port.signals.includes('audio')) {
+    add('audio-out', 'Audio aus', ['usb-audio'], 'out')
+    add('audio-in', 'Audio ein', ['usb-audio'], 'in')
+  }
+  if (port.signals.includes('midi')) {
+    add('midi-out', 'MIDI aus', ['midi'], 'out')
+    add('midi-in', 'MIDI ein', ['midi'], 'in')
+  }
+  if (port.signals.includes('net')) add('net', 'Netzwerk', ['net'], port.direction)
+  if (port.signals.includes('osc')) add('osc', 'OSC', ['osc'], port.direction)
+  if (port.signals.includes('dmx')) add('dmx', 'DMX', ['dmx'], port.direction)
+  return out.length > 0 ? out : undefined
+}
+
+/** A port as written before #739 read the new way: `stereo` becomes `pins: 2`, a USB or network
+ * socket without parts gets its default parts. Cables and matrix points on it stay valid - a point
+ * on the container still means "all of it". */
+export function normalizePort(port: Port): Port {
+  const { stereo, ...rest } = port
+  const pins = port.pins ?? (stereo ? 2 : undefined)
+  const parts = port.parts ?? defaultParts(port)
+  return { ...rest, ...(pins === undefined ? {} : { pins }), ...(parts === undefined ? {} : { parts }) }
+}
+
+/** Equipment from the database read the new way (#739) - no write, the band's documents stay as they are. */
+export function normalizeEquipment(equipment: StageEquipment): StageEquipment {
+  return { ...equipment, ports: equipment.ports.map(normalizePort) }
+}
+
+/**
+ * How many channels a part has in `setup`: its own count, else what the far end of the cable on
+ * its container offers for the same class the other way round (a tablet's "Audio aus" has as many
+ * channels as the interface's "Audio ein"). Undefined: nothing on the cable says.
+ */
+export function partChannels(map: StageMap, setup: StageSetup, equipmentId: string, partId: string): number | undefined {
+  const equipment = map.equipment.find((e) => e.id === equipmentId)
+  const view = equipment ? lookupPort(equipment.ports, partId) : undefined
+  if (!view) return undefined
+  if (view.channels !== undefined || !view.container) return view.channels
+  const classes = new Set(view.signals.map((s) => SIGNAL_CLASS[s]))
+  for (const link of setup.links) {
+    for (const [mine, theirs] of [
+      [link.from, link.to],
+      [link.to, link.from],
+    ] as const) {
+      if (mine.equipmentId !== equipmentId || mine.portId !== view.container.id) continue
+      const far = map.equipment.find((e) => e.id === theirs.equipmentId)?.ports.find((p) => p.id === theirs.portId)
+      const farPart = far?.parts?.find((x) => x.direction !== view.direction && x.signals.some((sig) => classes.has(SIGNAL_CLASS[sig])))
+      if (farPart?.channels !== undefined) return farPart.channels
+    }
+  }
+  return undefined
 }

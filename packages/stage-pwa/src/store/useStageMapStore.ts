@@ -1,6 +1,6 @@
 import { coalesced } from '../lib/coalesced'
 import { create } from 'zustand'
-import type { StageEquipment, StageSetup } from 'shared-types'
+import { normalizeEquipment, type StageEquipment, type StageSetup } from 'shared-types'
 import type { LocalChangesHandle } from '../lib/localChanges'
 import { stageEquipmentDb, stageFrontDb, stageSetupsDb } from '../lib/stageMapDb'
 
@@ -26,7 +26,8 @@ let handles: LocalChangesHandle<unknown>[] = []
 
 async function refresh(set: (partial: Partial<StageMapState>) => void) {
   const [equipment, setups, front] = await Promise.all([stageEquipmentDb.getAll(), stageSetupsDb.getAll(), stageFrontDb.getAll()])
-  set({ equipment, setups: setups.sort((a, b) => a.name.localeCompare(b.name)), front: Object.fromEntries(front.map((f) => [f.id, f.appId])) })
+  // Read the new way (#739: pins, container parts) - the documents stay as the band wrote them.
+  set({ equipment: equipment.map(normalizeEquipment), setups: setups.sort((a, b) => a.name.localeCompare(b.name)), front: Object.fromEntries(front.map((f) => [f.id, f.appId])) })
 }
 
 /** The stage map (docs/31) - see stageMapDb.ts. Decides who plays Klick, Track and Ansagen in the Gig (mapPlays). */
