@@ -260,7 +260,7 @@ export function TrackManagerField({ variantId, tracks, disabled, searchQuery = '
     setYoutubeError(null)
     if (youtube.route === 'device' && youtube.helper) {
       try {
-        setHits(await searchOnDevice(youtube.helper, query.trim()))
+        setHits(await searchOnDevice(youtube.helper, query.trim(), youtube.trusted))
       } catch (err) {
         setHits(null)
         setYoutubeError(helperText(err))
@@ -292,7 +292,7 @@ export function TrackManagerField({ variantId, tracks, disabled, searchQuery = '
       // This device downloads (no host with yt-dlp): the job is its own, the band sees it run.
       const job = newDeviceJob(variantId, url, label, getDeviceId())
       await putAsyncJob(job)
-      void runOnDevice(job, getDeviceId(), youtube.helper, { putJob: putAsyncJob, putTrack })
+      void runOnDevice(job, getDeviceId(), youtube.helper, youtube.trusted, { putJob: putAsyncJob, putTrack })
       setYoutubeUrl('')
       setHits(null)
       setAdding(false)
