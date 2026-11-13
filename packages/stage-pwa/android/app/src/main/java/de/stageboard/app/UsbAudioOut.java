@@ -58,11 +58,33 @@ final class UsbAudioOut {
         return null;
     }
 
+    /** How long a plugged-in interface waits for Android's own "open StageBoard?" dialog to grant the
+     * permission (the default-app filter in the manifest) before the app asks itself - asking at
+     * once put two dialogs on screen (2026-11-13). */
+    private static final long ATTACH_GRANT_WAIT_MS = 10_000;
+
     static void requestPermission(Context ctx, UsbManager um, UsbDevice dev, Permission done) {
         if (um.hasPermission(dev)) {
             done.result(true);
             return;
         }
+        final android.os.Handler handler = new android.os.Handler(android.os.Looper.getMainLooper());
+        final long until = android.os.SystemClock.elapsedRealtime() + ATTACH_GRANT_WAIT_MS;
+        handler.post(new Runnable() {
+            @Override
+            public void run() {
+                if (um.hasPermission(dev)) {
+                    done.result(true);
+                } else if (android.os.SystemClock.elapsedRealtime() < until) {
+                    handler.postDelayed(this, 250);
+                } else {
+                    ask(ctx, um, dev, done);
+                }
+            }
+        });
+    }
+
+    private static void ask(Context ctx, UsbManager um, UsbDevice dev, Permission done) {
         BroadcastReceiver receiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context c, Intent intent) {
