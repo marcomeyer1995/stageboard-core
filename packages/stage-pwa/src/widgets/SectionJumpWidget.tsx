@@ -140,7 +140,9 @@ export function SectionJumpWidget() {
         // Compact: a grid that wraps and shares the tile's height between its rows - one squeezed row
         // cut the names of a song with six sections ("Intr", "Chc"; test runner, 2026-11-13).
         className={compact ? 'grid h-full gap-2' : 'flex flex-wrap gap-2'}
-        style={compact ? { gridTemplateColumns: 'repeat(auto-fit, minmax(7.5rem, 1fr))', gridAutoRows: '1fr' } : undefined}
+        // 110 px, not rem: the stage font made 7.5 rem wider than half a tile - one column of eleven
+        // 9 px rows. Rows share the height, never more than they get.
+        style={compact ? { gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gridAutoRows: 'minmax(0, 1fr)' } : undefined}
         role="group"
         aria-label={t('sj.aria')}
         title={compact ? (message ?? status ?? undefined) : undefined}
