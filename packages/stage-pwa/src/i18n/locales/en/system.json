@@ -353,6 +353,7 @@
     "nativeEstimated": "Native, but Android gives no timestamp - timing only estimated (restarting the device helps)",
     "webview": "WebView",
     "fellBack": "Fallback through the WebView since {{time}} ({{ms}} ms of audio were missing) - until the app restarts",
+    "fellBackBroken": "Fallback through the WebView since {{time}} - the native output came up without a timestamp after a device change. Restart the app.",
     "missing": "Dropouts (last minute)",
     "reserve": "Smallest reserve (last minute)",
     "settling": "still measuring (first minute)",

@@ -40,6 +40,35 @@ import java.security.SecureRandom;
  */
 @CapacitorPlugin(name = "NativeOutput")
 public class NativeOutputPlugin extends Plugin {
+    /** An output device came or went (#837): the page opens the stream again once it settled - one
+     * opened while the device wasn't ready can run without a sound. Android reports every present
+     * device right at registering - those first seconds are not a change. */
+    private final android.media.AudioDeviceCallback deviceCallback = new android.media.AudioDeviceCallback() {
+        @Override
+        public void onAudioDevicesAdded(android.media.AudioDeviceInfo[] added) {
+            if (hasOutput(added) && android.os.SystemClock.elapsedRealtime() - registeredAt > 3000) notifyListeners("outputDevicesChanged", new JSObject());
+        }
+
+        @Override
+        public void onAudioDevicesRemoved(android.media.AudioDeviceInfo[] removed) {
+            if (hasOutput(removed) && android.os.SystemClock.elapsedRealtime() - registeredAt > 3000) notifyListeners("outputDevicesChanged", new JSObject());
+        }
+    };
+
+    private long registeredAt = 0;
+
+    private static boolean hasOutput(android.media.AudioDeviceInfo[] devices) {
+        for (android.media.AudioDeviceInfo d : devices) if (d.isSink()) return true;
+        return false;
+    }
+
+    @Override
+    public void load() {
+        android.media.AudioManager audio = (android.media.AudioManager) getContext().getSystemService(android.content.Context.AUDIO_SERVICE);
+        registeredAt = android.os.SystemClock.elapsedRealtime();
+        if (audio != null) audio.registerAudioDeviceCallback(deviceCallback, new android.os.Handler(android.os.Looper.getMainLooper()));
+    }
+
     private static final String TAG = "NativeOutput";
     private static final String WS_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
     private static boolean loaded;
@@ -55,7 +84,7 @@ public class NativeOutputPlugin extends Plugin {
         return true;
     }
 
-    private static native String nativeStart(int sampleRate);
+    private static native String nativeStart(int sampleRate, boolean lowLatency);
 
     private static native void nativePush(long frame, short[] data, double baseMs);
 
@@ -107,7 +136,7 @@ public class NativeOutputPlugin extends Plugin {
             call.reject("unavailable");
             return;
         }
-        String result = nativeStart((int) num(call, "sampleRate"));
+        String result = nativeStart((int) num(call, "sampleRate"), call.getBoolean("lowLatency", true));
         try {
             JSObject out = new JSObject(result);
             startServer();
