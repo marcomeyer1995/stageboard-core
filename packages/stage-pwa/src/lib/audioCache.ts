@@ -22,8 +22,16 @@ function openDb(): Promise<IDBDatabase> {
   })
 }
 
-export function cacheKey(variantId: string, trackId: string): string {
-  return `${variantId}:${trackId}`
+/** A track's place in the cache - with its file revision (TrackMeta.fileRev) once the file was
+ * replaced, so the old one drops out of what should be cached and the new one is fetched. */
+export function cacheKey(variantId: string, trackId: string, fileRev?: number): string {
+  return fileRev ? `${variantId}:${trackId}@${fileRev}` : `${variantId}:${trackId}`
+}
+
+/** The track a cache key stands for (what the server's /audio route needs). */
+export function parseCacheKey(key: string): { variantId: string; trackId: string } {
+  const [variantId = '', rest = ''] = key.split(':')
+  return { variantId, trackId: rest.split('@')[0] ?? '' }
 }
 
 export async function getCached(key: string): Promise<Blob | null> {

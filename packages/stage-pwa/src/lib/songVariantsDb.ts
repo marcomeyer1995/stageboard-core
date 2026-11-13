@@ -111,7 +111,7 @@ export async function putTrack(variantId: string, meta: TrackMeta, file: Blob): 
   const result = await uploadTrack(variantId, meta.id, file)
   if (result.status === 'error') throw new Error(result.message)
   const metaWithSize: TrackMeta = { ...meta, sizeBytes: file.size }
-  await getAudioStorageBackend().set(cacheKey(variantId, metaWithSize.id), file)
+  await getAudioStorageBackend().set(cacheKey(variantId, metaWithSize.id, metaWithSize.fileRev), file)
 
   const db = getVariantsDb()
   const current = await db.get(variants.docId(variantId))
@@ -126,7 +126,10 @@ export async function putTrack(variantId: string, meta: TrackMeta, file: Blob): 
  * after if it doesn't belong, rather than this call site needing to know the current mode. */
 export async function getTrack(variantId: string, trackId: string): Promise<Blob | null> {
   const backend = getAudioStorageBackend()
-  const key = cacheKey(variantId, trackId)
+  // The file's revision from the local metadata: a replaced file (converted to Opus) is a new
+  // cache entry, never the old bytes.
+  const variant = await getVariantsDb().get(variants.docId(variantId)).catch(() => null)
+  const key = cacheKey(variantId, trackId, variant?.tracks.find((t) => t.id === trackId)?.fileRev)
   const cached = await backend.get(key)
   if (cached) return cached
 
@@ -142,7 +145,7 @@ export async function removeTrack(variantId: string, trackId: string): Promise<v
   const gone = [trackId, ...before.tracks.filter((t) => t.kind === 'stem' && t.parentTrackId === trackId).map((t) => t.id)]
   for (const id of gone) {
     await deleteTrackFile(variantId, id)
-    await getAudioStorageBackend().remove(cacheKey(variantId, id))
+    await getAudioStorageBackend().remove(cacheKey(variantId, id, before.tracks.find((t) => t.id === id)?.fileRev))
   }
 
   const current = await db.get(variants.docId(variantId))
@@ -163,7 +166,7 @@ export async function deleteVariant(variantId: string): Promise<void> {
   if ((await variantsOfSong(variant.songId)).length <= 1) throw new Error('Die letzte Variante kann nicht gelöscht werden.')
   for (const track of variant.tracks) {
     await deleteTrackFile(variantId, track.id)
-    await getAudioStorageBackend().remove(cacheKey(variantId, track.id))
+    await getAudioStorageBackend().remove(cacheKey(variantId, track.id, track.fileRev))
   }
   await removeVariant(variantId)
   await removeLoopsOfVariant(variantId)
