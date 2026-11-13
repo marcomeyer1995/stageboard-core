@@ -37,6 +37,7 @@ import {
   equipmentMixes,
   wiringList,
   signalFlows as flowsOf,
+  hasModelName,
   linkPlaceholder,
   mergeEquipmentInSetup,
   lookupPort,
@@ -902,5 +903,17 @@ describe('a hub on the tablet: UMC204HD and NUX MG-30 on one USB-C (#813, device
     const map = hub()
     map.setups[0]!.links[1]!.signals = ['midi']
     expect(checkSetup(map, map.setups[0]!.id).issues.some((i) => i.kind === 'usb-audio-shared')).toBe(false)
+  })
+})
+
+describe('a linked device box is named after the device (#815, device test 2026-11-12)', () => {
+  it('"Tablet / Handy" takes the device\'s name; a name the band gave it stays', () => {
+    const tablet = BUILTIN_MODELS.find((m) => m.id === 'tablet')!
+    const map = defaultStageMap([])
+    const placeholder = equipmentFrom(tablet, 'ph', tablet.name)
+    expect(hasModelName(placeholder)).toBe(true)
+    expect(linkPlaceholder(map, placeholder, 'fire-dev', 'Fire Dev').linked).toMatchObject({ deviceId: 'fire-dev', name: 'Fire Dev' })
+    const named = equipmentFrom(tablet, 'ph2', 'Gitarre links')
+    expect(linkPlaceholder(map, named, 'fire-dev', 'Fire Dev').linked.name).toBe('Gitarre links')
   })
 })

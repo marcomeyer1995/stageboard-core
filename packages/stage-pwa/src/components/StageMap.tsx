@@ -20,6 +20,7 @@ import {
   equipmentFrom,
   equipmentOffered,
   visibleOwnSetups,
+  hasModelName,
   linkPlaceholder,
   appsOf,
   joinDevices,
@@ -55,6 +56,7 @@ import { useDialogStore } from '../store/useDialogStore'
 import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
 import { usePresenceStore } from '../store/usePresenceStore'
 import { useProfilesStore } from '../store/useProfilesStore'
+import { usePluginsStore } from '../store/usePluginsStore'
 import { useStageMapStore } from '../store/useStageMapStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { samePoint, stereoBadge } from '../lib/matrixPoint'
@@ -210,7 +212,9 @@ export function StageMap() {
     const e = byId.get(id)
     return e ? title(e) : id
   }
-  const title = (e: StageEquipment) => (e.listener?.kind === 'signed-in' ? (personName(presence.devices[e.listener.deviceId]?.profileId) ?? t('map.nobodyShort')) : e.name)
+  // A device box nobody named shows its device's name ("Fire Dev", not "Tablet / Handy", #815).
+  const deviceName = (e: StageEquipment) => (e.kind === 'stageboard' && e.deviceId && hasModelName(e) ? devices.find((d) => d.id === e.deviceId)?.name : undefined)
+  const title = (e: StageEquipment) => (e.listener?.kind === 'signed-in' ? (personName(presence.devices[e.listener.deviceId]?.profileId) ?? t('map.nobodyShort')) : (deviceName(e) ?? e.name))
 
   // The band's virtual ports: Klick, Track, Ansagen and every other Logical Device.
   const virtualPorts: VirtualPort[] = useMemo(
@@ -228,7 +232,11 @@ export function StageMap() {
   const cables = useMemo(() => (setup ? wiringList({ equipment, setups }, setup.id) : []), [equipment, setups, setup])
   const badLinks = useMemo(() => new Set(check.issues.flatMap((i) => (i.kind === 'double' ? i.linkIds : i.kind === 'width' || i.kind === 'mono-in-stereo-out' ? [i.linkId] : i.kind === 'hum-loop' ? i.linkIds : []))), [check])
   // The live layer (#747): only while "Prüfen" is on.
-  const liveOutputs = useMemo(() => logicalDevices.filter((d) => !BUILT_IN_CAPABILITIES.includes(d.capability)).map((d) => ({ id: d.id, name: d.name, pluginId: d.pluginId })), [logicalDevices])
+  const installedPlugins = usePluginsStore((state) => state.installed)
+  const liveOutputs = useMemo(
+    () => logicalDevices.filter((d) => !BUILT_IN_CAPABILITIES.includes(d.capability)).map((d) => ({ id: d.id, name: d.name, pluginId: d.pluginId, client: installedPlugins.find((p) => p.id === d.pluginId)?.runtime === 'client' })),
+    [logicalDevices, installedPlugins],
+  )
   const live = useStageLive(checking, { equipment: onStage, setup, flows, outputs: liveOutputs, builtInIds: BUILT_IN_IDS })
   const flowsOn = (linkId: string) => flows.filter((f) => f.hops.some((h) => h.linkId === linkId))
 
@@ -476,7 +484,7 @@ export function StageMap() {
     if (options.length === 0) return
     const answer = await promptFields(t('map.linkTitle', { name: item.name }), [{ key: 'device', label: t('map.linkDevice'), type: 'radio', options, defaultValue: options[0]!.value }], t('map.link'))
     if (!answer?.device) return
-    const { linked, merge } = linkPlaceholder({ equipment, setups }, item, answer.device)
+    const { linked, merge } = linkPlaceholder({ equipment, setups }, item, answer.device, devices.find((d) => d.id === answer.device)?.name)
     // The placeholder first: until it carries the device id, the map would add the device again.
     await saveEquipment(linked)
     if (!merge) return
