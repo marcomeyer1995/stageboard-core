@@ -540,6 +540,15 @@ export interface VirtualPort {
   name: string
   signalClass: SignalClass
   input: boolean
+  /** Channels the signal has: 2 for the track, 1 for the click (absent: 1). The signal library
+   * (#740) makes this a property of the signal; until then `virtualPortWidth`. */
+  width?: number
+}
+
+/** How many channels a virtual port carries: the track is stereo, everything else mono (#744;
+ * a property of the signal once the signal library #740 exists). */
+export function virtualPortWidth(capability: CapabilityId): number {
+  return capability === CAPABILITIES.audioPlayback ? 2 : 1
 }
 
 /** One step of a signal's way: the cable, and where it enters and leaves the next device. */

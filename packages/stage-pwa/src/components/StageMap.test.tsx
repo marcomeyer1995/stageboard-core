@@ -238,6 +238,10 @@ describe('StageMap (docs/31 §7)', () => {
     fireEvent.click(screen.getByRole('switch', { name: 'Bearbeiten' }))
     tapNode('Pult')
     expect(screen.getByRole('group', { name: 'Routing von Pult' })).toBeInTheDocument()
+    // Groups are closed until opened (#744): the inputs as a column, the Aux outs as a row.
+    expect(screen.getByRole('switch', { name: 'Eingang · 0/16 → Aux · 0/4' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Eingang: auf- oder zuklappen' }))
+    fireEvent.click(screen.getAllByRole('button', { name: 'Aux: auf- oder zuklappen' })[0]!)
     fireEvent.click(screen.getByRole('switch', { name: 'Eingang 15 → Aux 1' }))
     expect(updateSetup).toHaveBeenCalledTimes(1)
     const [, patch] = updateSetup.mock.calls[0]!
@@ -256,14 +260,23 @@ describe('StageMap (docs/31 §7)', () => {
     render(<StageMap />)
     fireEvent.click(screen.getByRole('switch', { name: 'Bearbeiten' }))
     tapNode('Redmi')
+    // Smart matrix (#744): the stereo track dropped on the closed USB audio group takes channels 1 and 2.
+    fireEvent.click(screen.getByRole('switch', { name: 'Track → USB-C · Audio aus · 0/4' }))
+    expect(updateSetup).toHaveBeenCalledTimes(2)
+    const routedTo = (call: number) => updateSetup.mock.calls[call]![1](useStageMapStore.getState().setups[0]).routing[`device:${me}`]
+    expect(routedTo(0)).toContainEqual({ from: { kind: 'virtual', virtualPortId: 'track' }, to: { kind: 'port', portId: 'usb/audio-out', channel: 1 } })
+    expect(routedTo(1)).toContainEqual({ from: { kind: 'virtual', virtualPortId: 'track' }, to: { kind: 'port', portId: 'usb/audio-out', channel: 2 } })
+    // Opened, the single channels are there - four of them, from the interface's count.
+    fireEvent.click(screen.getAllByRole('button', { name: 'USB-C · Audio aus: auf- oder zuklappen' })[0]!)
     fireEvent.click(screen.getByRole('switch', { name: 'Track → USB-C · Audio aus 3' }))
-    const [, patch] = updateSetup.mock.calls[0]!
-    const after = patch(useStageMapStore.getState().setups[0])
-    expect(after.routing[`device:${me}`]).toContainEqual({ from: { kind: 'virtual', virtualPortId: 'track' }, to: { kind: 'port', portId: 'usb/audio-out', channel: 3 } })
+    expect(routedTo(2)).toContainEqual({ from: { kind: 'virtual', virtualPortId: 'track' }, to: { kind: 'port', portId: 'usb/audio-out', channel: 3 } })
     expect(screen.queryByRole('switch', { name: 'Track → USB-C · Audio aus 5' })).toBeNull()
+    // The headphone jack closed is the whole socket (as before); opened it offers L and R.
+    fireEvent.click(screen.getByRole('switch', { name: 'Klick → Kopfhörer · 1/3' }))
+    expect(routedTo(3)).not.toContainEqual({ from: { kind: 'virtual', virtualPortId: 'klick' }, to: { kind: 'port', portId: 'headphones' } })
+    fireEvent.click(screen.getAllByRole('button', { name: 'Kopfhörer: auf- oder zuklappen' })[0]!)
     fireEvent.click(screen.getByRole('switch', { name: 'Klick → Kopfhörer L' }))
-    const [, patch2] = updateSetup.mock.calls[1]!
-    expect(patch2(useStageMapStore.getState().setups[0]).routing[`device:${me}`]).toContainEqual({ from: { kind: 'virtual', virtualPortId: 'klick' }, to: { kind: 'port', portId: 'headphones', pin: 1 } })
+    expect(routedTo(4)).toContainEqual({ from: { kind: 'virtual', virtualPortId: 'klick' }, to: { kind: 'port', portId: 'headphones', pin: 1 } })
   })
 
   it('a cable: first its two ends and what runs on it, tapped again the whole way of each signal', () => {

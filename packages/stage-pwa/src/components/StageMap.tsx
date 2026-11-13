@@ -35,6 +35,7 @@ import {
   lookupPort,
   partChannels,
   type PortView,
+  virtualPortWidth,
 } from 'shared-types'
 import { getDeviceId } from '../lib/deviceId'
 import { stageMapDefaults } from '../lib/stageMapDefaults'
@@ -187,10 +188,10 @@ export function StageMap() {
   // The band's virtual ports: Klick, Track, Ansagen and every other Logical Device.
   const virtualPorts: VirtualPort[] = useMemo(
     () => [
-      ...DEFAULT_VIRTUAL_OUTPUTS.map((v) => ({ id: v.id, name: v.name, signalClass: virtualPortClass(v.capability), input: false })),
+      ...DEFAULT_VIRTUAL_OUTPUTS.map((v) => ({ id: v.id, name: v.name, signalClass: virtualPortClass(v.capability), input: false, width: virtualPortWidth(v.capability) })),
       ...logicalDevices
         .filter((d) => !BUILT_IN_CAPABILITIES.includes(d.capability))
-        .map((d) => ({ id: d.id, name: d.name, signalClass: virtualPortClass(d.capability), input: virtualPortIsInput(d.capability) })),
+        .map((d) => ({ id: d.id, name: d.name, signalClass: virtualPortClass(d.capability), input: virtualPortIsInput(d.capability), width: virtualPortWidth(d.capability) })),
     ],
     [logicalDevices],
   )
@@ -511,8 +512,9 @@ export function StageMap() {
   // socket also offers its pins ("Kopfhörer L" / "R"); and on a StageBoard device its virtual
   // sources (columns) and virtual inputs (rows).
   const matrixOf = (item: StageEquipment): { columns: MatrixLine[]; rows: MatrixLine[] } => {
+    // A channel group is one group of the smart matrix (#744), closed until opened.
     const perChannel = (portId: string, name: string, count: number, numbered: Port | undefined): MatrixLine[] =>
-      Array.from({ length: count }, (_, i) => ({ key: `${portId}#${i + 1}`, label: `${name} ${channelNumber(numbered, i + 1)}`, point: { kind: 'port' as const, portId, channel: i + 1 } }))
+      Array.from({ length: count }, (_, i) => ({ key: `${portId}#${i + 1}`, label: `${name} ${channelNumber(numbered, i + 1)}`, point: { kind: 'port' as const, portId, channel: i + 1 }, group: { key: portId, label: name } }))
     const lines = (side: 'in' | 'out'): MatrixLine[] =>
       item.ports.flatMap((p) => {
         if (p.parts) {
@@ -528,10 +530,12 @@ export function StageMap() {
         if (p.channels) return perChannel(p.id, p.name, p.channels, p)
         const whole: MatrixLine = { key: p.id, label: p.name, point: { kind: 'port' as const, portId: p.id } }
         const pins = p.pins ?? 1
-        return pins > 1 ? [whole, ...Array.from({ length: pins }, (_, i) => ({ key: `${p.id}.${i + 1}`, label: `${p.name}${pinText(i + 1)}`, point: { kind: 'port' as const, portId: p.id, pin: i + 1 } }))] : [whole]
+        // A stereo socket: closed it is the whole socket, open it offers the whole and each pin.
+        const group = { key: p.id, label: p.name, closedPoint: whole.point }
+        return pins > 1 ? [{ ...whole, label: t('map.wholeSocket', { name: p.name }), group }, ...Array.from({ length: pins }, (_, i) => ({ key: `${p.id}.${i + 1}`, label: `${p.name}${pinText(i + 1)}`, point: { kind: 'port' as const, portId: p.id, pin: i + 1 }, group }))] : [whole]
       })
     const virtualLines = (input: boolean): MatrixLine[] =>
-      DRIVER_KINDS.includes(item.kind) ? virtualPorts.filter((v) => v.input === input).map((v) => ({ key: `v:${v.id}`, label: v.name, point: { kind: 'virtual' as const, virtualPortId: v.id } })) : []
+      DRIVER_KINDS.includes(item.kind) ? virtualPorts.filter((v) => v.input === input).map((v) => ({ key: `v:${v.id}`, label: v.name, point: { kind: 'virtual' as const, virtualPortId: v.id }, ...(v.width ? { width: v.width } : {}) })) : []
     return {
       columns: [...virtualLines(false), ...lines('in')],
       rows: [...lines('out'), ...virtualLines(true)],
