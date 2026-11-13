@@ -19,6 +19,7 @@ export function StageWiring({
   nameOf,
   refText,
   signalName,
+  missingPlugins = [],
 }: {
   cables: readonly WiringCable[]
   issues: readonly StageIssue[]
@@ -26,6 +27,8 @@ export function StageWiring({
   nameOf: (equipmentId: string) => string
   refText: (ref: PortRef, width?: number) => string
   signalName: (virtualPortId: string) => string
+  /** Devices on stage whose plugin is not installed (#812) - their cues do nothing. */
+  missingPlugins?: readonly string[]
 }) {
   const { t } = useTranslation('hardware')
   const [open, setOpen] = useState(false)
@@ -67,7 +70,7 @@ export function StageWiring({
   }
   const byDevice = new Map<string, PortUse[]>()
   for (const u of use) if (u.used > 0) byDevice.set(u.equipmentId, [...(byDevice.get(u.equipmentId) ?? []), u])
-  const status = errors.length > 0 ? 'error' : warnings.length > 0 ? 'warning' : 'ok'
+  const status = errors.length > 0 || missingPlugins.length > 0 ? 'error' : warnings.length > 0 ? 'warning' : 'ok'
   return (
     <div className="mt-3 flex flex-col gap-3">
       <Button onClick={() => setOpen(!open)} aria-expanded={open}>
@@ -78,8 +81,14 @@ export function StageWiring({
       </Button>
       {open && (
         <div className="flex flex-col gap-4 rounded-container border border-line p-3">
-          {errors.length + warnings.length > 0 ? (
+          {errors.length + warnings.length + missingPlugins.length > 0 ? (
             <ul className="flex flex-col gap-1">
+              {missingPlugins.map((name) => (
+                <li key={`plugin:${name}`} className="flex items-start gap-2 text-base text-danger">
+                  <StatusDot status="error" />
+                  <span className="min-w-0">{t('wiring.pluginMissing', { name })}</span>
+                </li>
+              ))}
               {[...errors, ...warnings].map((i, k) => (
                 <li key={k} className={`flex items-start gap-2 text-base ${isWarning(i) ? 'text-warn' : 'text-danger'}`}>
                   <StatusDot status={isWarning(i) ? 'warning' : 'error'} />

@@ -38,6 +38,7 @@ import {
   wiringList,
   signalFlows as flowsOf,
   hasModelName,
+  pluginWiring,
   linkPlaceholder,
   mergeEquipmentInSetup,
   lookupPort,
@@ -915,5 +916,21 @@ describe('a linked device box is named after the device (#815, device test 2026-
     expect(linkPlaceholder(map, placeholder, 'fire-dev', 'Fire Dev').linked).toMatchObject({ deviceId: 'fire-dev', name: 'Fire Dev' })
     const named = equipmentFrom(tablet, 'ph2', 'Gitarre links')
     expect(linkPlaceholder(map, named, 'fire-dev', 'Fire Dev').linked.name).toBe('Gitarre links')
+  })
+})
+
+describe('pluginWiring: what one tap sets up for a device\'s plugin (#812)', () => {
+  it('the MIDI cable from the tablet, the matrix point on its USB, the port name by the plugin\'s pattern', () => {
+    const map = defaultStageMap([{ id: 'redmi', name: 'Redmi' }])
+    const setup = map.setups[0]!
+    map.equipment.push(equipmentFrom(BUILTIN_MODELS.find((m) => m.id === 'nux-mg30')!, 'mg30', 'NUX MG-30'))
+    setup.positions.mg30 = { x: 0, y: 0 }
+    setup.links.push({ id: 'usb', from: { equipmentId: 'mg30', portId: 'usb' }, to: { equipmentId: 'device:redmi', portId: 'usb' }, signals: ['usb-audio', 'midi'] })
+    expect(pluginWiring(map, setup.id, 'mg30', ['MG-30'], ['UMC204HD 192k', 'NUX MG-30'])).toEqual({ boxId: 'device:redmi', linkId: 'usb', to: { kind: 'port', portId: 'usb/midi-out' }, midiName: 'NUX MG-30' })
+    // A port name already on the cable stays; no cable, nothing to set up.
+    setup.links.find((l) => l.id === 'usb')!.midiName = 'Mein MG'
+    expect(pluginWiring(map, setup.id, 'mg30', ['MG-30'], ['NUX MG-30'])?.midiName).toBe('Mein MG')
+    setup.links.length = 0
+    expect(pluginWiring(map, setup.id, 'mg30', ['MG-30'])).toBeNull()
   })
 })
