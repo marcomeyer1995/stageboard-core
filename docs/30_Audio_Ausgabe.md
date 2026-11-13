@@ -223,6 +223,17 @@ Anlass: Marcos Konzept „Cross-Platform Core Audio Engine“ (getrennter Audio-
 
 **Erste Aufgabe:** auf dem **Fire** (schwächstes Gerät) messen, ob **6 Opus-Spuren gleichzeitig** (Track + Stems) mit Reserve dekodiert werden – vor der Festlegung von Stufe 4.
 
+**Gemessen 2026-11-10** (`OpusBenchPlugin`, Androids eigener Opus-Decoder = libopus, ein echter Track 207 s / 160 kbps, so schnell wie möglich dekodiert; Branch `bench/opus-decode`):
+
+| Gerät | Spuren | Dauer | schneller als Echtzeit (je Spur) | Rechenzeit je Spur |
+|---|---|---|---|---|
+| Fire (OMX.google.opus) | 1 | 7,0 s | 30× | 3,4 % eines Kerns |
+| Fire | 6 | 17,0 s | 12× | 4,4 % eines Kerns |
+| Redmi (c2.android.opus), gesperrt, mit Dienst | 1 | 33 s | 6× | ~16 % eines Kerns |
+| Redmi, gesperrt, mit Dienst | 6 | 36,7 s | 5,7× | 10,5 % eines Kerns |
+
+Ergebnis: **6 Opus-Spuren gehen auf beiden mit großer Reserve** (Fire ~¼ Kern, Redmi ~⅔ Kern von 8). Das Redmi ist je Spur langsamer (gesperrt kleine Kerne, niedriger Takt), skaliert aber fast verlustfrei über die Kerne – 6 Spuren dauern kaum länger als 1. Nebenbefund: bei gesperrtem Bildschirm kommen Antworten von Capacitor-Plugins nicht in JS an (#724) – das Ergebnis wurde deshalb aus dem Logcat gelesen.
+
 ### 8i. Fehler 2026-11-10: 32-Bit-Frame-Position nach 12,4 h
 
 Der Fire (Android 9, AAudio über den alten AudioTrack-Weg) meldet die Frame-Position nur 32 Bit breit; nach 2³¹ Frames (12,4 h bei 48 kHz) lief sie über, die Ausgabe rechnete mit 2³² Frames Versatz (Latenz **89.478.694 ms**) und spielte nichts mehr. Sichtbar geworden, weil ein Vordergrund-Dienst die App über Nacht wach hielt. Behoben in #722 (Abstand modulo 2³²). Lehre für die Engine: jeden Wert vom Betriebssystem auf Plausibilität prüfen und melden, Dauertest ≥ 24 h.
