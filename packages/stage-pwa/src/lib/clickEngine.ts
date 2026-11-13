@@ -2,6 +2,7 @@ import type { ClickTimeline } from './beatGrid'
 import { audioClockPrecise, audioPerWall, sharedAudioClock } from './audioClock'
 import { __resetSharedAudioContextForTests, getSharedAudioContext } from './sharedAudioContext'
 import { sourceOutput } from './audioMix'
+import type { TransportState } from './playbackTransport'
 
 /** How far ahead (ms) each tick schedules oscillators - the standard "look-ahead scheduler"
  * window (per Chris Wilson's "A Tale of Two Clocks", the reference technique for precise Web
@@ -41,6 +42,13 @@ export interface ClickEngineState {
    * boundary, nothing of the old song is queued past it. `id` tells two jumps between the same
    * points apart (a looped section jumps back the same way every pass). */
   jump?: { id: number; boundaryMs: number; toMs: number; rate?: number } | null
+  /** The clock the transport's times are on - the server's in the Gig (getServerTime), this
+   * device's own in Solo Üben (Date.now). The engine core places the transport on it; absent: the
+   * server's. clickEngine.ts needs none - it follows `elapsedMs`. */
+  transportNow?: () => number
+  /** The transport itself - the engine core (engine/engineClick.ts) follows it directly instead of
+   * polling `elapsedMs`. Unused here. */
+  transport?: TransportState
 }
 
 let intervalId: ReturnType<typeof setInterval> | null = null
