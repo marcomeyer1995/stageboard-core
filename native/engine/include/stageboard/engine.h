@@ -51,10 +51,10 @@ class Engine {
   bool setBeats(BeatPlan* plan);
   /**
    * Places clip `id` (0..kMaxClips-1) so its first frame sounds at song time `songStartMs`; takes
-   * ownership of `data` (mono or stereo, any rate - resampled to the output). Replaces what had
-   * that id.
+   * ownership of `data` (mono or stereo, any rate - resampled to the output; in memory or a
+   * StreamedClip). Replaces what had that id.
    */
-  bool setClip(int id, ClipData* data, double songStartMs, Bus bus, float gain = 1);
+  bool setClip(int id, ClipSource* data, double songStartMs, Bus bus, float gain = 1);
   bool removeClip(int id);
   bool setClipGain(int id, float gain);
   bool setGain(Bus bus, float gain);
@@ -63,6 +63,12 @@ class Engine {
   bool observeClock(int64_t frame, double bandMs);
   /** Deletes what the audio thread no longer uses. */
   void collectGarbage();
+  /**
+   * Decodes a bounded piece for every streamed clip (StreamedClip) - call it often (every ~10 ms)
+   * from the control thread, e.g. a decoding thread that also makes the other calls. A clip in
+   * memory needs none of it.
+   */
+  void pump();
 
   /**
    * Audio thread: fills `frames` interleaved frames, the first of which is output frame
@@ -85,7 +91,7 @@ class Engine {
     enum class Type { Transport, Beats, Clip, RemoveClip, ClipGain, Gain, MasterGain, Clock } type;
     Transport transport;
     BeatPlan* plan;
-    ClipData* clip;
+    ClipSource* clip;
     int id;
     double songStartMs;
     int bus;
@@ -103,14 +109,14 @@ class Engine {
 
   struct ClipSlot {
     ClipVoice voice;
-    ClipData* data = nullptr;
+    ClipSource* data = nullptr;
     double songStartMs = 0;
     int bus = 0;
     float gain = 1;
   };
 
   void apply(const Command& command);
-  void retire(ClipData* data);
+  void retire(ClipSource* data);
   void renderBlock(float* out, int frames, int64_t firstFrame);
   int segments(int frames, int64_t firstFrame, Segment* out) const;
   void scheduleClicks(const Segment& segment, int64_t firstFrame);
@@ -120,7 +126,17 @@ class Engine {
   int channels_;
   SpscQueue<Command, 256> commands_;
   SpscQueue<BeatPlan*, 64> retiredPlans_;
-  SpscQueue<ClipData*, 128> retiredClips_;
+  SpscQueue<ClipSource*, 128> retiredClips_;
+
+  // Control thread only: the clips as handed over - who to pump, where a jump lands in each.
+  struct Handed {
+    ClipSource* data = nullptr;
+    double songStartMs = 0;
+  };
+  Handed handed_[kMaxClips];
+  /** The last transport handed over - a clip set after it learns where to start and jump too. */
+  Transport handedTransport_;
+  void prefetch(const Handed& clip, const Transport& transport);
 
   // Audio thread only.
   Transport transport_;
@@ -138,6 +154,7 @@ class Engine {
   Limiter limiter_;
   static constexpr int kMaxBlock = 2048;
   float click_[kMaxBlock];
+  float clipScratch_[kMaxBlock * kMaxChannels];
   float bus_[kBuses][kMaxBlock * kMaxChannels];
 };
 

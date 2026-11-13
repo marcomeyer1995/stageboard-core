@@ -534,6 +534,7 @@ int main() {
   testClipBusesAndSwap();
   runOpusClipTests();
   runResampleTests();
+  runStreamClipTests();
   if (failures) {
     std::printf("%d check(s) failed\n", failures);
     return 1;

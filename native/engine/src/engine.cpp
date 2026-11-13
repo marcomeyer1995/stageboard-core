@@ -31,7 +31,26 @@ bool Engine::setTransport(const Transport& transport) {
   Command command{};
   command.type = Command::Type::Transport;
   command.transport = transport;
-  return commands_.push(command);
+  if (!commands_.push(command)) return false;
+  handedTransport_ = transport;
+  for (const Handed& h : handed_)
+    if (h.data) prefetch(h, transport);
+  return true;
+}
+
+void Engine::prefetch(const Handed& h, const Transport& transport) {
+  // Where the song starts (its position when this run began) and where it goes next: a queued
+  // jump's target - or, standing, where Play will start. Running without a jump the clips follow
+  // the voice themselves.
+  const bool running = transport.status == PlaybackStatus::Playing;
+  const double nextMs = transport.hasJump ? transport.jumpToMs : running ? NAN : transport.accumulatedMs;
+  const auto frame = [&](double songMs) { return static_cast<long>(std::floor((songMs - h.songStartMs) * h.data->rate / 1000)); };
+  h.data->prefetch(frame(transport.accumulatedMs), std::isnan(nextMs) ? -1 : frame(nextMs));
+}
+
+void Engine::pump() {
+  for (const Handed& h : handed_)
+    if (h.data) h.data->pump();
 }
 
 bool Engine::setBeats(BeatPlan* plan) {
@@ -43,7 +62,7 @@ bool Engine::setBeats(BeatPlan* plan) {
   return false;
 }
 
-bool Engine::setClip(int id, ClipData* data, double songStartMs, Bus bus, float gain) {
+bool Engine::setClip(int id, ClipSource* data, double songStartMs, Bus bus, float gain) {
   if (id < 0 || id >= kMaxClips || !data || data->rate <= 0 || data->channels < 1 || data->channels > 2) {
     delete data;
     return false;
@@ -57,9 +76,13 @@ bool Engine::setClip(int id, ClipData* data, double songStartMs, Bus bus, float 
   command.songStartMs = songStartMs;
   command.bus = static_cast<int>(bus);
   command.gain = gain;
-  if (commands_.push(command)) return true;
-  delete data;
-  return false;
+  if (!commands_.push(command)) {
+    delete data;
+    return false;
+  }
+  handed_[id] = {data, songStartMs};
+  prefetch(handed_[id], handedTransport_);
+  return true;
 }
 
 bool Engine::removeClip(int id) {
@@ -67,7 +90,9 @@ bool Engine::removeClip(int id) {
   Command command{};
   command.type = Command::Type::RemoveClip;
   command.id = id;
-  return commands_.push(command);
+  if (!commands_.push(command)) return false;
+  handed_[id] = {};
+  return true;
 }
 
 bool Engine::setClipGain(int id, float gain) {
@@ -105,11 +130,11 @@ bool Engine::observeClock(int64_t frame, double bandMs) {
 void Engine::collectGarbage() {
   BeatPlan* plan;
   while (retiredPlans_.pop(plan)) delete plan;
-  ClipData* clip;
+  ClipSource* clip;
   while (retiredClips_.pop(clip)) delete clip;
 }
 
-void Engine::retire(ClipData* data) {
+void Engine::retire(ClipSource* data) {
   // Nothing is freed on the audio thread. If the way back is full (the control thread hasn't
   // collected for a long time) the memory is lost rather than freed here - it never happens in use.
   if (data) retiredClips_.push(data);
@@ -224,23 +249,30 @@ void Engine::renderBlock(float* out, int frames, int64_t firstFrame) {
   for (ClipSlot& slot : clips_) {
     if (!slot.data) continue;
     const double framesPerMs = slot.data->rate / 1000;  // the clip's own frames
-    float* bus = bus_[slot.bus];
+    // Into a scratch buffer first: a streamed clip's piece that was read while its window moved is
+    // dropped, not mixed.
+    std::memset(clipScratch_, 0, sizeof(float) * width);
+    bool intact = true;
     if (!playing) {
-      slot.voice.render(bus, frames, channels_, false, 0, 0, slot.gain);
-      continue;
+      intact = slot.voice.render(clipScratch_, frames, channels_, false, 0, 0, slot.gain);
+    } else {
+      for (int p = 0; p < count; ++p) {
+        const Segment& s = parts[p];
+        const int from = static_cast<int>(std::ceil(s.from));
+        const int to = p + 1 < count ? static_cast<int>(std::ceil(s.to)) : frames;
+        if (to <= from) continue;
+        // Source positions at the segment's first frame and just after its last.
+        const double perFrame = (s.songTo - s.songFrom) / (s.to - s.from);
+        const double songAtFrom = s.songFrom + (from - s.from) * perFrame;
+        const double songAtTo = s.songFrom + (to - s.from) * perFrame;
+        intact = slot.voice.render(clipScratch_ + static_cast<size_t>(from) * static_cast<size_t>(channels_), to - from, channels_, true,
+                                   (songAtFrom - slot.songStartMs) * framesPerMs, (songAtTo - slot.songStartMs) * framesPerMs, slot.gain) &&
+                 intact;
+      }
     }
-    for (int p = 0; p < count; ++p) {
-      const Segment& s = parts[p];
-      const int from = static_cast<int>(std::ceil(s.from));
-      const int to = p + 1 < count ? static_cast<int>(std::ceil(s.to)) : frames;
-      if (to <= from) continue;
-      // Source positions at the segment's first frame and just after its last.
-      const double perFrame = (s.songTo - s.songFrom) / (s.to - s.from);
-      const double songAtFrom = s.songFrom + (from - s.from) * perFrame;
-      const double songAtTo = s.songFrom + (to - s.from) * perFrame;
-      slot.voice.render(bus + static_cast<size_t>(from) * static_cast<size_t>(channels_), to - from, channels_, true,
-                        (songAtFrom - slot.songStartMs) * framesPerMs, (songAtTo - slot.songStartMs) * framesPerMs, slot.gain);
-    }
+    if (!intact) continue;
+    float* bus = bus_[slot.bus];
+    for (size_t i = 0; i < width; ++i) bus[i] += clipScratch_[i];
   }
 
   const int click = static_cast<int>(Bus::Click);
