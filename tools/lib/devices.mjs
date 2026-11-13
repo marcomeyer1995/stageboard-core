@@ -9,10 +9,12 @@ const here = dirname(fileURLToPath(import.meta.url))
 export const DEVICES_FILE = process.env.SB_DEVICES ?? join(here, '..', 'devices.json')
 
 /**
- * @typedef {{ name: string, serial: string, port: number, volume?: 'media' | 'keys' | 'session', app?: string }} Device
+ * @typedef {{ name: string, serial: string, port: number, volume?: 'media' | 'keys' | 'session', app?: string, model?: string, sizes?: 'all' }} Device
  * `port`: the local port the app's DevTools socket is forwarded to. `volume`: how media volume
  * really changes on that device (see tools/device/README.md). `app`: the package (default: the
- * dev app).
+ * dev app). `model`: the adb model (`adb devices -l`, e.g. 24075RP89G) - with it the device is
+ * found whatever its serial is now: wireless adb ports change on every restart. `sizes: 'all'`:
+ * the test runner's reference device for every screen size (the others: their own, turned round).
  */
 
 /** @returns {Device[]} */
@@ -80,4 +82,32 @@ export function setVolume(d, level) {
     for (let i = 0; i < level; i++) sh(d, 'input keyevent KEYCODE_VOLUME_UP')
   }
   return readVolume(d)
+}
+
+/** The serials adb sees right now with their model (`adb devices -l`). */
+export function attached() {
+  let out = ''
+  try {
+    out = execFileSync('adb', ['devices', '-l'], { encoding: 'utf8', timeout: 20000 })
+  } catch {
+    return []
+  }
+  return out
+    .split('\n')
+    .slice(1)
+    .map((line) => line.trim().split(/\s+/))
+    .filter((cols) => cols[1] === 'device')
+    .map((cols) => ({ serial: cols[0], model: (cols.find((c) => c.startsWith('model:')) ?? '').slice(6) }))
+}
+
+/**
+ * The device with the serial it has now: its own serial when adb sees it, else the attached one
+ * with its `model` (a USB serial first, then wireless). Null when it is not there.
+ */
+export function resolveDevice(d, seen = attached()) {
+  if (seen.some((a) => a.serial === d.serial)) return d
+  if (!d.model) return null
+  const same = seen.filter((a) => a.model === d.model)
+  const pick = same.find((a) => !a.serial.includes(':')) ?? same[0]
+  return pick ? { ...d, serial: pick.serial } : null
 }
