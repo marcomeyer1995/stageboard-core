@@ -265,7 +265,8 @@ function DraggableSongRow({
         <button
           type="button"
           onClick={onClick}
-          className="min-h-form min-w-0 flex-1 truncate px-2 text-left text-base"
+          // Wraps instead of "…": title, artist and note are read in full on every size (#829).
+          className="min-h-form min-w-0 flex-1 px-2 py-1 text-left text-base [overflow-wrap:anywhere]"
         >
           {song.title || t('untitled')}
           {song.artist && <span className={selected ? '' : 'text-ink-faint'}> — {song.artist}</span>}
