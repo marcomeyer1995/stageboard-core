@@ -1,16 +1,17 @@
 import { useTranslation } from 'react-i18next'
-import { useMemo, useState } from 'react'
+import { useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { isSongEntry } from 'shared-types'
 import { Icon } from '../components/Icon'
 import { Segmented } from '../components/ui'
 import { clickTimeline } from '../lib/beatGrid'
 import { songDurationMs } from '../lib/entryDuration'
 import { adjustedBpm } from '../lib/metronome'
-import { cancelSectionJump, queueSectionJump, setSectionLoop } from '../lib/sectionJump'
+import { cancelSectionJump, practiceStartAt, queueSectionJump, setSectionLoop } from '../lib/sectionJump'
 import { useShowModeCore } from '../lib/showMode'
 import { useFrameValue } from '../lib/useFrameValue'
 import { sectionIndexAt, showSections, type JumpWhen, type ShowSection } from '../lib/showSections'
 import { useShowPart } from '../lib/widgetParts'
+import { useElementSize } from '../lib/useElementSize'
 import { JumpCrossfadeSetting } from '../components/JumpCrossfadeSetting'
 
 const WHEN_KEY = 'sb:section-jump-when'
@@ -24,6 +25,7 @@ function storedWhen(): JumpWhen {
 }
 
 const BUTTON = 'min-h-touch rounded-control px-4 font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-40'
+
 
 /**
  * Abschnitte (#479): the song's sections from its timeline parts. The master taps one - the band
@@ -39,6 +41,13 @@ export function SectionJumpWidget() {
   const [when, setWhen] = useState<JumpWhen>(storedWhen)
   const showWhen = useShowPart('when')
   const showLoop = useShowPart('loop')
+  // Too low for its rows (a phone dashboard gave it 49 px, #829): only the section buttons, the
+  // full height - a dashboard never scrolls, and a cut-off button is no button. Measured, not a
+  // fixed height: stage buttons are bigger on a tablet. For each height the full widget is tried
+  // once; if it overflows, it turns compact for that height.
+  const [boxRef, box] = useElementSize()
+  const rootRef = useRef<HTMLDivElement | null>(null)
+  const [fit, setFit] = useState({ key: '', compact: false })
   const [message, setMessage] = useState<string | null>(null)
 
   const { currentEntry, currentSong, currentVariant } = queue
@@ -59,6 +68,14 @@ export function SectionJumpWidget() {
   const content = song?.chordProContent ?? ''
   const sections = useMemo(() => (timeline ? showSections(content, timeline, durationMs) : []), [content, timeline, durationMs])
 
+  // Measured again for another height or another number of sections (a new song).
+  const fitKey = `${box.height}|${sections.length}`
+  const compact = fit.key === fitKey && fit.compact
+  useLayoutEffect(() => {
+    const root = rootRef.current
+    if (!root || box.height === 0 || fit.key === fitKey) return
+    setFit({ key: fitKey, compact: root.scrollHeight > root.clientHeight + 1 })
+  }, [box.height, fit.key, fitKey])
   const playing = playbackStatus === 'playing' && elapsedNow() !== null
   // Re-renders when the song enters another section, not every frame (#457). Before the early
   // return below - a hook after it crashed the app when a song without sections came first.
@@ -71,11 +88,17 @@ export function SectionJumpWidget() {
     return <p className="flex h-full items-center justify-center text-center text-ink-faint">{t('sj.none')}</p>
   }
   const current: ShowSection | undefined = sections[currentIndex]
-  const canJump = isMaster && playing
+  // Solo also from a stop: the tap sets where Play starts (#817).
+  const startPoint = mode === 'practice' && !playing
+  const canJump = (isMaster && playing) || startPoint
 
   async function tap(section: ShowSection) {
     if (!timeline) return
     setMessage(null)
+    if (startPoint) {
+      practiceStartAt(section.startMs)
+      return
+    }
     if (jump && jump.toMs === section.startMs) {
       await cancelSectionJump()
       return
@@ -99,13 +122,31 @@ export function SectionJumpWidget() {
       ? t('sj.repeating', { name: loop.label ?? t('w.section') })
       : !isMaster && mode === 'gig'
         ? t('sj.masterOnly')
-        : !playing
-          ? t('sj.whilePlaying')
+        : startPoint
+          ? t('sj.startPoint')
+          : !playing
+            ? t('sj.whilePlaying')
           : null
 
   return (
-    <div className="flex h-full flex-col gap-2 overflow-y-auto">
-      <div className="flex flex-wrap gap-2" role="group" aria-label={t('sj.aria')}>
+    <div
+      ref={(node) => {
+        boxRef(node)
+        rootRef.current = node
+      }}
+      className={`flex h-full flex-col gap-2 ${compact ? 'overflow-hidden' : 'overflow-y-auto'}`}
+    >
+      <div
+        // Compact: a grid that wraps and shares the tile's height between its rows - one squeezed row
+        // cut the names of a song with six sections ("Intr", "Chc"; test runner, 2026-11-13).
+        className={compact ? 'grid h-full gap-2' : 'flex flex-wrap gap-2'}
+        // 88 px, not rem: the stage font made 7.5 rem wider than half a tile - one column of eleven
+        // 9 px rows. Rows share the height, never more than they get.
+        style={compact ? { gridTemplateColumns: 'repeat(auto-fit, minmax(88px, 1fr))', gridAutoRows: 'minmax(0, 1fr)' } : undefined}
+        role="group"
+        aria-label={t('sj.aria')}
+        title={compact ? (message ?? status ?? undefined) : undefined}
+      >
         {sections.map((section, index) => {
           const queued = jump?.toMs === section.startMs
           const isCurrent = index === currentIndex
@@ -117,7 +158,8 @@ export function SectionJumpWidget() {
               aria-pressed={queued}
               aria-current={isCurrent ? 'true' : undefined}
               onClick={() => void tap(section)}
-              className={`${BUTTON} flex-1 ${queued ? 'bg-accent text-accent-ink' : 'bg-control-strong text-ink [@media(hover:hover)]:hover:bg-control-strong-hover'} ${
+              // Compact: the tile's height, not the 56 px stage minimum it cannot hold (#829).
+              className={`${compact ? `${BUTTON.replace('min-h-touch ', '')} h-full min-h-0 px-2 [overflow-wrap:anywhere]` : `${BUTTON} flex-1`} ${queued ? 'bg-accent text-accent-ink' : 'bg-control-strong text-ink [@media(hover:hover)]:hover:bg-control-strong-hover'} ${
                 isCurrent ? 'outline outline-2 -outline-offset-2 outline-accent' : ''
               }`}
             >
@@ -127,7 +169,7 @@ export function SectionJumpWidget() {
           )
         })}
       </div>
-      {(showWhen || showLoop) && isMaster && (
+      {!compact && (showWhen || showLoop) && isMaster && (
         <div className="flex flex-wrap items-center gap-2">
           {showWhen && (
             <div className="min-w-[14rem] flex-1">
@@ -157,7 +199,7 @@ export function SectionJumpWidget() {
           )}
         </div>
       )}
-      {(message ?? status) && <p className="text-ink-faint">{message ?? status}</p>}
+      {!compact && (message ?? status) && <p className="text-ink-faint">{message ?? status}</p>}
     </div>
   )
 }
