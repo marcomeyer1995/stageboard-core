@@ -1,5 +1,5 @@
 """Writes the track format, Ogg Opus at 48 kHz stereo (docs/30 §8h), with PyAV - shared by
-stem_separate.py and to_opus.py."""
+stem_separate.py."""
 from fractions import Fraction
 
 import av

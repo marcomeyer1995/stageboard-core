@@ -34,8 +34,6 @@ vi.mock('./audioStore.js', async (importOriginal) => ({
 }))
 
 vi.mock('./stems/stemSeparation.js', () => ({ runStemSeparation: vi.fn() }))
-// No PyAV venv unless a test says so: downloads without Opus are kept as they came.
-vi.mock('./stems/toOpus.js', () => ({ toOpusAvailable: vi.fn(() => false), convertToOpus: vi.fn() }))
 
 import { runYtDlpExtract } from './ytDlp.js'
 import { deleteAudioFile, writeAudioFile } from './audioStore.js'
@@ -72,6 +70,12 @@ describe('pickNextQueuedJob', () => {
 
   it('ignores jobs that are not queued', () => {
     expect(pickNextQueuedJob([job({ status: 'running' }), job({ status: 'done' }), job({ status: 'error' })])).toBeUndefined()
+  })
+
+  it('leaves a conversion to Opus to the devices (#822)', () => {
+    const convert = { id: 'c', type: 'opus-convert' as const, status: 'queued' as const, progress: 0, createdAt: 1, updatedAt: 1, variantId: 'v', trackId: 't', label: 'x' }
+    expect(pickNextQueuedJob([convert, job({ id: 'yt', createdAt: 2 })])?.id).toBe('yt')
+    expect(stuckRunningJobs([{ ...convert, status: 'running' }], null)).toEqual([])
   })
 
   it('returns undefined for an empty list', () => {
@@ -185,36 +189,18 @@ describe('createAsyncJobWatcher', () => {
     expect(variant.tracks[0]).toMatchObject({ mimeType: 'audio/ogg', sizeBytes: stored.length })
   })
 
-  it('encodes a download without Opus to Ogg Opus when the venv is there, else keeps it', async () => {
-    const { convertToOpus, toOpusAvailable } = await import('./stems/toOpus.js')
-    vi.mocked(toOpusAvailable).mockReturnValueOnce(true)
-    vi.mocked(convertToOpus).mockImplementationOnce(async (input) => {
-      expect(input).toMatch(/track\.m4a$/)
-      return Buffer.from('OggS-encoded')
-    })
+  it('keeps a download without Opus as it came and queues its conversion for a device (#822)', async () => {
     ytDlpSucceeds()
     store.set('song-variants:variant-1', { _id: 'song-variants:variant-1', tracks: [] })
     putJob({})
     const watcher = createAsyncJobWatcher({ couch, workspaceId: 'ws', log })
     await vi.waitFor(() => expect(storedJob('job-1')?.status).toBe('done'))
     watcher.stop()
-    const variant = store.get('song-variants:variant-1') as { tracks: Array<{ mimeType?: string }> }
-    expect(variant.tracks[0]).toMatchObject({ mimeType: 'audio/ogg' })
-    expect(writeAudioFile).toHaveBeenCalledWith('variant-1', storedJob('job-1')?.trackId, Buffer.from('OggS-encoded'))
-  })
-
-  it('keeps the download when encoding fails - the band still has its track', async () => {
-    const { convertToOpus, toOpusAvailable } = await import('./stems/toOpus.js')
-    vi.mocked(toOpusAvailable).mockReturnValueOnce(true)
-    vi.mocked(convertToOpus).mockRejectedValueOnce(new Error('Umwandeln nach Opus fehlgeschlagen (Code 1)'))
-    ytDlpSucceeds()
-    store.set('song-variants:variant-1', { _id: 'song-variants:variant-1', tracks: [] })
-    putJob({})
-    const watcher = createAsyncJobWatcher({ couch, workspaceId: 'ws', log })
-    await vi.waitFor(() => expect(storedJob('job-1')?.status).toBe('done'))
-    watcher.stop()
+    const trackId = storedJob('job-1')?.trackId
     expect((store.get('song-variants:variant-1') as { tracks: Array<{ mimeType?: string }> }).tracks[0]).toMatchObject({ mimeType: 'audio/mp4' })
-    expect(log.error).toHaveBeenCalledWith('YouTube audio kept as downloaded (encoding to Opus failed)', expect.objectContaining({ jobId: 'job-1' }))
+    const convert = [...store.values()].find((doc) => (doc as { type?: string }).type === 'opus-convert') as Record<string, unknown> | undefined
+    expect(convert).toMatchObject({ type: 'opus-convert', status: 'queued', variantId: 'variant-1', trackId, label: 'YouTube Referenz' })
+    expect(convert?.runner).toBeUndefined()
   })
 
   it('fails the job without downloading when the variant does not exist, and never creates a stub variant', async () => {

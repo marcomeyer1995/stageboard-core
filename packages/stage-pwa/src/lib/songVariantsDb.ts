@@ -119,6 +119,12 @@ export async function putTrack(variantId: string, meta: TrackMeta, file: Blob): 
   await putVariant({ ...current, tracks })
 }
 
+/** A track's metadata as stored now, or null. */
+export async function getTrackMeta(variantId: string, trackId: string): Promise<TrackMeta | null> {
+  const variant = await getVariantsDb().get(variants.docId(variantId)).catch(() => null)
+  return variant?.tracks.find((t) => t.id === trackId) ?? null
+}
+
 /** Local cache first, then the Stage-Server. `null` covers both "no such track" and
  * "not cached and currently unreachable" - the caller can't tell those apart, and for
  * playback purposes it doesn't need to. A track fetched here gets cached unconditionally,

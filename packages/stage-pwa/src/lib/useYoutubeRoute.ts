@@ -29,7 +29,8 @@ export function useYoutubeRoute(wanted: boolean, where: YoutubeWhere = 'auto'): 
     // Once per app session: what this device was running when it last stopped, nothing finishes.
     if (!leftoversCleared) {
       leftoversCleared = true
-      for (const job of leftoverDeviceJobs(useAsyncJobsStore.getState().jobs, getDeviceId(), activeDeviceJobs)) {
+      // A conversion to Opus goes back to the queue instead (useOpusConvertJobs).
+      for (const job of leftoverDeviceJobs(useAsyncJobsStore.getState().jobs, getDeviceId(), activeDeviceJobs).filter((j) => j.type !== 'opus-convert')) {
         void putAsyncJob({ ...job, status: 'error', error: 'interrupted', errorCode: 'youtube.interrupted', updatedAt: Date.now() }).catch(() => {})
       }
     }
