@@ -26,6 +26,14 @@ double middleMean(double* v, int n) {
 
 ClockMap::ClockMap(double sampleRate, Options options) : options_(options), nominalMsPerFrame_(1000.0 / sampleRate) {}
 
+void ClockMap::restartWindow(int64_t frame, double bandMs) {
+  anchorAt(frame, bandMs);
+  count_ = 0;
+  off_ = 0;
+  holdDrift_ = driftKnown_;
+  push(frame, bandMs);
+}
+
 void ClockMap::anchorAt(int64_t frame, double bandMs) {
   anchorFrame_ = frame;
   anchorBandMs_ = bandMs;
@@ -58,10 +66,7 @@ void ClockMap::observe(int64_t frame, double bandMs) {
     // The first observation - or the frame count went back (the output restarted): start over.
     if (valid_) ++jumps_;
     valid_ = true;
-    anchorAt(frame, bandMs);
-    count_ = 0;
-    off_ = 0;
-    push(frame, bandMs);
+    restartWindow(frame, bandMs);
     return;
   }
   const double predicted = bandMsAt(static_cast<double>(frame));
@@ -78,10 +83,7 @@ void ClockMap::observe(int64_t frame, double bandMs) {
     // describe the old clock; the learned drift stays.
     ++jumps_;
     outliers_ -= options_.confirmations - 1;
-    anchorAt(frame, bandMs);
-    count_ = 0;
-    off_ = 0;
-    push(frame, bandMs);
+    restartWindow(frame, bandMs);
     return;
   }
   off_ = 0;
@@ -90,7 +92,8 @@ void ClockMap::observe(int64_t frame, double bandMs) {
   // From here the map runs on from where it stands now - no step at this frame.
   anchorAt(frame, predicted);
   const double span = static_cast<double>(frame - at(0).frame) * nominalMsPerFrame_;
-  if (span >= options_.minSpanMs) {
+  if (span >= (holdDrift_ ? options_.refitSpanMs : options_.minSpanMs)) {
+    holdDrift_ = false;
     const double maxRatio = options_.maxDriftPpm * 1e-6;
     ratio_ = std::clamp(fittedRatio(), 1 - maxRatio, 1 + maxRatio);
     driftKnown_ = true;

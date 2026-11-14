@@ -52,13 +52,18 @@ interface NativeOutputStatus {
   /** Streamed clips: pieces with frames missing (decoder behind, unannounced jump) / dropped (§8i). */
   engineMissingReads?: number
   engineBrokenReads?: number
+  /** 'usb': the own USB driver plays (docs/28 §4); absent: AAudio. */
+  path?: 'usb'
+  /** The interface's real rate from its feedback endpoint, Hz. */
+  usbRate?: number
+  usbDisconnected?: boolean
   /** No timestamp from Android: playing on an estimated one - on time only roughly (2026-11-12). */
   estimated?: boolean
 }
 
 interface NativeOutputPlugin {
   /** Opens the stream and the loopback WebSocket the frames go to (`ws://127.0.0.1:port/token`). */
-  start(options: { sampleRate: number; lowLatency?: boolean }): Promise<{ started?: boolean; error?: string; performance?: string; framesPerBurst?: number; port: number; token: string }>
+  start(options: { sampleRate: number; lowLatency?: boolean; usb?: boolean }): Promise<{ started?: boolean; error?: string; path?: 'usb'; usbError?: string; performance?: string; framesPerBurst?: number; port: number; token: string }>
   status(): Promise<NativeOutputStatus>
   stop(): Promise<void>
   engineEnable(options: { on: boolean }): Promise<void>
@@ -72,8 +77,12 @@ interface NativeOutputPlugin {
   clipCommit(options: { id: number; songStartMs: number; bus: number; gain: number }): Promise<{ error: string }>
   clipRemove(options: { id: number }): Promise<void>
   clipGain(options: { id: number; gain: number }): Promise<void>
+  /** Whether a USB audio interface is plugged in. */
+  usbPresent(): Promise<{ present: boolean }>
   /** An output device was added or removed (USB interface, headphones, Bluetooth). */
   addListener(event: 'outputDevicesChanged', listener: () => void): Promise<{ remove: () => Promise<void> }>
+  /** A USB audio interface was plugged in - told at once, before Android's audio side takes it up. */
+  addListener(event: 'usbAttached', listener: (event: { resumed?: boolean }) => void): Promise<{ remove: () => Promise<void> }>
 }
 
 const NativeOutput = registerPlugin<NativeOutputPlugin>('NativeOutput')
@@ -189,6 +198,10 @@ interface NativeOutputStore {
   /** The stream was opened again this run: it came up broken (timestamp jumps piling up), or an
    * output device came or went (#837) - for the diagnosis. */
   reopened: { at: number; reason: 'broken' | 'device' }[]
+  /** The own USB driver plays (docs/28 §4) - not AAudio. */
+  usb: boolean
+  /** Why the own USB driver was wanted but AAudio plays (permission denied, no output alt setting, …). */
+  usbError: string | null
   setWanted: (wanted: boolean) => void
 }
 
@@ -210,6 +223,8 @@ export const useNativeOutputStore = create<NativeOutputStore>((set) => ({
   error: null,
   fellBack: null,
   reopened: [],
+  usb: false,
+  usbError: null,
   setWanted: (wanted) => {
     try {
       localStorage.setItem(SWITCH_KEY, wanted ? '1' : '0')
@@ -219,6 +234,36 @@ export const useNativeOutputStore = create<NativeOutputStore>((set) => ({
     set({ wanted })
   },
 }))
+
+/**
+ * The own USB driver instead of AAudio when a USB audio interface is plugged in (docs/28 §4, #837) -
+ * on by default for testing (Marco, 2026-11-14: no gig ahead, the more it is used the more is
+ * found); `sb:debug:usb-driver` = 0 switches it off on a device.
+ */
+export function wantsUsbDriver(): boolean {
+  try {
+    return localStorage.getItem('sb:debug:usb-driver') !== '0'
+  } catch {
+    return true
+  }
+}
+
+/**
+ * Android grants a USB audio interface for good ("always open StageBoard for this device") only to
+ * an app that may record - the interface has inputs. Without it Android asked at every plug-in
+ * (Redmi, 2026-11-13). Asked once, before the own USB driver first opens; a refusal only means the
+ * question comes again at the next plug-in.
+ */
+async function ensureRecordPermission(): Promise<void> {
+  try {
+    const status = await navigator.permissions?.query({ name: 'microphone' as PermissionName })
+    if (status?.state === 'granted') return
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+    for (const track of stream.getTracks()) track.stop()
+  } catch {
+    // Refused or not available: the USB permission is then asked per plug-in.
+  }
+}
 
 /** Whether this device can use the native output at all. */
 export function nativeOutputAvailable(): boolean {
@@ -468,7 +513,11 @@ async function attach(ctx: AudioContext): Promise<void> {
     URL.revokeObjectURL(workerUrl)
     const p: Pipe = { ctx, tap, worker, silent, rate: ctx.sampleRate, chunk, delayMs: null, line: null, history: [], timer: null, unwatch: null, soundAt: null, closed: false }
     pipe = p
-    const started = await NativeOutput.start({ sampleRate: ctx.sampleRate, lowLatency: !safeMode })
+    const usb = wantsUsbDriver()
+    // Only with an interface plugged in - a device without one is never asked for the microphone.
+    if (usb && (await NativeOutput.usbPresent().then((r) => r.present, () => false))) await ensureRecordPermission()
+    const started = await NativeOutput.start({ sampleRate: ctx.sampleRate, lowLatency: !safeMode, usb })
+    useNativeOutputStore.setState({ usb: started.path === 'usb', usbError: started.usbError ?? null })
     if (!started.started) throw new Error(started.error ?? 'start')
     const opened = new Promise<void>((resolve, reject) => {
       worker.onmessage = (e: MessageEvent<{ type: string; at: number; line: number }>) => {
@@ -509,6 +558,14 @@ async function attach(ctx: AudioContext): Promise<void> {
       void NativeOutput.status().then((s) => {
         if (p.closed) return
         const now = Date.now()
+        // The interface was pulled while the own USB driver played: silent until it is plugged in
+        // again - then the driver goes on by itself (NativeOutputPlugin.resumeUsb), on a locked
+        // screen too. Never Android's output meanwhile: the tablet's speaker is a wrong signal.
+        if (s.path === 'usb' && s.usbDisconnected) {
+          if (!useNativeOutputStore.getState().status?.usbDisconnected) console.warn('[native-output] USB interface gone - silent until it is plugged in again')
+          useNativeOutputStore.setState({ status: s })
+          return
+        }
         // A stream that came up broken (#837): timestamp jumps piling up, in silence as well - opened
         // again once, then the WebView's output. Not while the screen is locked.
         if (now >= quiet && now - startedAt >= BROKEN_GRACE_MS) {
@@ -601,16 +658,38 @@ let deviceListening = false
 function listenForDevices(): void {
   if (deviceListening) return
   deviceListening = true
+  const reopenable = () => pipe?.ctx ?? (useNativeOutputStore.getState().state === 'failed' ? current : null)
   void NativeOutput.addListener('outputDevicesChanged', () => {
     if (deviceTimer !== null) clearTimeout(deviceTimer)
     deviceTimer = setTimeout(() => {
       deviceTimer = null
-      const ctx = pipe?.ctx ?? (useNativeOutputStore.getState().state === 'failed' ? current : null)
+      // The own driver plays on the interface itself (or waits for it) - Android's device list doesn't touch it.
+      if (useNativeOutputStore.getState().usb && useNativeOutputStore.getState().state === 'on') return
+      const ctx = reopenable()
       if (ctx) reopen(ctx, 'device')
     }, DEVICE_SETTLE_MS)
   }).catch(() => {
     deviceListening = false
   })
+  // A USB interface plugged in. The own driver playing (pulled before) goes on by itself; with it
+  // wanted but Android's output playing, it is opened at once - no settling of Android's audio side.
+  void NativeOutput.addListener('usbAttached', (event) => {
+    if (event.resumed !== undefined) {
+      console.info(`[native-output] USB interface plugged in again - ${event.resumed ? 'the own driver goes on' : 'could not go on, opening it again'}`)
+      if (event.resumed) return
+    }
+    if (!wantsUsbDriver() || ownDriverPlays()) return
+    if (deviceTimer !== null) clearTimeout(deviceTimer)
+    deviceTimer = null
+    const ctx = reopenable()
+    console.info('[native-output] USB interface plugged in - opening the own driver')
+    if (ctx) reopen(ctx, 'device')
+  }).catch(() => {})
+}
+
+function ownDriverPlays(): boolean {
+  const state = useNativeOutputStore.getState()
+  return state.usb && state.state === 'on' && state.status?.usbDisconnected !== true
 }
 
 /** Back to the WebView's own output for the rest of this app run (nativeOutputFallback.ts). */
@@ -632,7 +711,7 @@ function detach(): void {
   p.tap.disconnect()
   p.silent.disconnect()
   void NativeOutput.stop().catch(() => {})
-  useNativeOutputStore.setState({ state: 'off', delayMs: null, status: null })
+  useNativeOutputStore.setState({ state: 'off', delayMs: null, status: null, usb: false })
 }
 
 let current: AudioContext | null = null

@@ -57,6 +57,52 @@ public class NativeOutputPlugin extends Plugin {
 
     private long registeredAt = 0;
 
+    /** A USB audio interface plugged in: told at once, not after Android's audio side has taken it
+     * up (the device callback, seconds later) - the own driver opens it right away (docs/28 §4). */
+    private final android.content.BroadcastReceiver usbAttached = new android.content.BroadcastReceiver() {
+        @Override
+        public void onReceive(android.content.Context c, android.content.Intent intent) {
+            android.hardware.usb.UsbDevice dev = intent.getParcelableExtra(android.hardware.usb.UsbManager.EXTRA_DEVICE);
+            if (dev == null || !UsbAudioOut.isAudio(dev)) return;
+            Log.i(TAG, "usb attached: " + dev.getProductName() + (usbRate > 0 ? " - resuming the own driver" : ""));
+            if (usbRate > 0) resumeUsb(dev);
+            else notifyListeners("usbAttached", new JSObject());
+        }
+    };
+
+    /** The rate the own driver plays at, 0 while it doesn't: pulled and plugged in again, it goes on
+     * by itself (nativeUsbResume) - silent meanwhile, never through Android's output. */
+    private volatile int usbRate = 0;
+
+    private void resumeUsb(android.hardware.usb.UsbDevice dev) {
+        android.hardware.usb.UsbManager um = (android.hardware.usb.UsbManager) getContext().getSystemService(android.content.Context.USB_SERVICE);
+        if (um == null) return;
+        final long t0 = android.os.SystemClock.elapsedRealtime();
+        UsbAudioOut.requestPermission(getContext(), um, dev, (granted) -> {
+            String result;
+            long tPermission = android.os.SystemClock.elapsedRealtime(), tOpen = tPermission;
+            synchronized (this) {
+                int rate = usbRate;
+                if (rate == 0) return;
+                if (!granted) result = "permission denied";
+                else {
+                    UsbAudioOut.Opened o = usb.open(um, dev, rate);
+                    tOpen = android.os.SystemClock.elapsedRealtime();
+                    if (o.error != null) result = o.error;
+                    else {
+                        result = nativeUsbResume(o.fd, o.epOut, o.maxPacket, o.epFb, o.fbMaxPacket, o.channels, o.subslot, rate, o.highSpeed);
+                        if (result.contains("\"error\"")) usb.close();
+                    }
+                }
+            }
+            long tEnd = android.os.SystemClock.elapsedRealtime();
+            Log.i(TAG, "usb resume: " + result + " - permission " + (tPermission - t0) + " ms, open " + (tOpen - tPermission) + " ms, start " + (tEnd - tOpen) + " ms");
+            JSObject event = new JSObject();
+            event.put("resumed", !result.contains("error") && !result.equals("permission denied"));
+            notifyListeners("usbAttached", event);
+        });
+    }
+
     private static boolean hasOutput(android.media.AudioDeviceInfo[] devices) {
         for (android.media.AudioDeviceInfo d : devices) if (d.isSink()) return true;
         return false;
@@ -67,6 +113,9 @@ public class NativeOutputPlugin extends Plugin {
         android.media.AudioManager audio = (android.media.AudioManager) getContext().getSystemService(android.content.Context.AUDIO_SERVICE);
         registeredAt = android.os.SystemClock.elapsedRealtime();
         if (audio != null) audio.registerAudioDeviceCallback(deviceCallback, new android.os.Handler(android.os.Looper.getMainLooper()));
+        android.content.IntentFilter filter = new android.content.IntentFilter(android.hardware.usb.UsbManager.ACTION_USB_DEVICE_ATTACHED);
+        if (android.os.Build.VERSION.SDK_INT >= 33) getContext().registerReceiver(usbAttached, filter, android.content.Context.RECEIVER_NOT_EXPORTED);
+        else getContext().registerReceiver(usbAttached, filter);
     }
 
     private static final String TAG = "NativeOutput";
@@ -85,6 +134,19 @@ public class NativeOutputPlugin extends Plugin {
     }
 
     private static native String nativeStart(int sampleRate, boolean lowLatency);
+
+    // The own USB driver (docs/28 §4, #837): the stream on the interface's file descriptor.
+    private static native String nativeUsbStart(int fd, int epOut, int maxPacket, int epFb, int fbMaxPacket, int channels, int subslot, int sampleRate, boolean highSpeed);
+
+    private static native int nativeUsbReattach(int fd, int ifno);
+
+    private static native String nativeUsbResume(int fd, int epOut, int maxPacket, int epFb, int fbMaxPacket, int channels, int subslot, int sampleRate, boolean highSpeed);
+
+    static void usbReattach(int fd, int ifno) {
+        if (available()) nativeUsbReattach(fd, ifno);
+    }
+
+    private final UsbAudioOut usb = new UsbAudioOut();
 
     private static native void nativePush(long frame, short[] data, double baseMs);
 
@@ -130,18 +192,54 @@ public class NativeOutputPlugin extends Plugin {
         }
     }
 
+    /**
+     * {sampleRate, lowLatency, usb}: with `usb` and a USB audio interface plugged in, the own driver
+     * (asks for the permission first - Android's dialog); anything failing there, or no interface:
+     * AAudio, with `usbError` saying why.
+     */
     @PluginMethod
     public void start(PluginCall call) {
         if (!available()) {
             call.reject("unavailable");
             return;
         }
-        String result = nativeStart((int) num(call, "sampleRate"), call.getBoolean("lowLatency", true));
+        int rate = (int) num(call, "sampleRate");
+        android.hardware.usb.UsbManager um = (android.hardware.usb.UsbManager) getContext().getSystemService(android.content.Context.USB_SERVICE);
+        android.hardware.usb.UsbDevice dev = call.getBoolean("usb", false) && um != null ? UsbAudioOut.find(um) : null;
+        usbRate = 0;
+        if (dev == null) {
+            finishStart(call, nativeStart(rate, call.getBoolean("lowLatency", true)), null);
+            return;
+        }
+        UsbAudioOut.requestPermission(getContext(), um, dev, (granted) -> {
+            String usbError;
+            if (!granted) usbError = "permission denied";
+            else {
+                synchronized (this) {
+                    UsbAudioOut.Opened o = usb.open(um, dev, rate);
+                    if (o.error == null) {
+                        String result = nativeUsbStart(o.fd, o.epOut, o.maxPacket, o.epFb, o.fbMaxPacket, o.channels, o.subslot, rate, o.highSpeed);
+                        if (!result.contains("\"error\"")) {
+                            usbRate = rate;
+                            finishStart(call, result, null);
+                            return;
+                        }
+                        usb.close();
+                        usbError = result;
+                    } else usbError = o.error;
+                }
+            }
+            finishStart(call, nativeStart(rate, call.getBoolean("lowLatency", true)), usbError);
+        });
+    }
+
+    private void finishStart(PluginCall call, String result, String usbError) {
         try {
             JSObject out = new JSObject(result);
             startServer();
             out.put("port", server.getLocalPort());
             out.put("token", token);
+            if (usbError != null) out.put("usbError", usbError);
             call.resolve(out);
         } catch (JSONException | IOException e) {
             call.reject(e.getMessage() != null ? e.getMessage() : result);
@@ -234,6 +332,14 @@ public class NativeOutputPlugin extends Plugin {
     }
 
     @PluginMethod
+    public void usbPresent(PluginCall call) {
+        android.hardware.usb.UsbManager um = (android.hardware.usb.UsbManager) getContext().getSystemService(android.content.Context.USB_SERVICE);
+        JSObject out = new JSObject();
+        out.put("present", um != null && UsbAudioOut.find(um) != null);
+        call.resolve(out);
+    }
+
+    @PluginMethod
     public void status(PluginCall call) {
         if (!available()) {
             call.reject("unavailable");
@@ -244,7 +350,11 @@ public class NativeOutputPlugin extends Plugin {
 
     @PluginMethod
     public void stop(PluginCall call) {
+        usbRate = 0;
         if (available()) nativeStop();
+        synchronized (this) {
+            usb.close();
+        }
         synchronized (this) {
             try {
                 if (server != null) server.close();

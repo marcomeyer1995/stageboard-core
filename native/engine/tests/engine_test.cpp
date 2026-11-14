@@ -187,6 +187,25 @@ static void testClockMapNoisy() {
     CHECK(map.jumps() == 1);
     CHECK_NEAR(map.bandMsAt(48000), 6000, 1e-9);
   }
+  // A jump with the drift known (the Redmi at every Play, 247 ppm, night 2026-11-13/14): the learned
+  // drift holds through the short new window instead of being refitted from 10 s of noise.
+  {
+    ClockMap map(kRate);
+    const double ppm = 247;
+    auto truth = [&](double frame) { return frame * (1000.0 / kRate) * (1 + ppm * 1e-6); };
+    std::mt19937 rng(11);
+    std::uniform_real_distribution<double> noise(-5, 5);
+    double worstPpm = 0;
+    for (int i = 0; i <= 600; ++i) {
+      const int64_t frame = static_cast<int64_t>(i * 0.5 * kRate);
+      const double step = i >= 240 ? 150 : 0;
+      map.observe(frame, truth(static_cast<double>(frame)) + step + noise(rng));
+      if (i >= 120) worstPpm = std::fmax(worstPpm, std::fabs(map.driftPpm() - ppm));
+    }
+    std::printf("  jump with the drift known: worst drift error %.1f ppm\n", worstPpm);
+    CHECK(map.jumps() == 1);
+    CHECK(worstPpm < 60);
+  }
 }
 
 static void testAndroidCallback() {

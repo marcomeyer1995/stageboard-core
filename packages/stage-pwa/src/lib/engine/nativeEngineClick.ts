@@ -11,7 +11,7 @@ export { bandOffsetMs, nativeTransport } from './nativeEngineSession'
 
 /**
  * The click from the engine core in the native output's callback (docs/30 §8h stage 3) - the same
- * interface as clickEngine.ts, switched by `sb:debug:native-click` while the native output plays.
+ * interface as clickEngine.ts, on while the native output plays (`sb:debug:native-click` = 0 switches it off).
  *
  * Unlike the AudioWorklet (engineClick.ts) the clock is not sent from here: the callback has
  * AAudio's timestamp of when each frame is heard, on the wall clock. What it can't know comes from
@@ -31,9 +31,9 @@ export function postNative(m: EngineMessage): void {
 
 export function wantsNativeClick(): boolean {
   try {
-    return localStorage.getItem('sb:debug:native-click') === '1'
+    return localStorage.getItem('sb:debug:native-click') !== '0'
   } catch {
-    return false
+    return true
   }
 }
 

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- USB audio interfaces (class 1 = audio, on an interface of the device): StageBoard may be their
+     default app, so Android grants the own USB driver (docs/28 §4) its permission once for good
+     instead of asking at every plug-in (Redmi + UMC204HD, 2026-11-13). -->
+<resources>
+    <usb-device class="1" />
+</resources>
