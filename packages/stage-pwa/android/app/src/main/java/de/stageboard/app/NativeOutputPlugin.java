@@ -178,6 +178,8 @@ public class NativeOutputPlugin extends Plugin {
 
     private static native void nativeClipGain(int id, float gain);
 
+    private static native String nativeAnnounceCommit(int id, double rate, double songStartMs, int bus, float gain, byte[] pcm, int[] wordFrames, double[] starts, int[] wordOf);
+
     /** A JS number of any size: a large one without decimals arrives as a Long, which
      * getDouble() doesn't handle - it falls back to its default then. */
     private static double num(PluginCall call, String key) {
@@ -432,6 +434,42 @@ public class NativeOutputPlugin extends Plugin {
     @PluginMethod
     public synchronized void clipCommit(PluginCall call) {
         String error = available() ? nativeClipCommit((int) num(call, "id"), num(call, "songStartMs"), (int) num(call, "bus"), (float) call.getData().optDouble("gain", 1.0)) : "native output not available";
+        com.getcapacitor.JSObject r = new com.getcapacitor.JSObject();
+        r.put("error", error);
+        call.resolve(r);
+    }
+
+    /**
+     * {id, rate, songStartMs, bus, gain, words, starts, wordOf} → {error}: the spoken announcements
+     * of a song as one clip (#835). `words`: each word once, mono int16 little-endian, base64;
+     * `starts`: where each one is said, in frames of `rate` from `songStartMs`; `wordOf`: which word.
+     */
+    @PluginMethod
+    public synchronized void announceCommit(PluginCall call) {
+        String error;
+        try {
+            org.json.JSONArray words = call.getData().getJSONArray("words");
+            org.json.JSONArray starts = call.getData().getJSONArray("starts");
+            org.json.JSONArray wordOf = call.getData().getJSONArray("wordOf");
+            java.io.ByteArrayOutputStream pcm = new java.io.ByteArrayOutputStream();
+            int[] frames = new int[words.length()];
+            for (int i = 0; i < words.length(); i++) {
+                byte[] w = android.util.Base64.decode(words.getString(i), android.util.Base64.DEFAULT);
+                frames[i] = w.length / 2;
+                pcm.write(w, 0, frames[i] * 2);
+            }
+            double[] at = new double[starts.length()];
+            int[] which = new int[starts.length()];
+            for (int i = 0; i < at.length && i < wordOf.length(); i++) {
+                at[i] = starts.getDouble(i);
+                which[i] = wordOf.getInt(i);
+            }
+            error = available()
+                ? nativeAnnounceCommit((int) num(call, "id"), num(call, "rate"), num(call, "songStartMs"), (int) num(call, "bus"), (float) call.getData().optDouble("gain", 1.0), pcm.toByteArray(), frames, at, which)
+                : "native output not available";
+        } catch (JSONException e) {
+            error = "bad announcements: " + e.getMessage();
+        }
         com.getcapacitor.JSObject r = new com.getcapacitor.JSObject();
         r.put("error", error);
         call.resolve(r);

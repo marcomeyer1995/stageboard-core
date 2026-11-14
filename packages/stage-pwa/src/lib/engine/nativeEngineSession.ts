@@ -8,7 +8,7 @@ import type { TransportState } from '../playbackTransport'
  * it; the transport goes from here, once per change - "Klick aus" must not stop the track.
  */
 
-export type NativeEngineUser = 'click' | 'track'
+export type NativeEngineUser = 'click' | 'track' | 'voice'
 
 const STATUS = { stopped: 0, playing: 1, paused: 2 } as const
 /** engine.h Feed. */

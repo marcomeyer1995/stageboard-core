@@ -10,6 +10,7 @@ import { adjustedBpm } from './metronome'
 import { getSharedAudioContext } from './sharedAudioContext'
 import { useShowModeSong } from './showMode'
 import { loadSpeechClip, speechClip, type ClipVoice } from './speechClips'
+import { useNativeAnnouncements, wantsNativeVoice } from './engine/nativeEngineVoice'
 import { bandAnnouncementSettings, bandSpeechVoice } from './speechVoices'
 import { useCapabilityRouting } from './useCapabilityRouting'
 import { resolveBuiltInBinding } from './hardwareRouting'
@@ -104,7 +105,9 @@ export function useAnnouncementDriver(): void {
     for (const text of wanted) void loadSpeechClip(text, voice)
   }, [active, items, nextVariant, voice, settings])
 
-  usePlayAnnouncements(items, voice, active && playbackStatus === 'playing', elapsedNow, outputLatencyMs, takeKey, playbackRate)
+  // From the engine while the native output plays (#835) - then the WebView stays quiet.
+  const inEngine = useNativeAnnouncements(active && wantsNativeVoice() ? items : null, voice)
+  usePlayAnnouncements(items, voice, active && !inEngine && playbackStatus === 'playing', elapsedNow, outputLatencyMs, takeKey, playbackRate)
 }
 
 /**

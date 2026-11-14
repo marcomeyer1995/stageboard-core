@@ -42,6 +42,14 @@ class ClipSource {
   virtual bool fetch(long first, int n, const float** run, const float** out) = 0;
   /** Whether what was read since beginRead held - false: throw the piece away. */
   virtual bool endRead() { return true; }
+  /** Source frames first .. first + n - 1 are certainly silent - the voice skips them without
+   * reading (announcements are silence between words: read frame by frame, that took a whole core
+   * on the Redmi, 2026-11-14). */
+  virtual bool silent(long first, int n) const {
+    (void)first;
+    (void)n;
+    return false;
+  }
 
   // Control thread.
   /**
@@ -73,6 +81,74 @@ struct ClipData : ClipSource {
     }
     return true;
   }
+};
+
+/**
+ * Short sounds at places along a song, silence between - the spoken announcements (#835): each
+ * word once, placed wherever it is said. A word still sounding when the next one starts fades out
+ * over `kCutFrames` before it (counting "4, 3, 2, 1" in a fast song never piles up). Built whole on
+ * the control thread (`place` in order of time, then handed to the engine); every placed word has
+ * its own copy, so the cut can be baked in.
+ */
+struct SparseClip : ClipSource {
+  static constexpr long kCutFrames = 480;  // 10 ms at 48 kHz
+
+  /** Places `word` (`frames` frames, `channels` wide) to start at source frame `start` - later
+   * than the one before. */
+  void place(long start, const float* word, long frames) {
+    if (frames <= 0 || (!pieces_.empty() && start <= pieces_.back().start)) return;
+    if (!pieces_.empty()) cut(start);
+    pieces_.push_back({start, static_cast<long>(samples_.size()) / channels, frames});
+    samples_.insert(samples_.end(), word, word + frames * channels);
+    end_ = start + frames;
+  }
+
+  long frames() const override { return end_; }
+
+  bool silent(long first, int n) const override {
+    // The first piece ending after `first` starts after the range - or there is none.
+    auto it = std::upper_bound(pieces_.begin(), pieces_.end(), first, [](long f, const Piece& p) { return f < p.start + p.frames; });
+    return it == pieces_.end() || it->start >= first + n;
+  }
+
+  bool fetch(long first, int n, const float** run, const float** out) override {
+    auto it = std::upper_bound(pieces_.begin(), pieces_.end(), first, [](long f, const Piece& p) { return f < p.start + p.frames; });
+    if (it != pieces_.end() && it->start <= first && first + n <= it->start + it->frames) {
+      *run = samples_.data() + (it->offset + first - it->start) * channels;
+      return true;
+    }
+    // Across a word's edge: frame by frame, walking the pieces once.
+    *run = nullptr;
+    for (int j = 0; j < n; ++j) {
+      const long i = first + j;
+      while (it != pieces_.end() && i >= it->start + it->frames) ++it;
+      out[j] = it != pieces_.end() && i >= it->start ? samples_.data() + (it->offset + i - it->start) * channels : nullptr;
+    }
+    return true;
+  }
+
+ private:
+  struct Piece {
+    long start, offset, frames;
+  };
+
+  /** The last piece ends at `next` at the latest, fading out before it. */
+  void cut(long next) {
+    Piece& last = pieces_.back();
+    if (last.start + last.frames <= next) return;
+    last.frames = std::max(0L, next - last.start);
+    samples_.resize(static_cast<size_t>((last.offset + last.frames) * channels));
+    const long fade = std::min(kCutFrames, last.frames);
+    for (long i = 0; i < fade; ++i) {
+      const float g = static_cast<float>(i) / static_cast<float>(fade);  // 0 at the cut
+      for (int c = 0; c < channels; ++c) samples_[static_cast<size_t>((last.offset + last.frames - 1 - i) * channels + c)] *= g;
+    }
+    end_ = last.start + last.frames;
+  }
+
+  std::vector<Piece> pieces_;
+  std::vector<float> samples_;
+  long end_ = 0;
 };
 
 /**
@@ -147,6 +223,13 @@ class ClipVoice {
     }
     double speed = (to - pos_) / frames;
     speed = std::fmin(std::fmax(speed, (to - from) / frames * (1 - kMaxSpeedChange)), (to - from) / frames * (1 + kMaxSpeedChange));
+    // Silence all through this piece (between two announcements): only the place moves on.
+    const long low = static_cast<long>(std::floor(pos_)) - data_->sinc.left();
+    if (fadeLeft_ == 0 && data_->silent(low, static_cast<int>(std::ceil(speed * frames)) + data_->sinc.taps() + 1)) {
+      gain_ = std::fmin(1.0f, gain_ + static_cast<float>(frames) / kFadeFrames);
+      pos_ += speed * frames;
+      return intact();
+    }
     for (int i = 0; i < frames; ++i) {
       if (gain_ < 1) gain_ = std::fmin(1.0f, gain_ + 1.0f / kFadeFrames);
       // Nothing there (yet): silent, and fading in from nothing once there is.
@@ -178,7 +261,7 @@ class ClipVoice {
     const int taps = sinc.taps();
     const double whole = std::floor(pos);
     const long first = static_cast<long>(whole) - sinc.left();  // first tap's source frame
-    if (first >= data_->frames() || first + taps <= 0) return true;
+    if (first >= data_->frames() || first + taps <= 0 || data_->silent(first, taps)) return true;
     const float* run = nullptr;
     const float* tap[SincTable::kMaxTaps];
     if (!data_->fetch(first, taps, &run, tap)) return false;
