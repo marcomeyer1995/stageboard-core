@@ -2,6 +2,7 @@ import { nativeEngine } from '../nativeOutput'
 import { getTrack } from '../songVariantsDb'
 import { useNativeTrackStore, type NativeTrackStatus } from './nativeTrackStore'
 import { ENGINE_BUS } from './wasmEngine'
+import { base64 } from './announcementClip'
 
 export { useNativeTrackStore } from './nativeTrackStore'
 
@@ -39,11 +40,6 @@ export async function isOggOpus(blob: Blob): Promise<boolean> {
   return head.length >= 36 && text(0, 4) === 'OggS' && text(28, 36) === 'OpusHead'
 }
 
-function base64(bytes: Uint8Array): string {
-  let s = ''
-  for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000))
-  return btoa(s)
-}
 
 let generation = 0
 

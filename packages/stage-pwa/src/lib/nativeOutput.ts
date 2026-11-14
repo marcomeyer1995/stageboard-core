@@ -61,6 +61,16 @@ interface NativeOutputStatus {
   estimated?: boolean
 }
 
+/** A song's spoken announcements for the engine (#835): each word once, mono int16 base64, and
+ * where each is said - frames of `rate` from song time `songStartMs`. */
+export interface AnnouncementClip {
+  rate: number
+  songStartMs: number
+  words: string[]
+  starts: number[]
+  wordOf: number[]
+}
+
 interface NativeOutputPlugin {
   /** Opens the stream and the loopback WebSocket the frames go to (`ws://127.0.0.1:port/token`). */
   start(options: { sampleRate: number; lowLatency?: boolean; usb?: boolean }): Promise<{ started?: boolean; error?: string; path?: 'usb'; usbError?: string; performance?: string; framesPerBurst?: number; port: number; token: string }>
@@ -76,6 +86,7 @@ interface NativeOutputPlugin {
   clipChunk(options: { id: number; offset: number; data: string }): Promise<{ ok: boolean }>
   clipCommit(options: { id: number; songStartMs: number; bus: number; gain: number }): Promise<{ error: string }>
   clipRemove(options: { id: number }): Promise<void>
+  announceCommit(options: AnnouncementClip & { id: number; bus: number; gain: number }): Promise<{ error: string }>
   clipGain(options: { id: number; gain: number }): Promise<void>
   /** Whether a USB audio interface is plugged in. */
   usbPresent(): Promise<{ present: boolean }>
@@ -114,6 +125,7 @@ export const nativeEngine = {
   clipChunk: (id: number, offset: number, data: string) => NativeOutput.clipChunk({ id, offset, data }),
   clipCommit: (id: number, songStartMs: number, bus: number, gain: number) => NativeOutput.clipCommit({ id, songStartMs, bus, gain }),
   clipRemove: (id: number) => send(NativeOutput.clipRemove({ id })),
+  announceCommit: (id: number, clip: AnnouncementClip, bus: number, gain: number) => NativeOutput.announceCommit({ id, bus, gain, ...clip }),
   clipGain: (id: number, gain: number) => send(NativeOutput.clipGain({ id, gain })),
 }
 

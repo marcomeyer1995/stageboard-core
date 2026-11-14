@@ -162,6 +162,7 @@ void followHeard(double measured) {
         gPendingErr = err;
         if ((gFrames - gPendingSince) * msPerFrame >= TIMESTAMP_CONFIRM_MS) {
             gTimestampJumps.fetch_add(1);
+            LOG("timestamp jump: %.1f ms at frame %lld", gPendingErr, gFrames);
             gHeardMs0 = measured;
             gPendingSince = -1;
         }
@@ -850,6 +851,52 @@ Java_de_stageboard_app_NativeOutputPlugin_nativeClipCommit(JNIEnv *env, jclass, 
         return env->NewStringUTF("engine queue full");
     }
     gStreamed[id] = raw;
+    gEngine->collectGarbage();
+    return env->NewStringUTF("");
+}
+
+/** A song's spoken announcements as one clip (#835): each word once (mono int16), placed at
+ * `starts` (frames of `rate` from song time `songStartMs`); a word still sounding when the next
+ * one starts is cut before it. Returns "" or why it can't play. */
+extern "C" JNIEXPORT jstring JNICALL
+Java_de_stageboard_app_NativeOutputPlugin_nativeAnnounceCommit(JNIEnv *env, jclass, jint id, jdouble rate, jdouble songStartMs, jint bus, jfloat gain,
+                                                               jbyteArray pcm, jintArray wordFrames, jdoubleArray starts, jintArray wordOf) {
+    if (bus < 0 || bus >= static_cast<int>(stageboard::Bus::Count) || rate <= 0) return env->NewStringUTF("bad bus or rate");
+    const jsize bytes = env->GetArrayLength(pcm), nWords = env->GetArrayLength(wordFrames), nStarts = env->GetArrayLength(starts);
+    if (env->GetArrayLength(wordOf) < nStarts) return env->NewStringUTF("bad placements");
+    std::vector<int16_t> raw(static_cast<size_t>(bytes / 2));
+    env->GetByteArrayRegion(pcm, 0, static_cast<jsize>(raw.size() * 2), reinterpret_cast<jbyte *>(raw.data()));
+    std::vector<jint> frames(static_cast<size_t>(nWords)), which(static_cast<size_t>(nStarts));
+    std::vector<jdouble> at(static_cast<size_t>(nStarts));
+    env->GetIntArrayRegion(wordFrames, 0, nWords, frames.data());
+    env->GetDoubleArrayRegion(starts, 0, nStarts, at.data());
+    env->GetIntArrayRegion(wordOf, 0, nStarts, which.data());
+    // Each word as floats, where it begins in `raw`.
+    std::vector<std::vector<float>> words(static_cast<size_t>(nWords));
+    size_t offset = 0;
+    for (jsize w = 0; w < nWords; ++w) {
+        const size_t n = static_cast<size_t>(std::max(0, static_cast<int>(frames[w])));
+        if (offset + n > raw.size()) return env->NewStringUTF("bad words");
+        words[w].resize(n);
+        for (size_t i = 0; i < n; ++i) words[w][i] = static_cast<float>(raw[offset + i]) / 32768.f;
+        offset += n;
+    }
+    auto clip = std::make_unique<stageboard::SparseClip>();
+    clip->channels = 1;
+    clip->rate = rate;
+    for (jsize i = 0; i < nStarts; ++i) {
+        if (which[i] < 0 || which[i] >= nWords) continue;
+        const auto &w = words[static_cast<size_t>(which[i])];
+        clip->place(std::lround(at[i]), w.data(), static_cast<long>(w.size()));
+    }
+    std::lock_guard<std::mutex> guard(gEngineLock);
+    if (!gEngine) return env->NewStringUTF("no engine");
+    stageboard::SparseClip *placed = clip.release();
+    if (!gEngine->setClip(id, placed, songStartMs, static_cast<stageboard::Bus>(bus), gain)) {
+        delete placed;
+        return env->NewStringUTF("engine queue full");
+    }
+    gStreamed.erase(id);
     gEngine->collectGarbage();
     return env->NewStringUTF("");
 }

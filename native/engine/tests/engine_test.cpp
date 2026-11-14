@@ -434,6 +434,47 @@ static void testClipExact() {
   CHECK(diff < 1e-6);
 }
 
+static void testSparseClip() {
+  std::printf("announcements: words at their places, a word cut before the next\n");
+  auto word = [](float base) {
+    std::vector<float> w(2000);
+    for (size_t i = 0; i < w.size(); ++i) w[i] = base + 0.0001f * static_cast<float>(i);
+    return w;
+  };
+  const std::vector<float> a = word(0.1f), b = word(-0.2f), c = word(0.3f);
+  auto* clip = new SparseClip();
+  clip->channels = 1;
+  clip->rate = kRate;
+  clip->place(4800, a.data(), 2000);
+  clip->place(6000, b.data(), 2000);  // while a still sounds
+  clip->place(48000, c.data(), 2000);
+  clip->place(47000, c.data(), 2000);  // out of order: ignored
+  CHECK(clip->frames() == 50000);
+  Engine engine(kRate, 2);
+  engine.observeClock(0, 0);
+  engine.setTransport(playingFrom(0));
+  engine.setClip(1, clip, 0, Bus::Announce);
+  std::vector<float> out(static_cast<size_t>(1.1 * kRate) * 2);
+  for (int64_t f = 0; f < static_cast<int64_t>(out.size() / 2); f += 256) {
+    const int n = static_cast<int>(std::min<int64_t>(256, static_cast<int64_t>(out.size() / 2) - f));
+    engine.render(out.data() + f * 2, n, f);
+  }
+  auto at = [&](long f) { return out[static_cast<size_t>(f) * 2]; };
+  double silent = 0, exact = 0;
+  for (long f = 0; f < 4800 - 32; ++f) silent = std::fmax(silent, std::fabs(at(f)));
+  for (long f = 8000 + 32; f < 48000 - 32; ++f) silent = std::fmax(silent, std::fabs(at(f)));
+  for (long k = 32; k < 1200 - SparseClip::kCutFrames - 32; ++k) exact = std::fmax(exact, std::fabs(at(4800 + k) - a[k]));
+  for (long k = 32; k < 2000 - 32; ++k) exact = std::fmax(exact, std::fabs(at(6000 + k) - b[k]) + std::fabs(at(48000 + k) - c[k]));
+  CHECK(silent < 1e-6);
+  CHECK(exact < 1e-5);
+  // The fade: down to near nothing right before the next word, no step.
+  CHECK(std::fabs(at(6000 - 40)) < 0.02);
+  double step = 0;
+  for (long f = 4800 + 600; f < 6000 - 20; ++f) step = std::fmax(step, std::fabs(at(f + 1) - at(f)));
+  CHECK(step < 0.01);
+  CHECK(std::fabs(out[static_cast<size_t>(6000 + 500) * 2 + 1] - at(6000 + 500)) < 1e-9);  // mono on both sides
+}
+
 static void testClipFollowsDrift() {
   std::printf("clip follows the device's drift\n");
   // Fire: frames come 256 ppm too fast. Fed once a second, the clip must stay on band time.
@@ -581,6 +622,7 @@ int main() {
   testLimiterAndGains();
   testPlanSwap();
   testClipExact();
+  testSparseClip();
   testClipFollowsDrift();
   testClipJumpAndPauseNoClick();
   testClipBusesAndSwap();
