@@ -338,7 +338,10 @@ describe('SheetEditor - song not in the store yet when the editor opens', () => 
     const saveVariant = vi.fn(async () => {})
     const { useSongVariantsStore } = await import('../store/useSongVariantsStore')
     useSongVariantsStore.setState({ saveVariant })
-    await renderLoaded()
+    const textarea = await renderLoaded()
+    // Nothing to save yet: the button is greyed out.
+    expect(screen.getByRole('button', { name: 'Speichern' })).toBeDisabled()
+    fireEvent.change(textarea, { target: { value: `${(textarea as HTMLTextAreaElement).value}\n` } })
     await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Speichern' })))
     expect(saveVariant).toHaveBeenCalledWith(expect.objectContaining({ beatGrid }))
   })
