@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Announcement } from '../announcements'
-import { announcementClip } from './announcementClip'
+import { alignsOnVowel, announcementClip } from './announcementClip'
 import { mixGain, useOutputPlanStore } from '../audioMix'
 import { getServerTime } from '../clockSync'
 import { useAudioOutputLatencyMs } from '../latencyCompensation'
@@ -46,7 +46,7 @@ export function useNativeAnnouncements(items: Announcement[] | null, voice: Clip
   const wanted = items !== null && items.length > 0 && nativeOn
   // By what is said when, not by the list's identity: it is rebuilt on unrelated changes (Play
   // rebuilt it - sent again, the count-in's first word got lost while the clip was replaced).
-  const key = useMemo(() => (items ? JSON.stringify([voice.voice ?? '', voice.speed ?? 1, items.map((item) => [item.text, item.atMs])]) : null), [items, voice])
+  const key = useMemo(() => (items ? JSON.stringify([voice.voice ?? '', voice.speed ?? 1, items.map((item) => [item.text, item.atMs, item.speed ?? 1])]) : null), [items, voice])
   const latest = useRef({ items, voice })
   latest.current = { items, voice }
 
@@ -56,10 +56,12 @@ export function useNativeAnnouncements(items: Announcement[] | null, voice: Clip
     void (async () => {
       const { items: current, voice: currentVoice } = latest.current
       if (!current) return
+      const voiceOf = (item: Announcement): ClipVoice => (item.speed ? { ...currentVoice, speed: item.speed } : currentVoice)
       const buffers = new Map<string, AudioBuffer | null>()
-      for (const text of new Set(current.map((item) => item.text))) buffers.set(text, await loadSpeechClip(text, currentVoice))
+      const keyOf = (item: Announcement) => `${item.speed ?? ''}|${item.text}`
+      for (const item of current) if (!buffers.has(keyOf(item))) buffers.set(keyOf(item), await loadSpeechClip(item.text, voiceOf(item)))
       if (cancelled) return
-      const clip = announcementClip(current, (text) => buffers.get(text) ?? null)
+      const clip = announcementClip(current, (item) => buffers.get(keyOf(item)) ?? null, alignsOnVowel())
       if (!clip) return
       const { error } = await nativeEngine.announceCommit(ANNOUNCE_CLIP, clip, ENGINE_BUS.announce, 1).catch((e: unknown) => ({ error: String(e) }))
       if (cancelled) return
