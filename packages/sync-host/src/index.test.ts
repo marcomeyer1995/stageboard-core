@@ -13,8 +13,16 @@ let n = 0
 const memory = (name: string) => new PouchDB(`${name}-${++n}`, { adapter: 'memory' })
 
 /** A tiny web server around the host - what Fastify or the Android app do in real life. */
-async function serve(handler: (r: SyncRequest) => Promise<{ status: number; body: unknown; binary?: { data: Uint8Array; contentType: string } }>): Promise<{ server: Server; url: string }> {
+async function serve(handler: (r: SyncRequest) => Promise<{ status: number; body: unknown; binary?: { data: Uint8Array; contentType: string } }>): Promise<{ server: Server; url: string; quiet: () => Promise<void> }> {
+  let open = 0
+  let lastAt = Date.now()
   const server = createServer(async (req, res) => {
+    open++
+    lastAt = Date.now()
+    res.on('close', () => {
+      open--
+      lastAt = Date.now()
+    })
     const url = new URL(req.url ?? '/', 'http://x')
     const chunks: Buffer[] = []
     for await (const c of req) chunks.push(c as Buffer)
@@ -33,11 +41,20 @@ async function serve(handler: (r: SyncRequest) => Promise<{ status: number; body
     res.end(JSON.stringify(out.body))
   })
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
-  return { server, url: `http://127.0.0.1:${(server.address() as AddressInfo).port}` }
+  // A replication still writes its checkpoint (`_local/…`) after its promise resolved or it was
+  // cancelled - closed under it, that write was an unhandled ECONNREFUSED after the run (#833).
+  const quiet = async () => {
+    const until = Date.now() + 3000
+    while ((open > 0 || Date.now() - lastAt < QUIET_MS) && Date.now() < until) await new Promise((r) => setTimeout(r, 20))
+  }
+  return { server, url: `http://127.0.0.1:${(server.address() as AddressInfo).port}`, quiet }
 }
 
+/** No request for this long: the replications of the test are done. */
+const QUIET_MS = 300
+
 let host: PouchDB.Database
-let web: { server: Server; url: string }
+let web: { server: Server; url: string; quiet: () => Promise<void> }
 
 beforeEach(async () => {
   host = memory('band')
@@ -45,6 +62,7 @@ beforeEach(async () => {
 })
 
 afterEach(async () => {
+  await web.quiet()
   await new Promise<void>((resolve) => web.server.close(() => resolve()))
 })
 
