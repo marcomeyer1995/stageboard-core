@@ -1095,7 +1095,8 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
             <Icon name={section.expanded ? 'collapse' : 'expand'} />
             <span className="flex-none">{section.label}</span>
             {section.summary && !section.expanded && (
-              <span className="min-w-0 flex-1 truncate font-normal text-ink-faint">{section.summary}</span>
+              // Two lines before it is cut - on a phone the song's summary needs them (#851).
+              <span className="line-clamp-2 min-w-0 flex-1 font-normal text-ink-faint">{section.summary}</span>
             )}
           </button>
           {section.expanded && section.content}
