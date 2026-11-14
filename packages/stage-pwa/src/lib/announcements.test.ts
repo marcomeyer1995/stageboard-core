@@ -17,13 +17,23 @@ const song = [
 ].join('\n')
 
 describe('section announcements (#63)', () => {
-  it('speaks each named part a bar ahead, on the downbeat - part starts rounded to the nearest bar', () => {
+  it('speaks each named part a bar ahead, on the downbeat - part starts on the bar their line lies in, a pickup on the next', () => {
     const items = sectionAnnouncements(song, timeline)
     // Strophe 1 on bar 1 has no bar before it without a count-in.
     expect(items).toEqual([
       { text: 'Chorus', atMs: 6000, bar: 5, name: true }, // sung at 7.9 s -> bar 5 (8.0 s), voice on bar 4 (6.0 s)
       { text: 'Bridge', atMs: 14000, bar: 9, name: true }, // 16.1 s -> bar 9 (16.0 s), voice on bar 8 (14.0 s)
     ])
+  })
+
+  it('a part whose line is sung in the second half of a bar starts on that bar - the count-in ends before it (2026-11-14)', () => {
+    const late = song.replace('[00:07.90]Refrain singt', '[00:07.00]Refrain singt')
+    const chorus = sectionAnnouncements(late, timeline).find((a) => a.text === 'Chorus')
+    // Sung at 7.0 s, two beats into bar 4 (6.0 s): the part is bar 4, its voice on bar 3 (4.0 s).
+    expect(chorus).toMatchObject({ atMs: 4000, bar: 4 })
+    // Half a beat before the bar line still counts as a pickup into it.
+    const pickup = sectionAnnouncements(song.replace('[00:07.90]', '[00:07.75]'), timeline).find((a) => a.text === 'Chorus')
+    expect(pickup).toMatchObject({ atMs: 6000, bar: 5 })
   })
 
   it('the count-in pattern before bar 1: by default "1 – 2 – | 1 2 3 4", the last bar only with one count-in bar', () => {

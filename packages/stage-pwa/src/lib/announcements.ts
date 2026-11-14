@@ -20,7 +20,7 @@ export interface Announcement {
 /**
  * The spoken announcements of a song, from the band's cue patterns (AnnouncementSettings): for
  * every part (`{start_of_chorus}`, `{part: Bridge}` …, docs/14 §6) whose first line has a time - the
- * part start rounded to the nearest bar line, sung lines often begin just before the beat - the
+ * part start's bar (the next one for a line sung just before it, partStartBar) - the
  * part pattern laid over the bars right before it, one cell per beat; bar 1 gets the count-in
  * pattern over the count-in bars instead. Cells follow the real bars (meter and tempo changes), a
  * cell before the previous part's start is left out - the earlier announcement finishes first -
@@ -35,7 +35,7 @@ export function sectionAnnouncements(content: string, timeline: ClickTimeline, s
 
   const own = new Map(partHeads(content).map((head) => [head.partIndex, head.cue]))
   const parts = partBlocks(timelineLines(content), Number.POSITIVE_INFINITY)
-    .map((part) => ({ text: spoken(part.label), bar: nearestBar(timeline, part.startMs), named: !!part.label?.trim(), cue: own.get(part.partIndex) ?? null }))
+    .map((part) => ({ text: spoken(part.label), bar: partStartBar(timeline, part.startMs), named: !!part.label?.trim(), cue: own.get(part.partIndex) ?? null }))
     .filter((part) => part.named)
     .sort((a, b) => a.bar - b.bar)
   const events: Announcement[] = []
@@ -103,12 +103,22 @@ export function partNames(contents: Iterable<string>): string[] {
   return [...names.values()].sort((a, b) => a.localeCompare(b, 'de'))
 }
 
-/** The bar a part starts on: its first line's time rounded to the nearest bar line. */
-export function nearestBar(timeline: ClickTimeline, timeMs: number): number {
+/** A line this close before a bar line (in beats) is a pickup: its part starts on that bar. */
+export const PICKUP_BEATS = 0.5
+
+/**
+ * The bar a part starts on: the bar its first line's time lies in - or the next one when the line
+ * starts just before it (a sung pickup, at most PICKUP_BEATS). Rounding to the *nearest* bar line
+ * moved a line sung in a bar's second half to the next bar, so its count-in ran into the part
+ * ("All the small things": the chorus sung at 43.08 s, its "4" spoken at 43.38 s - Marco,
+ * 2026-11-14).
+ */
+export function partStartBar(timeline: ClickTimeline, timeMs: number): number {
   const bar = timeline.barOf(timeline.beatAtOrBefore(timeMs))
-  const here = timeline.timeOfBeat(timeline.barStartBeat(bar))
-  const next = timeline.timeOfBeat(timeline.barStartBeat(bar + 1))
-  return timeMs - here <= next - timeMs ? bar : bar + 1
+  const nextBeat = timeline.barStartBeat(bar + 1)
+  const next = timeline.timeOfBeat(nextBeat)
+  const beatMs = next - timeline.timeOfBeat(nextBeat - 1)
+  return next - timeMs <= PICKUP_BEATS * beatMs ? bar + 1 : bar
 }
 
 /** A voice may still start this late (song ms) - a word 150 ms late is still useful, later it
