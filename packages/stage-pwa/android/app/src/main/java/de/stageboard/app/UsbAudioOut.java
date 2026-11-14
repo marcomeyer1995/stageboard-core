@@ -49,13 +49,16 @@ final class UsbAudioOut {
 
     /** The first device with an audio streaming interface. */
     static UsbDevice find(UsbManager um) {
-        for (UsbDevice dev : um.getDeviceList().values()) {
-            for (int i = 0; i < dev.getInterfaceCount(); i++) {
-                UsbInterface it = dev.getInterface(i);
-                if (it.getInterfaceClass() == 1 && it.getInterfaceSubclass() == 2) return dev;
-            }
-        }
+        for (UsbDevice dev : um.getDeviceList().values()) if (isAudio(dev)) return dev;
         return null;
+    }
+
+    static boolean isAudio(UsbDevice dev) {
+        for (int i = 0; i < dev.getInterfaceCount(); i++) {
+            UsbInterface it = dev.getInterface(i);
+            if (it.getInterfaceClass() == 1 && it.getInterfaceSubclass() == 2) return true;
+        }
+        return false;
     }
 
     /** How long a plugged-in interface waits for Android's own "open StageBoard?" dialog to grant the

@@ -66,6 +66,8 @@ export function DeviceVitalsPanel() {
   const v: VitalsSnapshot = useDeviceVitalsStore((state) => state.snapshot) ?? vitalsSnapshot()
   const fellBack = useNativeOutputStore((state) => state.fellBack)
   const setWanted = useNativeOutputStore((state) => state.setWanted)
+  const usb = useNativeOutputStore((state) => state.usb)
+  const usbError = useNativeOutputStore((state) => state.usbError)
   const fps = useFrameRate()
   const { level, issues } = assessVitals(v)
   const has = (issue: (typeof issues)[number]): boolean => issues.includes(issue)
@@ -103,6 +105,16 @@ export function DeviceVitalsPanel() {
                   <Row label={t('vit.reserve')} status={audio.leadMinMs === null ? undefined : light(false, has('audioTight'))}>
                     {audio.leadMinMs === null ? t('vit.settling') : `${num(audio.leadMinMs)} ms`}
                   </Row>
+                  {usb ? (
+                    // The own USB driver writes to the interface directly: Android's volume keys don't reach it.
+                    <Row label={t('vit.volume')}>
+                      {t('vit.volumeUsb')}
+                    </Row>
+                  ) : usbError !== null ? (
+                    <Row label={t('vit.usbDriver')} status="warning">
+                      {t('vit.usbDriverFailed', { error: usbError })}
+                    </Row>
+                  ) : null}
                 </>
               )}
             </>

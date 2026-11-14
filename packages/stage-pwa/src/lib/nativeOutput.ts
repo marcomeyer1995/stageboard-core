@@ -79,6 +79,8 @@ interface NativeOutputPlugin {
   clipGain(options: { id: number; gain: number }): Promise<void>
   /** An output device was added or removed (USB interface, headphones, Bluetooth). */
   addListener(event: 'outputDevicesChanged', listener: () => void): Promise<{ remove: () => Promise<void> }>
+  /** A USB audio interface was plugged in - told at once, before Android's audio side takes it up. */
+  addListener(event: 'usbAttached', listener: () => void): Promise<{ remove: () => Promise<void> }>
 }
 
 const NativeOutput = registerPlugin<NativeOutputPlugin>('NativeOutput')
@@ -652,16 +654,34 @@ let deviceListening = false
 function listenForDevices(): void {
   if (deviceListening) return
   deviceListening = true
+  const reopenable = () => pipe?.ctx ?? (useNativeOutputStore.getState().state === 'failed' ? current : null)
   void NativeOutput.addListener('outputDevicesChanged', () => {
     if (deviceTimer !== null) clearTimeout(deviceTimer)
     deviceTimer = setTimeout(() => {
       deviceTimer = null
-      const ctx = pipe?.ctx ?? (useNativeOutputStore.getState().state === 'failed' ? current : null)
+      // The own driver plays on the interface itself - Android's device list doesn't touch it.
+      if (ownDriverPlays()) return
+      const ctx = reopenable()
       if (ctx) reopen(ctx, 'device')
     }, DEVICE_SETTLE_MS)
   }).catch(() => {
     deviceListening = false
   })
+  // The interface plugged in again with the own driver wanted: opened at once - it needs no settling
+  // of Android's audio side (that took seconds after a replug, 2026-11-13).
+  void NativeOutput.addListener('usbAttached', () => {
+    if (!wantsUsbDriver() || ownDriverPlays()) return
+    if (deviceTimer !== null) clearTimeout(deviceTimer)
+    deviceTimer = null
+    const ctx = reopenable()
+    console.info('[native-output] USB interface plugged in - opening the own driver')
+    if (ctx) reopen(ctx, 'device')
+  }).catch(() => {})
+}
+
+function ownDriverPlays(): boolean {
+  const state = useNativeOutputStore.getState()
+  return state.usb && state.state === 'on' && state.status?.usbDisconnected !== true
 }
 
 /** Back to the WebView's own output for the rest of this app run (nativeOutputFallback.ts). */

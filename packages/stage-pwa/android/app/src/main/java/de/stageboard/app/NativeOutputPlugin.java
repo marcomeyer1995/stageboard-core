@@ -57,6 +57,18 @@ public class NativeOutputPlugin extends Plugin {
 
     private long registeredAt = 0;
 
+    /** A USB audio interface plugged in: told at once, not after Android's audio side has taken it
+     * up (the device callback, seconds later) - the own driver opens it right away (docs/28 §4). */
+    private final android.content.BroadcastReceiver usbAttached = new android.content.BroadcastReceiver() {
+        @Override
+        public void onReceive(android.content.Context c, android.content.Intent intent) {
+            android.hardware.usb.UsbDevice dev = intent.getParcelableExtra(android.hardware.usb.UsbManager.EXTRA_DEVICE);
+            if (dev == null || !UsbAudioOut.isAudio(dev)) return;
+            Log.i(TAG, "usb attached: " + dev.getProductName());
+            notifyListeners("usbAttached", new JSObject());
+        }
+    };
+
     private static boolean hasOutput(android.media.AudioDeviceInfo[] devices) {
         for (android.media.AudioDeviceInfo d : devices) if (d.isSink()) return true;
         return false;
@@ -67,6 +79,9 @@ public class NativeOutputPlugin extends Plugin {
         android.media.AudioManager audio = (android.media.AudioManager) getContext().getSystemService(android.content.Context.AUDIO_SERVICE);
         registeredAt = android.os.SystemClock.elapsedRealtime();
         if (audio != null) audio.registerAudioDeviceCallback(deviceCallback, new android.os.Handler(android.os.Looper.getMainLooper()));
+        android.content.IntentFilter filter = new android.content.IntentFilter(android.hardware.usb.UsbManager.ACTION_USB_DEVICE_ATTACHED);
+        if (android.os.Build.VERSION.SDK_INT >= 33) getContext().registerReceiver(usbAttached, filter, android.content.Context.RECEIVER_NOT_EXPORTED);
+        else getContext().registerReceiver(usbAttached, filter);
     }
 
     private static final String TAG = "NativeOutput";
