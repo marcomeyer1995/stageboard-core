@@ -333,9 +333,10 @@ export function TrackManagerField({ variantId, tracks, disabled, searchQuery = '
         {playableTracks(tracks).map((track) => (
           <div key={track.id} className="flex flex-col gap-1">
             <div className="flex items-center gap-2">
-              <span className="min-w-0 flex-1 truncate text-sm text-ink">
-                {track.label}
-                <span className="ml-2 text-xs text-ink-faint">{KIND_LABELS[track.kind]}</span>
+              {/* Name and kind on their own lines - on a phone one line cut both (#851). */}
+              <span className="flex min-w-0 flex-1 flex-col text-sm text-ink">
+                <span className="break-words">{track.label}</span>
+                <span className="text-xs text-ink-faint">{KIND_LABELS[track.kind]}</span>
               </span>
               {playButton(track)}
               {canSeparate && <IconButton icon="split" label={t('tm.split')} onClick={() => setSeparating(track)} disabled={disabled} />}
