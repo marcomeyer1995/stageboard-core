@@ -265,6 +265,24 @@ void logAaudioStatus(AAudioStream *stream, const float *out, int numFrames) {
     gAaLevelFrames = 0;
 }
 
+/**
+ * Each underrun grows the buffer by a burst, up to its capacity (as Oboe's LatencyTuner): two
+ * bursts suit the device in front, but with the screen locked FireOS gives the app less CPU and
+ * the Fire ran 25 underruns a second (2026-11-14). The heard time comes from the timestamps, so a
+ * longer buffer moves nothing in time.
+ */
+int32_t gLastXruns = 0;
+void growBufferOnXruns(AAudioStream *stream) {
+    const int32_t xruns = AAudioStream_getXRunCount(stream);
+    if (xruns <= gLastXruns) return;
+    gLastXruns = xruns;
+    const int32_t size = AAudioStream_getBufferSizeInFrames(stream), burst = AAudioStream_getFramesPerBurst(stream);
+    const int32_t capacity = AAudioStream_getBufferCapacityInFrames(stream);
+    if (size + burst > capacity) return;
+    const int32_t now = AAudioStream_setBufferSizeInFrames(stream, size + burst);
+    LOG("underrun %d: buffer %d -> %d frames (capacity %d)", xruns, size, now, capacity);
+}
+
 aaudio_data_callback_result_t onData(AAudioStream *stream, void *, void *audioData, int32_t numFrames) {
     const double msPerFrame = 1000.0 / gRate;
     int64_t framePos = 0, timeNs = 0;
@@ -292,6 +310,7 @@ aaudio_data_callback_result_t onData(AAudioStream *stream, void *, void *audioDa
     }
     produce(static_cast<float *>(audioData), numFrames);
     logAaudioStatus(stream, static_cast<const float *>(audioData), numFrames);
+    growBufferOnXruns(stream);
     return AAUDIO_CALLBACK_RESULT_CONTINUE;
 }
 
@@ -341,6 +360,7 @@ aaudio_result_t openStream() {
     gChannels = AAudioStream_getChannelCount(gStream);
     // Two bursts of buffer, as Oboe recommends - less is underrun-prone.
     AAudioStream_setBufferSizeInFrames(gStream, 2 * AAudioStream_getFramesPerBurst(gStream));
+    gLastXruns = AAudioStream_getXRunCount(gStream);
     resetCallbackState();
     return AAudioStream_requestStart(gStream);
 }
