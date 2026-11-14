@@ -269,7 +269,16 @@ export function wantsUsbDriver(): boolean {
  * (Redmi, 2026-11-13). Asked once, before the own USB driver first opens; a refusal only means the
  * question comes again at the next plug-in.
  */
-async function ensureRecordPermission(): Promise<void> {
+/** The microphone question never holds the output up longer than this: after a reload of the page
+ * the WebView's getUserMedia never answered, and the native output stayed "starting" - silent
+ * (Redmi, 2026-11-14). */
+const RECORD_PERMISSION_WAIT_MS = 1500
+
+function ensureRecordPermission(): Promise<void> {
+  return Promise.race([askRecordPermission(), new Promise<void>((resolve) => setTimeout(resolve, RECORD_PERMISSION_WAIT_MS))])
+}
+
+async function askRecordPermission(): Promise<void> {
   try {
     const status = await navigator.permissions?.query({ name: 'microphone' as PermissionName })
     if (status?.state === 'granted') return
