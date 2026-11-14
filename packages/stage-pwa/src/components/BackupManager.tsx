@@ -4,7 +4,7 @@ import { CAPABILITIES, HEALTH_TIMEOUT_MS, type PluginInstallation } from 'shared
 import { useDialogStore } from '../store/useDialogStore'
 import { usePluginsStore } from '../store/usePluginsStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
-import { useNow } from '../lib/useNow'
+import { useServerNow } from '../lib/useNow'
 import {
   buildWorkspaceSnapshot,
   downloadWorkspaceSnapshot,
@@ -30,7 +30,9 @@ export function BackupManager() {
   const { t } = useTranslation('system')
   const installed = usePluginsStore((state) => state.installed)
   const health = usePluginsStore((state) => state.health)
-  const now = useNow()
+  // `lastSeenAt` is the Stage-Server's stamp - compared in its time, not this device's (the Fire's clock
+  // runs 18 s fast: every add-on read "Heartbeat veraltet", 2026-11-14).
+  const now = useServerNow()
   const workspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
   const confirm = useDialogStore((state) => state.confirm)
   const [snapshotStatus, setSnapshotStatus] = useState<string | null>(null)
