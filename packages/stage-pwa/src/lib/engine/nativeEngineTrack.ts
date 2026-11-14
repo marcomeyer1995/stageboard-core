@@ -1,4 +1,4 @@
-import { nativeEngine } from '../nativeOutput'
+import { nativeEngine, useNativeOutputStore } from '../nativeOutput'
 import { getTrack } from '../songVariantsDb'
 import { useNativeTrackStore, type NativeTrackStatus } from './nativeTrackStore'
 import { ENGINE_BUS } from './wasmEngine'
@@ -68,6 +68,7 @@ export async function loadNativeTrack(variantId: string, trackId: string): Promi
     // At song time 0, on the track bus; level and place come with every update.
     const { error } = await nativeEngine.clipCommit(TRACK_CLIP, 0, ENGINE_BUS.track, 0)
     if (mine !== generation) return 'idle'
+    if (!error) useNativeTrackStore.setState({ engineGen: useNativeOutputStore.getState().engineGen })
     return error ? set('error', error) : set('ready')
   } catch (err) {
     return set('error', String(err))
