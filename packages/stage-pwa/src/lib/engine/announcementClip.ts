@@ -64,12 +64,12 @@ export function alignsOnVowel(): boolean {
 }
 
 /**
- * The song's announcements as the engine's clip: each word once, and where it is said. Words
+ * The song's announcements as the engine's clip: each word (at its pace) once, and where it is said. Words
  * without a clip are left out (as the WebView skips them); null when none has one.
  */
-export function announcementClip(items: Announcement[], clipOf: (text: string) => AudioBuffer | null, onVowel = true): AnnouncementClip | null {
+export function announcementClip(items: Announcement[], clipOf: (item: Announcement) => AudioBuffer | null, onVowel = true): AnnouncementClip | null {
   const placed = items
-    .map((item) => ({ item, buffer: clipOf(item.text) }))
+    .map((item) => ({ item, buffer: clipOf(item) }))
     .filter((p): p is { item: Announcement; buffer: AudioBuffer } => p.buffer !== null)
     .map((p) => ({ ...p, startMs: p.item.atMs - (onVowel ? vowelOnsetMs(p.buffer) : 0) }))
     .sort((a, b) => a.startMs - b.startMs)
@@ -82,10 +82,12 @@ export function announcementClip(items: Announcement[], clipOf: (text: string) =
   const wordOf: number[] = []
   for (const { item, buffer, startMs } of placed) {
     if (buffer.sampleRate !== rate) continue
-    let w = index.get(item.text)
+    // The same text at another pace is another word.
+    const wordKey = `${item.speed ?? ''}|${item.text}`
+    let w = index.get(wordKey)
     if (w === undefined) {
       w = words.length
-      index.set(item.text, w)
+      index.set(wordKey, w)
       words.push(base64(pcm16(buffer)))
     }
     starts.push(Math.round(((startMs - songStartMs) * rate) / 1000))

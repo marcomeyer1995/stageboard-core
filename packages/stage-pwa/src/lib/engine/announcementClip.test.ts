@@ -18,7 +18,7 @@ describe('announcementClip', () => {
         { text: 'Chorus', atMs: 10000, bar: 6 },
         { text: 'Missing', atMs: 3000, bar: 3 },
       ] as never,
-      (text) => clips[text] ?? null,
+      (item) => clips[item.text] ?? null,
     )
     expect(clip).not.toBeNull()
     expect(clip!.songStartMs).toBe(-500)

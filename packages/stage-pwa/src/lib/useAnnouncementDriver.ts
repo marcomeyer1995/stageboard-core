@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { CAPABILITIES, mapPlays, SERVER_EXECUTION_TARGET } from 'shared-types'
 import { create } from 'zustand'
-import { announcementsDue, sectionAnnouncements, type Announcement } from './announcements'
+import { announcementsDue, fitAnnouncements, sectionAnnouncements, type Announcement } from './announcements'
 import { sharedAudioClock } from './audioClock'
 import { clickTimeline } from './beatGrid'
 import { pluginProviding } from './capabilities'
@@ -82,6 +82,7 @@ export function useAnnouncementDriver(): void {
 
   const voice = useMemo(() => bandSpeechVoice(installed), [installed])
   const settings = useMemo(() => bandAnnouncementSettings(installed), [installed])
+  const [loaded, setLoaded] = useState(0)
   const active = pluginProviding(installed, CAPABILITIES.sectionAnnouncements) !== null && enabledHere && engine === 'local-mine'
 
   const variant = queue.currentVariant
@@ -103,12 +104,28 @@ export function useAnnouncementDriver(): void {
       const nextTimeline = clickTimeline({ bpm: nextVariant.bpm, timeSignature: nextVariant.timeSignature, beatGrid: nextVariant.beatGrid })
       for (const part of sectionAnnouncements(nextVariant.chordProContent, nextTimeline, settings)) wanted.add(part.text)
     }
-    for (const text of wanted) void loadSpeechClip(text, voice)
+    // Each loaded clip's length lets the words be fitted between the beats.
+    let live = true
+    for (const text of wanted) void loadSpeechClip(text, voice).then(() => live && setLoaded((n) => n + 1))
+    return () => {
+      live = false
+    }
   }, [active, items, nextVariant, voice, settings])
 
+  // Words too long for their beat spoken faster, or a name over the next number (#842).
+  const fitted = useMemo(
+    () => fitAnnouncements(items, (text) => { const clip = speechClip(text, voice); return clip ? clip.duration * 1000 : null }, voice.speed ?? 1),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `loaded` counts the clips that came in
+    [items, voice, loaded],
+  )
+  useEffect(() => {
+    if (!active) return
+    for (const item of fitted) if (item.speed) void loadSpeechClip(item.text, { ...voice, speed: item.speed })
+  }, [active, fitted, voice])
+
   // From the engine while the native output plays (#835) - then the WebView stays quiet.
-  const inEngine = useNativeAnnouncements(active && wantsNativeVoice() ? items : null, voice)
-  usePlayAnnouncements(items, voice, active && !inEngine && playbackStatus === 'playing', elapsedNow, outputLatencyMs, takeKey, playbackRate)
+  const inEngine = useNativeAnnouncements(active && wantsNativeVoice() ? fitted : null, voice)
+  usePlayAnnouncements(fitted, voice, active && !inEngine && playbackStatus === 'playing', elapsedNow, outputLatencyMs, takeKey, playbackRate)
 }
 
 /**
@@ -154,7 +171,8 @@ export function usePlayAnnouncements(
       const rate = latest.current.playbackRate ?? 1
       const audioNow = audioClock.now(ctx)
       for (const { index, inMs } of announcementsDue(current, elapsed, (LOOKAHEAD_MS + latencyMs + MAX_ONSET_MS) * rate, done)) {
-        const buffer = speechClip(current[index]!.text, currentVoice)
+        const item = current[index]!
+        const buffer = speechClip(item.text, item.speed ? { ...currentVoice, speed: item.speed } : currentVoice)
         if (!buffer) continue
         // The vowel on the beat, not the clip's first sample (#842).
         const onset = alignsOnVowel() ? vowelOnsetMs(buffer) / 1000 : 0

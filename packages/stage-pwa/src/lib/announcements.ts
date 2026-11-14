@@ -11,6 +11,10 @@ export interface Announcement {
   atMs: number
   /** Bar the announced part starts on (count-in words: 1). */
   bar: number
+  /** The part's name (a name cell) - not a count number or a fixed text. */
+  name?: true
+  /** How fast it is spoken, from fitAnnouncements; unset: the band's pace. */
+  speed?: number
 }
 
 /**
@@ -54,7 +58,7 @@ export function sectionAnnouncements(content: string, timeline: ClickTimeline, s
           const beat = first + k
           if (beat < previousStartBeat || beat < timeline.firstBeat) continue
           const text = cellText(cells[k]!, start.text, number(k + 1))
-          if (text) events.push({ text, atMs: timeline.timeOfBeat(beat), bar: start.bar })
+          if (text) events.push({ text, atMs: timeline.timeOfBeat(beat), bar: start.bar, ...(cells[k]!.trim() === CUE_NAME ? { name: true as const } : {}) })
         }
       })
     }
@@ -125,4 +129,40 @@ export function announcementsDue(items: readonly Announcement[], elapsedMs: numb
     due.push({ index, inMs: item.atMs - elapsedMs })
   })
   return due
+}
+
+/** Spoken at most this much faster than the band's pace (SPEECH_SPEED_MAX on the server). */
+export const FIT_MAX_SPEED = 1.6
+/** A word ends this long before the next one starts - room for its last sound to fade. */
+const FIT_GAP_MS = 30
+
+/**
+ * Fits the words between the beats (#842; Marco, 2026-11-14: "beides kombinieren"): in a fast
+ * song they were longer than a beat and cut by the next one - 21 of 28 in "When I Come Around",
+ * the part name by half. A word too long for its beat is spoken faster, up to FIT_MAX_SPEED; a
+ * part name too long even then runs over the next beat, and the count number there is left out
+ * ("Refrain - 3 - 4"). What still doesn't fit is cut as before. `lengthMs`: a text's length at
+ * `baseSpeed` (null: not known yet - left as it is).
+ */
+export function fitAnnouncements(items: Announcement[], lengthMs: (text: string) => number | null, baseSpeed = 1): Announcement[] {
+  const sorted = [...items].sort((a, b) => a.atMs - b.atMs)
+  const out: Announcement[] = []
+  const max = Math.max(baseSpeed, FIT_MAX_SPEED)
+  for (let i = 0; i < sorted.length; i++) {
+    const item = sorted[i]!
+    const length = lengthMs(item.text)
+    let next = sorted[i + 1]
+    const room = () => (next ? next.atMs - item.atMs - FIT_GAP_MS : Infinity)
+    if (length === null || length <= room()) {
+      out.push(item)
+      continue
+    }
+    if (item.name && next && !next.name && length / room() > max / baseSpeed) {
+      i++ // the number on the next beat gives way to the name
+      next = sorted[i + 1]
+    }
+    const factor = Math.min(max / baseSpeed, length / room())
+    out.push(factor > 1 ? { ...item, speed: Math.min(max, Math.ceil(baseSpeed * factor * 20) / 20) } : item)
+  }
+  return out
 }
