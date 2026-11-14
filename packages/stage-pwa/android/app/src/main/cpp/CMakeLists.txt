@@ -19,6 +19,11 @@ add_library(native_output SHARED native_output.cpp ${ENGINE_DIR}/src/clock_map.c
 target_include_directories(native_output PRIVATE ${ENGINE_DIR}/include)
 target_compile_definitions(native_output PRIVATE __ANDROID_UNAVAILABLE_SYMBOLS_ARE_WEAK__)
 target_compile_options(native_output PRIVATE -Wall -Wno-unguarded-availability-new -Wno-unguarded-availability)
+# Optimised in debug builds too: this code races the audio callback's deadline, and the dev app is
+# what the devices are tested with - at -O0 the engine took the Fire's callback past its 20 ms
+# (161 underruns in a song, audible hangs) and the Redmi's USB thread to half a core (2026-11-14).
+target_compile_options(native_output PRIVATE -O2)
+target_compile_options(opus PRIVATE -O2)
 # libaaudio's stub only exists in the API 26+ sysroot folders - link that one explicitly.
 if(ANDROID_ABI STREQUAL "arm64-v8a")
   set(AAUDIO_TRIPLE aarch64-linux-android)
