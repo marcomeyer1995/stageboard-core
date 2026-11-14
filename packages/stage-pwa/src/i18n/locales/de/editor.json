@@ -376,6 +376,8 @@
     "edit": "{{name}} bearbeiten",
     "lengthsDiffer": "Die Spuren sind unterschiedlich lang - sie laufen ab 0:00 zusammen, eine passt vielleicht nicht.",
     "uploading": "Lade Spur {{n}} von {{total}}…",
+    "converting": "„{{name}}“ wird nach Opus umgewandelt… {{pct}} %",
+    "noEncoder": "Dieses Gerät kann die Datei nicht nach Opus umwandeln (zu alter Browser). Bitte auf einem anderen Gerät hochladen.",
     "youtubeLink": "Bitte einen youtube.com- oder youtu.be-Link einfügen.",
     "youtubeRef": "YouTube Referenz",
     "removeAsk": "„{{name}}“ entfernen?",
