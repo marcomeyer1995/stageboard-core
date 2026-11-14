@@ -1,8 +1,8 @@
 # 31 Bühnenplan – die Bühne als ein Bild (Konzept)
 
-Stand 2026-11-06, Konzept mit Marcos Entscheidungen (§0, §0a: Karte, Anschlüsse, Karte als Master). Anlass: beim Abgleich nach Gehör (PR #700) war der Weg Geräte → ⋯ → Latenz… → Abgleich zu verschachtelt; Marco: Abgleich gehört in einen späteren Bühnenplan mit sichtbarer Aufstellung, und der kann den Ablauf des Einmessens ändern – darum erst dieses Konzept, dann die automatische Einmess-Runde.
+Stand 2026-11-10, Konzept mit Marcos Entscheidungen (§0, §0a: Karte, Anschlüsse, Karte als Master; §0c: Ausbau nach dem Konzept vom 2026-11-09, Issues #737–#753). Anlass: beim Abgleich nach Gehör (PR #700) war der Weg Geräte → ⋯ → Latenz… → Abgleich zu verschachtelt; Marco: Abgleich gehört in einen späteren Bühnenplan mit sichtbarer Aufstellung, und der kann den Ablauf des Einmessens ändern – darum erst dieses Konzept, dann die automatische Einmess-Runde.
 
-Berührt drei Ideen, die dieselben Daten zeigen: **#62** (räumliche Bühnenmatrix), **#488** (Stage Plot und Input-Liste als PDF) und **docs/21 §4 / docs/30** (Ausgabewege mit Latenz, Abgleich, Einmessen). Dieser Bühnenplan nimmt nur die dritte auf; #62 und #488 bleiben eigene Themen (§0).
+Berührt drei Ideen, die dieselben Daten zeigen: **#62** (räumliche Bühnenmatrix), **#488** (Stage Plot und Input-Liste als PDF) und **docs/21 §4 / docs/30** (Ausgabewege mit Latenz, Abgleich, Einmessen). Anfangs nahm der Bühnenplan nur die dritte auf (§0); seit dem Ausbau (§0c) gehören alle drei hierher: #62 und #545 sind mit Karte und Matrix erfüllt und geschlossen, #488 ist der Export (§11, #750).
 
 ## 0. Entscheidungen (Marco, 2026-11-05)
 
@@ -53,6 +53,32 @@ Anlass: die gebaute Wege-Liste (PR #705) war Marco zu wenig – er will die **dy
 | Mehrere Apps auf einem Gerät | ein Kasten = **ein physisches Gerät**; Release-App, Dev-App, Chrome und der Stage-Server sind **Apps darauf**, vom Admin zusammengeführt („Dasselbe Gerät wie …“, wieder „Abtrennen“) – keine App erkennt das von selbst. Von mehreren Apps spielt **nur die, die zuletzt nach vorne kam** |
 | Vollbild | Dialoge über der Karte (eigene Ebene `z-page`, docs/15); seitliches Verschieben wechselt nicht den Tab; Dialoge mit Textfeld in der App mittig |
 
+## 0c. Entscheidungen (Marco, 2026-11-10) – Ausbau nach dem Konzept vom 2026-11-09
+
+Anlass: Marcos Konzept „StageMap“ vom 2026-11-09 denkt die Karte weiter – Container-Ports und Pins, Signal-Bibliothek, Smart Matrix, Kabel-Prüfer, Live-Ebene, Strom, Auto-Layout, Export, Havarie. Es ist in diese Datei eingearbeitet (§7b–§7e, §9–§12), nicht an ihre Stelle gesetzt: die Entscheidungen aus §0–§0b (Platzhalter, mehrere Apps je Gerät, Pult startet leer, wer bearbeitet) gelten weiter. Sammel-Issue **#737**, Einzel-Issues #738–#753 (§6).
+
+| Frage | Entscheidung |
+|---|---|
+| Matrix | **die Ausgänge bleiben rechts** („Ausgang ist rechts“, §7) – das Konzept hatte sie links |
+| Strom | **Erdung je Gerät** (geerdet / nicht geerdet / Akku) und **Art der Verbindung** (symmetrisch / unsymmetrisch / getrennt) statt Phasen; Steckdosenkreise nur optional (§7e). Es brummt, wenn zwei geerdete Geräte zusätzlich über die Abschirmung eines Kabels verbunden sind – nicht wegen der Phase; der häufigste Fall bei uns ist der Laptop am Netzteil, per USB oder Klinke am Pult |
+| Havarie | **zwei Stufen** (Ersatzweg auf demselben Gerät, dann ein anderes Gerät übernimmt); umgeschaltet wird **nur auf einen ausdrücklich festgelegten Ersatzweg, sonst Stille** (docs/28: nie ein falsches Signal ans Publikum); eine **kurze hörbare Lücke ist in Ordnung** – „innerhalb von Millisekunden“ aus dem Konzept ist nicht zu erwarten, Schätzung unter einer Sekunde, zu messen (§12) |
+| Kabellängen | **entfallen** – die Packliste zählt Kabel nach Art und Anzahl, der Plan ist schematisch (§0) |
+| Reihenfolge | frei; Vorschlag in §6: zuerst das Anschluss-Modell und „der Ton folgt der Matrix“, weil das im Gig fehlt (Klick nur aufs In-Ear, Track ans Pult) |
+| Alte Issues | **#62** und **#545** geschlossen (Karte, Matrix und Verkabelungsliste erfüllen sie; der Live-Status aus #545 ist §9, #747); **#488** bleibt und wird mit dem Export (§11, #750) erledigt |
+
+## 0d. Decisions (Marco, 2026-11-11) – the sound follows the map (#742)
+
+Written in English (#785); the rest of this file is translated when touched.
+
+| Question | Decision |
+|---|---|
+| Gig | the playing device takes its outputs from **its matrix in the active band setup** (§7c) |
+| Practice (practice, Timeline, song editor) | per device one choice: **"Everything on both ears"** (default, needs no map) or **a setup** - one of the band's ("Rehearsal room") or one of the person's own. No preset "click left, track right" - that is done in an own setup. Device cues (MIDI to the Kemper) follow the chosen setup as in the gig |
+| Own setups ("My setup", #799) | a **full stage map owned by one person**: same model and editor as a band setup (equipment, cables, matrix), so an effects unit, an interface or a pedal at home can be connected. **Per person, not per device** (syncs across the person's devices); several possible ("Home", "Teaching room"); not offered in the gig's setup choice and not listed for other members; **the admin may see and edit them**. Band equipment can be used, own equipment belongs to the person. Measured values belong to the path as always |
+| Output missing while practising | also when the device is not placed in the chosen setup: **fall back to "Everything on both ears"** with a hint (no audience at home) |
+| Output missing in the gig | **only the affected sources go silent**; sources whose output is still there keep playing (the click on the in-ear survives a pulled USB cable), with a red message. Never played somewhere else (docs/28); the later failover (#752) switches exactly the lost signal |
+| Old setting "click left / right" | **removed** (`OutputRouting` store and its settings) |
+
 ## 1. Was der Bühnenplan ist
 
 Ein Bild der Bühne von oben, je Band: **wer steht wo, welches Gerät steht wo, was geht von wo nach wo, und wie gut ist jeder Weg eingemessen.** Er ist der eine Ort, an dem man den Aufbau sieht und ändert – statt verteilt über Bühnentechnik, Tablets & Handys, Latenz-Dialoge und Rig-Check.
@@ -81,7 +107,7 @@ Jeder Weg (Linie) hat einen Zustand: ● eingemessen · ◐ von Hand · ○ fehl
 | System → Tablets & Handys | Geräte, Online-Status, Latenzwerte, Ton-Gesundheit (#703) | Gerätesymbole mit Status; Liste bleibt als Diagnose |
 | Latenz… → Nach Gehör abgleichen | Abgleich je Gerät und Weg | am Weg im Plan |
 | Rig-Check | Prüflauf mit Test-Song | später „Prüfen“-Ansicht der Karte |
-| (#488, #62, nicht gebaut) | Stage Plot/PDF, Rollen-Matrix per Ziehen | bleiben eigene Themen (§0) |
+| (#488, #62) | Stage Plot/PDF, Rollen-Matrix per Ziehen | Matrix gebaut (§7), Plot als Export (§11, #750) |
 
 ## 3. Was im Plan steht (Daten)
 
@@ -107,14 +133,14 @@ Fire Dev
 Laptop
   ○ Pult K7          –      Track → Saal   [einmessen]
 ```
-Bearbeiten (Wege anlegen, Hörweg wählen) hinter dem Vorhängeschloss: jeder an seinem eigenen Platz, der Admin überall (§0). Später auf denselben Daten die **Karte** (schematisch) mit „Aufbau“ und „Prüfen“ (Ampel je Weg und Gerät – online, Ton sauber (#703), eingemessen); die räumliche Rollen-Matrix (#62) und der Plot (#488) bleiben eigene Themen.
+Bearbeiten (Wege anlegen, Hörweg wählen) hinter dem Vorhängeschloss: jeder an seinem eigenen Platz, der Admin überall (§0). Die **Karte** (schematisch, seit #706 gebaut) auf denselben Daten; „Prüfen“ (Ampel je Weg und Gerät – online, Ton sauber (#703), eingemessen) ist die Live-Ebene (§9, #747); der Plot (#488) ist der Export (§11).
 
 ## 5. Einmessen im Plan (verändert den Ablauf)
 
 Heute: ein Gerät wählen → Wert. Im Plan: **ein Weg** (Gerät-Ausgang → Ziel), dessen Nutzer bekannt sind.
 
 - **Startwert:** bekannte Gerätewerte (Plugin-Standard bei Kemper/MIDI); keine Abstände, der Plan ist schematisch (§0).
-- **Einmess-Runde:** „Alle fehlenden Wege einmessen“ – das Handy in der Hand, die Wege nacheinander (Referenz gegen Ziel, eigene Tonhöhen, Mikrofon wie PR #700), Wert übernehmen, nachprüfen. Der Plan weiß, welche Wege es gibt und welche fehlen – keine Geräteauswahl von Hand.
+- **Einmess-Runde** (#751, braucht die Live-Ebene §9): „Alle fehlenden Wege einmessen“ – das Handy in der Hand, die Runde führt nacheinander über die **Linien der Karte ohne Wert** (Referenz gegen Ziel, eigene Tonhöhen, Mikrofon wie PR #700), Wert übernehmen, nachprüfen. Der Plan weiß, welche Wege es gibt und welche fehlen – keine Geräteauswahl von Hand.
 - **Wo man steht:** die App sagt es je Weg aus seinen Nutzern („bei Kais In-Ear“, „im Saal“). Ein Weg hat eine Korrektur (§0) – hören ihn mehrere, misst man dort, wo es am meisten zählt (Klick: beim Drummer).
 - **Ohne Mikrofon:** von Hand nach Gehör (PR #700) – derselbe Weg, dieselben Werte.
 - **Später automatisch:** Pult als Sensor (alle Wege am Pult auf einmal), Kamera für Licht (docs/21 §4).
@@ -122,15 +148,30 @@ Heute: ein Gerät wählen → Wert. Im Plan: **ein Weg** (Gerät-Ausgang → Zie
 
 ## 6. Reihenfolge
 
-Neu seit der Karte (Marco, 2026-11-06); die Wege-Liste aus PR #705 bleibt bis dahin als Übergang.
+**Gebaut** (PRs #704–#707, 2026-11-06/07): Datenmodell (`shared-types/src/stageMap.ts`: Ausrüstung, Anschlüsse, Verbindungen mit Breite, Patch/Matrix, Aufbauten, generische Modelle, Standard-Karte, Platzhalter, mehrere Apps je Gerät), „wer spielt“ (Klick/Track/Ansagen und Plugins dort, wo der Patch sagt – `mapPlays`, `mapRoute`), Karte und Liste in der App mit Vollbild, freie Anschlussliste, Prüfungen (§0b), Verkabelungsliste. Die Wege-Liste aus PR #705 bleibt daneben.
 
-1. **Datenmodell** (`shared-types/src/stageMap.ts`): Ausrüstung, Anschlüsse, Verbindungen, Patch, Aufbauten, eingebaute generische Modelle, Standard-Karte, Wege je Signalart. Nur Daten, noch von nichts gelesen.
-2. **Umschalten, wer spielt:** Klick, Track, Ansagen und Plugins spielen dort, wo der Patch sagt, statt nach `executionTarget` bzw. „der Master spielt“. Ändert, was im Gig zu hören ist – erst nach Marcos Hörtest von #700–#705, gemeinsam auf den Geräten prüfen.
-3. **Karte und Liste in der App:** ansehen, bearbeiten, Vollbild, „Prüfen“.
-4. **Anschlüsse in den Plugin-Manifesten** (Kemper, CQ-18T).
-5. **Aufbau im Gig wählen.**
-6. **Einmess-Runde** über die fehlenden Wege (wartet, bis der Rest trägt).
-7. Pult als Sensor, Licht per Kamera.
+**Ausbau** (Marco, 2026-11-10; Sammel-Issue #737):
+
+| | Issue | Was | Braucht |
+|---|---|---|---|
+| A1 | #738 | diese Datei, #62/#545 schließen | – |
+| A2 | #739 | Anschluss-Modell 2: Container-Ports, Pins, OSC (§7b) | – |
+| A3 | #740 | Signal-Bibliothek: Breite, eigene Signale, Löschen mit Umschreiben (§7a) | – |
+| A4 | #741 | Geräte-Modelle aus Add-ons (Manifest, docs/32) | A2, A3 |
+| B1 | #742 | der Ton folgt der Matrix, Stufe 1: Ausgang und Pin, Klick links / Track rechts, Mischen (§7c) | A2 |
+| B2 | #743 | Stufe 2: mehrere Kanäle über ein USB-Interface (#481, #25) | B1, native Engine #726–#729 |
+| B3 | #744 | Smart Matrix: klappbare Gruppen, freie Pins automatisch, Pin-Ebene (§7c) | A2 |
+| B4 | #745 | Aufbau im Gig wählen | – |
+| C1 | #746 | Kabel-Prüfer: ganze Kette (§7d) | A2 |
+| C2 | #747 | Live-Ebene: Status je Gerät und Linie (§9) | – |
+| C3 | #748 | Strom und Brummschleifen (§7e) | A2 |
+| D1 | #749 | Icons, Zonen, Auto-Layout mit Anpinnen (§10) | – |
+| D2 | #750 | Export: Stage Plot, Input-/Output-Liste, Packliste (§11, #488) | D1 |
+| E1 | #751 | Einmess-Runde über die Linien (§5, #491) | C2 |
+| E2 | #752 | Havarie 1: Ersatzweg auf demselben Gerät (§12) | B2 |
+| E3 | #753 | Havarie 2: ein anderes Gerät übernimmt (§12) | B4, E2 |
+
+Vorgeschlagene Reihenfolge: A1 → A2 → B1 → B3 → C1 → B4 → C2, danach A3/A4, dann D und E. Danach wie bisher: Pult als Sensor, Licht per Kamera (docs/21 §4).
 
 ## 7. Ausrüstung und Anschlüsse (§0a)
 
@@ -171,7 +212,85 @@ Zwei Ebenen:
 - Die Standard-Karte (§0a) ist damit: Klick, Track, Ansagen auf den Lautsprecher jedes Geräts gepatcht.
 - Virtuelle Anschlüsse legt der Admin an (wie Band-Modelle).
 
+**Signal-Bibliothek** (Konzept 2026-11-09, #740): die virtuellen Anschlüsse sind die Signal-Bibliothek der Band, nur der Admin pflegt sie.
+- Jedes Signal hat eine **Breite** (Mono: Klick; Stereo: Track) – daraus folgt, wie viele Pins es in der Matrix belegt.
+- **Standards** (Klick, Track, Ansagen, Fußschalter) lassen sich umbenennen und verdoppeln, nicht löschen. **Aus Add-ons** kommt das Signal mit dem Geräte-Modell (§7, #741): stellt man den Kemper auf die Karte, legt die App „Kemper“ an, falls es fehlt – geroutet wird nichts von selbst. **Eigene Signale** legt der Admin an („Stem: Drums“, Stereo; welche Spur es speist, klärt docs/22).
+- **Löschen mit Umschreiben:** wird ein Signal noch benutzt (Cues, Widgets, Auslöser, Matrix-Punkte), zeigt die App wie oft und wo und fragt nach dem Signal, auf das umgeschrieben wird – oder bricht ab. Kein stilles Löschen.
+
+## 7b. Anschluss-Modell 2: Container-Ports und Pins (#739)
+
+**Gebaut 2026-11-11** (Datenmodell, Prüfungen, Signalwege, Anschlussliste, Matrix-Zeilen; der Ton selbst folgt der Matrix erst mit #742): `PortPart`, `Port.pins`/`Port.parts`, `MatrixPoint.pin`/`PortRef.pin`, Signal `osc`, `lookupPort`/`cablePortId`, `normalizeEquipment` (alte Karten beim Lesen: `stereo` → `pins: 2`, USB/Netz ohne Teile bekommt Standard-Teile), `partChannels` (Kanalzahl vom anderen Ende des Kabels), `portSlots`. Ein Matrix-Punkt auf dem Container (vor #739) gilt weiter als „alles davon“.
+
+Vorher hatte ein Anschluss Stecker, Signale, Richtung und optional eine Kanalzahl für die ganze Gruppe; USB steht je Richtung in einer eigenen Zeile. Ein Interface mit 4 Audio-Ausgängen, 2 Eingängen und MIDI über **ein** USB-Kabel lässt sich so nicht beschreiben. Darum:
+
+- **Container-Ports:** USB, Netzwerk (RJ45, Dante) und Bluetooth fassen Teile zusammen – **Protokoll** (Audio, MIDI, OSC, Netz) → **Richtung** → **Kanäle**. Auf der Karte bleibt es **ein** Kabel mit Signal-Marken; in Matrix und Anschlussliste klappt der Port auf.
+- **Pins:** jede Buchse hat Pins (Klinke mono = 1, Klinke stereo / Kopfhörer = 2) – ersetzt den Haken „Stereo“. Matrix-Punkte und Kabelenden können einen Pin nennen.
+- Signal **OSC** (für #484).
+- Bestehende Karten werden beim Lesen umgerechnet, kein Neuanfang.
+
+## 7c. Der Ton folgt der Matrix; Smart Matrix (#742, #743, #744)
+
+Heute entscheidet die Karte nur, **ob** ein Gerät Klick, Track oder Ansagen spielt (`mapPlays`); alles läuft gemischt auf dem Ausgang, den Android gerade nutzt. Speist das Gerät die PA, hört das Publikum den Klick. Darum in zwei Stufen:
+
+1. **Ausgang und Pin** (#742): die Matrix des Tablets legt jedes Signal auf einen Ausgang und Pin – Klick auf Kopfhörer links, Track rechts. **Mischen ohne Bus-Einstellung:** mehrere Signale auf demselben Pin mischt die Engine; ein Stereo-Signal auf einem einzelnen Pin wird zu Mono summiert (Hinweis in der Matrix). Ein Signal klingt **nur** auf dem Ausgang, den die Matrix nennt – nutzt Android gerade einen anderen (Kopfhörer abgezogen → Lautsprecher), bleibt es still und die Verbindung wird rot (docs/28). Die Standard-Karte bleibt: alles auf beiden Kanälen des Lautsprechers.
+2. **Mehrere Kanäle über ein USB-Interface** (#743): Klick auf 1/2, Track auf 3/4, Ansagen wahlweise eigen – braucht die native Engine (docs/28, docs/30); Interface abgezogen = sicherer Stopp, Ersatzweg erst mit §12.
+
+**Smart Matrix** (#744, gebaut 2026-11-11: Gruppen zu bis zum Öffnen, geschlossene Gruppe zeigt „belegt/gesamt“, Tippen auf eine geschlossene Gruppe belegt die nächsten freien Zeilen in der Breite des Signals (Track = 2 nebeneinander) oder räumt sie, Pins-Gruppe geschlossen = ganze Buchse, zwei geschlossene Gruppen öffnen sich; Rückfrage „Pin ist belegt“ wartet auf das Mischen-Merkmal aus #746), damit 32 × 32 am Handy bedienbar bleibt:
+- **Klappbare Gruppen:** Kanalgruppen („Eingang 1–16“) und Container-Ports sind zu, bis man sie öffnet; eine geschlossene Gruppe zeigt, was in ihr geroutet ist. Nur offene Gruppen werden gezeichnet.
+- **Freie Pins automatisch:** ein Signal auf eine geschlossene Gruppe gelegt nimmt die nächsten freien Pins passend zur Breite (Stereo = zwei nebeneinander); sofort sichtbar und änderbar.
+- **Pin-Ebene:** aufklappen bis zum einzelnen Pin.
+- Mehrere Punkte je Ausgang, wo das Gerät mischt; wo nicht: Rückfrage „Pin ist belegt: ersetzen oder anderen wählen“ (Dialog der App, docs/15).
+- Antippen zuerst, Ziehen nur zusätzlich; Trefferflächen ≥ 48 px; **Ausgänge rechts** (§0c).
+
+## 7d. Kabel-Prüfer (#746)
+
+Die Prüfungen aus §0b (doppelt belegt, Kabel breiter als das Ziel, Stereo-Buchse einkanalig, Adapter) werden zur **ganzen Kette**: Breite der Quelle → des Kabels → des Ziels, auch durch die Matrizen hindurch.
+- Stereo-Signal auf Mono-Kabel: „ein Kanal geht verloren – in der Matrix zusammenmischen“.
+- **Mono-Stecker in einem Stereo-Ausgang** (Klinke mono in der Kopfhörerbuchse): **rot** – der rechte Kanal wird kurzgeschlossen. An einem Eingang bleibt es eine Warnung.
+- Zwei Signale auf einen Pin eines Geräts, das **nicht mischt**: rot. Dafür sagt jedes Modell, ob es mischt.
+- Adapter bleiben stille Einträge für die Packliste (§11).
+
+**Built 2026-11-11 (#804):** `checkSetup` follows every signal through cables and matrices. Mono plug in a stereo output: red; a stereo signal of which one side reaches nobody: warning ("one channel is lost"); several signals on one output of a device that does not mix: red. `mixes` on a model, by default from its kind (app and mixer mix, an interface does not); only free matrices are checked. In the matrix of a device that does not mix, a second signal on a taken output asks "replace?" (§7c). The lost-channel check covers the app's own stereo signals (Track), not other stereo sources yet.
+
+## 7e. Strom und Brummschleifen (#748)
+
+Nach §0c: keine Phasen. Je Modell ein Startwert für die **Erdung** (Pult geerdet, Tablet auf Akku, Laptop: Rückfrage „am Netzteil?“); je Stecker ein Startwert für die **Verbindung** (XLR symmetrisch, Klinke mono unsymmetrisch, USB führt Masse, MIDI DIN und Funk getrennt; DI-Box und Trenner trennen). **Prüfung:** zwei geerdete Geräte, die über eine Kette von Kabeln mit Masse verbunden sind – liegt ein unsymmetrisches Kabel darin: rot, „Brummschleife wahrscheinlich – DI-Box oder Trenner“; nur symmetrische Kabel: höchstens ein leiser Hinweis. Optional Steckdosen auf der Karte mit Geräten daran.
+
+**Built 2026-11-11 (#806):** `equipmentEarth` (defaults by kind, "Strom" on the map), `cableGround` (XLR balanced; any jack, RCA and the headphone socket unbalanced unless the cable is set to balanced; USB/DMX carry ground; MIDI DIN, network, radio isolated; "Mit Trenner" on a cable; a DI box stops the ground). A cable on a way between two earthed devices (a bridge with earthed gear on both sides, or in a ring with two earthed devices): unbalanced red, USB/DMX only a hint, balanced nothing. Outlets on the map not built.
+
 ## 8. Offen
 
-- Reihenfolge (§6) an die Karte anpassen: Datenmodell (Ausrüstung, Anschlüsse, Verbindungen, Patch, Aufbauten) und Karte vor der Einmess-Runde.
 - Dialog für generische Ausrüstung/Band-Modelle im Detail; welche Anschlüsse die App auf Tablets selbst erkennt.
+- Havarie (§12): wie lang die Lücke beim Umschalten wirklich ist (messen); nach wie vielen Sekunden ohne Lebenszeichen ein Gerät als ausgefallen gilt (zu kurz = doppelte Wiedergabe bei einem WLAN-Aussetzer); wer entscheidet, wenn das ausgefallene Gerät der Host selbst ist (docs/25 §8, #782).
+- Welche Spur ein eigenes Signal wie „Stem: Drums“ speist (§7a, docs/22).
+
+## 9. Live-Ebene (#747)
+
+Schalter **„Aufbau | Prüfen“** auf der Karte. Prüfen zeigt je **Gerät**: online / App offen, Akku (neu zu erfassen), Ton sauber (#703), Uhr-Abweichung; Stage-Server online; Ausrüstung: Treiber meldet sich oder MIDI-Anschluss fehlt. Je **Linie**: Anschluss gefunden (MIDI-Name löst auf), Zustand des Wegs ● eingemessen · ◐ von Hand · ○ fehlt · ✕ instabil. Rot nur für Fehler (wie die Statusleiste). Aktualisierung über den Posteingang, Klasse Hintergrund (docs/26) – die Karte darf im Song nichts stören. Widgets, deren Verbindung fehlt, gehen wie bisher in den Disabled State. „Tablets & Handys“ bleibt die Diagnose-Liste.
+
+**Built 2026-11-11 (#805):** `lib/stageLive.ts` (pure) + `lib/useStageLive.ts`. Devices report `battery` and `midiOutputs` (names) with the device info, at once when a MIDI port comes or goes, never asking for the MIDI permission. Offline or app closed counts as a fault in the check; battery below 20 % without a charger is a warning. Open: clock deviation is only the vitals' "band time unsure" (no ms value reported), "✕ unstable" does not exist (nothing measures it), MIDI ports of the Stage-Server itself are not known, and for Klick/Track/Ansagen the latency state is the device's audio value over any route.
+
+Added the same day: devices also report the sources their output plan keeps silent (`silenced`) - the device and the cable the signal leaves on turn red, "Ausgang fehlt: Klick still" - and the band clock's uncertainty in the vitals (`clockUncertaintyMs`), shown as "Bandzeit ± n ms" (yellow when unsure). A device is never offline for itself. So of the open points above only "✕ unstable" and the Stage-Server's own MIDI ports remain; the clock shows how sure it is, not its true deviation (a device cannot know that).
+
+## 10. Icons, Zonen und Auto-Layout (#749)
+
+- **Icons** je Art von Ausrüstung (Tablet, Pult, Amp, In-Ear, Wedge, Mikrofon, DI …) als Vektorgrafik im UI-System (docs/15), in beiden Themes lesbar.
+- **Zonen:** Drums hinten, Backline, Front, FOH/Saal außerhalb – schematisch, keine Maße (§0).
+- **Auto-Layout:** neue Ausrüstung landet in ihrer Zone bei ihrer Person; „Aufräumen“ ordnet alle nicht angepinnten Kästen so, dass sich möglichst wenige Kabel kreuzen. **Anpinnen:** was von Hand verschoben wurde, bleibt; ohne „Aufräumen“ bewegt die App nichts von selbst.
+
+## 11. Export für die Crew (#750, erledigt #488)
+
+Je Aufbau ein PDF, erzeugt in der App (auf jedem Host, auch Solo; kein Druckdialog des Browsers), geteilt über Android:
+- **Stage Plot:** die Karte ohne Tablets, MIDI und Strom – Musiker, Wedges, Mikrofone, DI, Sub-Mixer.
+- **Input-Liste** (was ans FOH-Pult geht: Kanal, Quelle, Mikrofon/DI) und **Output-Liste** (welcher Aux wohin).
+- **Packliste:** Kabel nach Art und Anzahl, Adapter – **ohne Längen** (§0c).
+- Notizen und Kontakt für den Techniker.
+
+## 12. Havarie (#752, #753)
+
+Digitale Wege (USB, Netz) fallen live am ehesten aus. Die App kann keinen fehlenden Anschluss ersetzen, aber auf einen **vorher festgelegten** Ersatzweg umschalten (§0c: nur auf einen festgelegten, sonst Stille; kurze Lücke in Ordnung).
+
+1. **Ersatzweg auf demselben Gerät** (#752, braucht §7c Stufe 2 – erst mit einem USB-Interface gibt es einen Ausgang, der wegfallen kann, und einen zweiten): in der Matrix legt der Admin neben dem Hauptweg einen Ersatz fest (langes Drücken und über ⋯), z. B. den Kopfhörerausgang, der vorsorglich am Pult steckt. Fällt der Hauptausgang weg (USB abgezogen), schaltet die Engine um und steigt über die gemeinsame Uhr wieder im Takt ein. Zurück auf den Hauptweg nicht von selbst im laufenden Song (noch eine Lücke) – von Hand oder beim nächsten Song.
+2. **Ein anderes Gerät übernimmt** (#753, braucht Aufbau im Gig und Stufe 1): für ein Signal (Track) ist ein anderes Gerät als Ersatz festgelegt; fällt das spielende Gerät ganz aus, übernimmt der Ersatz an derselben Stelle (gemeinsame Uhr). Voraussetzung: der Track liegt auf dem Ersatzgerät – die Live-Ebene zeigt, wenn nicht. Kommt das ausgefallene Gerät zurück, bleibt es still, bis der Admin zurückschaltet – nie doppelt.
+
+Karte: Hauptlinie rot, Ersatzlinie orange, Meldung an den Admin. Offen: §8.
