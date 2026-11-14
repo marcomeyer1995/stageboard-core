@@ -7,7 +7,7 @@ export { useNativeTrackStore } from './nativeTrackStore'
 
 /**
  * The backing track from the engine core in the native output's callback (docs/30 §8h stage 4),
- * switched by `sb:debug:native-track` while the native output plays: one clock and one buffer
+ * on while the native output plays (`sb:debug:native-track` = 0 switches it off): one clock and one buffer
  * for click and track - nothing between them that could drift (the click alone in the engine sat
  * off a track that came through the pipe, until both were on one clock, 2026-11-13).
  *
@@ -26,9 +26,9 @@ const CHUNK_BYTES = 768 * 1024
 
 export function wantsNativeTrack(): boolean {
   try {
-    return localStorage.getItem('sb:debug:native-track') === '1'
+    return localStorage.getItem('sb:debug:native-track') !== '0'
   } catch {
-    return false
+    return true
   }
 }
 

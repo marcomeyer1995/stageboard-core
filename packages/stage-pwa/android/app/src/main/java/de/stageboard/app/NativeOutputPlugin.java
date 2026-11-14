@@ -332,6 +332,14 @@ public class NativeOutputPlugin extends Plugin {
     }
 
     @PluginMethod
+    public void usbPresent(PluginCall call) {
+        android.hardware.usb.UsbManager um = (android.hardware.usb.UsbManager) getContext().getSystemService(android.content.Context.USB_SERVICE);
+        JSObject out = new JSObject();
+        out.put("present", um != null && UsbAudioOut.find(um) != null);
+        call.resolve(out);
+    }
+
+    @PluginMethod
     public void status(PluginCall call) {
         if (!available()) {
             call.reject("unavailable");

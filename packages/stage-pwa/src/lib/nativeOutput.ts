@@ -77,6 +77,8 @@ interface NativeOutputPlugin {
   clipCommit(options: { id: number; songStartMs: number; bus: number; gain: number }): Promise<{ error: string }>
   clipRemove(options: { id: number }): Promise<void>
   clipGain(options: { id: number; gain: number }): Promise<void>
+  /** Whether a USB audio interface is plugged in. */
+  usbPresent(): Promise<{ present: boolean }>
   /** An output device was added or removed (USB interface, headphones, Bluetooth). */
   addListener(event: 'outputDevicesChanged', listener: () => void): Promise<{ remove: () => Promise<void> }>
   /** A USB audio interface was plugged in - told at once, before Android's audio side takes it up. */
@@ -235,14 +237,14 @@ export const useNativeOutputStore = create<NativeOutputStore>((set) => ({
 
 /**
  * The own USB driver instead of AAudio when a USB audio interface is plugged in (docs/28 §4, #837) -
- * behind a switch until it is measured on the devices; Android asks for the permission once per
- * plug-in.
+ * on by default for testing (Marco, 2026-11-14: no gig ahead, the more it is used the more is
+ * found); `sb:debug:usb-driver` = 0 switches it off on a device.
  */
 export function wantsUsbDriver(): boolean {
   try {
-    return localStorage.getItem('sb:debug:usb-driver') === '1'
+    return localStorage.getItem('sb:debug:usb-driver') !== '0'
   } catch {
-    return false
+    return true
   }
 }
 
@@ -512,7 +514,8 @@ async function attach(ctx: AudioContext): Promise<void> {
     const p: Pipe = { ctx, tap, worker, silent, rate: ctx.sampleRate, chunk, delayMs: null, line: null, history: [], timer: null, unwatch: null, soundAt: null, closed: false }
     pipe = p
     const usb = wantsUsbDriver()
-    if (usb) await ensureRecordPermission()
+    // Only with an interface plugged in - a device without one is never asked for the microphone.
+    if (usb && (await NativeOutput.usbPresent().then((r) => r.present, () => false))) await ensureRecordPermission()
     const started = await NativeOutput.start({ sampleRate: ctx.sampleRate, lowLatency: !safeMode, usb })
     useNativeOutputStore.setState({ usb: started.path === 'usb', usbError: started.usbError ?? null })
     if (!started.started) throw new Error(started.error ?? 'start')
