@@ -11,6 +11,7 @@
     "finished": "Beendet",
     "audioError": "Audio-Fehler",
     "audioFallback": "Ton: Notbetrieb",
+    "outputMissing": "Ausgang fehlt",
     "syncError": "Sync-Fehler",
     "offline": "Offline",
     "noMaster": "Kein Master",

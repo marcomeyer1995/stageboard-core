@@ -1,6 +1,6 @@
 import { isSongEntry, type Setlist, type SongVariant } from 'shared-types'
 import { fetchTrack } from './audioClient'
-import { cacheKey } from './audioCache'
+import { cacheKey, parseCacheKey } from './audioCache'
 import { getAudioStorageBackend } from './audioStorageBackend'
 import type { AudioSyncMode } from '../store/useAudioSyncStore'
 import { isStem, playableTracks } from './stems'
@@ -87,17 +87,17 @@ export function computeTargetKeys(
   stemMode: AudioSyncMode = 'none',
 ): Set<string> {
   const keys = new Set<string>(alwaysKeepKeys)
-  const add = (strategy: AudioSyncMode, pick: (variant: SongVariant) => readonly { id: string }[]) => {
+  const add = (strategy: AudioSyncMode, pick: (variant: SongVariant) => readonly { id: string; fileRev?: number }[]) => {
     if (strategy === 'none') return
     if (strategy === 'full') {
-      for (const variant of variants) for (const track of pick(variant)) keys.add(cacheKey(variant.id, track.id))
+      for (const variant of variants) for (const track of pick(variant)) keys.add(cacheKey(variant.id, track.id, track.fileRev))
       return
     }
     const seenSongIds = new Set<string>()
     const addSong = (songId: string, variantId: string | null) => {
       seenSongIds.add(songId)
       const variant = resolveVariant(songId, variantId, variants)
-      if (variant) for (const track of pick(variant)) keys.add(cacheKey(variant.id, track.id))
+      if (variant) for (const track of pick(variant)) keys.add(cacheKey(variant.id, track.id, track.fileRev))
     }
     for (const entry of activeSetlist?.entries ?? []) {
       if (isSongEntry(entry)) addSong(entry.songId, entry.variantId)
@@ -143,7 +143,7 @@ export async function reconcileAudioCache(
   await Promise.all([...cached].filter((key) => !target.has(key)).map((key) => backend.remove(key)))
 
   async function fetchAndCache(key: string): Promise<void> {
-    const [variantId, trackId] = key.split(':')
+    const { variantId, trackId } = parseCacheKey(key)
     const blob = await fetchTrack(variantId, trackId)
     if (blob) await backend.set(key, blob)
   }

@@ -204,3 +204,25 @@ describe('fast lane for show-state changes (#468)', () => {
     expect(useShowStateStore.getState().state.playbackStatus).toBe('stopped')
   })
 })
+
+describe('the setup the Gig goes by (#745)', () => {
+  beforeEach(() => {
+    vi.mocked(putShowState).mockReset().mockResolvedValue(undefined)
+    vi.mocked(pushShowState).mockClear()
+  })
+
+  it('the master chooses it, pushed to every device at once; not while a song plays, not by anyone else', async () => {
+    setState({}, true)
+    await useShowStateStore.getState().setActiveSetup('club')
+    expect(useShowStateStore.getState().state.activeSetupId).toBe('club')
+    expect(putShowState).toHaveBeenCalledWith(expect.objectContaining({ activeSetupId: 'club' }))
+
+    setState({ activeSetupId: 'club', playbackStatus: 'playing' }, true)
+    await useShowStateStore.getState().setActiveSetup(null)
+    expect(useShowStateStore.getState().state.activeSetupId).toBe('club')
+
+    setState({ activeSetupId: 'club' }, false)
+    await useShowStateStore.getState().setActiveSetup(null)
+    expect(useShowStateStore.getState().state.activeSetupId).toBe('club')
+  })
+})

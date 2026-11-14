@@ -276,4 +276,13 @@ describe('ChordProLyrics - chord shapes on a chord (#609)', () => {
     fireEvent.click(chord('Am'))
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
+
+  it('a tap on a line with a time reports that time (Solo start point, #817); a line without one reports nothing', () => {
+    const onTimeTap = vi.fn()
+    render(<ChordProLyrics lines={parseChordPro('[00:34.00] Takt 17\nOhne Zeit')} onTimeTap={onTimeTap} />)
+    fireEvent.click(screen.getByText('Takt 17'))
+    expect(onTimeTap).toHaveBeenCalledWith(34_000)
+    fireEvent.click(screen.getByText('Ohne Zeit'))
+    expect(onTimeTap).toHaveBeenCalledTimes(1)
+  })
 })

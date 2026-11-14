@@ -66,6 +66,9 @@ export function DeviceVitalsPanel() {
   const v: VitalsSnapshot = useDeviceVitalsStore((state) => state.snapshot) ?? vitalsSnapshot()
   const fellBack = useNativeOutputStore((state) => state.fellBack)
   const setWanted = useNativeOutputStore((state) => state.setWanted)
+  const usb = useNativeOutputStore((state) => state.usb)
+  const usbError = useNativeOutputStore((state) => state.usbError)
+  const usbGone = useNativeOutputStore((state) => state.status?.usbDisconnected === true)
   const fps = useFrameRate()
   const { level, issues } = assessVitals(v)
   const has = (issue: (typeof issues)[number]): boolean => issues.includes(issue)
@@ -92,8 +95,8 @@ export function DeviceVitalsPanel() {
             <Row label={t('vit.output')}>{t('vit.outputBrowser')}</Row>
           ) : (
             <>
-              <Row label={t('vit.output')} status={fellBack ? 'error' : undefined}>
-                {audio.path === 'native' ? t('vit.native', { ms: audio.delayMs }) : fellBack ? t('vit.fellBack', { time: new Date(fellBack.at).toLocaleTimeString(i18n.language), ms: num(fellBack.missingMs) }) : t('vit.webview')}
+              <Row label={t('vit.output')} status={fellBack ? 'error' : audio.estimated ? 'warning' : undefined}>
+                {audio.path === 'native' ? t(audio.estimated ? 'vit.nativeEstimated' : 'vit.native', { ms: audio.delayMs }) : fellBack ? t(fellBack.reason === 'broken' ? 'vit.fellBackBroken' : 'vit.fellBack', { time: new Date(fellBack.at).toLocaleTimeString(i18n.language), ms: num(fellBack.missingMs) }) : t('vit.webview')}
               </Row>
               {audio.path === 'native' && (
                 <>
@@ -103,6 +106,20 @@ export function DeviceVitalsPanel() {
                   <Row label={t('vit.reserve')} status={audio.leadMinMs === null ? undefined : light(false, has('audioTight'))}>
                     {audio.leadMinMs === null ? t('vit.settling') : `${num(audio.leadMinMs)} ms`}
                   </Row>
+                  {usb && usbGone ? (
+                    <Row label={t('vit.usbDriver')} status="error">
+                      {t('vit.usbGone')}
+                    </Row>
+                  ) : usb ? (
+                    // The own USB driver writes to the interface directly: Android's volume keys don't reach it.
+                    <Row label={t('vit.volume')}>
+                      {t('vit.volumeUsb')}
+                    </Row>
+                  ) : usbError !== null ? (
+                    <Row label={t('vit.usbDriver')} status="warning">
+                      {t('vit.usbDriverFailed', { error: usbError })}
+                    </Row>
+                  ) : null}
                 </>
               )}
             </>

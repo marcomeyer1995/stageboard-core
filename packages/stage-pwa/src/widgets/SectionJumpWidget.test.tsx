@@ -32,12 +32,15 @@ const show = vi.hoisted(() => ({
   },
 }))
 const state = vi.hoisted(() => ({ isMaster: true, state: { playbackJump: null as null | { at: number; toMs: number; label?: string }, playbackLoop: null, trackOverride: null, liveTempoAdjustPercent: 0 } }))
-const actions = vi.hoisted(() => ({ queueSectionJump: vi.fn(async () => 'queued'), cancelSectionJump: vi.fn(), setSectionLoop: vi.fn() }))
+const actions = vi.hoisted(() => ({ queueSectionJump: vi.fn(async () => 'queued'), cancelSectionJump: vi.fn(), setSectionLoop: vi.fn(), practiceStartAt: vi.fn(() => true) }))
+// jsdom lays nothing out: the widget's height as a test sets it (0 = not measured).
+const size = vi.hoisted(() => ({ height: 0 }))
 
 vi.mock('../lib/showMode', () => ({ useShowMode: () => show, useShowModeCore: () => ({ ...show, elapsedNow: () => show.elapsedMs ?? null }), useShowModeOnDemand: () => show }))
 vi.mock('../lib/sectionJump', () => actions)
 vi.mock('../lib/entryDuration', () => ({ songDurationMs: () => ({ ms: 30000, source: 'manual' }) }))
 vi.mock('../components/JumpCrossfadeSetting', () => ({ JumpCrossfadeSetting: () => null }))
+vi.mock('../lib/useElementSize', () => ({ useElementSize: () => [() => {}, { width: 360, height: size.height }] }))
 
 const { SectionJumpWidget } = await import('./SectionJumpWidget')
 
@@ -46,6 +49,7 @@ beforeEach(() => {
   state.isMaster = true
   state.state.playbackJump = null
   show.mode = 'gig'
+  size.height = 0
 })
 
 describe('SectionJumpWidget (#479)', () => {
@@ -88,5 +92,31 @@ describe('SectionJumpWidget (#479)', () => {
     expect(screen.getByRole('button', { name: 'Chorus' })).toBeEnabled()
     expect(screen.queryByText('Springen kann der Master')).not.toBeInTheDocument()
     expect(screen.queryByText('Nur im Gig')).not.toBeInTheDocument()
+  })
+
+  it('too low for its rows (49 px on the phone, #829): only the section buttons, at full height', () => {
+    size.height = 49
+    // The full widget overflows its 49 px.
+    const sh = vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockReturnValue(223)
+    const ch = vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(49)
+    render(<SectionJumpWidget />)
+    sh.mockRestore()
+    ch.mockRestore()
+    expect(screen.getByRole('button', { name: 'Chorus' })).toHaveClass('h-full')
+    expect(screen.getByRole('button', { name: 'Chorus' })).not.toHaveClass('min-h-touch')
+    expect(screen.queryByRole('radio', { name: 'Ende Takt' })).toBeNull()
+    expect(screen.queryByRole('button', { name: /Wiederholen/ })).toBeNull()
+  })
+
+  it('Solo, stopped: a section sets the start point (#817)', () => {
+    show.mode = 'practice'
+    show.playbackStatus = 'stopped'
+    show.elapsedMs = null
+    render(<SectionJumpWidget />)
+    fireEvent.click(screen.getByRole('button', { name: 'Chorus' }))
+    expect(actions.practiceStartAt).toHaveBeenCalledWith(16000)
+    expect(actions.queueSectionJump).not.toHaveBeenCalled()
+    show.playbackStatus = 'playing'
+    show.elapsedMs = 9000
   })
 })

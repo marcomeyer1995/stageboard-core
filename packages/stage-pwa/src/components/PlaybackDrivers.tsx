@@ -16,6 +16,7 @@ import { useSongAlerts } from '../lib/useSongAlerts'
 import { useStallMonitor } from '../lib/useStallMonitor'
 import { useStemPlaybackDriver } from '../lib/useStemPlaybackDriver'
 import { useTrackDurationBackfill } from '../lib/useTrackDurationBackfill'
+import { useNativeTrackDriver } from '../lib/engine/useNativeTrackDriver'
 
 /**
  * The always-on playback hooks that follow the song time (useShowMode's elapsed time re-renders
@@ -55,6 +56,8 @@ export function PlaybackDrivers({ footswitchActive }: { footswitchActive: boolea
   useSectionJumpDriver()
   useTrackDurationBackfill()
   useMasterSelfCheck()
+  // The track in the native output's engine, when switched on (docs/30 §8h stage 4).
+  useNativeTrackDriver()
   return <FrameDrivers />
 }
 
