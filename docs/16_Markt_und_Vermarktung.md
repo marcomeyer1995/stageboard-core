@@ -79,6 +79,8 @@ Dazu die **fertige Box**: Heute bauen Bands ihr Rack selbst zusammen (Playback-R
 
 StageBoard ist keine Einzelgerät-App, die **Band** teilt sich einen Server. Deshalb **pro Band bzw. Server lizenzieren, nicht pro Gerät**:
 
+*Seit 2026-11-10 (#784): die Stufen hier folgen den drei Betriebsstufen aus docs/02 - Free ≈ Solo, Band ≈ Band-Host auf dem eigenen Laptop, Box ≈ Stage-Server. Entscheidung zur Lizenz des Codes: #787.*
+
 | Stufe | Inhalt | Preisidee |
 |---|---|---|
 | **Free** | App gratis in jedem Store. Server für 1 Band mit Texten, Setlists, Prompter, Sync über bis zu 3 Geräte | 0 € |

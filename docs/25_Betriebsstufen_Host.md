@@ -1,6 +1,6 @@
 # Betriebsstufen: StageBoard ohne festen Stage-Server
 
-Grundidee, Stand 2026-10-28, mit Marco besprochen am 2026-10-27/28. Seit 2026-11-07 entschieden und begonnen: §6a. Ergänzt [docs/02](02_Ausbaustufen_Konzept.md) (Hardware-Matrix) und berührt Kern-Prinzip 1 in CLAUDE.md („Der Stage-Server ist das Herzstück“).
+Grundidee, Stand 2026-10-28, mit Marco besprochen am 2026-10-27/28. Seit 2026-11-07 entschieden und begonnen: §6a. Seit 2026-11-10 (#784) ersetzen die drei Betriebsstufen die alte Hardware-Matrix: [docs/02](02_Operating_Tiers.md) ist danach neu geschrieben, Kern-Prinzip 1 in CLAUDE.md heißt jetzt „der Host ist das Herzstück“.
 
 ## 1. Warum
 
@@ -34,9 +34,9 @@ Ein minimaler Host braucht nur die ersten vier Zeilen.
 |---|---|---|
 | **1 Solo** | ein Gerät, kein Host | Alles für eine Person: Solo Üben, Prompter, Track, Klick, Ansagen, MIDI am Gerät. **Geht heute** (Home-Sandbox). |
 | **2 Band-Host** | ein Gerät der Band ist zugleich Host (Laptop, Windows-Tablet, später Android) | Mehrere Geräte synchron: gemeinsame Show, Master, Uhr, Blitze, Tracks verteilt, Nachbericht. Netz: WLAN vor Ort oder Hotspot des Hosts. Ohne die schweren Add-ons. |
-| **3 Stage-Server** | eigene Box (wie heute) | Alles, dazu die schweren Add-ons und später Redundanz (docs/02 Stufe 5). |
+| **3 Stage-Server** | eigene Box (wie heute) | Alles, dazu die schweren Add-ons und später Redundanz des Hosts (#782). |
 
-Wie sich das mit den fünf Hardware-Stufen aus docs/02 zusammenfügt, ist offen (§8).
+Was eine Funktion davon wirklich braucht (Host-Stufe, Gerät am Platz, Hilfsprogramm), steht je Funktion in docs/02 §2.
 
 ## 5. Plattformen
 
@@ -89,15 +89,14 @@ Wie sich das mit den fünf Hardware-Stufen aus docs/02 zusammenfügt, ist offen 
 
 Issues seit 2026-11-10: Sammel-Issue **#777**, darunter #778 (echter Lauf `sync-host`), #779 (Umzug von CouchDB), #780 (Installer Windows/Mac), #781 (Spike Android als Host), #782 (Host fällt im Gig aus).
 
-1. Dieses Konzept ausarbeiten und docs/02 auf die Stufen umstellen (Entscheidung zu Kern-Prinzip 1).
+1. ✅ (2026-11-10, #784) Dieses Konzept ausarbeiten und docs/02 auf die Stufen umstellen; Kern-Prinzip 1 neu gefasst.
 2. Server mit PouchDB statt CouchDB als Option + Installer für Windows/Mac → Stufe 2 auf Laptops und Windows-Tablets. Größter Gewinn für den kleinsten Aufwand; viele Bands haben schon einen Laptop.
 3. Spike „Android als Host“: Sync + Uhr + Push für 3-4 Geräte über den eigenen Hotspot, gemessen wie beim Clock-Sync (docs/09).
 4. iPad vorerst nur als Client mit klar benannten Grenzen; eine eigene iOS-App hängt an den Store-/Preisfragen aus docs/16.
 
 ## 8. Offen
 
-- Ersetzen die drei Betriebsstufen die fünf Stufen aus docs/02, oder liegen sie quer dazu (Betrieb vs. Hardware)?
-- Kern-Prinzip 1 in CLAUDE.md neu fassen („der Host ist das Herzstück“)?
+- ~~Ersetzen die drei Betriebsstufen die fünf Stufen aus docs/02?~~ Entschieden 2026-11-10 (Marco): ersetzen - docs/02 neu geschrieben, Kern-Prinzip 1 neu gefasst (#784).
 - Was passiert, wenn der Host mitten im Gig ausfällt - übernimmt ein anderes Gerät (jedes hat die Daten), und wie wird das bedient? → **#782** (Host H5), zusammen mit #753 (Havarie 2 der Bühnen-Karte).
 - Akku und Last: kann ein Host-Tablet gleichzeitig Hotspot, Server und eigenes Spielgerät sein?
 - Welche Add-ons auf Stufe 2 trotzdem gehen könnten (z. B. Piper im Browser).
