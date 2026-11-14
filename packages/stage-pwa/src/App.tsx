@@ -44,6 +44,7 @@ import { useRigCheckDriver, useRigCheckReporter } from './lib/rigCheck'
 import { useFrontAppClaim } from './lib/useFrontAppClaim'
 import { useOutputPlan } from './lib/useOutputPlan'
 import { useGigWifiLock } from './lib/useGigWifiLock'
+import { usePlaybackKeepAlive } from './lib/usePlaybackKeepAlive'
 import { useRigCheckMeasurer } from './lib/rigCheckMeasure'
 import { useWakeLock } from './lib/useWakeLock'
 import { useWorkspaceResource } from './lib/useWorkspaceResource'
@@ -165,6 +166,8 @@ function App() {
   useOutputPlan()
   // Gig: Wi-Fi without power saving, so a pushed Play arrives on time (2026-11-08).
   useGigWifiLock()
+  // Plays on with the screen locked: Android foreground service (N1, 2026-11-10).
+  usePlaybackKeepAlive()
   useRigCheckReporter()
   useRigCheckMeasurer()
 
