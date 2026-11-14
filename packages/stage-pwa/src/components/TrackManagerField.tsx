@@ -440,8 +440,10 @@ export function TrackManagerField({ variantId, tracks, disabled, searchQuery = '
                             {thumbnail && <img src={thumbnail} alt="" loading="lazy" className="h-form w-20 flex-none rounded-control bg-surface object-cover" />}
                             <span className="flex min-w-0 flex-1 flex-col">
                               <span className="line-clamp-2 text-base text-ink">{hit.title}</span>
-                              <span className="truncate text-sm text-ink-faint">
-                                {[hit.channel, hit.durationSec !== null && formatVideoLength(hit.durationSec)].filter(Boolean).join(' · ')}
+                              {/* The length always shows; a long channel name wraps instead of pushing it out (GUI check 2026-11-14). */}
+                              <span className="flex gap-2 text-sm text-ink-faint">
+                                <span className="line-clamp-2 min-w-0 flex-1">{hit.channel}</span>
+                                {hit.durationSec !== null && <span className="flex-none tabular-nums">{formatVideoLength(hit.durationSec)}</span>}
                               </span>
                             </span>
                           </button>

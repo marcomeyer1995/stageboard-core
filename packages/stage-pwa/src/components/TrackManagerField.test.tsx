@@ -131,7 +131,8 @@ describe('TrackManagerField - YouTube search in "Track hinzufügen" (#618)', () 
     expect(youtube.searchYoutube).toHaveBeenCalledWith('All the small things Blink-182')
 
     const hit = await within(dialog).findByRole('button', { name: /All The Small Things/ })
-    expect(hit).toHaveTextContent('blink-182 · 2:51')
+    expect(hit).toHaveTextContent('blink-182')
+    expect(hit).toHaveTextContent('2:51')
     fireEvent.click(hit)
     await waitFor(() =>
       expect(db.putAsyncJob).toHaveBeenCalledWith(
