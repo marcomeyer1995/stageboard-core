@@ -1001,7 +1001,7 @@ Client-Translatoren: `kemperTranslator` (`kemper.selectRig`, `kemper.stomp`), `c
 | **Betrieb** | #363 automatisches Backup auf ein zweites Medium (Entwurf PR #405, Ziel-Medium offen), #404 unplausible Spielzeiten im Nachbericht (Optionen A/B/C offen) |
 | **Sonstiges** | #15 Robustheit UG/MusicBrainz (Teil 1 mit #406), #25 Visual-Metronome/Click (Feature-Kern läuft, Issue offen), #64 Post-Gig-Telemetrie, #65 Publikums-QR-Jukebox, #213 Container-Widgets |
 
-**Laut Ausbaustufen-Doku (`docs/02`) nicht vorhanden:** Auto-Failover A/B-Server (Stufe 5), Cloud-Sync/VPS (Stufe 4), Auto-Backup auf USB/NAS, Multikanal-Audio-Routing (Dante/USB-Interface), echte Mixer-/DMX-Server-Adapter. (Native-App-mDNS-Discovery ist jetzt #351.)
+**Noch nicht gebaut (Stand 2026-10-08; die alte Hardware-Matrix in docs/02 wurde 2026-11-10 durch die Betriebsstufen ersetzt, #784):** Host-Redundanz (#782), Sync über das Internet, Auto-Backup auf USB/NAS (#363), Multikanal-Audio-Routing (#743), echte DMX-Server-Adapter. (Native-App-mDNS-Discovery ist jetzt #351.)
 
 ---
 
