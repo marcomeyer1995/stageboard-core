@@ -727,6 +727,15 @@ Java_de_stageboard_app_NativeOutputPlugin_nativeUsbResume(JNIEnv *env, jclass, j
     return env->NewStringUTF(result.c_str());
 }
 
+/** Stops the own driver's thread - before its connection is closed: the closed file descriptor's
+ * number goes to the next connection opened, and a thread still reaping on it waited there for
+ * ever (a reload of the page reopened the output: "starting" for good, Redmi 2026-11-14). */
+extern "C" JNIEXPORT void JNICALL
+Java_de_stageboard_app_NativeOutputPlugin_nativeUsbStop(JNIEnv *, jclass) {
+    std::lock_guard<std::mutex> guard(gLock);
+    stopUsb();
+}
+
 /** After releasing an interface: Android's own driver binds it again (usbfs leaves it without one). */
 extern "C" JNIEXPORT jint JNICALL
 Java_de_stageboard_app_NativeOutputPlugin_nativeUsbReattach(JNIEnv *, jclass, jint fd, jint ifno) {
