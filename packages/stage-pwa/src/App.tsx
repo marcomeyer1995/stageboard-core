@@ -42,6 +42,7 @@ import { usePresenceReporter } from './lib/usePresenceReporter'
 import { useShowLogTracker } from './lib/useShowLogTracker'
 import { useRigCheckDriver, useRigCheckReporter } from './lib/rigCheck'
 import { useFrontAppClaim } from './lib/useFrontAppClaim'
+import { useOutputPlan } from './lib/useOutputPlan'
 import { useGigWifiLock } from './lib/useGigWifiLock'
 import { usePlaybackKeepAlive } from './lib/usePlaybackKeepAlive'
 import { useRigCheckMeasurer } from './lib/rigCheckMeasure'
@@ -162,6 +163,7 @@ function App() {
   useRigCheckDriver()
   // Several apps on one device: the one in front plays (stage map, 2026-11-07).
   useFrontAppClaim()
+  useOutputPlan()
   // Gig: Wi-Fi without power saving, so a pushed Play arrives on time (2026-11-08).
   useGigWifiLock()
   // Plays on with the screen locked: Android foreground service (N1, 2026-11-10).

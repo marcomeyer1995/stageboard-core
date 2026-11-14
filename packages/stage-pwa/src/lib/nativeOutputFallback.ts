@@ -86,3 +86,44 @@ export function trackLossEpisodes(
 export function shouldFallBack(episodes: readonly number[]): boolean {
   return episodes.length >= FALLBACK_EPISODES
 }
+
+/**
+ * A stream that came up broken (#837, Redmi + UMC204HD, 2026-11-13): opened ~1 s after the
+ * interface was plugged in again, AAudio reported STARTED, no xruns, no missing frames - and played
+ * nothing. Its timestamps gave it away: 287 jumps within minutes (healthy: 0-1). Opened again it was
+ * fine. Unlike missing audio this shows in silence too, so it counts whether anything sounds or not
+ * (not while the screen is locked).
+ *
+ * BROKEN_JUMPS timestamp jumps within BROKEN_WINDOW_MS: the stream is opened again; broken again
+ * within FALLBACK_SPAN_MS of that: the WebView's own output, as for missing audio. Not 3: the Fire's
+ * healthy stream jumps by 4-12 ms a few times in its first minute - 4 in 10 s reopened it while
+ * playing, the track stood still (2026-11-14); the broken one jumped several times a second.
+ */
+export const BROKEN_WINDOW_MS = 10_000
+export const BROKEN_JUMPS = 10
+/** The first seconds after opening don't count - a healthy stream may jump once while it settles. */
+export const BROKEN_GRACE_MS = 5000
+/** After an output device came or went, the stream is opened again this much later - the device needs
+ * a moment before it is ready (opened ~1 s after plugging in, the stream came up broken, #837). */
+export const DEVICE_SETTLE_MS = 2000
+
+export interface TimestampSample {
+  at: number
+  /** The native output's running count of timestamp jumps. */
+  timestampJumps: number
+}
+
+/** Timestamp jumps over the last BROKEN_WINDOW_MS (the samples oldest first). */
+export function timestampJumpsInWindow(samples: readonly TimestampSample[], now: number): number {
+  const inWindow = samples.filter((s) => s.at >= now - BROKEN_WINDOW_MS)
+  const first = inWindow[0]
+  const last = inWindow[inWindow.length - 1]
+  if (!first || !last || first === last) return 0
+  return Math.max(0, last.timestampJumps - first.timestampJumps)
+}
+
+/** What a broken stream leads to: opened again the first time, the WebView's output if it was
+ * opened again for that within FALLBACK_SPAN_MS (`reopenedAt`, null: never). */
+export function onBrokenStream(reopenedAt: number | null, now: number): 'reopen' | 'fall-back' {
+  return reopenedAt !== null && now - reopenedAt <= FALLBACK_SPAN_MS ? 'fall-back' : 'reopen'
+}

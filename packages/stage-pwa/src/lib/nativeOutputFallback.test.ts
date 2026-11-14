@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { audible, FALLBACK_GRACE_MS, LOCK_GRACE_MS, missingInWindowMs, quietUntil, shouldFallBack, trackLossEpisodes, type MissingSample } from './nativeOutputFallback'
+import { audible, BROKEN_JUMPS, FALLBACK_GRACE_MS, LOCK_GRACE_MS, missingInWindowMs, onBrokenStream, quietUntil, shouldFallBack, timestampJumpsInWindow, trackLossEpisodes, type MissingSample } from './nativeOutputFallback'
 
 const RATE = 48000
 
@@ -63,5 +63,34 @@ describe('nativeOutputFallback', () => {
     expect(audible(null, 1000)).toBe(false)
     expect(audible(10_000, 20_000)).toBe(true)
     expect(audible(10_000, 26_000)).toBe(false)
+  })
+})
+
+describe('broken stream (#837)', () => {
+  it('counts timestamp jumps over the last 10 s only', () => {
+    const samples = [
+      { at: 0, timestampJumps: 1 },
+      { at: 4000, timestampJumps: 1 },
+      { at: 8000, timestampJumps: 3 },
+      { at: 12_000, timestampJumps: 5 },
+    ]
+    expect(timestampJumpsInWindow(samples, 12_000)).toBe(4) // 4000 → 12000
+    expect(timestampJumpsInWindow(samples.slice(0, 2), 4000)).toBe(0)
+    expect(timestampJumpsInWindow(samples, 12_000) >= BROKEN_JUMPS).toBe(false)
+  })
+
+  it("leaves the Fire's start-up jumps alone, catches one that keeps jumping", () => {
+    // The Fire, healthy: 4 small jumps within 10 s of its first minute (2026-11-14).
+    const fire = [0, 2000, 4000, 6000, 8000, 10_000].map((at, i) => ({ at, timestampJumps: [0, 1, 2, 3, 4, 4][i]! }))
+    expect(timestampJumpsInWindow(fire, 10_000) >= BROKEN_JUMPS).toBe(false)
+    // The Redmi's broken stream: 287 within minutes - a few every second.
+    const broken = [0, 2000, 4000, 6000, 8000, 10_000].map((at, i) => ({ at, timestampJumps: i * 3 }))
+    expect(timestampJumpsInWindow(broken, 10_000) >= BROKEN_JUMPS).toBe(true)
+  })
+
+  it('opens the stream again the first time, falls back if it breaks again within 2 min', () => {
+    expect(onBrokenStream(null, 100_000)).toBe('reopen')
+    expect(onBrokenStream(100_000, 160_000)).toBe('fall-back')
+    expect(onBrokenStream(100_000, 100_000 + 121_000)).toBe('reopen')
   })
 })

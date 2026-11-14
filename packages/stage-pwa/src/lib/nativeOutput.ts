@@ -2,7 +2,23 @@ import { registerPlugin } from '@capacitor/core'
 import type { AudioOutputHealth } from 'shared-types'
 import { create } from 'zustand'
 import { isNativeApp } from './native'
-import { audible, FALLBACK_SPAN_MS, FALLBACK_WINDOW_MS, missingInWindowMs, quietUntil, shouldFallBack, SOUND_LEVEL, trackLossEpisodes, type MissingSample } from './nativeOutputFallback'
+import {
+  audible,
+  BROKEN_GRACE_MS,
+  BROKEN_JUMPS,
+  DEVICE_SETTLE_MS,
+  FALLBACK_SPAN_MS,
+  FALLBACK_WINDOW_MS,
+  missingInWindowMs,
+  onBrokenStream,
+  quietUntil,
+  shouldFallBack,
+  SOUND_LEVEL,
+  timestampJumpsInWindow,
+  trackLossEpisodes,
+  type MissingSample,
+  type TimestampSample,
+} from './nativeOutputFallback'
 
 /**
  * Native audio output (docs/30, Marco 2026-11-05: "pipe the mix"). Everything keeps playing on the
@@ -30,16 +46,88 @@ interface NativeOutputStatus {
   xruns?: number
   reopens?: number
   performance?: string
+  engine?: boolean
+  engineClockJumps?: number
+  engineDriftPpm?: number
+  /** Streamed clips: pieces with frames missing (decoder behind, unannounced jump) / dropped (§8i). */
+  engineMissingReads?: number
+  engineBrokenReads?: number
+  /** 'usb': the own USB driver plays (docs/28 §4); absent: AAudio. */
+  path?: 'usb'
+  /** The interface's real rate from its feedback endpoint, Hz. */
+  usbRate?: number
+  usbDisconnected?: boolean
+  /** No timestamp from Android: playing on an estimated one - on time only roughly (2026-11-12). */
+  estimated?: boolean
+}
+
+/** A song's spoken announcements for the engine (#835): each word once, mono int16 base64, and
+ * where each is said - frames of `rate` from song time `songStartMs`. */
+export interface AnnouncementClip {
+  rate: number
+  songStartMs: number
+  words: string[]
+  starts: number[]
+  wordOf: number[]
 }
 
 interface NativeOutputPlugin {
   /** Opens the stream and the loopback WebSocket the frames go to (`ws://127.0.0.1:port/token`). */
-  start(options: { sampleRate: number }): Promise<{ started?: boolean; error?: string; performance?: string; framesPerBurst?: number; port: number; token: string }>
+  start(options: { sampleRate: number; lowLatency?: boolean; usb?: boolean }): Promise<{ started?: boolean; engineGen?: number; error?: string; path?: 'usb'; usbError?: string; performance?: string; framesPerBurst?: number; port: number; token: string }>
   status(): Promise<NativeOutputStatus>
   stop(): Promise<void>
+  engineEnable(options: { on: boolean }): Promise<void>
+  engineTransport(options: { status: number; startedAt: number; accumulatedMs: number; rate: number; hasJump: boolean; jumpAt: number; jumpToMs: number; jumpRate: number }): Promise<void>
+  engineBeats(options: { songMs: number[]; accent: number[] }): Promise<void>
+  engineOffset(options: { offsetMs: number }): Promise<void>
+  engineGain(options: { bus: number; gain: number }): Promise<void>
+  engineFeeds(options: { bus: number; left: number; right: number }): Promise<void>
+  clipBegin(options: { id: number; size: number }): Promise<void>
+  clipChunk(options: { id: number; offset: number; data: string }): Promise<{ ok: boolean }>
+  clipCommit(options: { id: number; songStartMs: number; bus: number; gain: number }): Promise<{ error: string }>
+  clipRemove(options: { id: number }): Promise<void>
+  announceCommit(options: AnnouncementClip & { id: number; bus: number; gain: number }): Promise<{ error: string }>
+  clipGain(options: { id: number; gain: number }): Promise<void>
+  /** Whether a USB audio interface is plugged in. */
+  usbPresent(): Promise<{ present: boolean }>
+  /** An output device was added or removed (USB interface, headphones, Bluetooth). */
+  addListener(event: 'outputDevicesChanged', listener: () => void): Promise<{ remove: () => Promise<void> }>
+  /** A USB audio interface was plugged in - told at once, before Android's audio side takes it up. */
+  addListener(event: 'usbAttached', listener: (event: { resumed?: boolean }) => void): Promise<{ remove: () => Promise<void> }>
 }
 
 const NativeOutput = registerPlugin<NativeOutputPlugin>('NativeOutput')
+
+/** Fire and forget: on a locked screen a plugin's answer can be held back for minutes (Fire,
+ * 2026-11-10) - nothing waits for it. */
+function send(call: Promise<void>): void {
+  call.catch(() => {})
+}
+
+/**
+ * The engine core inside the native callback (docs/30 §8h stage 3, native_output.cpp): the click
+ * is placed there from AAudio's timestamp, independent of the WebView. Each call only hands over a
+ * change; engine/nativeEngineClick.ts decides what.
+ */
+export const nativeEngine = {
+  enable: (on: boolean) => send(NativeOutput.engineEnable({ on })),
+  transport: (t: { status: number; startedAt: number; accumulatedMs: number; rate: number; hasJump: boolean; jumpAt: number; jumpToMs: number; jumpRate: number }) => send(NativeOutput.engineTransport(t)),
+  beats: (songMs: Float64Array, accent: Uint8Array) => send(NativeOutput.engineBeats({ songMs: Array.from(songMs), accent: Array.from(accent) })),
+  /** Band time - wall clock: the server offset plus this output's trim. */
+  offset: (offsetMs: number) => send(NativeOutput.engineOffset({ offsetMs })),
+  /** `bus` as engine.h (0 click), -1 the master. */
+  gain: (bus: number, gain: number) => send(NativeOutput.engineGain({ bus, gain })),
+  /** Where bus `bus` goes on the output: each side engine.h's Feed (nativeEngineSession.ts FEED). */
+  feeds: (bus: number, left: number, right: number) => send(NativeOutput.engineFeeds({ bus, left, right })),
+  /** A streamed clip (docs/30 §8h stage 4): the Ogg Opus file in pieces, then placed - awaited,
+   * a song change loads its track before it plays (nativeEngineTrack.ts). */
+  clipBegin: (id: number, size: number) => NativeOutput.clipBegin({ id, size }),
+  clipChunk: (id: number, offset: number, data: string) => NativeOutput.clipChunk({ id, offset, data }),
+  clipCommit: (id: number, songStartMs: number, bus: number, gain: number) => NativeOutput.clipCommit({ id, songStartMs, bus, gain }),
+  clipRemove: (id: number) => send(NativeOutput.clipRemove({ id })),
+  announceCommit: (id: number, clip: AnnouncementClip, bus: number, gain: number) => NativeOutput.announceCommit({ id, bus, gain, ...clip }),
+  clipGain: (id: number, gain: number) => send(NativeOutput.clipGain({ id, gain })),
+}
 
 const SWITCH_KEY = 'sb:audio:native-output'
 /** Frames per handover - 40 ms: fewer bridge calls than smaller chunks, still well inside the delay. */
@@ -118,7 +206,16 @@ interface NativeOutputStore {
   error: string | null
   /** The native output lost too much audio and this device plays through the WebView instead,
    * until the app restarts (nativeOutputFallback.ts) - the stored switch stays on. */
-  fellBack: { at: number; missingMs: number } | null
+  fellBack: { at: number; missingMs: number; reason?: 'missing' | 'broken' } | null
+  /** The stream was opened again this run: it came up broken (timestamp jumps piling up), or an
+   * output device came or went (#837) - for the diagnosis. */
+  reopened: { at: number; reason: 'broken' | 'device' }[]
+  /** The own USB driver plays (docs/28 §4) - not AAudio. */
+  usb: boolean
+  /** Why the own USB driver was wanted but AAudio plays (permission denied, no output alt setting, …). */
+  usbError: string | null
+  /** Which engine the native side runs: a reopen keeps it - and the clips in it - unless this changes. */
+  engineGen: number | null
   setWanted: (wanted: boolean) => void
 }
 
@@ -139,6 +236,10 @@ export const useNativeOutputStore = create<NativeOutputStore>((set) => ({
   status: null,
   error: null,
   fellBack: null,
+  reopened: [],
+  usb: false,
+  usbError: null,
+  engineGen: null,
   setWanted: (wanted) => {
     try {
       localStorage.setItem(SWITCH_KEY, wanted ? '1' : '0')
@@ -148,6 +249,45 @@ export const useNativeOutputStore = create<NativeOutputStore>((set) => ({
     set({ wanted })
   },
 }))
+
+/**
+ * The own USB driver instead of AAudio when a USB audio interface is plugged in (docs/28 §4, #837) -
+ * on by default for testing (Marco, 2026-11-14: no gig ahead, the more it is used the more is
+ * found); `sb:debug:usb-driver` = 0 switches it off on a device.
+ */
+export function wantsUsbDriver(): boolean {
+  try {
+    return localStorage.getItem('sb:debug:usb-driver') !== '0'
+  } catch {
+    return true
+  }
+}
+
+/**
+ * Android grants a USB audio interface for good ("always open StageBoard for this device") only to
+ * an app that may record - the interface has inputs. Without it Android asked at every plug-in
+ * (Redmi, 2026-11-13). Asked once, before the own USB driver first opens; a refusal only means the
+ * question comes again at the next plug-in.
+ */
+/** The microphone question never holds the output up longer than this: after a reload of the page
+ * the WebView's getUserMedia never answered, and the native output stayed "starting" - silent
+ * (Redmi, 2026-11-14). */
+const RECORD_PERMISSION_WAIT_MS = 1500
+
+function ensureRecordPermission(): Promise<void> {
+  return Promise.race([askRecordPermission(), new Promise<void>((resolve) => setTimeout(resolve, RECORD_PERMISSION_WAIT_MS))])
+}
+
+async function askRecordPermission(): Promise<void> {
+  try {
+    const status = await navigator.permissions?.query({ name: 'microphone' as PermissionName })
+    if (status?.state === 'granted') return
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+    for (const track of stream.getTracks()) track.stop()
+  } catch {
+    // Refused or not available: the USB permission is then asked per plug-in.
+  }
+}
 
 /** Whether this device can use the native output at all. */
 export function nativeOutputAvailable(): boolean {
@@ -302,27 +442,66 @@ export function nativeOutputHealth(): AudioOutputHealth | null {
     missingMs: first && last ? Math.round(((last.missing - first.missing) * 1000) / pipe.rate) : 0,
     jumps: first && last ? Math.max(0, last.jumps - first.jumps) : 0,
     leadMinMs: leads.length > 0 ? Math.round(Math.min(...leads)) : null,
+    ...(useNativeOutputStore.getState().status?.estimated ? { estimated: true } : {}),
   }
 }
-/** Per context: the one node every source ends in - to the speaker, or to the tap. */
-const masters = new Map<AudioContext, GainNode>()
+/** Per context: the one node every source ends in - to the speaker, or to the tap - and the soft
+ * clipper right after it. */
+const masters = new Map<AudioContext, { master: GainNode; out: AudioNode }>()
+
+/** Below this the mix passes untouched; above it bends smoothly towards full scale. */
+export const SOFT_CLIP_KNEE = 0.8
+
+/**
+ * The soft clipper's curve (#835): straight up to the knee, then a tanh bend that never quite
+ * reaches 1 - a mix above full scale (announcements at 200 %) is rounded off instead of cut hard
+ * at the pipe's 16 bit or the speaker. A curve, not a DynamicsCompressor: that delays everything
+ * by a fixed 6 ms, and the timing here is measured to the millisecond.
+ */
+export function softClipCurve(points = 2049): Float32Array {
+  const curve = new Float32Array(points)
+  const room = 1 - SOFT_CLIP_KNEE
+  for (let i = 0; i < points; i++) {
+    // The curve spans input -2 … 2: 200 % still has room before the curve's end.
+    const x = (i / (points - 1)) * 4 - 2
+    const a = Math.abs(x)
+    const y = a <= SOFT_CLIP_KNEE ? a : SOFT_CLIP_KNEE + room * Math.tanh((a - SOFT_CLIP_KNEE) / room)
+    curve[i] = Math.sign(x) * y
+  }
+  return curve
+}
+
+function masterNodes(ctx: AudioContext): { master: GainNode; out: AudioNode } {
+  let nodes = masters.get(ctx)
+  if (!nodes) {
+    const master = ctx.createGain()
+    let out: AudioNode = master
+    // A context without shapers (test doubles) goes out unclipped.
+    if (typeof ctx.createWaveShaper === 'function') {
+      // The input is halved and the curve spans ±2, so nothing up to 200 % falls off its end.
+      master.gain.value = 0.5
+      const clip = ctx.createWaveShaper()
+      clip.curve = softClipCurve()
+      master.connect(clip)
+      out = clip
+    }
+    out.connect(pipe?.ctx === ctx && pipe.delayMs !== null ? pipe.tap : ctx.destination)
+    nodes = { master, out }
+    masters.set(ctx, nodes)
+  }
+  return nodes
+}
 
 /** Where the mix leaves the context: connect here instead of `ctx.destination`. */
 export function masterOutput(ctx: AudioContext): AudioNode {
-  let master = masters.get(ctx)
-  if (!master) {
-    master = ctx.createGain()
-    master.connect(pipe?.ctx === ctx && pipe.delayMs !== null ? pipe.tap : ctx.destination)
-    masters.set(ctx, master)
-  }
-  return master
+  return masterNodes(ctx).master
 }
 
 function rewire(ctx: AudioContext, toTap: AudioNode | null): void {
-  const master = masters.get(ctx)
-  if (!master) return
-  master.disconnect()
-  master.connect(toTap ?? ctx.destination)
+  const nodes = masters.get(ctx)
+  if (!nodes) return
+  nodes.out.disconnect()
+  nodes.out.connect(toTap ?? ctx.destination)
 }
 
 /**
@@ -378,6 +557,7 @@ function onLine(p: Pipe, at: number, line: number): void {
 async function attach(ctx: AudioContext): Promise<void> {
   const store = useNativeOutputStore.getState()
   if (pipe?.ctx === ctx || !nativeOutputAvailable()) return
+  listenForDevices()
   useNativeOutputStore.setState({ state: 'starting', error: null })
   try {
     const url = URL.createObjectURL(new Blob([TAP_SOURCE], { type: 'text/javascript' }))
@@ -395,7 +575,11 @@ async function attach(ctx: AudioContext): Promise<void> {
     URL.revokeObjectURL(workerUrl)
     const p: Pipe = { ctx, tap, worker, silent, rate: ctx.sampleRate, chunk, delayMs: null, line: null, history: [], timer: null, unwatch: null, soundAt: null, closed: false }
     pipe = p
-    const started = await NativeOutput.start({ sampleRate: ctx.sampleRate })
+    const usb = wantsUsbDriver()
+    // Only with an interface plugged in - a device without one is never asked for the microphone.
+    if (usb && (await NativeOutput.usbPresent().then((r) => r.present, () => false))) await ensureRecordPermission()
+    const started = await NativeOutput.start({ sampleRate: ctx.sampleRate, lowLatency: !safeMode, usb })
+    useNativeOutputStore.setState({ usb: started.path === 'usb', usbError: started.usbError ?? null, engineGen: started.engineGen ?? null })
     if (!started.started) throw new Error(started.error ?? 'start')
     const opened = new Promise<void>((resolve, reject) => {
       worker.onmessage = (e: MessageEvent<{ type: string; at: number; line: number }>) => {
@@ -431,10 +615,40 @@ async function attach(ctx: AudioContext): Promise<void> {
     p.unwatch = () => document.removeEventListener('visibilitychange', onVisibility)
     let episodes: number[] = []
     let lost: { at: number; ms: number }[] = []
+    const stamps: TimestampSample[] = []
     p.timer = setInterval(() => {
       void NativeOutput.status().then((s) => {
         if (p.closed) return
         const now = Date.now()
+        // The interface was pulled while the own USB driver played: silent until it is plugged in
+        // again - then the driver goes on by itself (NativeOutputPlugin.resumeUsb), on a locked
+        // screen too. Never Android's output meanwhile: the tablet's speaker is a wrong signal.
+        if (s.path === 'usb' && s.usbDisconnected) {
+          if (!useNativeOutputStore.getState().status?.usbDisconnected) console.warn('[native-output] USB interface gone - silent until it is plugged in again')
+          useNativeOutputStore.setState({ status: s })
+          return
+        }
+        // A stream that came up broken (#837): timestamp jumps piling up, in silence as well - opened
+        // again once, then the WebView's output. Not while the screen is locked.
+        if (now >= quiet && now - startedAt >= BROKEN_GRACE_MS) {
+          stamps.push({ at: now, timestampJumps: s.timestampJumps ?? 0 })
+          while (stamps.length > 0 && stamps[0]!.at < now - FALLBACK_WINDOW_MS) stamps.shift()
+          const jumps = timestampJumpsInWindow(stamps, now)
+          if (jumps >= BROKEN_JUMPS) {
+            if (onBrokenStream(reopenedForBrokenAt, now) === 'reopen') {
+              console.warn(`[native-output] ${jumps} timestamp jumps in ${FALLBACK_WINDOW_MS / 1000} s - the stream came up broken, opening it again without low latency`)
+              reopenedForBrokenAt = now
+              // The low-latency path came up broken - the plain one for the rest of this run (#837).
+              safeMode = true
+              reopen(ctx, 'broken')
+            } else {
+              console.error(`[native-output] ${jumps} timestamp jumps in ${FALLBACK_WINDOW_MS / 1000} s again after opening it again - switched to the WebView's output until the app restarts`)
+              detach()
+              useNativeOutputStore.setState({ fellBack: { at: now, missingMs: 0, reason: 'broken' } })
+            }
+            return
+          }
+        } else stamps.length = 0
         // Screen locked, or just unlocked: what goes missing is the lock, not the output - no loss,
         // no health sample, and no bigger reserve learned from it. Nothing sounding: a gap is inaudible.
         if (now < quiet || !audible(p.soundAt, now)) {
@@ -469,11 +683,82 @@ async function attach(ctx: AudioContext): Promise<void> {
   }
 }
 
+let reopenedForBrokenAt: number | null = null
+/** Opened without low latency after a broken stream - for the rest of this app run (#837). */
+let safeMode = false
+
+/** Opening again may fail while a device is still coming up ("no timestamp", Redmi + UMC204HD,
+ * 2026-11-13) - tried this often, DEVICE_SETTLE_MS apart, before it stays on the WebView's output. */
+export const REOPEN_ATTEMPTS = 3
+
+/** Closes the stream and opens it again (#837) - what a restart of the app did. */
+function reopen(ctx: AudioContext, reason: 'broken' | 'device', attempt = 1): void {
+  detach()
+  if (attempt === 1) useNativeOutputStore.setState((state) => ({ reopened: [...state.reopened.slice(-9), { at: Date.now(), reason }] }))
+  if (!useNativeOutputStore.getState().wanted) return
+  void attach(ctx).then(() => {
+    if (useNativeOutputStore.getState().state !== 'failed') return
+    if (attempt >= REOPEN_ATTEMPTS) {
+      // Opened again, still no timestamp (after a USB interface came back, AAudio gave none in this
+      // process at all, Redmi 2026-11-13 - only a restart of the app helped): the WebView's output,
+      // in red, so somebody restarts the app.
+      console.error(`[native-output] could not open the stream again ${REOPEN_ATTEMPTS} times - the WebView's output until the app restarts`)
+      useNativeOutputStore.setState({ fellBack: { at: Date.now(), missingMs: 0, reason: 'broken' } })
+      return
+    }
+    setTimeout(() => {
+      if (!pipe && current === ctx) reopen(ctx, reason, attempt + 1)
+    }, DEVICE_SETTLE_MS)
+  })
+}
+
+// An output device came or went (the USB interface plugged in again): the stream opened before
+// may hang on a device that wasn't ready - open it again once things settled (#837). Registered at
+// the first start: at import the bridge isn't ready, the listener got lost (2026-11-13).
+let deviceTimer: ReturnType<typeof setTimeout> | null = null
+let deviceListening = false
+function listenForDevices(): void {
+  if (deviceListening) return
+  deviceListening = true
+  const reopenable = () => pipe?.ctx ?? (useNativeOutputStore.getState().state === 'failed' ? current : null)
+  void NativeOutput.addListener('outputDevicesChanged', () => {
+    if (deviceTimer !== null) clearTimeout(deviceTimer)
+    deviceTimer = setTimeout(() => {
+      deviceTimer = null
+      // The own driver plays on the interface itself (or waits for it) - Android's device list doesn't touch it.
+      if (useNativeOutputStore.getState().usb && useNativeOutputStore.getState().state === 'on') return
+      const ctx = reopenable()
+      if (ctx) reopen(ctx, 'device')
+    }, DEVICE_SETTLE_MS)
+  }).catch(() => {
+    deviceListening = false
+  })
+  // A USB interface plugged in. The own driver playing (pulled before) goes on by itself; with it
+  // wanted but Android's output playing, it is opened at once - no settling of Android's audio side.
+  void NativeOutput.addListener('usbAttached', (event) => {
+    if (event.resumed !== undefined) {
+      console.info(`[native-output] USB interface plugged in again - ${event.resumed ? 'the own driver goes on' : 'could not go on, opening it again'}`)
+      if (event.resumed) return
+    }
+    if (!wantsUsbDriver() || ownDriverPlays()) return
+    if (deviceTimer !== null) clearTimeout(deviceTimer)
+    deviceTimer = null
+    const ctx = reopenable()
+    console.info('[native-output] USB interface plugged in - opening the own driver')
+    if (ctx) reopen(ctx, 'device')
+  }).catch(() => {})
+}
+
+function ownDriverPlays(): boolean {
+  const state = useNativeOutputStore.getState()
+  return state.usb && state.state === 'on' && state.status?.usbDisconnected !== true
+}
+
 /** Back to the WebView's own output for the rest of this app run (nativeOutputFallback.ts). */
 function fallBack(missingMs: number, times: number): void {
   console.error(`[native-output] audio missing ${times} times in ${FALLBACK_SPAN_MS / 60_000} min (${missingMs} ms) - switched to the WebView's output until the app restarts`)
   detach()
-  useNativeOutputStore.setState({ fellBack: { at: Date.now(), missingMs } })
+  useNativeOutputStore.setState({ fellBack: { at: Date.now(), missingMs, reason: 'missing' } })
 }
 
 function detach(): void {
@@ -488,7 +773,7 @@ function detach(): void {
   p.tap.disconnect()
   p.silent.disconnect()
   void NativeOutput.stop().catch(() => {})
-  useNativeOutputStore.setState({ state: 'off', delayMs: null, status: null })
+  useNativeOutputStore.setState({ state: 'off', delayMs: null, status: null, usb: false })
 }
 
 let current: AudioContext | null = null
@@ -508,6 +793,8 @@ useNativeOutputStore.subscribe((state, before) => {
 /** Test-only. */
 export function __resetNativeOutputForTests(): void {
   detach()
+  reopenedForBrokenAt = null
+  safeMode = false
   masters.clear()
   current = null
 }

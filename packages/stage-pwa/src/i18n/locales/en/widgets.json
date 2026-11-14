@@ -436,6 +436,7 @@
     "repeating": "Repeating: {{name}}",
     "masterOnly": "The master can jump",
     "whilePlaying": "Jump while the song is playing",
+    "startPoint": "Tap sets the start point - Play begins there",
     "aria": "Sections",
     "when": "Jump at",
     "bar": "End of bar",

@@ -39,6 +39,13 @@ export const TrackMetaSchema = z.object({
    * older tracks, #28). Absent means "unknown" - the Festival Clock then falls back to an
    * estimate for that song. */
   durationMs: z.number().int().nonnegative().optional(),
+  /** Bumped when the stored file is replaced under the same id - the library converted to the
+   * track format (Ogg Opus, docs/30 §8h) - so every device fetches it again: part of the
+   * cache key (audioCache.ts). Absent = the first file. */
+  fileRev: z.number().int().positive().optional(),
+  /** The original as uploaded, kept only on the Stage-Server as an archive (Marco, 2026-11-13);
+   * the devices get the Opus file. Absent = no archived original. */
+  archive: z.object({ mimeType: z.string(), sizeBytes: z.number().int().nonnegative() }).optional(),
 })
 export type TrackMeta = z.infer<typeof TrackMetaSchema>
 

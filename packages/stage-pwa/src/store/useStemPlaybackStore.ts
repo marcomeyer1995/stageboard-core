@@ -8,4 +8,7 @@ export type StemPlaybackStatus = 'off' | 'loading' | 'ready' | 'error'
 export const useStemPlaybackStore = create<{
   status: StemPlaybackStatus
   cacheKeys: readonly string[]
-}>(() => ({ status: 'off', cacheKeys: [] }))
+  /** Real stems play - not just the song's track through the stem engine (Solo Üben plays its
+   * track that way too). The track in the native engine is silent only then. */
+  stems: boolean
+}>(() => ({ status: 'off', cacheKeys: [], stems: false }))

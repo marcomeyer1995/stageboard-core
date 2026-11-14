@@ -21,8 +21,8 @@ describe('section announcements (#63)', () => {
     const items = sectionAnnouncements(song, timeline)
     // Strophe 1 on bar 1 has no bar before it without a count-in.
     expect(items).toEqual([
-      { text: 'Chorus', atMs: 6000, bar: 5 }, // sung at 7.9 s -> bar 5 (8.0 s), voice on bar 4 (6.0 s)
-      { text: 'Bridge', atMs: 14000, bar: 9 }, // 16.1 s -> bar 9 (16.0 s), voice on bar 8 (14.0 s)
+      { text: 'Chorus', atMs: 6000, bar: 5, name: true }, // sung at 7.9 s -> bar 5 (8.0 s), voice on bar 4 (6.0 s)
+      { text: 'Bridge', atMs: 14000, bar: 9, name: true }, // 16.1 s -> bar 9 (16.0 s), voice on bar 8 (14.0 s)
     ])
   })
 

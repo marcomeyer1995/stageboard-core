@@ -1,6 +1,6 @@
 import i18n from '../i18n'
 import { useEffect, useRef } from 'react'
-import { AUDIO_OUTPUT, type Setlist, type ShowLogEvent, type ShowState, type Song, type TrackMeta } from 'shared-types'
+import { AUDIO_OUTPUT, type Setlist, type ShowLogEvent, type ShowState, type Song, type SongVariant, type TrackMeta } from 'shared-types'
 import { cacheKey } from './audioCache'
 import { getAudioStorageBackend } from './audioStorageBackend'
 import { clickTimeline } from './beatGrid'
@@ -366,10 +366,17 @@ export async function writeOwnReport(
   })
 }
 
+/** The run's track in the cache - with its file revision once the library was converted (#836). */
+function runTrackKey(kind: RigCheckKind, variants: readonly SongVariant[]): string {
+  const variantId = rigCheckVariantId(kind)
+  const track = variants.find((v) => v.id === variantId)?.tracks.find((t) => t.id === RIG_CHECK_TRACK_ID)
+  return cacheKey(variantId, RIG_CHECK_TRACK_ID, track?.fileRev)
+}
+
 /** Whether this device has the run's track in its own cache. */
 export async function hasRunTrack(run: RigCheckRun): Promise<boolean> {
   const keys = await getAudioStorageBackend().listKeys()
-  return keys.includes(cacheKey(rigCheckVariantId(run.kind), RIG_CHECK_TRACK_ID))
+  return keys.includes(runTrackKey(run.kind, useSongVariantsStore.getState().variants))
 }
 
 /** How often a device looks at its own state while a run is open. */
@@ -411,10 +418,9 @@ export function useRigCheckReporter(): void {
 
 /** The cache key the audio reconciler must keep (and fetch) while a run is open, or null. */
 export function useRigCheckTrackKey(): string | null {
-  return useShowLogStore((state) => {
-    const run = openRun(state.events, getServerTime())
-    return run ? cacheKey(rigCheckVariantId(run.kind), RIG_CHECK_TRACK_ID) : null
-  })
+  const variants = useSongVariantsStore((state) => state.variants)
+  const kind = useShowLogStore((state) => openRun(state.events, getServerTime())?.kind ?? null)
+  return kind ? runTrackKey(kind, variants) : null
 }
 
 /** "Rig-Check · Kurz" for a Rig-Check show in the Nachbericht, null for a real show. */

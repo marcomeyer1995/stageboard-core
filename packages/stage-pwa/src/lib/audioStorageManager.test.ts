@@ -147,6 +147,17 @@ describe('reconcileAudioCache', () => {
     variant({ id: 'vb', songId: 'song-b', tracks: [trackB1] }),
   ]
 
+  it('a replaced file (fileRev, the library converted to Opus) is fetched anew and the old bytes evicted', async () => {
+    const remove = vi.fn()
+    const set = vi.fn()
+    vi.mocked(getAudioStorageBackend).mockReturnValue({ get: vi.fn(), set, remove, listKeys: vi.fn().mockResolvedValue(['va:a1']) })
+    vi.mocked(fetchTrack).mockResolvedValue(new Blob(['opus']))
+    await reconcileAudioCache('full', [variant({ id: 'va', songId: 'song-a', tracks: [{ ...trackA1, fileRev: 1 }] })], null, [])
+    expect(remove).toHaveBeenCalledWith('va:a1')
+    expect(fetchTrack).toHaveBeenCalledWith('va', 'a1')
+    expect(set).toHaveBeenCalledWith('va:a1@1', expect.any(Blob))
+  })
+
   it('never evicts the always-keep key, even in "none" mode', async () => {
     const remove = vi.fn()
     vi.mocked(getAudioStorageBackend).mockReturnValue({
