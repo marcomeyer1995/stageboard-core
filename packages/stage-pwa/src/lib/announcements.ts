@@ -142,9 +142,9 @@ const FIT_GAP_MS = 30
  * the part name by half. A word too long for its beat is spoken faster, up to FIT_MAX_SPEED; a
  * part name too long even then runs over the next beat, and the count number there is left out
  * ("Refrain - 3 - 4"). What still doesn't fit is cut as before. `lengthMs`: a text's length at
- * `baseSpeed` (null: not known yet - left as it is).
+ * `baseSpeed` (null: not known yet - left as it is); `onsetMs`: how much earlier it starts.
  */
-export function fitAnnouncements(items: Announcement[], lengthMs: (text: string) => number | null, baseSpeed = 1): Announcement[] {
+export function fitAnnouncements(items: Announcement[], lengthMs: (text: string) => number | null, baseSpeed = 1, onsetMs: (text: string) => number = () => 0): Announcement[] {
   const sorted = [...items].sort((a, b) => a.atMs - b.atMs)
   const out: Announcement[] = []
   const max = Math.max(baseSpeed, FIT_MAX_SPEED)
@@ -152,7 +152,8 @@ export function fitAnnouncements(items: Announcement[], lengthMs: (text: string)
     const item = sorted[i]!
     const length = lengthMs(item.text)
     let next = sorted[i + 1]
-    const room = () => (next ? next.atMs - item.atMs - FIT_GAP_MS : Infinity)
+    // Each word starts its vowel's lead early (announcementClip.ts) - the next one too.
+    const room = () => (next ? next.atMs - onsetMs(next.text) - (item.atMs - onsetMs(item.text)) - FIT_GAP_MS : Infinity)
     if (length === null || length <= room()) {
       out.push(item)
       continue

@@ -114,7 +114,19 @@ export function useAnnouncementDriver(): void {
 
   // Words too long for their beat spoken faster, or a name over the next number (#842).
   const fitted = useMemo(
-    () => fitAnnouncements(items, (text) => { const clip = speechClip(text, voice); return clip ? clip.duration * 1000 : null }, voice.speed ?? 1),
+    () =>
+      fitAnnouncements(
+        items,
+        (text) => {
+          const clip = speechClip(text, voice)
+          return clip ? clip.duration * 1000 : null
+        },
+        voice.speed ?? 1,
+        (text) => {
+          const clip = alignsOnVowel() ? speechClip(text, voice) : null
+          return clip ? vowelOnsetMs(clip) : 0
+        },
+      ),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `loaded` counts the clips that came in
     [items, voice, loaded],
   )

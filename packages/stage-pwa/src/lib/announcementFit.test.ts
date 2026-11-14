@@ -38,4 +38,12 @@ describe('fitAnnouncements (#842)', () => {
     expect(vier!.speed).toBeCloseTo(1.35, 5)
     expect(fitAnnouncements([at('Unknown', 0), at('Zwei', 100)], len)[0]!.speed).toBeUndefined()
   })
+  it('counts the vowel lead: a next word starting earlier leaves less room', () => {
+    const onset = (text: string) => (text === 'Zwei' ? 60 : 0)
+    // 380 ms into 300 - 60 - 30 = 210 ms: 1.81 → held at 1.6.
+    expect(fitAnnouncements([at('Eins', 0), at('Zwei', 300)], len, 1, onset)[0]!.speed).toBe(FIT_MAX_SPEED)
+    const own = (text: string) => (text === 'Eins' ? 60 : 0)
+    // Its own lead gives room: 380 into 300 + 60 - 30 = 330 ms: 1.15 → 1.2.
+    expect(fitAnnouncements([at('Eins', 0), at('Zwei', 300)], len, 1, own)[0]!.speed).toBeCloseTo(1.2, 5)
+  })
 })
