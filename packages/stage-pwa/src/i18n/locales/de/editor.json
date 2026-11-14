@@ -362,7 +362,8 @@
   "tm": {
     "job": {
       "youtube": "YouTube-Extraktion",
-      "stems": "Spuren trennen"
+      "stems": "Spuren trennen",
+      "opus": "Nach Opus umwandeln (auf einem Gerät)"
     },
     "editStem": "Spur bearbeiten",
     "name": "Name",

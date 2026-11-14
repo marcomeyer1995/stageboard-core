@@ -48,6 +48,7 @@ import { usePlaybackKeepAlive } from './lib/usePlaybackKeepAlive'
 import { useRigCheckMeasurer } from './lib/rigCheckMeasure'
 import { useWakeLock } from './lib/useWakeLock'
 import { useWorkspaceResource } from './lib/useWorkspaceResource'
+import { useOpusConvertJobs } from './lib/useOpusConvertJobs'
 import { startWorkspaceSync } from './lib/workspaceDb'
 import { useActiveProfileStore } from './store/useActiveProfileStore'
 import { useDashboardsStore } from './store/useDashboardsStore'
@@ -227,6 +228,8 @@ function App() {
   // Which output this device's audio goes to - the key of its audio latency profile (#491).
   useEffect(() => useAudioRouteStore.getState().start(), [])
   useReadyCheckResponder()
+  // A track the host could not convert to Ogg Opus: this device does (#822).
+  useOpusConvertJobs()
   useHardwareDetection()
   useDiscoveryTrigger()
   // BandManagementView.tsx's presence indicators (see #21 ninth follow-up, at Marco's explicit

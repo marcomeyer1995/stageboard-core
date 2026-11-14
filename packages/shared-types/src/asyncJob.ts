@@ -8,7 +8,7 @@ import { ServerMessageParamsSchema } from './serverMessage.js'
  * work (network access, a shell-out), and progress/result flow back the same way every other
  * replicated document does, no dedicated HTTP endpoint needed.
  *
- * Two job types: `youtube-extract` (#5) and `stem-separation` (#9) - discriminated by `type`.
+ * Three job types: `youtube-extract` (#5), `stem-separation` (#9) and `opus-convert` (#822) - discriminated by `type`.
  */
 export const AsyncJobStatusSchema = z.enum(['queued', 'running', 'done', 'error'])
 export type AsyncJobStatus = z.infer<typeof AsyncJobStatusSchema>
@@ -66,10 +66,25 @@ export const StemSeparationJobSchema = z.object({
   stemTrackIds: z.array(z.string().min(1)).optional(),
 })
 
-export const AsyncJobSchema = z.discriminatedUnion('type', [YoutubeExtractJobSchema, StemSeparationJobSchema])
+/**
+ * A track to be converted to Ogg Opus by a device (#822; Marco, 2026-11-14: "Gerät wandelt um"):
+ * the host downloaded a video YouTube had no Opus for and has no decoder of its own. Any device
+ * with the app takes it (`runner`), decodes in its browser engine and encodes with the WASM
+ * encoder - one converter on every host - then replaces the track's file (`fileRev` + 1).
+ */
+export const OpusConvertJobSchema = z.object({
+  ...AsyncJobBase,
+  type: z.literal('opus-convert'),
+  /** The track whose file is converted, in place. */
+  trackId: z.string().min(1),
+  label: z.string().min(1),
+})
+
+export const AsyncJobSchema = z.discriminatedUnion('type', [YoutubeExtractJobSchema, StemSeparationJobSchema, OpusConvertJobSchema])
 export type AsyncJob = z.infer<typeof AsyncJobSchema>
 export type YoutubeExtractJob = z.infer<typeof YoutubeExtractJobSchema>
 export type StemSeparationJob = z.infer<typeof StemSeparationJobSchema>
+export type OpusConvertJob = z.infer<typeof OpusConvertJobSchema>
 
 /**
  * youtube.com/youtu.be only (`www.`/`m.` subdomains, `/watch`, `/shorts/`, or a bare youtu.be

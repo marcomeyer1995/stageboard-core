@@ -29,6 +29,9 @@ const JOB_LABELS: Record<AsyncJob['type'], string> = {
   get 'stem-separation'() {
     return i18n.t('editor:tm.job.stems')
   },
+  get 'opus-convert'() {
+    return i18n.t('editor:tm.job.opus')
+  },
 }
 
 interface TrackManagerFieldProps {
