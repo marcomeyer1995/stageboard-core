@@ -783,7 +783,8 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted, onBack }: Se
         // ← leaves the editor to the preview, asking first when something changed - no "Abbrechen"
         // of its own (Marco, 2026-10-30). Also beside the list: it is the only way out.
         back={{ label: t('backToView'), onClick: () => void leaveEditing() }}
-        actions={[{ icon: 'save', label: t('save'), variant: 'primary', onClick: () => void handleSave(), disabled: !setlist.name.trim() }]}
+        // Greyed out when everything is saved, as in the song editor (Marco, 2026-11-14).
+        actions={[{ icon: 'save', label: t('save'), variant: 'primary', onClick: () => void handleSave(), disabled: !setlist.name.trim() || !dirty }]}
         menuTitle={setlist.name}
       />
       <Field label={t('name')} value={setlist.name} onChange={(e) => update({ ...setlist, name: e.target.value })} />

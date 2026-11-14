@@ -1270,7 +1270,8 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
       back={{ label: t('library'), onClick: () => void leave() }}
       middle={<div className="min-w-0 flex-1">{viewSwitch}</div>}
       status={savedAt && <span className="text-sm text-ink-faint max-[599px]:hidden">{t('saved')}</span>}
-      actions={[{ icon: 'save', label: t('save'), variant: 'primary', onClick: () => void handleSave() }]}
+      // Greyed out when everything is saved - the button itself says so (Marco, 2026-11-14).
+      actions={[{ icon: 'save', label: t('save'), variant: 'primary', onClick: () => void handleSave(), disabled: !dirty }]}
       menu={{ title: t('menuTitle'), actions: pageActions }}
     />
   )
