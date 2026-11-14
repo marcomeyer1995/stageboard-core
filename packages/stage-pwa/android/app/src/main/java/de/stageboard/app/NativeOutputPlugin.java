@@ -86,6 +86,7 @@ public class NativeOutputPlugin extends Plugin {
                 if (rate == 0) return;
                 if (!granted) result = "permission denied";
                 else {
+                    nativeUsbStop();  // before the old connection closes - see native_output.cpp
                     UsbAudioOut.Opened o = usb.open(um, dev, rate);
                     tOpen = android.os.SystemClock.elapsedRealtime();
                     if (o.error != null) result = o.error;
@@ -139,6 +140,8 @@ public class NativeOutputPlugin extends Plugin {
     private static native String nativeUsbStart(int fd, int epOut, int maxPacket, int epFb, int fbMaxPacket, int channels, int subslot, int sampleRate, boolean highSpeed);
 
     private static native int nativeUsbReattach(int fd, int ifno);
+
+    private static native void nativeUsbStop();
 
     private static native String nativeUsbResume(int fd, int epOut, int maxPacket, int epFb, int fbMaxPacket, int channels, int subslot, int sampleRate, boolean highSpeed);
 
@@ -218,6 +221,7 @@ public class NativeOutputPlugin extends Plugin {
             if (!granted) usbError = "permission denied";
             else {
                 synchronized (this) {
+                    nativeUsbStop();  // before the old connection closes - see native_output.cpp
                     UsbAudioOut.Opened o = usb.open(um, dev, rate);
                     if (o.error == null) {
                         String result = nativeUsbStart(o.fd, o.epOut, o.maxPacket, o.epFb, o.fbMaxPacket, o.channels, o.subslot, rate, o.highSpeed);
