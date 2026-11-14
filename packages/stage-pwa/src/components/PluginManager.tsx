@@ -4,7 +4,7 @@ import { API_VERSION_MISMATCH_CODE, apiVersionFits, HEALTH_TIMEOUT_MS, type Plug
 import { usePluginsStore } from '../store/usePluginsStore'
 import { capabilitiesLabel, installableCatalog, isTestPlugin, pluginKind, type PluginKind } from '../lib/pluginCatalog'
 import { useDialogStore } from '../store/useDialogStore'
-import { useNow } from '../lib/useNow'
+import { useServerNow } from '../lib/useNow'
 import { AnnouncementTextsDialog } from './AnnouncementTextsDialog'
 import { SpeechVoiceDialog } from './SpeechVoiceDialog'
 import { ActionMenu, Badge, Button, Switch, InfoHint } from './ui'
@@ -30,7 +30,9 @@ export function PluginManager({ kind = 'extensions' }: { kind?: PluginKind }) {
   const setEnabled = usePluginsStore((state) => state.setEnabled)
   const uninstall = usePluginsStore((state) => state.uninstall)
   const confirm = useDialogStore((state) => state.confirm)
-  const now = useNow()
+  // `lastSeenAt` is the Stage-Server's stamp - compared in its time, not this device's (the Fire's clock
+  // runs 18 s fast: every add-on read "Heartbeat veraltet", 2026-11-14).
+  const now = useServerNow()
   const [settingsOf, setSettingsOf] = useState<string | null>(null)
   const Settings = settingsOf ? SETTINGS[settingsOf] : undefined
 
