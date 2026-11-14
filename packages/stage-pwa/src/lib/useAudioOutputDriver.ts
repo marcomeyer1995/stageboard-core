@@ -33,6 +33,7 @@ import { useAudioOutputLatencyMs } from './latencyCompensation'
 import { useTrackLevelCurve } from './trackLevel'
 import { useLocalAudioOutputStore } from '../store/useLocalAudioOutputStore'
 import { useShowStateStore } from '../store/useShowStateStore'
+import { useNativeTrackStore } from './engine/nativeTrackStore'
 
 /**
  * Drives Gig-mode audio-playback (#13) regardless of which top-level tab (Live/Bibliothek/
@@ -69,7 +70,10 @@ export function useAudioOutputDriver(): void {
   const isMyDeviceAudioOutput = mode === 'gig' && engine === 'local-mine'
   // Gig only, per device (#468 prototype): the track on the click's Web Audio clock instead of an
   // <audio> element. Solo keeps the element.
-  const webAudio = isMyDeviceAudioOutput && webAudioTrackEnabled()
+  // The engine in the native output plays the track instead (nativeEngineTrack.ts): no Web Audio
+  // track then - the element keeps time, held silent.
+  const nativeTrack = useNativeTrackStore((state) => state.active)
+  const webAudio = isMyDeviceAudioOutput && webAudioTrackEnabled() && !nativeTrack
   const usesLocalEngine = engine === 'local-mine' && !webAudio
 
   const track = resolveTrackForEntry(currentEntry, currentVariant, trackOverride)

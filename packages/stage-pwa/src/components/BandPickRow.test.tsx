@@ -26,5 +26,7 @@ describe('BandPickRow ("Band: …" in ☰, Marco 2026-10-16)', () => {
     useShowStateStore.setState({ state: { playbackStatus: 'playing' } } as never)
     render(<BandPickRow />)
     expect(screen.getByRole('button', { name: /Band: Abadschendaler/ })).toBeDisabled()
+    // Why, as visible text - a tooltip never shows on a touch screen (device test 2026-11-12).
+    expect(screen.getByText('Während ein Song läuft, bleibt die Band.')).toBeInTheDocument()
   })
 })

@@ -1,58 +1,75 @@
-# Getrennte Ausgänge: Mehrkanal-Audio auf Tablets (#481, #25)
+# Separate outputs: multichannel audio on tablets (#481, #25)
 
-Stand 2026-11-03, Messungen mit einem Behringer UMC204HD (4 Ausgänge: A = 1/2, B = 3/4, 2 Eingänge, USB Audio Class 2, class compliant). Ziel: Klick nur auf die In-Ears, Track zum FOH – auch auf einem einzelnen Android-Tablet ohne Stage-Server (docs/25), das ist der Kern des Alleinstellungsmerkmals.
+As of 2026-11-03 (device findings updated 2026-11-12), measured with a Behringer UMC204HD (4 outputs: A = 1/2, B = 3/4, 2 inputs, USB Audio Class 2, class compliant). Goal: the click only on the in-ears, the track to FOH - also on a single Android tablet without a Stage-Server (docs/25); this is the core of what sets StageBoard apart.
 
-## 1. Entscheidungen (Marco)
+## 1. Decisions (Marco)
 
-- Alle Wege zulassen, die echte Kanalzahl samt Grund anzeigen; angeboten werden nur Kanäle, die es gibt.
-- **Nie ein falsches Signal ans Publikum:** kein Zusammenmischen auf einen Ausgang als Rückfall. Fällt der Ausgang weg, stoppt nur das Audio dieses Geräts; Show-Uhr, Prompter und Cues laufen weiter, rote Warnung auf allen Geräten, weiter nur über Play.
-- Das native Android-Modul hat Vorrang.
+- Allow every path, show the real channel count and why; only channels that exist are offered.
+- **Never a wrong signal to the audience:** no mixing down onto one output as a fallback. If the output goes away, only this device's audio stops; show clock, prompter and cues keep running, a red warning on all devices, resume only via Play.
+- The native Android module comes first.
 
-## 2. Was welcher Weg kann
+## 2. What each path can do
 
-| Weg | Kanäle | Abziehen des Interfaces |
+| Path | Channels | Unplugging the interface |
 |---|---|---|
-| Chrome/WebView (auch die Capacitor-App) | 2 (`maxChannelCount`) | Android leitet auf den Lautsprecher um |
-| Chrome auf Linux | 2, mit PipeWire-Einstellung `pulse.default.position = [ FL FR RL RR ]` 4 | – |
-| Android `AudioTrack` mit Kanal-Index-Maske | 4 diskret, ~78 ms | **leitet nach 67–86 ms auf den Lautsprecher um** – ungeeignet |
-| Android AAudio auf fester Geräte-ID | 4 diskret; Redmi ~12,5 ms, Fire ~114 ms | `AAUDIO_ERROR_DISCONNECTED` sofort, nichts aus dem Lautsprecher |
-| Eigener USB-Treiber (usbdevfs) | alle, die das Interface hat | `ENODEV` sofort, App läuft weiter |
+| Chrome/WebView (also the Capacitor app) | 2 (`maxChannelCount`) | Android reroutes to the speaker |
+| Chrome on Linux | 2, with the PipeWire setting `pulse.default.position = [ FL FR RL RR ]` 4 | - |
+| Android `AudioTrack` with a channel index mask | 4 discrete, ~78 ms | **reroutes to the speaker after 67-86 ms** - unsuitable |
+| Android AAudio on a fixed device id | 4 discrete; Redmi ~12.5 ms, Fire ~114 ms | `AAUDIO_ERROR_DISCONNECTED` at once, nothing from the speaker |
+| Own USB driver (usbdevfs) | all the interface has | `ENODEV` at once, the app keeps running |
 
-Normale Apps (Spotify) spielen Stereo; Android kopiert es auf einem 4-Kanal-Interface auch auf 3/4. Nur wer Kanäle einzeln adressiert (Index-Maske, eigener Treiber), bekommt getrennte Signale.
+Normal apps (Spotify) play stereo; on a 4-channel interface Android copies it onto 3/4 as well. Only who addresses channels one by one (index mask, own driver) gets separate signals.
 
-Im geteilten Modus liegt Androids Medienlautstärke für das USB-Gerät im Signalweg (Redmi: Stufe 5/15 = −40 dB). StageBoard muss sie anzeigen und warnen, wenn sie nicht auf 100 % steht.
+In shared mode Android's media volume for the USB device is in the signal path (Redmi: step 5/15 = -40 dB). StageBoard has to show it and warn when it is not at 100 %.
 
-## 3. Geräte
+## 3. Devices
 
-| Gerät | Android-Treiber | Eigener Treiber |
+| Device | Android driver | Own driver |
 |---|---|---|
-| Fire HD (KFTRPWI, Android 9) | ✅ AAudio 4 Kanäle nach Gehör getrennt | Ausgang ✅, Eingang hängt nach 2 Übertragungen |
-| Redmi Pad SE 8.7 (Helio G85/MT8786, Android 16) | ❌ stumm, auch Spotify | Ausgang ✅ nach Gehör, Eingang ⚠️ (§5) |
-| Samsung S26, Xiaomi-Handy | ✅ (Spotify) | nicht getestet |
+| Fire HD (KFTRPWI, Android 9) | ✅ AAudio 4 channels, separate by ear | output ✅, input hangs after 2 transfers |
+| Redmi Pad SE 8.7 (Helio G85/MT8786, Android 16) | ⚠️ since 2026-11-12 through the Dell DA310 (was ❌ silent on 2026-11-03, see §3a), only 2 channels in the mixer, replug bug; on 2026-11-13 silent again after a replug, even after a reboot (Spotify too) | output ✅ (§4, default since #840), input ⚠️ (§5) |
+| Samsung S26, Xiaomi phone | ✅ (Spotify) | not tested |
 
-**Redmi, Ursache (logcat, ohne Root):** Der MediaTek-HAL bedient USB selbst (`AudioALSAPlaybackHandlerUsb`). Der erste Schreibvorgang hängt 865 ms, dann „I/O error“, danach bei jedem Versuch „cannot prepare channel: Device or resource busy“ – über 8000-mal in 3 Minuten. Der isochrone Datenstrom kommt nie zustande; die Erkennung (Steuerübertragungen) funktioniert. Fehler werden nicht an die App gemeldet, AAudio zeigt „läuft, keine Aussetzer“. Zusätzlich mischt Xiaomis „MiSound“ USB-Mehrkanal intern auf 2 Kanäle und zurück. Gegenprobe: Audio Evolution Mobile mit eigenem Treiber („eXtream“) spielt auf dem Redmi sauber auf 1/2 und 3/4.
+**Redmi, cause on 2026-11-03 (logcat, without root):** the MediaTek HAL drives USB itself (`AudioALSAPlaybackHandlerUsb`). The first write hangs 865 ms, then "I/O error", after that every attempt fails with "cannot prepare channel: Device or resource busy" - over 8000 times in 3 minutes. The isochronous stream never comes up; detection (control transfers) works. Errors are not reported to the app, AAudio shows "running, no underruns". On top, Xiaomi's "MiSound" mixes USB multichannel down to 2 channels internally and back up. Counter-check: Audio Evolution Mobile with its own driver ("eXtream") plays cleanly on the Redmi on 1/2 and 3/4.
 
-**Hubs:** Der Fire übernimmt am Dell-Dock DA310 die Host-Rolle nur ohne dessen Netzteil – dort also entweder Laden oder USB-Audio. Der Redmi lädt am selben Dock und hostet gleichzeitig. Hub/Dock gehören zur Kompatibilität.
+### 3a. Redmi, device test 2026-11-12
 
-**Lehre:** „Erkannt“ heißt nicht „spielt“. Beim Anschließen braucht es eine Prüfung: Testton mit Rückfrage, später automatisch per Loopback-Kabel (Ausgang in einen Eingang desselben Interfaces).
+- **Android's USB audio plays now** (native output via AAudio, Spotify too), the UMC on the Dell DA310. Android drives it with **2 channels** (front L/R) in its mixer; channels 3/4 stay silent until #743.
+- **Replug bug:** after unplugging and replugging the UMC the low-latency USB output fails every write with "cannot prepare channel: Device or resource busy" again, and AAudio gives no timestamp. On reconnect Android also opens a 4-channel 192 kHz USB output (flags NONE) plus a duplicating thread. Spotify meanwhile plays on the deep-buffer output. **Only ending the app process** (swipe away and reopen, or a reboot) helps; the HAL then closes and reopens the output at once. Did not help: a page reload, reopening the stream without low latency (garbage timestamp of -252 s), releasing all audio for 4 s. #809 makes the missing timestamp visible ("Zeitpunkt nur geschätzt") instead of silent.
+- **Only one USB audio device at a time:** with a NUX MG-30 (itself a USB audio interface) added through the same hub, Android took the UMC away (`DEVICE_STATE_UNAVAILABLE` for card 1) and made the MG-30 the USB output; StageBoard went to the safe fallback ("Ton: Notbetrieb"). Unplugging the MG-30 gave the UMC back within a second. **MIDI of both keeps working** - the MG-30 got its patch changes while the UMC was gone as audio device. Consequence: on this Redmi a modeller with USB audio and an audio interface cannot both be audio devices; USB MIDI only is fine.
 
-## 4. Eigener USB-Treiber (Spike)
+**Hubs:** the Fire takes the host role on the Dell DA310 only without its power supply - there it is either charging or USB audio. The Redmi charges on the same dock and hosts at the same time. Hub/dock belong to compatibility.
 
-Code auf Branch `spike/native-audio-481` (`NativeAudioTestPlugin.java`, `src/main/cpp/usb_audio_test.cpp`), keine Fremdbibliothek:
+**Lesson:** "detected" does not mean "plays". Plugging in needs a check: a test tone with a question, later automatic via a loopback cable (output into an input of the same interface).
 
-- Java: `UsbManager`-Berechtigung (Dialog je Anstecken), UAC1/UAC2-Deskriptoren parsen (Kanäle, Format, Takt, Endpunkte), Schnittstellen mit `claimInterface(…, true)` von Androids Treiber lösen, Alt-Setting wählen, Abtastrate per `SET_CUR` am Taktgeber setzen.
-- C++: isochrone URBs über `USBDEVFS_SUBMITURB`/`REAPURB` auf dem Dateideskriptor der `UsbDeviceConnection`, 8 × 1 ms in der Warteschlange; Paketgröße je 125 µs aus dem Feedback-Endpunkt (asynchroner Modus, 16.16-Format). Thread auf Audio-Priorität (−19).
-- Ergebnis Redmi: Ausgang 4 Kanäle nach Gehör getrennt, 0 Paketfehler, Feedback 47 988 Hz wird befolgt, Abziehen sauber erkannt. Rund 500 Zeilen.
+## 4. Own USB driver (built, 2026-11-13/14, #837, PRs #840, #844)
 
-## 5. Eingang (offen)
+In the app since #840 and **on by default** (`sb:debug:usb-driver` = 0 switches it off on a device). With a USB audio interface plugged in, the native output plays through it, and Android's USB audio is not involved. Without one, AAudio plays as before.
 
-Loopback Main Out L → Eingang 1, Burst alle 500 ms. Manche Sitzungen sind perfekt: 99,9 % der Samples, **Rundlauf 3,0–3,2 ms**, stabil auf ±0,02 ms (gemessen über die Abschlusszeiten der Übertragungen je Richtung; der MediaTek-Controller liefert keine Bus-Framenummer). Andere verlieren von Anfang an 5–20 %: Eingangs-URBs brauchen 1,05–1,25 ms statt 1 ms, ohne Fehlerstatus; größere oder mehr URBs machen es schlimmer. Ausgeschlossen: Thread zu spät, Bildschirm/Energiesparen, Androids Treiber dazwischen, USB-Reset. Nächste Schritte: Aufnahme mit eXtream als Referenz, ein Gerät ohne MediaTek, Reihenfolge der Alt-Settings wie im Linux-Treiber.
+- **Java (`UsbAudioOut.java`)** finds the interface, gets the permission, parses the UAC1/UAC2 descriptors (channels, format, clock, endpoints), claims the streaming interface from Android's driver, sets the alt setting (most channels, then most bits) and the rate (`SET_CUR` on the clock source). On close it gives the interfaces back (`USBDEVFS_CONNECT`), and Android's driver binds them again.
+- **C++ (`native_output.cpp`)** queues isochronous OUT URBs (`USBDEVFS_SUBMITURB`/`REAPURB`, 8 × 1 ms) on the connection's file descriptor. Packet sizes follow the feedback endpoint (16.16). Heard time = now + queued frames + 1 ms (DAC). The same `produce()` as the AAudio callback renders the pipe plus the engine core (click, track, announcements). The thread runs at audio priority (-19).
+- **Permission without a dialog per plug-in:** the app is the default handler for USB audio interfaces (`USB_DEVICE_ATTACHED` filter, `res/xml/usb_audio_devices.xml`). Android offers "always open" only to an app that may record, because the interface has inputs. So the app asks for the microphone once, only with an interface plugged in and never waiting more than 1.5 s. On a plug-in it waits up to 10 s for Android's own grant before asking itself, which avoids two dialogs on screen.
+- **Unplugged:** silent, never Android's output (the tablet's speaker would be a wrong signal). The device vitals say so in red.
+- **Plugged in again:** the attach broadcast reaches Java directly and `nativeUsbResume` restarts only the USB stream. Engine, clips and pipe stay, and it works on a locked screen. Redmi + UMC204HD: sound back about 1.1 s after Android reports the device (permission 36 ms, rate + alt setting ~0.86 s for the UMC right after power-up, start 8 ms), and Android reports it about 1 s after plugging in. Marco: 2-3 s, no dialog.
+- **Volume:** Android's media volume does not reach this path, so the level is set on the interface. The device vitals say so.
+- **Self-monitoring:** every 30 s a `usb status` line in the log (URBs, packet errors, feedback rate, pipe missing, engine clock jumps and drift, RMS/peak per side), readable while the page is frozen. The AAudio path got the same line (`aaudio status`, #846).
 
-## 6. Reihenfolge
+Pitfalls found on the way:
+- **Stop the thread before the connection closes.** A closed file descriptor's number goes to the next connection. A thread still reaping on it then waited forever while holding the native lock, so after a page reload the output stayed "starting" and silent (fixed in #844).
+- **Dev builds compiled the native code at -O0.** That took the Redmi's USB thread to half a core, and with the first version of the announcement clip to 103 %: 730 instead of 1000 URBs/s, then "timestamp jumps" and the fallback. Since #843 it is -O2 in debug builds too.
 
-1. Eingang stabil, Latenz gemessen (§5).
-2. Treiber als echte Ausgabe: Ringpuffer, in den die StageBoard-Audio-Engine (Klick, Track, Stems) schreibt, auf der gemeinsamen Uhr; eine Sitzung je Anstecken, bei Stille läuft der Strom weiter.
-3. Geräteprüfung beim Anschließen: entscheidet zwischen AAudio und eigenem Treiber.
-4. Sicherer Stopp, rote Warnung, Abziehen; Medienlautstärke anzeigen.
-5. UAC1-Geräte (Mischpulte), sobald Testhardware da ist.
-6. Danach Server-ALSA (#25) und Einrichtungshinweise für Windows/macOS.
+**Night 2026-11-13/14** (Redmi locked, 23:56-07:34, song restarted every 10 min): 46/46 songs played to the end, one process all night, 0 packet errors, 1000 URBs/s without a gap, feedback 47 987-47 988 Hz, drift 247 ± 1 ppm.
+
+## 5. Input (open)
+
+Loopback Main Out L → input 1, a burst every 500 ms. Some sessions are perfect: 99.9 % of the samples, **round trip 3.0-3.2 ms**, stable to ±0.02 ms (measured from the completion times of the transfers per direction; the MediaTek controller gives no bus frame number). Others lose 5-20 % from the start: input URBs take 1.05-1.25 ms instead of 1 ms, without an error status; bigger or more URBs make it worse. Ruled out: thread too late, screen/power saving, Android's driver in between, USB reset. Next steps: recording with eXtream as reference, a device without MediaTek, alt-setting order as in the Linux driver.
+
+## 6. Order
+
+1. ~~Driver as a real output~~ (done, §4): the engine core (click, track, announcements) plays straight into it on the shared clock.
+2. ~~Safe stop, red warning, unplugging; show the volume~~ (done, §4).
+3. 4 channels: in-ear 1/2, FOH 3/4 (#743). The driver already opens the UMC204HD with 4 channels; measuring needs a second interface as recorder.
+4. Input stable, latency measured (§5).
+5. Device check on plug-in: decides between AAudio and the own driver (today: the own driver whenever an interface is there).
+6. UAC1 devices (desks), once test hardware is there.
+7. Then server ALSA (#25) and setup notes for Windows/macOS.

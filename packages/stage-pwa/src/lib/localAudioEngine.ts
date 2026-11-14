@@ -169,14 +169,23 @@ function cancelFade(audio: HTMLAudioElement): void {
 /** True while the song's stems play instead (docs/22 §3, stemEngine.ts): the element keeps running
  * silently, so position, track end and everything else that follows it stay as they are. */
 let silenced = false
+/** True while the engine in the native output plays the track (nativeEngineTrack.ts) - a flag
+ * of its own, so the stems' switch and this one don't undo each other. */
+let heldByEngine = false
 
 function elementVolume(): number {
-  return silenced ? 0 : trackElementVolume()
+  return silenced || heldByEngine ? 0 : trackElementVolume()
 }
 
 export function setLocalTrackSilenced(on: boolean): void {
   if (silenced === on) return
   silenced = on
+  if (audioEl && !fade) audioEl.volume = elementVolume()
+}
+
+export function setLocalTrackHeldByEngine(on: boolean): void {
+  if (heldByEngine === on) return
+  heldByEngine = on
   if (audioEl && !fade) audioEl.volume = elementVolume()
 }
 
@@ -359,6 +368,7 @@ export function unloadLocalTrack(): void {
 /** Test-only: puts the shared element back to paused at 0 with no fade running. */
 export function __resetLocalAudioForTests(): void {
   silenced = false
+  heldByEngine = false
   const audio = getAudioEl()
   cancelFade(audio)
   audio.pause()

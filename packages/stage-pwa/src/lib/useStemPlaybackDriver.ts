@@ -15,6 +15,7 @@ import { computeActiveMs, jumpBoundaryMs, rateOf } from './playbackTransport'
 import type { TrackJump } from './webAudioTrackEngine'
 import { practiceTransportOf, usePracticeStateStore } from '../store/usePracticeStateStore'
 import { useStemPlaybackStore } from '../store/useStemPlaybackStore'
+import { useNativeTrackStore } from './engine/nativeTrackStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 
 /**
@@ -73,31 +74,34 @@ export function useStemPlaybackDriver(): void {
   const useStems = settings.on && set !== null && set.stems.length > 0
   const stemIds = useMemo(() => (useStems && set ? set.stems.map((s) => s.id) : playingTrack ? [playingTrack.id] : []), [useStems, set, playingTrack])
   const idsKey = stemIds.join(',')
-  const wanted = mode === 'practice' && stemIds.length > 0
+  // The track plays in the native output's engine (nativeEngineTrack.ts): the stem engine then
+  // only plays real stems, never the track a second time.
+  const nativeTrack = useNativeTrackStore((state) => state.active)
+  const wanted = mode === 'practice' && stemIds.length > 0 && (useStems || !nativeTrack)
   const status = useStemPlaybackStore((state) => state.status)
 
   useEffect(() => {
     if (!wanted || !currentVariant) {
       unloadStems()
       setLocalTrackSilenced(false)
-      useStemPlaybackStore.setState({ status: 'off', cacheKeys: [] })
+      useStemPlaybackStore.setState({ status: 'off', cacheKeys: [], stems: false })
       return
     }
     let cancelled = false
     useStemPlaybackStore.setState({
       status: 'loading',
-      cacheKeys: stemIds.map((id) => cacheKey(currentVariant.id, id)),
+      cacheKeys: stemIds.map((id) => cacheKey(currentVariant.id, id, currentVariant.tracks.find((t) => t.id === id)?.fileRev)),
     })
     void loadStems(currentVariant.id, stemIds).then((ok) => {
       if (cancelled) return
       setLocalTrackSilenced(ok)
-      useStemPlaybackStore.setState({ status: ok ? 'ready' : 'error' })
+      useStemPlaybackStore.setState({ status: ok ? 'ready' : 'error', stems: useStems })
     })
     return () => {
       cancelled = true
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wanted, currentVariant?.id, idsKey])
+  }, [wanted, currentVariant?.id, idsKey, useStems])
 
   useEffect(() => {
     setStemGains(useStems ? stemGains(settings, stemIds) : new Map(stemIds.map((id) => [id, 1])))

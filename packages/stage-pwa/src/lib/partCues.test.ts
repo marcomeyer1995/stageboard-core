@@ -70,6 +70,6 @@ describe("a part's own announcement (#63 step 2)", () => {
   it('on bar 1 it replaces the count-in pattern', () => {
     const verse = partHeads(song)[0]!.partIndex
     const items = sectionAnnouncements(setPartCue(song, verse, [[CUE_NAME, '', '', '']]), clickTimeline({ bpm: 120, timeSignature: '4/4', countInBars: 2 }))
-    expect(items[0]).toEqual({ text: 'Strophe', atMs: -2000, bar: 1 })
+    expect(items[0]).toEqual({ text: 'Strophe', atMs: -2000, bar: 1, name: true })
   })
 })

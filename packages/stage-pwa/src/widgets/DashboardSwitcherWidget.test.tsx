@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Dashboard } from 'shared-types'
 
@@ -44,5 +44,20 @@ describe('Dashboard-Umschalter = the burger menu list', () => {
     render(<DashboardSwitcherConfigPanel config={{ orientation: 'horizontal' }} onChange={vi.fn()} />)
     expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
     expect(screen.getByText(/Zeigt dieselben Dashboards wie das Menü/)).toBeInTheDocument()
+  })
+
+  it('a bar that scrolls sideways shows "›" while more lies to the right, "‹" once moved (#829)', () => {
+    const { container } = render(<DashboardSwitcherWidget config={{ orientation: 'horizontal' }} />)
+    const strip = container.querySelector('.overflow-x-auto') as HTMLElement
+    // jsdom lays nothing out: a strip 300 px wide with 500 px of buttons.
+    Object.defineProperty(strip, 'clientWidth', { configurable: true, value: 300 })
+    Object.defineProperty(strip, 'scrollWidth', { configurable: true, value: 500 })
+    fireEvent.scroll(strip)
+    expect(container.querySelector('[data-more="right"]')).toBeInTheDocument()
+    expect(container.querySelector('[data-more="left"]')).toBeNull()
+    strip.scrollLeft = 200
+    fireEvent.scroll(strip)
+    expect(container.querySelector('[data-more="right"]')).toBeNull()
+    expect(container.querySelector('[data-more="left"]')).toBeInTheDocument()
   })
 })

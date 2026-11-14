@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
+  activeSetup,
   BUILTIN_MODELS,
   CAPABILITIES,
   channelNumber,
@@ -10,7 +11,17 @@ import {
   DEFAULT_VIRTUAL_OUTPUTS,
   DRIVER_KINDS,
   effectiveRouting,
+  pluginWiring,
+  equipmentMixes,
+  cableGround,
+  equipmentEarth,
+  type CableGround,
+  type Earth,
+  type Crosspoint,
   equipmentFrom,
+  equipmentOffered,
+  visibleOwnSetups,
+  hasModelName,
   linkPlaceholder,
   appsOf,
   joinDevices,
@@ -24,14 +35,20 @@ import {
   virtualPortClass,
   virtualPortIsInput,
   type MatrixPoint,
+  type PluginInstallation,
   type Port,
   type PortRef,
+  type Signal,
   type SignalClass,
   type SignalFlow,
   type VirtualPort,
   type StageEquipment,
   type StageLink,
   type StageSetup,
+  lookupPort,
+  partChannels,
+  type PortView,
+  virtualPortWidth,
 } from 'shared-types'
 import { getDeviceId } from '../lib/deviceId'
 import { stageMapDefaults } from '../lib/stageMapDefaults'
@@ -41,15 +58,20 @@ import { useDialogStore } from '../store/useDialogStore'
 import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
 import { usePresenceStore } from '../store/usePresenceStore'
 import { useProfilesStore } from '../store/useProfilesStore'
+import { usePluginsStore } from '../store/usePluginsStore'
 import { useStageMapStore } from '../store/useStageMapStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
-import { samePoint } from '../lib/matrixPoint'
+import { samePoint, stereoBadge } from '../lib/matrixPoint'
 import { RoutingMatrix, type MatrixLine } from './RoutingMatrix'
 import { PortListDialog } from './PortListDialog'
 import { HostPlugins } from './HostPlugins'
 import { wheelZoomFactor } from '../lib/wheelZoom'
 import { listMidiOutputs } from '../lib/webMidiOutput'
+import { PLUGIN_CATALOG } from '../lib/pluginCatalog'
 import { StageWiring } from './StageWiring'
+import { StageLiveList } from './StageLiveList'
+import { PATH_MARK } from '../lib/stageLive'
+import { useStageLive } from '../lib/useStageLive'
 import { AddRow, Badge, Button, IconButton, InfoHint, Segmented, Switch } from './ui'
 
 /** The map's own coordinates - positions are stored in these. */
@@ -58,6 +80,8 @@ const H = 640
 const NODE_W = 170
 const NODE_H = 64
 
+/** The live layer's dot on a device (#747) - red only for faults. */
+const LIVE_FILL = { ok: 'fill-ok', warning: 'fill-warn', error: 'fill-danger', off: 'fill-control-strong' } as const
 const CLASS_STROKE: Record<SignalClass, string> = { sound: 'stroke-accent', midi: 'stroke-accent-2', light: 'stroke-warn' }
 
 /** Capabilities that are the built-in virtual outputs (DEFAULT_VIRTUAL_OUTPUTS) - their old
@@ -70,6 +94,7 @@ function withMidiName(link: StageLink, name: string): StageLink {
 }
 
 const BUILT_IN_CAPABILITIES: readonly string[] = [CAPABILITIES.clickTrack, CAPABILITIES.audioPlayback, CAPABILITIES.sectionAnnouncements]
+const BUILT_IN_IDS: readonly string[] = DEFAULT_VIRTUAL_OUTPUTS.map((v) => v.id)
 
 /** What a tap shows (Marco, 2026-11-06): a device its interfaces and matrix; a cable first its two
  * ends, tapped again (`chain`) the full way of every signal on it; a signal its full way. */
@@ -95,7 +120,8 @@ function fitView(points: { x: number; y: number }[]): ViewBox {
   return { x, y, w: Math.max(...xs) + NODE_W / 2 + pad - x, h: Math.max(...ys) + NODE_H / 2 + pad - y }
 }
 
-const portOf = (equipment: StageEquipment | undefined, portId: string): Port | undefined => equipment?.ports.find((p) => p.id === portId)
+/** A port or a part of a container port (#739), by id. */
+const portOf = (equipment: StageEquipment | undefined, portId: string): PortView | undefined => (equipment ? lookupPort(equipment.ports, portId) : undefined)
 
 /**
  * The stage map (docs/31 §7): the band's equipment, the cables between their ports, and per setup
@@ -105,7 +131,7 @@ const portOf = (equipment: StageEquipment | undefined, portId: string): Port | u
  */
 export function StageMap() {
   const { t } = useTranslation('hardware')
-  const { equipment, setups, front, loaded, saveEquipment, removeEquipment, saveSetup, updateSetup, removeSetup } = useStageMapStore()
+  const { equipment: bandEquipment, setups: bandSetups, ownSetups, ownEquipment, active, front, loaded, saveEquipment, removeEquipment, saveSetup, updateSetup, removeSetup } = useStageMapStore()
   const devices = useDevicesStore((state) => state.devices)
   const devicesLoaded = useDevicesStore((state) => state.loaded)
   const logicalDevices = useLogicalDevicesStore((state) => state.devices)
@@ -122,6 +148,8 @@ export function StageMap() {
   const [selection, setSelection] = useState<Selection>(null)
   const [portsFor, setPortsFor] = useState<StageEquipment | null>(null)
   const [editing, setEditing] = useState(false)
+  /** "Prüfen" (#747): the map shows what every device and cable reports right now. */
+  const [checking, setChecking] = useState(false)
   const [showPorts, setShowPorts] = useState(false)
   const [connectFrom, setConnectFrom] = useState<PortRef | null>(null)
   const [full, setFull] = useState(false)
@@ -132,7 +160,7 @@ export function StageMap() {
   const writing = useRef(false)
   useEffect(() => {
     if (!loaded || !devicesLoaded || writing.current) return
-    const writes = stageMapDefaults({ equipment, setups }, devices, ownId)
+    const writes = stageMapDefaults({ equipment: bandEquipment, setups: bandSetups }, devices, ownId)
     if (writes.equipment.length + writes.newSetups.length + writes.addTo.length === 0) return
     writing.current = true
     void (async () => {
@@ -144,9 +172,14 @@ export function StageMap() {
       .finally(() => {
         writing.current = false
       })
-  }, [loaded, devicesLoaded, equipment, setups, devices, ownId, saveEquipment, saveSetup, updateSetup])
+  }, [loaded, devicesLoaded, bandEquipment, bandSetups, devices, ownId, saveEquipment, saveSetup, updateSetup])
 
+  // The band's setups, then the own ones this person may see (#799): their own, the admin everybody's.
+  const setups = useMemo(() => [...bandSetups, ...visibleOwnSetups(ownSetups, myProfileId, isAdmin)], [bandSetups, ownSetups, myProfileId, isAdmin])
   const setup: StageSetup | undefined = setups.find((s) => s.id === setupId) ?? setups[0]
+  const ownSetup = setup?.owner !== undefined
+  // Own equipment is only offered in its owner's setups.
+  const equipment = useMemo(() => [...bandEquipment, ...equipmentOffered(ownEquipment, setup)], [bandEquipment, ownEquipment, setup])
   const byId = useMemo(() => new Map(equipment.map((e) => [e.id, e])), [equipment])
   const onStage = useMemo(() => (setup ? equipment.filter((e) => setup.positions[e.id]) : []), [equipment, setup])
   const offStage = useMemo(() => (setup ? equipment.filter((e) => !setup.positions[e.id]) : []), [equipment, setup])
@@ -163,6 +196,10 @@ export function StageMap() {
   const showWhole = () => setup && setView(fitView(onStage.map((e) => setup.positions[e.id]!)))
 
   const personName = (profileId: string | undefined) => people.find((p) => p.id === profileId)?.name ?? null
+  // An own setup says whose it is: "Mein: Zuhause", for the admin "Zuhause (Caro)".
+  // Which of several band setups the Gig goes by right now (#745).
+  const gigSetupId = bandSetups.length > 1 ? activeSetup({ equipment: bandEquipment, setups: bandSetups, active })?.id : undefined
+  const setupLabel = (s: StageSetup) => (s.owner === undefined ? (s.id === gigSetupId ? t('map.gigSetupLabel', { name: s.name }) : s.name) : s.owner === myProfileId ? t('map.ownSetupLabel', { name: s.name }) : t('map.ownSetupOf', { name: s.name, person: personName(s.owner) ?? '?' }))
   const subtitle = (e: StageEquipment): string => {
     if (e.kind === 'stageboard' && e.deviceId) return personName(presence.devices[e.deviceId]?.profileId) ?? t('map.nobody')
     if (e.kind === 'stageboard') return t('map.placeholder')
@@ -178,39 +215,90 @@ export function StageMap() {
     const e = byId.get(id)
     return e ? title(e) : id
   }
-  const title = (e: StageEquipment) => (e.listener?.kind === 'signed-in' ? (personName(presence.devices[e.listener.deviceId]?.profileId) ?? t('map.nobodyShort')) : e.name)
+  // A device box nobody named shows its device's name ("Fire Dev", not "Tablet / Handy", #815).
+  const deviceName = (e: StageEquipment) => (e.kind === 'stageboard' && e.deviceId && hasModelName(e) ? devices.find((d) => d.id === e.deviceId)?.name : undefined)
+  const title = (e: StageEquipment) => (e.listener?.kind === 'signed-in' ? (personName(presence.devices[e.listener.deviceId]?.profileId) ?? t('map.nobodyShort')) : (deviceName(e) ?? e.name))
 
   // The band's virtual ports: Klick, Track, Ansagen and every other Logical Device.
   const virtualPorts: VirtualPort[] = useMemo(
     () => [
-      ...DEFAULT_VIRTUAL_OUTPUTS.map((v) => ({ id: v.id, name: v.name, signalClass: virtualPortClass(v.capability), input: false })),
+      ...DEFAULT_VIRTUAL_OUTPUTS.map((v) => ({ id: v.id, name: v.name, signalClass: virtualPortClass(v.capability), input: false, width: virtualPortWidth(v.capability) })),
       ...logicalDevices
         .filter((d) => !BUILT_IN_CAPABILITIES.includes(d.capability))
-        .map((d) => ({ id: d.id, name: d.name, signalClass: virtualPortClass(d.capability), input: virtualPortIsInput(d.capability) })),
+        .map((d) => ({ id: d.id, name: d.name, signalClass: virtualPortClass(d.capability), input: virtualPortIsInput(d.capability), width: virtualPortWidth(d.capability) })),
     ],
     [logicalDevices],
   )
   const flows = useMemo(() => (setup ? signalFlows({ equipment, setups }, setup.id, virtualPorts) : []), [equipment, setups, setup, virtualPorts])
   // The technicians' checks and the wiring list (2026-11-07).
-  const check = useMemo(() => (setup ? checkSetup({ equipment, setups }, setup.id) : { issues: [], use: [] }), [equipment, setups, setup])
+  const check = useMemo(() => (setup ? checkSetup({ equipment, setups }, setup.id, virtualPorts) : { issues: [], use: [] }), [equipment, setups, setup, virtualPorts])
   const cables = useMemo(() => (setup ? wiringList({ equipment, setups }, setup.id) : []), [equipment, setups, setup])
-  const badLinks = useMemo(() => new Set(check.issues.flatMap((i) => (i.kind === 'double' ? i.linkIds : i.kind === 'width' ? [i.linkId] : []))), [check])
+  const badLinks = useMemo(() => new Set(check.issues.flatMap((i) => (i.kind === 'double' ? i.linkIds : i.kind === 'width' || i.kind === 'mono-in-stereo-out' ? [i.linkId] : i.kind === 'hum-loop' ? i.linkIds : []))), [check])
+  // The live layer (#747): only while "Prüfen" is on.
+  const installedPlugins = usePluginsStore((state) => state.installed)
+  const installPlugin = usePluginsStore((state) => state.install)
+  const saveLogicalDevice = useLogicalDevicesStore((state) => state.save)
+  // A device whose model has a plugin (model id = plugin id, #812): what one tap still has to do.
+  const pluginOf = (e: StageEquipment) => PLUGIN_CATALOG.find((p) => p.id === e.modelId)
+  const pluginPatterns = (plugin: (typeof PLUGIN_CATALOG)[number]) => (plugin.hardwareIds ?? []).flatMap((h) => (h.kind === 'webmidi' && h.namePattern ? [h.namePattern] : []))
+  const pluginState = (e: StageEquipment) => {
+    const plugin = pluginOf(e)
+    if (!plugin || !setup) return null
+    const installed = installedPlugins.some((p) => p.id === plugin.id && p.enabled)
+    const device = logicalDevices.find((d) => d.pluginId === plugin.id)
+    const wiring = pluginWiring({ equipment, setups }, setup.id, e.id, pluginPatterns(plugin))
+    const box = wiring ? byId.get(wiring.boxId) : undefined
+    const routed = !!(device && wiring && box && effectiveRouting(box, setup).some((c) => c.from.kind === 'virtual' && c.from.virtualPortId === device.id && samePoint(c.to, wiring.to)))
+    return { plugin, installed, ready: installed && routed, cable: wiring !== null }
+  }
+  // One tap (#812): install the plugin, a device for its cues, its tick in the matrix of the tablet
+  // the cable goes to, and the cable's MIDI port where this tablet sees a matching one.
+  const setUpPlugin = async (e: StageEquipment) => {
+    const plugin = pluginOf(e)
+    if (!plugin || !setup) return
+    if (!installedPlugins.some((p) => p.id === plugin.id && p.enabled)) await installPlugin({ ...plugin, enabled: true, installedAt: Date.now() } as PluginInstallation)
+    let device = logicalDevices.find((d) => d.pluginId === plugin.id)
+    if (!device) {
+      device = { id: crypto.randomUUID(), name: e.name, capability: plugin.capabilities[0]!, pluginId: plugin.id, executionTarget: null }
+      await saveLogicalDevice(device)
+    }
+    const first = pluginWiring({ equipment, setups }, setup.id, e.id, pluginPatterns(plugin))
+    const box = first ? byId.get(first.boxId) : undefined
+    if (!first || !box) return
+    const seen = appsOf(box).includes(ownId) ? (await listMidiOutputs()).map((o) => o.name) : []
+    const wiring = pluginWiring({ equipment, setups }, setup.id, e.id, pluginPatterns(plugin), seen)!
+    const id = device.id
+    await updateSetup(setup.id, (cur) => ({
+      ...cur,
+      routing: { ...cur.routing, [box.id]: [...effectiveRouting(box, cur).filter((c) => !(c.from.kind === 'virtual' && c.from.virtualPortId === id)), { from: { kind: 'virtual', virtualPortId: id }, to: wiring.to }] },
+      links: cur.links.map((l) => (l.id === wiring.linkId && !l.midiName && wiring.midiName ? { ...l, midiName: wiring.midiName } : l)),
+    }))
+  }
+  // For the cable check: devices on stage whose plugin is missing - their cues would do nothing.
+  const missingPlugins = onStage.flatMap((e) => {
+    const plugin = pluginOf(e)
+    return plugin && !installedPlugins.some((p) => p.id === plugin.id && p.enabled) ? [title(e)] : []
+  })
+  const liveOutputs = useMemo(
+    () => logicalDevices.filter((d) => !BUILT_IN_CAPABILITIES.includes(d.capability)).map((d) => ({ id: d.id, name: d.name, pluginId: d.pluginId, client: installedPlugins.find((p) => p.id === d.pluginId)?.runtime === 'client' })),
+    [logicalDevices, installedPlugins],
+  )
+  const live = useStageLive(checking, { equipment: onStage, setup, flows, outputs: liveOutputs, builtInIds: BUILT_IN_IDS })
   const flowsOn = (linkId: string) => flows.filter((f) => f.hops.some((h) => h.linkId === linkId))
 
-  // Who may change what: the admin everything, everyone else the cables of their own device.
+  // Who may change what (#810): only the admin edits the stage, everyone else looks.
   const signedIn = myProfileId !== ''
-  const ownsDevice = (e: StageEquipment | undefined) => !!e?.deviceId && (e.deviceId === ownId || presence.devices[e.deviceId]?.profileId === myProfileId)
-  const canWire = (e: StageEquipment | undefined) => editing && signedIn && (isAdmin || ownsDevice(e))
-  const canMove = (e: StageEquipment) => editing && signedIn && (isAdmin || ownsDevice(e))
-  const canWireLink = (l: StageLink) => canWire(byId.get(l.from.equipmentId)) || canWire(byId.get(l.to.equipmentId))
-  const canGear = editing && isAdmin
+  const canEdit = editing && isAdmin
 
-  // A port and its channel - or its channels, for a cable wider than one ("Aux 1–2").
+  // A pin of a socket: left/right of a stereo jack, else its number (#739).
+  const pinText = (pin: number | undefined) => (pin === undefined ? '' : ` ${pin === 1 ? t('map.pinL') : pin === 2 ? t('map.pinR') : t('map.pinN', { n: pin })}`)
+  // A port and its channel - or its channels, for a cable wider than one ("Aux 1–2"); a part of a
+  // container reads with its container in front ("USB-C · Audio aus 1").
   const refText = (ref: PortRef, width = 1) => {
     const port = portOf(byId.get(ref.equipmentId), ref.portId)
-    if (ref.channel === undefined) return port?.name ?? ref.portId
+    if (ref.channel === undefined) return `${port?.name ?? ref.portId}${pinText(ref.pin)}`
     const first = channelNumber(port, ref.channel)
-    return `${port?.name ?? ref.portId} ${width > 1 ? `${first}–${first + width - 1}` : first}`
+    return `${port?.name ?? ref.portId} ${width > 1 ? `${first}–${first + width - 1}` : first}${pinText(ref.pin)}`
   }
   const portLabel = (ref: PortRef, width = 1) => {
     const item = byId.get(ref.equipmentId)
@@ -221,6 +309,7 @@ export function StageMap() {
   const connectPort = connectFrom ? portOf(byId.get(connectFrom.equipmentId), connectFrom.portId) : undefined
   const fitsFrom = (target: StageEquipment) => {
     if (!connectPort || !connectFrom || target.id === connectFrom.equipmentId) return [] as { port: Port; reverse: boolean }[]
+    // Cables sit on ports, never on a part of a container (#739).
     const out: { port: Port; reverse: boolean }[] = []
     for (const port of target.ports) {
       if (portFit(connectPort, port)) out.push({ port, reverse: false })
@@ -264,9 +353,10 @@ export function StageMap() {
     // Mono, stereo or a multicore (2026-11-07) - offered as far as both ends take it.
     const room = Math.min(portCapacity(fromPort, from.channel), portCapacity(toPort, to.channel))
     let width = 1
-    if (room >= 2) {
+    // A container (USB) carries every part at once - no width to ask for.
+    if (room >= 2 && !fromPort.parts && !toPort.parts) {
       const widths = [{ value: '1', label: t('map.mono') }, { value: '2', label: t('map.stereo') }, ...(room >= 3 ? [{ value: String(room), label: t('map.allChannels', { n: room }) }] : [])]
-      const stereoish = (fromPort.stereo || toPort.stereo) ?? false
+      const stereoish = (fromPort.pins ?? 1) > 1 || (toPort.pins ?? 1) > 1
       const answer = await promptFields(t('map.width'), [{ key: 'width', label: t('map.widthLabel'), type: 'radio', options: widths, defaultValue: stereoish ? '2' : '1' }], t('map.connect'))
       if (!answer) return
       width = Number(answer.width) || 1
@@ -281,6 +371,25 @@ export function StageMap() {
   // MIDI leaving this app's own device (part 2, 2026-11-07): which of the ports this device sees is
   // the far end - by name, as MIDI always was. Only here can the list be read.
   const midiFromHere = (link: StageLink) => link.signals.includes('midi') && [link.from, link.to].some((end) => { const e = byId.get(end.equipmentId); return e?.kind === 'stageboard' && appsOf(e).includes(ownId) })
+  /** What the cable does with ground (#748): by its plugs, and what the band set. */
+  const groundOf = (link: StageLink): { plugs: CableGround; own: CableGround | undefined } => {
+    const a = portOf(byId.get(link.from.equipmentId), link.from.portId)
+    const b = portOf(byId.get(link.to.equipmentId), link.to.portId)
+    return { plugs: cableGround(a, b), own: link.ground }
+  }
+  const setGround = async (link: StageLink, ground: CableGround | 'plugs') => {
+    if (!setup) return
+    await updateSetup(setup.id, (s) => ({
+      ...s,
+      links: s.links.map((l) => {
+        if (l.id !== link.id) return l
+        const next = { ...l }
+        delete next.ground
+        return ground === 'plugs' ? next : { ...next, ground }
+      }),
+    }))
+  }
+
   const chooseMidiName = async (link: StageLink) => {
     if (!setup) return
     const outputs = await listMidiOutputs()
@@ -310,7 +419,7 @@ export function StageMap() {
       return
     }
     const node = nodeId ? byId.get(nodeId) : undefined
-    gesture.current = { kind: node && canMove(node) ? 'node' : 'pan', id: nodeId, startView: viewBox, start: { x: event.clientX, y: event.clientY }, moved: false }
+    gesture.current = { kind: node && canEdit ? 'node' : 'pan', id: nodeId, startView: viewBox, start: { x: event.clientX, y: event.clientY }, moved: false }
   }
   const onPointerMove = (event: ReactPointerEvent) => {
     if (!pointers.current.has(event.pointerId)) return
@@ -390,7 +499,8 @@ export function StageMap() {
     )
     const model = models.find((m) => m.id === answer?.model)
     if (!answer || !model) return
-    const item = equipmentFrom(model, crypto.randomUUID(), answer.name?.trim() || model.name)
+    // In an own setup the equipment is its owner's: offered in that person's setups only (#799).
+    const item: StageEquipment = { ...equipmentFrom(model, crypto.randomUUID(), answer.name?.trim() || model.name), ...(setup.owner !== undefined ? { owner: setup.owner } : {}) }
     await saveEquipment(item)
     const at = { x: Math.round(viewBox.x + viewBox.w / 2), y: Math.round(viewBox.y + viewBox.h / 2) }
     await updateSetup(setup.id, (s) => ({ ...s, positions: { ...s.positions, [item.id]: at } }))
@@ -420,7 +530,7 @@ export function StageMap() {
     if (options.length === 0) return
     const answer = await promptFields(t('map.linkTitle', { name: item.name }), [{ key: 'device', label: t('map.linkDevice'), type: 'radio', options, defaultValue: options[0]!.value }], t('map.link'))
     if (!answer?.device) return
-    const { linked, merge } = linkPlaceholder({ equipment, setups }, item, answer.device)
+    const { linked, merge } = linkPlaceholder({ equipment, setups }, item, answer.device, devices.find((d) => d.id === answer.device)?.name)
     // The placeholder first: until it carries the device id, the map would add the device again.
     await saveEquipment(linked)
     if (!merge) return
@@ -481,8 +591,14 @@ export function StageMap() {
     await saveSetup(copy)
     setSetupId(copy.id)
   }
+  const renameSetup = async () => {
+    if (!setup) return
+    const answer = await promptFields(t('map.renameSetup'), [{ key: 'name', label: t('map.name'), defaultValue: setup.name }], t('map.save'))
+    const name = answer?.name?.trim()
+    if (name) await updateSetup(setup.id, (s) => ({ ...s, name }))
+  }
   const deleteSetup = async () => {
-    if (!setup || setups.length < 2) return
+    if (!setup || (!ownSetup && bandSetups.length < 2)) return
     if (!(await confirm(t('map.deleteSetupConfirm', { name: setup.name }), { danger: true, confirmLabel: t('map.delete') }))) return
     await removeSetup(setup.id)
     setSetupId(null)
@@ -490,27 +606,77 @@ export function StageMap() {
 
   const removeLink = (link: StageLink) => setup && void updateSetup(setup.id, (s) => ({ ...s, links: s.links.filter((l) => l.id !== link.id) })).then(() => setSelection(null))
   // A tick in a free matrix: the setup keeps the device's whole crosspoint list from then on.
-  const toggleCross = (item: StageEquipment, from: MatrixPoint, to: MatrixPoint, on: boolean) =>
-    setup &&
-    void updateSetup(setup.id, (s) => {
-      const current = effectiveRouting(item, s).filter((c) => !(samePoint(c.from, from) && samePoint(c.to, to)))
+  // On a device that does not mix (#746), an output takes one signal: ask before replacing it.
+  const toggleCross = async (item: StageEquipment, from: MatrixPoint, to: MatrixPoint, on: boolean) => {
+    if (!setup) return
+    const clash = (c: Crosspoint) =>
+      on && !equipmentMixes(item) && to.kind === 'port' && c.to.kind === 'port' && c.to.portId === to.portId &&
+      (c.to.channel === undefined || to.channel === undefined || c.to.channel === to.channel) &&
+      (c.to.pin === undefined || to.pin === undefined || c.to.pin === to.pin) &&
+      !samePoint(c.from, from)
+    const taken = effectiveRouting(item, setup).find(clash)
+    if (taken) {
+      // Say what is where, not "does not mix" (device test 2026-11-12).
+      const { columns, rows } = matrixOf(item)
+      const name = (lines: MatrixLine[], point: MatrixPoint) => lines.find((l) => samePoint(l.point, point))?.label ?? '?'
+      const text = t('map.pinTaken', { name: title(item), output: name(rows, to), current: name(columns, taken.from) })
+      if (!(await confirm(text, { title: t('map.pinTakenTitle', { output: name(rows, to) }), confirmLabel: t('map.replaceWith', { next: name(columns, from) }) }))) return
+    }
+    await updateSetup(setup.id, (s) => {
+      const current = effectiveRouting(item, s).filter((c) => !(samePoint(c.from, from) && samePoint(c.to, to)) && !clash(c))
       return { ...s, routing: { ...s.routing, [item.id]: on ? [...current, { from, to }] : current } }
     })
+  }
 
-  // The rows and columns of a device's matrix: physical ports, one line per channel, and on a
-  // StageBoard device its virtual sources (columns) and virtual inputs (rows).
+  // The rows and columns of a device's matrix: physical ports, one line per channel; a container
+  // (USB) unfolds into its parts, each with as many channels as the far end says (#739); a stereo
+  // socket also offers its pins ("Kopfhörer L" / "R"); and on a StageBoard device its virtual
+  // sources (columns) and virtual inputs (rows).
+  const classesOf = (signals: readonly Signal[]): SignalClass[] => [...new Set(signals.map((x) => SIGNAL_CLASS[x]))]
   const matrixOf = (item: StageEquipment): { columns: MatrixLine[]; rows: MatrixLine[] } => {
-    const lines = (ports: Port[]): MatrixLine[] =>
-      ports.flatMap((p) =>
-        p.channels
-          ? Array.from({ length: p.channels }, (_, i) => ({ key: `${p.id}#${i + 1}`, label: `${p.name} ${channelNumber(p, i + 1)}`, point: { kind: 'port' as const, portId: p.id, channel: i + 1 } }))
-          : [{ key: p.id, label: p.name, point: { kind: 'port' as const, portId: p.id } }],
-      )
+    // A channel group is one group of the smart matrix (#744), closed until opened.
+    const perChannel = (portId: string, name: string, count: number, numbered: Port | undefined): MatrixLine[] =>
+      Array.from({ length: count }, (_, i) => ({ key: `${portId}#${i + 1}`, label: `${name} ${channelNumber(numbered, i + 1)}`, point: { kind: 'port' as const, portId, channel: i + 1 }, group: { key: portId, label: name } }))
+    const lines = (side: 'in' | 'out'): MatrixLine[] =>
+      item.ports.flatMap((p) => {
+        if (p.parts) {
+          return p.parts
+            .filter((part) => part.direction !== (side === 'in' ? 'out' : 'in'))
+            .flatMap((part) => {
+              const count = setup ? partChannels({ equipment, setups }, setup, item.id, part.id) : part.channels
+              const name = `${p.name} · ${part.name}`
+              const classes = classesOf(part.signals)
+              return count && count > 1 ? perChannel(part.id, name, count, undefined).map((l) => ({ ...l, classes })) : [{ key: part.id, label: name, point: { kind: 'port' as const, portId: part.id }, classes }]
+            })
+        }
+        if (p.direction === (side === 'in' ? 'out' : 'in')) return []
+        const classes = classesOf(p.signals)
+        if (p.channels) return perChannel(p.id, p.name, p.channels, p).map((l) => ({ ...l, classes }))
+        const whole: MatrixLine = { key: p.id, label: p.name, point: { kind: 'port' as const, portId: p.id }, classes }
+        const pins = p.pins ?? 1
+        // A stereo socket: closed it is the whole socket, open it offers the whole and each pin.
+        const group = { key: p.id, label: p.name, closedPoint: whole.point }
+        return pins > 1 ? [{ ...whole, label: t('map.wholeSocket', { name: p.name }), group }, ...Array.from({ length: pins }, (_, i) => ({ key: `${p.id}.${i + 1}`, label: `${p.name}${pinText(i + 1)}`, point: { kind: 'port' as const, portId: p.id, pin: i + 1 }, group }))] : [whole]
+      })
+    // A stereo source (the track) is a group too (2026-11-12): closed the whole signal, open also
+    // its left and right side alone ("Track L", "Track R").
     const virtualLines = (input: boolean): MatrixLine[] =>
-      DRIVER_KINDS.includes(item.kind) ? virtualPorts.filter((v) => v.input === input).map((v) => ({ key: `v:${v.id}`, label: v.name, point: { kind: 'virtual' as const, virtualPortId: v.id } })) : []
+      DRIVER_KINDS.includes(item.kind)
+        ? virtualPorts
+            .filter((v) => v.input === input)
+            .flatMap((v) => {
+              const whole: MatrixLine = { key: `v:${v.id}`, label: v.name, point: { kind: 'virtual' as const, virtualPortId: v.id }, classes: [v.signalClass], ...(v.width ? { width: v.width } : {}) }
+              if (input || v.width !== 2) return [whole]
+              const group = { key: `v:${v.id}`, label: v.name, closedPoint: whole.point, width: 2, count: false }
+              return [
+                { ...whole, label: t('map.wholeSignal', { name: v.name }), group },
+                ...([1, 2] as const).map((channel) => ({ key: `v:${v.id}.${channel}`, label: `${v.name}${pinText(channel)}`, point: { kind: 'virtual' as const, virtualPortId: v.id, channel }, group })),
+              ]
+            })
+        : []
     return {
-      columns: [...virtualLines(false), ...lines(item.ports.filter((p) => p.direction !== 'out'))],
-      rows: [...lines(item.ports.filter((p) => p.direction !== 'in')), ...virtualLines(true)],
+      columns: [...virtualLines(false), ...lines('in')],
+      rows: [...lines('out'), ...virtualLines(true)],
     }
   }
 
@@ -565,17 +731,33 @@ export function StageMap() {
       )}
       {setups.length > 1 && (
         <div className="mb-2">
-          <Segmented label={t('map.setup')} value={setup.id} onChange={(id) => { setSetupId(id); setSelection(null) }} options={setups.map((s) => ({ value: s.id, label: s.name }))} />
+          <Segmented label={t('map.setup')} value={setup.id} onChange={(id) => { setSetupId(id); setSelection(null) }} options={setups.map((s) => ({ value: s.id, label: setupLabel(s) }))} />
         </div>
       )}
+      {ownSetup && <p className="mb-2 text-base text-ink-muted">{setup.owner === myProfileId ? t('map.ownSetupHint') : t('map.ownSetupOfHint', { person: personName(setup.owner) ?? '?' })}</p>}
       <div className="mb-2 flex flex-wrap items-center gap-2">
+        <Segmented
+          label={t('live.mode')}
+          value={checking ? 'check' : 'setup'}
+          onChange={(mode) => {
+            setChecking(mode === 'check')
+            if (mode === 'check') {
+              setEditing(false)
+              setConnectFrom(null)
+            }
+          }}
+          options={[
+            { value: 'setup', label: t('live.setup') },
+            { value: 'check', label: t('live.check') },
+          ]}
+        />
         <Button onClick={showWhole}>{t('map.whole')}</Button>
         <Switch layout="inline" label={t('map.ports')} checked={showPorts} onChange={setShowPorts} />
-        {signedIn && <Switch layout="inline" label={t('map.edit')} checked={editing} onChange={(on) => { setEditing(on); setConnectFrom(null) }} />}
+        {isAdmin && !checking && <Switch layout="inline" label={t('map.edit')} checked={editing} onChange={(on) => { setEditing(on); setConnectFrom(null) }} />}
         <span className="flex-1" />
         <IconButton icon={full ? 'exitFullscreen' : 'fullscreen'} label={full ? t('map.exitFull') : t('map.full')} onClick={() => toggleFull(!full)} />
       </div>
-      {!signedIn && <p className="mb-2 text-base text-ink-muted">{t('stage.viewOnly')}</p>}
+      {!signedIn ? <p className="mb-2 text-base text-ink-muted">{t('stage.viewOnly')}</p> : !isAdmin && <p className="mb-2 text-base text-ink-muted">{t('map.adminEdits')}</p>}
       {connectFrom && (
         <div className="mb-2 flex flex-wrap items-center gap-2 rounded-container border border-accent p-2">
           <span className="min-w-0 flex-1 text-base">{t('map.connecting', { port: portLabel(connectFrom) })}</span>
@@ -605,9 +787,13 @@ export function StageMap() {
           const labels = linkLabel(l)
           const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }
           const portText = showPorts || highlighted.has(l.id)
+          const liveLink = live?.links[l.id]
+          const bad = badLinks.has(l.id)
+          const dead = liveLink?.status === 'error'
+          if (liveLink?.path) labels.unshift(PATH_MARK[liveLink.path])
           return (
             <g key={l.id} className={on ? '' : 'opacity-25'}>
-              <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} className={badLinks.has(l.id) ? 'stroke-danger' : CLASS_STROKE[cls]} strokeWidth={selectedLink?.id === l.id ? 6 : 3} strokeDasharray={badLinks.has(l.id) ? '10 6' : undefined} />
+              <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} className={bad || dead ? 'stroke-danger' : CLASS_STROKE[cls]} strokeWidth={selectedLink?.id === l.id || dead ? 6 : 3} strokeDasharray={bad ? '10 6' : undefined} data-live={liveLink?.status} />
               <line
                 x1={a.x}
                 y1={a.y}
@@ -642,6 +828,8 @@ export function StageMap() {
           const candidate = connectFrom ? fitsFrom(e).length > 0 : false
           const dim = connectFrom ? !candidate && e.id !== connectFrom.equipmentId : false
           const own = e.deviceId === ownId
+          const liveNode = live?.equipment[e.id]
+          const liveShown = liveNode && liveNode.notes.length > 0 ? liveNode.status : null
           return (
             <g
               key={e.id}
@@ -655,8 +843,8 @@ export function StageMap() {
                 width={NODE_W}
                 height={NODE_H}
                 rx={12}
-                className={`${DRIVER_KINDS.includes(e.kind) ? 'fill-control-strong' : 'fill-control'} ${selected || candidate ? 'stroke-accent' : own ? 'stroke-accent-2' : 'stroke-ink-faint'}`}
-                strokeWidth={selected || candidate ? 4 : 2}
+                className={`${DRIVER_KINDS.includes(e.kind) ? 'fill-control-strong' : 'fill-control'} ${selected || candidate ? 'stroke-accent' : liveShown === 'error' ? 'stroke-danger' : own ? 'stroke-accent-2' : 'stroke-ink-faint'}`}
+                strokeWidth={selected || candidate || liveShown === 'error' ? 4 : 2}
               />
               <text x={NODE_W / 2} y={26} textAnchor="middle" className="fill-ink text-[19px] font-bold">
                 {title(e).length > 16 ? `${title(e).slice(0, 15)}…` : title(e)}
@@ -664,12 +852,14 @@ export function StageMap() {
               <text x={NODE_W / 2} y={50} textAnchor="middle" className="fill-ink-muted text-[16px]">
                 {subtitle(e).slice(0, 20)}
               </text>
+              {liveShown && <circle cx={NODE_W - 14} cy={14} r={9} className={LIVE_FILL[liveShown]} stroke="rgb(var(--sb-surface))" strokeWidth={2} data-live={liveShown} />}
             </g>
           )
         })}
       </svg>
 
       <div className={`mt-2 flex flex-col gap-3 ${full ? 'max-h-[40%] overflow-y-auto' : ''}`}>
+        {checking && <StageLiveList live={live} links={setup.links} nameOf={(id) => { const e = byId.get(id); return e ? title(e) : id }} linkName={(l) => `${listenerName(l.from.equipmentId)} → ${listenerName(l.to.equipmentId)}`} />}
         {selectedNode && (
           <div className="flex flex-col gap-2 rounded-container border border-line p-3">
             <div className="flex flex-wrap items-center gap-2">
@@ -678,7 +868,7 @@ export function StageMap() {
               {selectedNode.deviceId === ownId && <Badge tone="accent">{t('stage.thisDevice')}</Badge>}
             </div>
             {/* The host: its server plugins, installable where it can run them (docs/25 §6). */}
-            {(selectedNode.kind === 'stage-server' || appsOf(selectedNode).includes(SERVER_EXECUTION_TARGET)) && <HostPlugins canInstall={canGear} />}
+            {(selectedNode.kind === 'stage-server' || appsOf(selectedNode).includes(SERVER_EXECUTION_TARGET)) && <HostPlugins canInstall={canEdit} />}
             {appsOf(selectedNode).length > 1 && (
               <div className="flex flex-col gap-1">
                 <span className="text-base font-semibold">{t('map.appsHere')}</span>
@@ -688,7 +878,7 @@ export function StageMap() {
                       {appName(appId)}
                       {front[selectedNode.id] === appId && ` · ${t('map.inFront')}`}
                     </span>
-                    {canGear && appId !== selectedNode.deviceId && (
+                    {canEdit && appId !== selectedNode.deviceId && (
                       <Button variant="quiet" onClick={() => separate(selectedNode, appId)}>
                         {t('map.separate')}
                       </Button>
@@ -711,7 +901,7 @@ export function StageMap() {
                         </button>
                       ))}
                     </span>
-                    {canWire(selectedNode) && !connectFrom && (
+                    {canEdit && !connectFrom && (
                       <Button onClick={() => setConnectFrom({ equipmentId: selectedNode.id, portId: port.id })}>{t('map.connect')}</Button>
                     )}
                   </li>
@@ -734,14 +924,34 @@ export function StageMap() {
                     columns={columns}
                     rows={rows}
                     routed={(from, to) => crosspoints.some((c) => samePoint(c.from, from) && samePoint(c.to, to))}
+                    badge={(from, to) => stereoBadge(crosspoints, from, to, (id) => virtualPorts.some((v) => v.id === id && v.width === 2))}
                     fixed={fixedRouting}
-                    editable={selectedNode.kind === 'stageboard' || selectedNode.kind === 'stage-server' ? canWire(selectedNode) : canGear}
-                    onToggle={(from, to, on) => toggleCross(selectedNode, from, to, on)}
+                    editable={canEdit}
+                    onToggle={(from, to, on) => void toggleCross(selectedNode, from, to, on)}
                   />
                 </div>
               )
             })()}
-            {canGear && (
+            {(() => {
+              const state = pluginState(selectedNode)
+              if (!state || state.ready) return null
+              return (
+                <div className="flex flex-wrap items-center gap-2 rounded-control border border-warn p-2">
+                  <span className="min-w-0 flex-1 text-base">{t(state.cable ? 'map.pluginNeeded' : 'map.pluginNoCable', { name: state.plugin.name })}</span>
+                  {canEdit && state.cable && <Button onClick={() => void setUpPlugin(selectedNode)}>{t('map.pluginSetUp')}</Button>}
+                </div>
+              )
+            })()}
+            {canEdit && !UNPOWERED_KINDS.includes(selectedNode.kind) && (
+              <Segmented<Earth>
+                label={t('map.earth.label')}
+                showLabel
+                value={equipmentEarth(selectedNode)}
+                onChange={(earth) => void saveEquipment({ ...selectedNode, earth })}
+                options={EARTHS.map((value) => ({ value, label: t(`map.earth.${value}`) }))}
+              />
+            )}
+            {canEdit && (
               <div className="flex flex-wrap gap-2">
                 <Button icon="rename" onClick={() => void renameEquipment(selectedNode)}>
                   {t('map.rename')}
@@ -774,20 +984,25 @@ export function StageMap() {
             chains={chainFlows.map((f) => ({ key: f.key, label: signalLabel(f), cls: f.signalClass, way: wayOf(f), ends: endsOf(f) }))}
             onSignal={(key) => setSelection({ kind: 'signal', key, linkId: selectedLink.id })}
             onChain={() => setSelection({ kind: 'link', id: selectedLink.id, chain: true })}
-            removable={canWireLink(selectedLink)}
+            removable={canEdit}
             onRemove={() => removeLink(selectedLink)}
             midiName={selectedLink.midiName ?? null}
             onMidi={midiFromHere(selectedLink) ? () => void chooseMidiName(selectedLink) : null}
+            ground={groundOf(selectedLink)}
+            onGround={canEdit && selectedLink.signals.includes('audio') && groundOf(selectedLink).plugs !== 'isolated' ? (g) => void setGround(selectedLink, g) : null}
           />
         )}
 
         {!selectedNode && !selectedLink && !connectFrom && <p className="text-base text-ink-muted">{t('map.hint')}</p>}
-        {canGear && !selectedNode && !selectedLink && (
+        {canEdit && !selectedNode && !selectedLink && (
           <div className="flex flex-col gap-2">
             <AddRow label={t('map.addEquipment')} onClick={() => void addEquipment()} />
             <div className="flex flex-wrap gap-2">
               <AddRow inline label={t('map.newSetup')} onClick={() => void addSetup()} />
-              {setups.length > 1 && (
+              <Button icon="rename" onClick={() => void renameSetup()}>
+                {t('map.renameSetup')}
+              </Button>
+              {(ownSetup || bandSetups.length > 1) && (
                 <Button variant="danger" icon="delete" onClick={() => void deleteSetup()}>
                   {t('map.deleteSetup')}
                 </Button>
@@ -804,11 +1019,15 @@ export function StageMap() {
           </div>
         )}
       </div>
-      {setup && !full && <StageWiring cables={cables} issues={check.issues} use={check.use} nameOf={(id) => { const e = byId.get(id); return e ? title(e) : id }} refText={refText} />}
+      {setup && !full && <StageWiring cables={cables} issues={check.issues} missingPlugins={missingPlugins} use={check.use} nameOf={(id) => { const e = byId.get(id); return e ? title(e) : id }} refText={refText} signalName={(id) => virtualPorts.find((v) => v.id === id)?.name ?? id} />}
       {portsFor && <PortListDialog item={portsFor} onClose={() => setPortsFor(null)} onSave={(ports) => void savePorts(portsFor, ports)} />}
     </section>
   )
 }
+
+/** Gear without power of its own: no "Strom" to choose (#748). */
+const UNPOWERED_KINDS: readonly StageEquipment['kind'][] = ['person', 'hall', 'microphone', 'instrument', 'di-box']
+const EARTHS: readonly Earth[] = ['earthed', 'floating', 'battery']
 
 function LinkPanel(props: {
   ends: [string, string]
@@ -823,6 +1042,8 @@ function LinkPanel(props: {
   onRemove: () => void
   midiName: string | null
   onMidi: (() => void) | null
+  ground: { plugs: CableGround; own: CableGround | undefined }
+  onGround: ((ground: CableGround | 'plugs') => void) | null
 }) {
   const { t } = useTranslation('hardware')
   return (
@@ -838,6 +1059,16 @@ function LinkPanel(props: {
         {props.midiName && <span className="text-base">{t('map.midiPort', { name: props.midiName })}</span>}
         {props.onMidi && <Button onClick={props.onMidi}>{t('map.midiChoose')}</Button>}
       </div>
+      {props.onGround && (
+        <Segmented<CableGround | 'plugs'>
+          label={t('map.ground.label')}
+          showLabel
+          hint={props.ground.own === undefined ? t('map.ground.fromPlugs', { what: t(`map.ground.${props.ground.plugs}`) }) : undefined}
+          value={props.ground.own ?? 'plugs'}
+          onChange={props.onGround}
+          options={(['plugs', 'balanced', 'unbalanced', 'isolated'] as const).map((value) => ({ value, label: t(value === 'isolated' ? 'map.ground.isolator' : `map.ground.${value === 'plugs' ? 'auto' : value}`) }))}
+        />
+      )}
       <div className="flex flex-col gap-1">
         <span className="text-base font-semibold">{t('map.onCable')}</span>
         {props.signals.length === 0 ? (
