@@ -239,6 +239,50 @@ void produce(float *out, int numFrames) {
     if (gLocked) gHeardMs0 += numFrames * msPerFrame;
 }
 
+// Self-monitoring in the log for the AAudio path too (docs/30 §8i): on a locked screen the page is
+// frozen, the log is the only measurement - what leaves per side, every STATUS_LOG_MS.
+constexpr long long STATUS_LOG_MS = 30000;
+double gAaSumSq[2] = {0, 0}, gAaPeak[2] = {0, 0};
+long long gAaLevelFrames = 0;
+
+void logAaudioStatus(AAudioStream *stream, const float *out, int numFrames) {
+    for (int f = 0; f < numFrames; f++)
+        for (int ch = 0; ch < 2 && ch < gChannels; ch++) {
+            const double v = out[f * gChannels + ch];
+            gAaSumSq[ch] += v * v;
+            gAaPeak[ch] = std::fmax(gAaPeak[ch], std::fabs(v));
+        }
+    gAaLevelFrames += numFrames;
+    if (gAaLevelFrames < STATUS_LOG_MS * gRate / 1000) return;
+    auto db = [](double x) { return x > 0 ? 20 * std::log10(x) : -200.0; };
+    const double n = static_cast<double>(gAaLevelFrames);
+    LOG("aaudio status: xruns %d timestampJumps %lld jumps %lld missing %lld engine %d clockJumps %d driftPpm %.1f "
+        "left rms %.1f peak %.1f dBFS right rms %.1f peak %.1f dBFS",
+        AAudioStream_getXRunCount(stream), static_cast<long long>(gTimestampJumps.load()), static_cast<long long>(gJumps.load()), static_cast<long long>(gMissing), gEngineOn.load() ? 1 : 0,
+        gEngine ? gEngine->clockJumps() : -1, gEngine ? gEngine->clockDriftPpm() : 0.0,
+        db(std::sqrt(gAaSumSq[0] / n)), db(gAaPeak[0]), db(std::sqrt(gAaSumSq[1] / n)), db(gAaPeak[1]));
+    gAaSumSq[0] = gAaSumSq[1] = gAaPeak[0] = gAaPeak[1] = 0;
+    gAaLevelFrames = 0;
+}
+
+/**
+ * Each underrun grows the buffer by a burst, up to its capacity (as Oboe's LatencyTuner): two
+ * bursts suit the device in front, but with the screen locked FireOS gives the app less CPU and
+ * the Fire ran 25 underruns a second (2026-11-14). The heard time comes from the timestamps, so a
+ * longer buffer moves nothing in time.
+ */
+int32_t gLastXruns = 0;
+void growBufferOnXruns(AAudioStream *stream) {
+    const int32_t xruns = AAudioStream_getXRunCount(stream);
+    if (xruns <= gLastXruns) return;
+    gLastXruns = xruns;
+    const int32_t size = AAudioStream_getBufferSizeInFrames(stream), burst = AAudioStream_getFramesPerBurst(stream);
+    const int32_t capacity = AAudioStream_getBufferCapacityInFrames(stream);
+    if (size + burst > capacity) return;
+    const int32_t now = AAudioStream_setBufferSizeInFrames(stream, size + burst);
+    LOG("underrun %d: buffer %d -> %d frames (capacity %d)", xruns, size, now, capacity);
+}
+
 aaudio_data_callback_result_t onData(AAudioStream *stream, void *, void *audioData, int32_t numFrames) {
     const double msPerFrame = 1000.0 / gRate;
     int64_t framePos = 0, timeNs = 0;
@@ -265,6 +309,8 @@ aaudio_data_callback_result_t onData(AAudioStream *stream, void *, void *audioDa
         }
     }
     produce(static_cast<float *>(audioData), numFrames);
+    logAaudioStatus(stream, static_cast<const float *>(audioData), numFrames);
+    growBufferOnXruns(stream);
     return AAUDIO_CALLBACK_RESULT_CONTINUE;
 }
 
@@ -314,6 +360,7 @@ aaudio_result_t openStream() {
     gChannels = AAudioStream_getChannelCount(gStream);
     // Two bursts of buffer, as Oboe recommends - less is underrun-prone.
     AAudioStream_setBufferSizeInFrames(gStream, 2 * AAudioStream_getFramesPerBurst(gStream));
+    gLastXruns = AAudioStream_getXRunCount(gStream);
     resetCallbackState();
     return AAudioStream_requestStart(gStream);
 }
