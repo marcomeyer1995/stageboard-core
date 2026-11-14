@@ -95,10 +95,12 @@ export function shouldFallBack(episodes: readonly number[]): boolean {
  * (not while the screen is locked).
  *
  * BROKEN_JUMPS timestamp jumps within BROKEN_WINDOW_MS: the stream is opened again; broken again
- * within FALLBACK_SPAN_MS of that: the WebView's own output, as for missing audio.
+ * within FALLBACK_SPAN_MS of that: the WebView's own output, as for missing audio. Not 3: the Fire's
+ * healthy stream jumps by 4-12 ms a few times in its first minute - 4 in 10 s reopened it while
+ * playing, the track stood still (2026-11-14); the broken one jumped several times a second.
  */
 export const BROKEN_WINDOW_MS = 10_000
-export const BROKEN_JUMPS = 3
+export const BROKEN_JUMPS = 10
 /** The first seconds after opening don't count - a healthy stream may jump once while it settles. */
 export const BROKEN_GRACE_MS = 5000
 /** After an output device came or went, the stream is opened again this much later - the device needs

@@ -76,7 +76,16 @@ describe('broken stream (#837)', () => {
     ]
     expect(timestampJumpsInWindow(samples, 12_000)).toBe(4) // 4000 → 12000
     expect(timestampJumpsInWindow(samples.slice(0, 2), 4000)).toBe(0)
-    expect(timestampJumpsInWindow(samples, 12_000) >= BROKEN_JUMPS).toBe(true)
+    expect(timestampJumpsInWindow(samples, 12_000) >= BROKEN_JUMPS).toBe(false)
+  })
+
+  it("leaves the Fire's start-up jumps alone, catches one that keeps jumping", () => {
+    // The Fire, healthy: 4 small jumps within 10 s of its first minute (2026-11-14).
+    const fire = [0, 2000, 4000, 6000, 8000, 10_000].map((at, i) => ({ at, timestampJumps: [0, 1, 2, 3, 4, 4][i]! }))
+    expect(timestampJumpsInWindow(fire, 10_000) >= BROKEN_JUMPS).toBe(false)
+    // The Redmi's broken stream: 287 within minutes - a few every second.
+    const broken = [0, 2000, 4000, 6000, 8000, 10_000].map((at, i) => ({ at, timestampJumps: i * 3 }))
+    expect(timestampJumpsInWindow(broken, 10_000) >= BROKEN_JUMPS).toBe(true)
   })
 
   it('opens the stream again the first time, falls back if it breaks again within 2 min', () => {
