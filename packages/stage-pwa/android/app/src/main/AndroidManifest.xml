@@ -65,4 +65,11 @@
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
+    <!-- Native helpers of add-ons (docs/32 §8, NativeHelperPlugin): separate app packages, found by
+         their common action - Android 11+ lets StageBoard see only apps it names here. -->
+    <queries>
+        <intent>
+            <action android:name="de.stageboard.helper" />
+        </intent>
+    </queries>
 </manifest>

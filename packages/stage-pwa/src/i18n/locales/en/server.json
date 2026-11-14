@@ -58,7 +58,11 @@
     "urlOnly": "Only youtube.com/youtu.be links are supported.",
     "downloadTimeout": "yt-dlp had not finished after {{minutes}} minutes and was stopped.",
     "tooLarge": "The audio is larger than the limit of {{mb}} MB.",
-    "searchTimeout": "The YouTube search did not answer - is the Stage-Server online?"
+    "searchTimeout": "The YouTube search did not answer - is the Stage-Server online?",
+    "noAudio": "YouTube offers no downloadable audio for this video.",
+    "convertFailed": "The audio could not be converted to Opus on this device.",
+    "failed": "The YouTube download failed.",
+    "interrupted": "The download was interrupted (app closed) - please start it again."
   },
   "ug": {
     "addonMissing": "The \"Ultimate Guitar Import\" add-on is not installed for this band.",
@@ -70,5 +74,16 @@
     "blocked": "Ultimate Guitar blocked the request as a bot. Try again in a few minutes.",
     "sourceChanged": "Ultimate Guitar rebuilt its site - the import (plugin \"ultimate-guitar-scraper\") needs an update. Page title: \"{{title}}\"",
     "notImportable": "This version has no text to take over (e.g. a Pro or video version). Please pick another version."
+  },
+  "helper": {
+    "missing": "The add-on's helper is not installed on this device.",
+    "untrusted": "The helper is signed by someone else - StageBoard won't use it.",
+    "incompatible": "The helper does not fit this StageBoard version.",
+    "refused": "The helper refused StageBoard (signature).",
+    "cancelled": "Cancelled.",
+    "gone": "The helper stopped.",
+    "failed": "The helper failed.",
+    "badRequest": "The helper did not understand the request.",
+    "tooOld": "The helper is too old for this StageBoard version."
   }
 }

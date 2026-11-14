@@ -16,6 +16,7 @@
   },
   "onTablet": "läuft auf dem Tablet",
   "noHeartbeat": "kein Heartbeat — Stage-Server offline?",
+  "apiVersionMismatch": "passt nicht zu dieser StageBoard-Version",
   "staleHeartbeat": "Heartbeat veraltet",
   "explain": "Erklärung: {{title}}",
   "testBadge": "Test",

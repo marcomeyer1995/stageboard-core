@@ -17,6 +17,8 @@ describe('stem separation (#9)', () => {
     expect(parseStemProgress('PROGRESS 0.472')).toBe(0.472)
     expect(parseStemProgress('Downloading model')).toBeNull()
     expect(parseStemResult('RESULT {"stems":[{"key":"drums","file":"drums.webm"},{"key":"x","file":"../evil.webm"}]}', '/out')).toEqual([{ key: 'drums', path: '/out/drums.webm' }])
+    // Ogg Opus since 2026-11-10 (the track format).
+    expect(parseStemResult('RESULT {"stems":[{"key":"bass","file":"bass.opus"},{"key":"x","file":"../evil.opus"}]}', '/out')).toEqual([{ key: 'bass', path: '/out/bass.opus' }])
   })
 
   it('runs the script with the chosen options and returns the stems', async () => {

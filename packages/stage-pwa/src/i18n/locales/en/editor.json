@@ -405,7 +405,15 @@
       "stem": "Stem"
     },
     "searching": "Searching…",
-    "search": "Search"
+    "search": "Search",
+    "youtubeNowhere": "YouTube needs one of two here: the host has no yt-dlp, and the YouTube helper is not installed on this device.",
+    "youtubeNoHost": "The host cannot do YouTube right now (yt-dlp missing). Set “Automatic” or “This device” under “Advanced”.",
+    "youtubeNoHelper": "The YouTube helper is not installed on this device. Install it, or set “Automatic” or “Host” under “Advanced”.",
+    "whereLabel": "Load YouTube via",
+    "whereAuto": "Automatic",
+    "whereHost": "Host",
+    "whereDevice": "This device",
+    "advanced": "Advanced"
   },
   "sep": {
     "title": "Separate stems: {{name}}",

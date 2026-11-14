@@ -1,16 +1,17 @@
 import { randomUUID } from 'node:crypto'
-import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { extname, join } from 'node:path'
 import { AsyncJobSchema, isYoutubeUrl, messageFieldsOf, ServerMessageError, type ServerMessageCode, type AsyncJob, type StemRole, type StemSeparationJob, type TrackMeta, type YoutubeExtractJob } from 'shared-types'
 import { allDocs, getDoc, putDocWithRetry, waitForChange, type CouchConfig, type CouchDoc } from './couch.js'
 import { workspaceDbName } from './workspaceProvisioning.js'
-import { mimeTypeForExt, runYtDlpExtract } from './ytDlp.js'
+import { runYtDlpExtract, toTrackFormat } from './ytDlp.js'
 import { deleteAudioFile, isSafeAudioId, readAudioFile, writeAudioFile } from './audioStore.js'
 import { readInstallations } from './plugins/pluginSync.js'
 import { STEM_SEPARATION_PLUGIN_ID } from './plugins/stemSeparationPlugin.js'
 import { bandHasAddon, YOUTUBE_DOWNLOAD_PLUGIN_ID } from './plugins/importAddons.js'
 import { runStemSeparation } from './stems/stemSeparation.js'
+import { convertToOpus, toOpusAvailable } from './stems/toOpus.js'
 
 const CHANGES_TIMEOUT_MS = 30_000
 const ASYNC_JOB_PREFIX = 'async-jobs:'
@@ -45,6 +46,31 @@ const STEM_ROLES: Record<string, StemRole> = {
   piano: 'keys',
 }
 
+/**
+ * The downloaded file as a track: Opus (YouTube's format 251, practically always) re-wrapped into
+ * Ogg losslessly; anything else encoded to Ogg Opus with the stem venv's PyAV (docs/30 §8h). Kept
+ * as downloaded only when that can't run - no venv, or the encoder fails on the file.
+ */
+async function youtubeTrack(filePath: string, ext: string, convertedPath: string, jobId: string, log: AsyncJobWatcherOptions['log']): Promise<{ data: Buffer; mimeType: string }> {
+  const track = toTrackFormat(await readFile(filePath), ext)
+  if (track.remuxed) {
+    log.info('YouTube audio re-wrapped as Ogg Opus', { jobId, ext })
+    return track
+  }
+  if (!toOpusAvailable()) {
+    log.error('YouTube audio kept as downloaded (not Opus, no encoder: stem-separation venv missing)', { jobId, ext })
+    return track
+  }
+  try {
+    const data = await convertToOpus(filePath, convertedPath)
+    log.info('YouTube audio encoded to Ogg Opus', { jobId, ext, bytes: data.length })
+    return { data, mimeType: 'audio/ogg' }
+  } catch (err) {
+    log.error('YouTube audio kept as downloaded (encoding to Opus failed)', { jobId, ext, error: String(err) })
+    return track
+  }
+}
+
 export interface AsyncJobWatcherOptions {
   couch: CouchConfig
   workspaceId: string
@@ -72,14 +98,15 @@ export function readAsyncJobs(docs: unknown[]): AsyncJob[] {
  * processed at a time per workspace. Pure, so the interesting part of the sync needs no
  * CouchDB to test (same split pluginSync.ts's `reconcile` makes). */
 export function pickNextQueuedJob(jobs: readonly AsyncJob[]): AsyncJob | undefined {
-  return [...jobs].filter((job) => job.status === 'queued').sort((a, b) => a.createdAt - b.createdAt)[0]
+  // A device's own job (`runner`) is not the Stage-Server's to pick up.
+  return jobs.filter((job) => job.status === 'queued' && !job.runner).sort((a, b) => a.createdAt - b.createdAt)[0]
 }
 
 /** `running` jobs that don't belong to this watcher instance's current job - left behind by a
  * Stage-Server restart mid-download, since nothing else will ever move them out of `running`.
  * Pure for the same reason as `pickNextQueuedJob`. */
 export function stuckRunningJobs(jobs: readonly AsyncJob[], currentJobId: string | null): AsyncJob[] {
-  return jobs.filter((job) => job.status === 'running' && job.id !== currentJobId)
+  return jobs.filter((job) => job.status === 'running' && job.id !== currentJobId && !job.runner)
 }
 
 function jobDocId(id: string): string {
@@ -229,7 +256,8 @@ export function createAsyncJobWatcher(options: AsyncJobWatcherOptions): AsyncJob
           source: 'stem-separation',
           parentTrackId: job.sourceTrackId,
           ...(STEM_ROLES[file.key] ? { role: STEM_ROLES[file.key] } : {}),
-          mimeType: 'audio/webm',
+          // Ogg Opus, the track format (stem_separate.py); WebM from a script before 2026-11-10.
+          mimeType: file.path.endsWith('.opus') ? 'audio/ogg' : 'audio/webm',
           addedAt: Date.now(),
           sizeBytes: buffer.length,
           ...(typeof source.durationMs === 'number' ? { durationMs: source.durationMs } : {}),
@@ -299,10 +327,10 @@ export function createAsyncJobWatcher(options: AsyncJobWatcherOptions): AsyncJob
       })
       await progressWrites
 
-      const buffer = await readFile(filePath)
       const ext = extname(filePath).replace(/^\./, '')
+      const track = await youtubeTrack(filePath, ext, join(workDir, 'converted.opus'), job.id, log)
       const trackId = randomUUID()
-      await writeAudioFile(job.variantId, trackId, buffer)
+      await writeAudioFile(job.variantId, trackId, track.data)
       writtenTrackId = trackId
 
       const meta: TrackMeta = {
@@ -311,9 +339,9 @@ export function createAsyncJobWatcher(options: AsyncJobWatcherOptions): AsyncJob
         label: job.label,
         source: 'youtube-extract',
         parentTrackId: null,
-        mimeType: mimeTypeForExt(ext),
+        mimeType: track.mimeType,
         addedAt: Date.now(),
-        sizeBytes: (await stat(filePath)).size,
+        sizeBytes: track.data.length,
       }
       await appendTrack(job.variantId, meta)
       await patchJob(job.id, { status: 'done', progress: 1, trackId })

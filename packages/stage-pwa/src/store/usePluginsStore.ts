@@ -11,8 +11,12 @@ import {
   type PluginInstallationDoc,
 } from '../lib/pluginsDb'
 import { subscribeToPluginHealth } from '../lib/pluginHealthStream'
+import { catalogEntry } from '../lib/pluginCatalog'
 
 function toInstallation(doc: PluginInstallationDoc): PluginInstallation {
+  // A built-in add-on installed before `apiVersion`/`permissions`/`helpers` existed (#756) gets
+  // them from the catalog of this build; an add-on from elsewhere only has what its manifest says.
+  const builtIn = catalogEntry(doc.id)
   return {
     id: doc.id,
     name: doc.name,
@@ -28,7 +32,22 @@ function toInstallation(doc: PluginInstallationDoc): PluginInstallation {
     enabled: doc.enabled,
     installedAt: doc.installedAt,
     ...(doc.settings ? { settings: doc.settings } : {}),
+    ...(doc.timing ? { timing: doc.timing } : {}),
+    ...(doc.discoveryTrigger ? { discoveryTrigger: doc.discoveryTrigger } : {}),
+    ...pick(doc, builtIn, 'apiVersion'),
+    ...pick(doc, builtIn, 'permissions'),
+    ...pick(doc, builtIn, 'helpers'),
   }
+}
+
+/** `key` from the document, else from the built-in catalog entry, else nothing. */
+function pick<K extends 'apiVersion' | 'permissions' | 'helpers'>(
+  doc: PluginInstallationDoc,
+  builtIn: Pick<PluginInstallation, K> | undefined,
+  key: K,
+): Partial<Pick<PluginInstallation, K>> {
+  const value = doc[key] ?? builtIn?.[key]
+  return value === undefined ? {} : ({ [key]: value } as Pick<PluginInstallation, K>)
 }
 
 interface PluginsState {

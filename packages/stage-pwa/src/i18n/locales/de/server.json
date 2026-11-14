@@ -58,7 +58,11 @@
     "urlOnly": "Nur youtube.com/youtu.be-Links werden unterstützt.",
     "downloadTimeout": "yt-dlp hat nach {{minutes}} Minuten nicht fertig geladen und wurde abgebrochen.",
     "tooLarge": "Die Audiospur ist größer als das Limit von {{mb}} MB.",
-    "searchTimeout": "Die YouTube-Suche hat nicht geantwortet - ist der Stage-Server online?"
+    "searchTimeout": "Die YouTube-Suche hat nicht geantwortet - ist der Stage-Server online?",
+    "noAudio": "YouTube bietet zu diesem Video keine ladbare Audiospur an.",
+    "convertFailed": "Die Audiospur ließ sich auf diesem Gerät nicht nach Opus umwandeln.",
+    "failed": "Der YouTube-Download ist fehlgeschlagen.",
+    "interrupted": "Der Download wurde unterbrochen (App beendet) - bitte neu starten."
   },
   "ug": {
     "addonMissing": "Das Add-on „Ultimate Guitar Import“ ist für diese Band nicht installiert.",
@@ -70,5 +74,16 @@
     "blocked": "Ultimate Guitar hat die Anfrage als Bot blockiert. In ein paar Minuten noch einmal versuchen.",
     "sourceChanged": "Ultimate Guitar hat seine Seite umgebaut - der Import (Plugin „ultimate-guitar-scraper“) muss angepasst werden. Seitentitel: „{{title}}“",
     "notImportable": "Diese Version hat keinen Text zum Übernehmen (z. B. eine Pro- oder Video-Version). Bitte eine andere Version wählen."
+  },
+  "helper": {
+    "missing": "Das Hilfsprogramm des Add-ons ist auf diesem Gerät nicht installiert.",
+    "untrusted": "Das Hilfsprogramm ist von jemand anderem signiert - StageBoard benutzt es nicht.",
+    "incompatible": "Das Hilfsprogramm passt nicht zu dieser StageBoard-Version.",
+    "refused": "Das Hilfsprogramm hat StageBoard abgelehnt (Signatur).",
+    "cancelled": "Abgebrochen.",
+    "gone": "Das Hilfsprogramm wurde beendet.",
+    "failed": "Das Hilfsprogramm ist fehlgeschlagen.",
+    "badRequest": "Das Hilfsprogramm hat den Auftrag nicht verstanden.",
+    "tooOld": "Das Hilfsprogramm ist zu alt für diese StageBoard-Version."
   }
 }

@@ -1,4 +1,4 @@
-import { HEALTH_TIMEOUT_MS, PluginInstallationSchema, type PluginInstallation } from 'shared-types'
+import { API_VERSION_MISMATCH_CODE, apiVersionFits, HEALTH_TIMEOUT_MS, PluginInstallationSchema, type PluginInstallation } from 'shared-types'
 import { allDocs, ensureDb, waitForChange, type CouchConfig } from '../couch.js'
 import { PLUGIN_CATALOG } from './catalog.js'
 import * as healthStore from './healthStore.js'
@@ -42,6 +42,18 @@ export function readInstallations(docs: unknown[]): PluginInstallation[] {
     if (parsed.success) installations.push(parsed.data)
   }
   return installations
+}
+
+/**
+ * Splits off the installations written against another version of the add-on interface
+ * (docs/32 §10, #756): those are never started - the band sees "does not match this StageBoard
+ * version" through the health entry instead of a plugin that half works.
+ */
+export function splitByApiVersion(installations: PluginInstallation[]): { fits: PluginInstallation[]; mismatched: PluginInstallation[] } {
+  const fits: PluginInstallation[] = []
+  const mismatched: PluginInstallation[] = []
+  for (const installation of installations) (apiVersionFits(installation) ? fits : mismatched).push(installation)
+  return { fits, mismatched }
 }
 
 /**
@@ -104,12 +116,18 @@ export function createPluginSync(options: PluginSyncOptions): PluginSyncHandle {
   const pluginContext = { log }
 
   async function syncOnce(): Promise<void> {
-    const installations = readInstallations(
-      await allDocs<unknown>(couch, workspaceDb, {
-        startkey: INSTALLATION_PREFIX,
-        endkey: `${INSTALLATION_PREFIX}￰`,
-      }),
+    const { fits: installations, mismatched } = splitByApiVersion(
+      readInstallations(
+        await allDocs<unknown>(couch, workspaceDb, {
+          startkey: INSTALLATION_PREFIX,
+          endkey: `${INSTALLATION_PREFIX}￰`,
+        }),
+      ),
     )
+    for (const installation of mismatched) {
+      healthStore.setEntry(workspaceId, installation.id, { status: 'error', lastSeenAt: Date.now(), message: API_VERSION_MISMATCH_CODE })
+      log.error('Installed add-on was written against another add-on interface version - not started', { plugin: installation.id, apiVersion: installation.apiVersion })
+    }
     const { toRegister, toUnregister, unavailable } = reconcile(
       installations,
       registry.list().map(({ name }) => name),

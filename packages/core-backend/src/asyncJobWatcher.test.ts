@@ -1,4 +1,5 @@
 import { writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AsyncJob, YoutubeExtractJob } from 'shared-types'
 import type { CouchDoc } from './couch.js'
@@ -33,6 +34,8 @@ vi.mock('./audioStore.js', async (importOriginal) => ({
 }))
 
 vi.mock('./stems/stemSeparation.js', () => ({ runStemSeparation: vi.fn() }))
+// No PyAV venv unless a test says so: downloads without Opus are kept as they came.
+vi.mock('./stems/toOpus.js', () => ({ toOpusAvailable: vi.fn(() => false), convertToOpus: vi.fn() }))
 
 import { runYtDlpExtract } from './ytDlp.js'
 import { deleteAudioFile, writeAudioFile } from './audioStore.js'
@@ -73,6 +76,12 @@ describe('pickNextQueuedJob', () => {
 
   it('returns undefined for an empty list', () => {
     expect(pickNextQueuedJob([])).toBeUndefined()
+  })
+
+  it("leaves a device's own job alone (docs/32 §8 helper) - queued or running, restart or not", () => {
+    const onDevice = job({ id: 'on-device', status: 'queued', runner: 'device:redmi' })
+    expect(pickNextQueuedJob([onDevice])).toBeUndefined()
+    expect(stuckRunningJobs([{ ...onDevice, status: 'running' }, job({ id: 'ours', status: 'running' })], null).map((j) => j.id)).toEqual(['ours'])
   })
 })
 
@@ -155,6 +164,57 @@ describe('createAsyncJobWatcher', () => {
     expect(variant.tracks[1]).toMatchObject({ id: storedJob('job-1')?.trackId, kind: 'reference', source: 'youtube-extract', mimeType: 'audio/mp4' })
     expect(storedJob('job-1')?.progress).toBe(1)
     expect(writeAudioFile).toHaveBeenCalledWith('variant-1', storedJob('job-1')?.trackId, Buffer.from('audio-bytes'))
+  })
+
+  it('stores a WebM/Opus download as Ogg Opus - re-wrapped, nothing encoded again', async () => {
+    const { readFileSync } = await import('node:fs')
+    const webm = readFileSync(join(__dirname, '../../shared-types/src/__fixtures__/stereo.webm'))
+    vi.mocked(runYtDlpExtract).mockImplementation(async (_url, template) => {
+      const filePath = template.replace('%(ext)s', 'webm')
+      await writeFile(filePath, webm)
+      return { filePath }
+    })
+    store.set('song-variants:variant-1', { _id: 'song-variants:variant-1', tracks: [] })
+    putJob({})
+    const watcher = createAsyncJobWatcher({ couch, workspaceId: 'ws', log })
+    await vi.waitFor(() => expect(storedJob('job-1')?.status).toBe('done'))
+    watcher.stop()
+    const variant = store.get('song-variants:variant-1') as { tracks: Array<{ mimeType?: string; sizeBytes?: number }> }
+    const stored = vi.mocked(writeAudioFile).mock.calls[0]![2] as Buffer
+    expect(stored.subarray(0, 4).toString()).toBe('OggS')
+    expect(variant.tracks[0]).toMatchObject({ mimeType: 'audio/ogg', sizeBytes: stored.length })
+  })
+
+  it('encodes a download without Opus to Ogg Opus when the venv is there, else keeps it', async () => {
+    const { convertToOpus, toOpusAvailable } = await import('./stems/toOpus.js')
+    vi.mocked(toOpusAvailable).mockReturnValueOnce(true)
+    vi.mocked(convertToOpus).mockImplementationOnce(async (input) => {
+      expect(input).toMatch(/track\.m4a$/)
+      return Buffer.from('OggS-encoded')
+    })
+    ytDlpSucceeds()
+    store.set('song-variants:variant-1', { _id: 'song-variants:variant-1', tracks: [] })
+    putJob({})
+    const watcher = createAsyncJobWatcher({ couch, workspaceId: 'ws', log })
+    await vi.waitFor(() => expect(storedJob('job-1')?.status).toBe('done'))
+    watcher.stop()
+    const variant = store.get('song-variants:variant-1') as { tracks: Array<{ mimeType?: string }> }
+    expect(variant.tracks[0]).toMatchObject({ mimeType: 'audio/ogg' })
+    expect(writeAudioFile).toHaveBeenCalledWith('variant-1', storedJob('job-1')?.trackId, Buffer.from('OggS-encoded'))
+  })
+
+  it('keeps the download when encoding fails - the band still has its track', async () => {
+    const { convertToOpus, toOpusAvailable } = await import('./stems/toOpus.js')
+    vi.mocked(toOpusAvailable).mockReturnValueOnce(true)
+    vi.mocked(convertToOpus).mockRejectedValueOnce(new Error('Umwandeln nach Opus fehlgeschlagen (Code 1)'))
+    ytDlpSucceeds()
+    store.set('song-variants:variant-1', { _id: 'song-variants:variant-1', tracks: [] })
+    putJob({})
+    const watcher = createAsyncJobWatcher({ couch, workspaceId: 'ws', log })
+    await vi.waitFor(() => expect(storedJob('job-1')?.status).toBe('done'))
+    watcher.stop()
+    expect((store.get('song-variants:variant-1') as { tracks: Array<{ mimeType?: string }> }).tracks[0]).toMatchObject({ mimeType: 'audio/mp4' })
+    expect(log.error).toHaveBeenCalledWith('YouTube audio kept as downloaded (encoding to Opus failed)', expect.objectContaining({ jobId: 'job-1' }))
   })
 
   it('fails the job without downloading when the variant does not exist, and never creates a stub variant', async () => {
@@ -264,11 +324,11 @@ describe('createAsyncJobWatcher', () => {
       vi.mocked(runStemSeparation).mockImplementation(async (...args: unknown[]) => {
         const [, outDir, , onProgress] = args as [string, string, unknown, (p: number) => void]
         onProgress(0.5)
-        await writeFile(`${outDir}/drums.webm`, Buffer.from('d'))
-        await writeFile(`${outDir}/guitar-left.webm`, Buffer.from('g'))
+        await writeFile(`${outDir}/drums.opus`, Buffer.from('d'))
+        await writeFile(`${outDir}/guitar-left.opus`, Buffer.from('g'))
         return [
-          { key: 'drums', path: `${outDir}/drums.webm` },
-          { key: 'guitar-left', path: `${outDir}/guitar-left.webm` },
+          { key: 'drums', path: `${outDir}/drums.opus` },
+          { key: 'guitar-left', path: `${outDir}/guitar-left.opus` },
         ]
       })
       const watcher = createAsyncJobWatcher({ couch, workspaceId: 'ws', log })
@@ -280,7 +340,7 @@ describe('createAsyncJobWatcher', () => {
       const stems = tracks.filter((t) => t.parentTrackId === 'mix-1')
       expect(stems.map((t) => t.label)).toEqual(['Schlagzeug', 'Gitarre links'])
       expect(stems.map((t) => t.role)).toEqual(['drums', 'guitar'])
-      expect(stems[0]).toMatchObject({ kind: 'stem', source: 'stem-separation', mimeType: 'audio/webm', durationMs: 170000, sizeBytes: 1 })
+      expect(stems[0]).toMatchObject({ kind: 'stem', source: 'stem-separation', mimeType: 'audio/ogg', durationMs: 170000, sizeBytes: 1 })
       expect(storedJob('stem-1')?.stemTrackIds).toEqual(stems.map((t) => t.id))
       expect(deleteAudioFile).toHaveBeenCalledWith('variant-1', 'old-drums')
       expect(runStemSeparation).toHaveBeenCalledWith(expect.any(String), expect.any(String), { model: 'extended', splitGuitar: true }, expect.any(Function))

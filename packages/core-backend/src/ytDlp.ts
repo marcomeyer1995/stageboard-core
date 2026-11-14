@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs'
 import { spawn } from 'node:child_process'
-import { ServerMessageError, YOUTUBE_VIDEO_ID_RE, type YoutubeSearchResult } from 'shared-types'
+import { ServerMessageError, YOUTUBE_VIDEO_ID_RE, webmOpusToOgg, type YoutubeSearchResult } from 'shared-types'
 
 /** Same "find whichever binary is already on the host" pattern as ultimateGuitarPlugin.ts's
  * `resolveChromeExecutable` - yt-dlp is not bundled or auto-installed (fetching an executable
@@ -49,16 +49,17 @@ export function mimeTypeForExt(ext: string): string {
 }
 
 /**
- * Args for extracting just the audio of one video, without a hard ffmpeg dependency: `bestaudio`
- * picks YouTube's own best audio-only stream and downloads it as-is (no `-x`/`--extract-audio`,
- * which would need ffmpeg to remux/convert) - whatever container that stream comes in (usually
- * m4a, sometimes webm/opus) is exactly what ends up on disk and in `TrackMeta.mimeType`.
+ * Args for extracting just the audio of one video, without a hard ffmpeg dependency: YouTube's own
+ * best audio-only stream, downloaded as-is (no `-x`/`--extract-audio`, which would need ffmpeg).
+ * Opus first (in WebM, YouTube's format 251, ~130-160 kbit/s) - the track format (docs/30 §8h):
+ * `toTrackFormat` only re-wraps it into Ogg, nothing encoded again. Only without one, whatever else
+ * there is (m4a/AAC), kept as it is.
  * `outputTemplate` should have no extension of its own (`.%(ext)s` is added by yt-dlp) so the
  * caller can find the one file it wrote by extension after the fact.
  */
 export function buildYtDlpArgs(url: string, outputTemplate: string, maxFileSizeBytes: number, jsRuntime: string = process.execPath): string[] {
   return [
-    '-f', 'bestaudio/best',
+    '-f', 'bestaudio[acodec=opus]/bestaudio/best',
     '--no-playlist', '--newline', '--no-part',
     '--max-filesize', String(maxFileSizeBytes),
     // YouTube extraction needs a JS runtime (yt-dlp only auto-enables deno, which the Stage-Server
@@ -68,6 +69,19 @@ export function buildYtDlpArgs(url: string, outputTemplate: string, maxFileSizeB
     '-o', outputTemplate,
     '--', url,
   ]
+}
+
+/**
+ * A downloaded file in the track format (docs/30 §8h): WebM with Opus - nearly always, see
+ * `buildYtDlpArgs` - becomes Ogg Opus, packet for packet (lossless; every device then starts it on
+ * the same sample). Anything else stays as downloaded: the server has no decoder to encode it anew.
+ */
+export function toTrackFormat(data: Buffer, ext: string): { data: Buffer; mimeType: string; remuxed: boolean } {
+  if (['webm', 'mkv'].includes(ext.toLowerCase())) {
+    const ogg = webmOpusToOgg(new Uint8Array(data.buffer, data.byteOffset, data.byteLength))
+    if (ogg) return { data: Buffer.from(ogg.buffer, ogg.byteOffset, ogg.byteLength), mimeType: 'audio/ogg', remuxed: true }
+  }
+  return { data, mimeType: mimeTypeForExt(ext), remuxed: false }
 }
 
 /** The message shown on the job: yt-dlp's own `ERROR:` lines when there are any - its stderr

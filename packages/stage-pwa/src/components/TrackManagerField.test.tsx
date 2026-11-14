@@ -9,6 +9,11 @@ vi.mock('../lib/songVariantsDb', () => variants)
 const youtube = vi.hoisted(() => ({ searchYoutube: vi.fn(), youtubeThumbnailUrl: (id: string) => `https://server/youtube/thumbnail?id=${id}`, formatVideoLength: (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` }))
 vi.mock('../lib/youtubeSearch', () => youtube)
 vi.mock('../lib/measureAudioDuration', () => ({ measureAudioDurationMs: vi.fn(async () => 180_000) }))
+// Where YouTube runs (useYoutubeRoute.ts): by default unknown - the host is asked, as before.
+const route = vi.hoisted(() => ({ value: { route: null as 'server' | 'device' | 'none' | null, helper: null as unknown, trusted: [] as readonly string[] } }))
+vi.mock('../lib/useYoutubeRoute', () => ({ useYoutubeRoute: () => route.value }))
+const device = vi.hoisted(() => ({ searchOnDevice: vi.fn(), runOnDevice: vi.fn(async () => {}) }))
+vi.mock('../lib/youtubeDevice', async (importOriginal) => ({ ...(await importOriginal<typeof import('../lib/youtubeDevice')>()), ...device }))
 vi.mock('pouchdb-browser', () => ({
   default: class FakePouchDB {
     sync() {
@@ -27,6 +32,7 @@ const stemPlugin = { id: 'stem-separation', name: 'Spuren trennen', version: '0.
 beforeEach(() => {
   vi.clearAllMocks()
   usePluginsStore.setState({ installed: [] })
+  route.value = { route: null, helper: null, trusted: [] }
 })
 
 describe('TrackManagerField - stems (#9)', () => {
@@ -125,7 +131,8 @@ describe('TrackManagerField - YouTube search in "Track hinzufügen" (#618)', () 
     expect(youtube.searchYoutube).toHaveBeenCalledWith('All the small things Blink-182')
 
     const hit = await within(dialog).findByRole('button', { name: /All The Small Things/ })
-    expect(hit).toHaveTextContent('blink-182 · 2:51')
+    expect(hit).toHaveTextContent('blink-182')
+    expect(hit).toHaveTextContent('2:51')
     fireEvent.click(hit)
     await waitFor(() =>
       expect(db.putAsyncJob).toHaveBeenCalledWith(
@@ -141,6 +148,51 @@ describe('TrackManagerField - YouTube search in "Track hinzufügen" (#618)', () 
     fireEvent.click(screen.getByRole('button', { name: /Track hinzufügen/ }))
     fireEvent.click(screen.getByRole('button', { name: 'Suchen' }))
     expect(await screen.findByText('Stage-Server nicht erreichbar.')).toBeInTheDocument()
+  })
+
+  it('without a host that can, this device searches and downloads with its helper (docs/25 §6b)', async () => {
+    usePluginsStore.setState({ installed: [ytPlugin] })
+    const helper = { package: 'de.stageboard.helper.youtube', certSha256: 'c'.repeat(64), apiVersion: 1 }
+    // The trust list travels with the route (useYoutubeRoute reads it from the installed manifest, #756).
+    route.value = { route: 'device', helper, trusted: ['c'.repeat(64)] }
+    device.searchOnDevice.mockResolvedValueOnce([{ id: '9Ht5RZpzPqw', title: 'blink-182 - All The Small Things', channel: 'blink-182', durationSec: 171, url: 'https://www.youtube.com/watch?v=9Ht5RZpzPqw' }])
+    render(<TrackManagerField variantId="v1" tracks={[]} disabled={false} searchQuery="All the small things" />)
+    fireEvent.click(screen.getByRole('button', { name: /Track hinzufügen/ }))
+    const dialog = screen.getByRole('dialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Suchen' }))
+    expect(device.searchOnDevice).toHaveBeenCalledWith(helper, 'All the small things', ['c'.repeat(64)])
+    expect(youtube.searchYoutube).not.toHaveBeenCalled()
+    const hit = await within(dialog).findByRole('button', { name: /All The Small Things/ })
+    // The picture straight from YouTube - the device has the internet when it searched itself.
+    expect(hit.querySelector('img')?.getAttribute('src')).toBe('https://i.ytimg.com/vi/9Ht5RZpzPqw/mqdefault.jpg')
+    fireEvent.click(hit)
+    await waitFor(() => expect(device.runOnDevice).toHaveBeenCalled())
+    // Its own job, created running: no Stage-Server picks it up.
+    expect(db.putAsyncJob).toHaveBeenCalledWith(expect.objectContaining({ type: 'youtube-extract', status: 'running', runner: expect.stringMatching(/^device:/), url: 'https://www.youtube.com/watch?v=9Ht5RZpzPqw' }))
+  })
+
+  it('says where YouTube is missing when neither the host nor this device can', async () => {
+    usePluginsStore.setState({ installed: [ytPlugin] })
+    route.value = { route: 'none', helper: null, trusted: [] }
+    render(<TrackManagerField variantId="v1" tracks={[]} disabled={false} searchQuery="x" />)
+    fireEvent.click(screen.getByRole('button', { name: /Track hinzufügen/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Suchen' }))
+    expect(await screen.findByText(/kein yt-dlp.*Hilfsprogramm nicht installiert/)).toBeInTheDocument()
+    expect(youtube.searchYoutube).not.toHaveBeenCalled()
+  })
+
+  it('"Erweitert": this device only - without its helper the message says so and how to change it (#822)', async () => {
+    usePluginsStore.setState({ installed: [ytPlugin] })
+    route.value = { route: 'none', helper: null, trusted: [] }
+    render(<TrackManagerField variantId="v1" tracks={[]} disabled={false} searchQuery="x" />)
+    fireEvent.click(screen.getByRole('button', { name: /Track hinzufügen/ }))
+    fireEvent.click(screen.getByText('Erweitert'))
+    fireEvent.click(screen.getByRole('radio', { name: 'Dieses Gerät' }))
+    expect(localStorage.getItem('sb:youtube:where')).toBe('device')
+    fireEvent.click(screen.getByRole('button', { name: 'Suchen' }))
+    expect(await screen.findByText(/Auf diesem Gerät fehlt das YouTube-Hilfsprogramm/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('radio', { name: 'Automatisch' }))
+    expect(localStorage.getItem('sb:youtube:where')).toBeNull()
   })
 
   it('no search without the add-on', () => {
