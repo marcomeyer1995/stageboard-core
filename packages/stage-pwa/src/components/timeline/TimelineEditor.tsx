@@ -44,7 +44,7 @@ import { TargetPicker } from '../CommentListEditor'
 import { useProfilesStore } from '../../store/useProfilesStore'
 import { CueDialog, type CueContent } from './CueDialog'
 import { describeCuePattern, PartCueDialog } from './PartCueDialog'
-import { nearestBar, sectionAnnouncements, spokenTexts } from '../../lib/announcements'
+import { partStartBar, sectionAnnouncements, spokenTexts } from '../../lib/announcements'
 import { pluginProviding } from '../../lib/capabilities'
 import { isSilentCue, partHeads, setPartCue } from '../../lib/partCues'
 import { bandAnnouncementSettings, bandSpeechVoice } from '../../lib/speechVoices'
@@ -1547,7 +1547,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
   const selectedPart = selectedPartIndex !== null ? blocks.find((b) => b.partIndex === selectedPartIndex) : undefined
   const selectedPartCue = selectedPart ? (partCues.get(selectedPart.partIndex) ?? null) : null
   const selectedPartName = (selectedPart && spokenTexts(announcementSettings.texts)(selectedPart.label)) ?? selectedPart?.label ?? t('tl.part')
-  const selectedPartOnBar1 = selectedPart ? nearestBar(timeline, selectedPart.startMs) <= 1 : false
+  const selectedPartOnBar1 = selectedPart ? partStartBar(timeline, selectedPart.startMs) <= 1 : false
   const selectedSection = selectedPart ? sectionStarts.find((start) => start.partIndex === selectedPart.partIndex) : undefined
   const lastBar = timeline.barOf(timeline.beatAtOrBefore(durationMs))
 
