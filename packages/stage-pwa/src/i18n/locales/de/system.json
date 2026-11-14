@@ -353,6 +353,7 @@
     "nativeEstimated": "Nativ, aber Android meldet keine Zeitangabe - Zeitpunkt nur geschätzt (hilft: Gerät neu starten)",
     "webview": "WebView",
     "fellBack": "Notbetrieb über die WebView seit {{time}} ({{ms}} ms Ton fehlten) - bis zum Neustart der App",
+    "fellBackBroken": "Notbetrieb über die WebView seit {{time}} - die native Ausgabe kam nach einem Gerätewechsel ohne Zeitangabe hoch. App neu starten.",
     "missing": "Aussetzer (letzte Minute)",
     "reserve": "Kleinste Reserve (letzte Minute)",
     "settling": "misst noch (erste Minute)",

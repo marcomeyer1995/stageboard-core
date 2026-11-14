@@ -60,6 +60,7 @@ constexpr double NO_TIMESTAMP_MS = 500.0;
 std::mutex gLock;   // open/close only - never taken in the callback
 AAudioStream *gStream = nullptr;
 int gRate = 48000;
+bool gLowLatency = true;  // set at nativeStart, before the stream opens
 int gChannels = 2;
 std::atomic<bool> gReopen{false};
 
@@ -270,7 +271,9 @@ aaudio_result_t openStream() {
     AAudioStreamBuilder_setFormat(b, AAUDIO_FORMAT_PCM_FLOAT);
     AAudioStreamBuilder_setChannelCount(b, 2);
     AAudioStreamBuilder_setSampleRate(b, gRate);
-    AAudioStreamBuilder_setPerformanceMode(b, AAUDIO_PERFORMANCE_MODE_LOW_LATENCY);
+    // Low latency unless the stream came up broken that way (#837): on the Redmi's MediaTek HAL the
+    // low-latency path opened right after a USB interface came back played nothing.
+    AAudioStreamBuilder_setPerformanceMode(b, gLowLatency ? AAUDIO_PERFORMANCE_MODE_LOW_LATENCY : AAUDIO_PERFORMANCE_MODE_NONE);
     AAudioStreamBuilder_setSharingMode(b, AAUDIO_SHARING_MODE_SHARED);
     AAudioStreamBuilder_setUsage(b, AAUDIO_USAGE_MEDIA);
     AAudioStreamBuilder_setContentType(b, AAUDIO_CONTENT_TYPE_MUSIC);
@@ -295,7 +298,7 @@ const char *perf(aaudio_performance_mode_t m) {
 }  // namespace
 
 extern "C" JNIEXPORT jstring JNICALL
-Java_de_stageboard_app_NativeOutputPlugin_nativeStart(JNIEnv *env, jclass, jint sampleRate) {
+Java_de_stageboard_app_NativeOutputPlugin_nativeStart(JNIEnv *env, jclass, jint sampleRate, jboolean lowLatency) {
     std::lock_guard<std::mutex> guard(gLock);
     if (gStream) {
         AAudioStream_close(gStream);
@@ -327,6 +330,7 @@ Java_de_stageboard_app_NativeOutputPlugin_nativeStart(JNIEnv *env, jclass, jint 
         }).detach();
     });
     gRate = sampleRate;
+    gLowLatency = lowLatency;
     gWritten = 0;
     gBaseMs = 0;
     gLatencyMs = -1;

@@ -2,7 +2,23 @@ import { registerPlugin } from '@capacitor/core'
 import type { AudioOutputHealth } from 'shared-types'
 import { create } from 'zustand'
 import { isNativeApp } from './native'
-import { audible, FALLBACK_SPAN_MS, FALLBACK_WINDOW_MS, missingInWindowMs, quietUntil, shouldFallBack, SOUND_LEVEL, trackLossEpisodes, type MissingSample } from './nativeOutputFallback'
+import {
+  audible,
+  BROKEN_GRACE_MS,
+  BROKEN_JUMPS,
+  DEVICE_SETTLE_MS,
+  FALLBACK_SPAN_MS,
+  FALLBACK_WINDOW_MS,
+  missingInWindowMs,
+  onBrokenStream,
+  quietUntil,
+  shouldFallBack,
+  SOUND_LEVEL,
+  timestampJumpsInWindow,
+  trackLossEpisodes,
+  type MissingSample,
+  type TimestampSample,
+} from './nativeOutputFallback'
 
 /**
  * Native audio output (docs/30, Marco 2026-11-05: "pipe the mix"). Everything keeps playing on the
@@ -42,7 +58,7 @@ interface NativeOutputStatus {
 
 interface NativeOutputPlugin {
   /** Opens the stream and the loopback WebSocket the frames go to (`ws://127.0.0.1:port/token`). */
-  start(options: { sampleRate: number }): Promise<{ started?: boolean; error?: string; performance?: string; framesPerBurst?: number; port: number; token: string }>
+  start(options: { sampleRate: number; lowLatency?: boolean }): Promise<{ started?: boolean; error?: string; performance?: string; framesPerBurst?: number; port: number; token: string }>
   status(): Promise<NativeOutputStatus>
   stop(): Promise<void>
   engineEnable(options: { on: boolean }): Promise<void>
@@ -56,6 +72,8 @@ interface NativeOutputPlugin {
   clipCommit(options: { id: number; songStartMs: number; bus: number; gain: number }): Promise<{ error: string }>
   clipRemove(options: { id: number }): Promise<void>
   clipGain(options: { id: number; gain: number }): Promise<void>
+  /** An output device was added or removed (USB interface, headphones, Bluetooth). */
+  addListener(event: 'outputDevicesChanged', listener: () => void): Promise<{ remove: () => Promise<void> }>
 }
 
 const NativeOutput = registerPlugin<NativeOutputPlugin>('NativeOutput')
@@ -167,7 +185,10 @@ interface NativeOutputStore {
   error: string | null
   /** The native output lost too much audio and this device plays through the WebView instead,
    * until the app restarts (nativeOutputFallback.ts) - the stored switch stays on. */
-  fellBack: { at: number; missingMs: number } | null
+  fellBack: { at: number; missingMs: number; reason?: 'missing' | 'broken' } | null
+  /** The stream was opened again this run: it came up broken (timestamp jumps piling up), or an
+   * output device came or went (#837) - for the diagnosis. */
+  reopened: { at: number; reason: 'broken' | 'device' }[]
   setWanted: (wanted: boolean) => void
 }
 
@@ -188,6 +209,7 @@ export const useNativeOutputStore = create<NativeOutputStore>((set) => ({
   status: null,
   error: null,
   fellBack: null,
+  reopened: [],
   setWanted: (wanted) => {
     try {
       localStorage.setItem(SWITCH_KEY, wanted ? '1' : '0')
@@ -428,6 +450,7 @@ function onLine(p: Pipe, at: number, line: number): void {
 async function attach(ctx: AudioContext): Promise<void> {
   const store = useNativeOutputStore.getState()
   if (pipe?.ctx === ctx || !nativeOutputAvailable()) return
+  listenForDevices()
   useNativeOutputStore.setState({ state: 'starting', error: null })
   try {
     const url = URL.createObjectURL(new Blob([TAP_SOURCE], { type: 'text/javascript' }))
@@ -445,7 +468,7 @@ async function attach(ctx: AudioContext): Promise<void> {
     URL.revokeObjectURL(workerUrl)
     const p: Pipe = { ctx, tap, worker, silent, rate: ctx.sampleRate, chunk, delayMs: null, line: null, history: [], timer: null, unwatch: null, soundAt: null, closed: false }
     pipe = p
-    const started = await NativeOutput.start({ sampleRate: ctx.sampleRate })
+    const started = await NativeOutput.start({ sampleRate: ctx.sampleRate, lowLatency: !safeMode })
     if (!started.started) throw new Error(started.error ?? 'start')
     const opened = new Promise<void>((resolve, reject) => {
       worker.onmessage = (e: MessageEvent<{ type: string; at: number; line: number }>) => {
@@ -481,10 +504,32 @@ async function attach(ctx: AudioContext): Promise<void> {
     p.unwatch = () => document.removeEventListener('visibilitychange', onVisibility)
     let episodes: number[] = []
     let lost: { at: number; ms: number }[] = []
+    const stamps: TimestampSample[] = []
     p.timer = setInterval(() => {
       void NativeOutput.status().then((s) => {
         if (p.closed) return
         const now = Date.now()
+        // A stream that came up broken (#837): timestamp jumps piling up, in silence as well - opened
+        // again once, then the WebView's output. Not while the screen is locked.
+        if (now >= quiet && now - startedAt >= BROKEN_GRACE_MS) {
+          stamps.push({ at: now, timestampJumps: s.timestampJumps ?? 0 })
+          while (stamps.length > 0 && stamps[0]!.at < now - FALLBACK_WINDOW_MS) stamps.shift()
+          const jumps = timestampJumpsInWindow(stamps, now)
+          if (jumps >= BROKEN_JUMPS) {
+            if (onBrokenStream(reopenedForBrokenAt, now) === 'reopen') {
+              console.warn(`[native-output] ${jumps} timestamp jumps in ${FALLBACK_WINDOW_MS / 1000} s - the stream came up broken, opening it again without low latency`)
+              reopenedForBrokenAt = now
+              // The low-latency path came up broken - the plain one for the rest of this run (#837).
+              safeMode = true
+              reopen(ctx, 'broken')
+            } else {
+              console.error(`[native-output] ${jumps} timestamp jumps in ${FALLBACK_WINDOW_MS / 1000} s again after opening it again - switched to the WebView's output until the app restarts`)
+              detach()
+              useNativeOutputStore.setState({ fellBack: { at: now, missingMs: 0, reason: 'broken' } })
+            }
+            return
+          }
+        } else stamps.length = 0
         // Screen locked, or just unlocked: what goes missing is the lock, not the output - no loss,
         // no health sample, and no bigger reserve learned from it. Nothing sounding: a gap is inaudible.
         if (now < quiet || !audible(p.soundAt, now)) {
@@ -519,11 +564,60 @@ async function attach(ctx: AudioContext): Promise<void> {
   }
 }
 
+let reopenedForBrokenAt: number | null = null
+/** Opened without low latency after a broken stream - for the rest of this app run (#837). */
+let safeMode = false
+
+/** Opening again may fail while a device is still coming up ("no timestamp", Redmi + UMC204HD,
+ * 2026-11-13) - tried this often, DEVICE_SETTLE_MS apart, before it stays on the WebView's output. */
+export const REOPEN_ATTEMPTS = 3
+
+/** Closes the stream and opens it again (#837) - what a restart of the app did. */
+function reopen(ctx: AudioContext, reason: 'broken' | 'device', attempt = 1): void {
+  detach()
+  if (attempt === 1) useNativeOutputStore.setState((state) => ({ reopened: [...state.reopened.slice(-9), { at: Date.now(), reason }] }))
+  if (!useNativeOutputStore.getState().wanted) return
+  void attach(ctx).then(() => {
+    if (useNativeOutputStore.getState().state !== 'failed') return
+    if (attempt >= REOPEN_ATTEMPTS) {
+      // Opened again, still no timestamp (after a USB interface came back, AAudio gave none in this
+      // process at all, Redmi 2026-11-13 - only a restart of the app helped): the WebView's output,
+      // in red, so somebody restarts the app.
+      console.error(`[native-output] could not open the stream again ${REOPEN_ATTEMPTS} times - the WebView's output until the app restarts`)
+      useNativeOutputStore.setState({ fellBack: { at: Date.now(), missingMs: 0, reason: 'broken' } })
+      return
+    }
+    setTimeout(() => {
+      if (!pipe && current === ctx) reopen(ctx, reason, attempt + 1)
+    }, DEVICE_SETTLE_MS)
+  })
+}
+
+// An output device came or went (the USB interface plugged in again): the stream opened before
+// may hang on a device that wasn't ready - open it again once things settled (#837). Registered at
+// the first start: at import the bridge isn't ready, the listener got lost (2026-11-13).
+let deviceTimer: ReturnType<typeof setTimeout> | null = null
+let deviceListening = false
+function listenForDevices(): void {
+  if (deviceListening) return
+  deviceListening = true
+  void NativeOutput.addListener('outputDevicesChanged', () => {
+    if (deviceTimer !== null) clearTimeout(deviceTimer)
+    deviceTimer = setTimeout(() => {
+      deviceTimer = null
+      const ctx = pipe?.ctx ?? (useNativeOutputStore.getState().state === 'failed' ? current : null)
+      if (ctx) reopen(ctx, 'device')
+    }, DEVICE_SETTLE_MS)
+  }).catch(() => {
+    deviceListening = false
+  })
+}
+
 /** Back to the WebView's own output for the rest of this app run (nativeOutputFallback.ts). */
 function fallBack(missingMs: number, times: number): void {
   console.error(`[native-output] audio missing ${times} times in ${FALLBACK_SPAN_MS / 60_000} min (${missingMs} ms) - switched to the WebView's output until the app restarts`)
   detach()
-  useNativeOutputStore.setState({ fellBack: { at: Date.now(), missingMs } })
+  useNativeOutputStore.setState({ fellBack: { at: Date.now(), missingMs, reason: 'missing' } })
 }
 
 function detach(): void {
@@ -558,6 +652,8 @@ useNativeOutputStore.subscribe((state, before) => {
 /** Test-only. */
 export function __resetNativeOutputForTests(): void {
   detach()
+  reopenedForBrokenAt = null
+  safeMode = false
   masters.clear()
   current = null
 }

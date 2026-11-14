@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { audible, FALLBACK_GRACE_MS, LOCK_GRACE_MS, missingInWindowMs, quietUntil, shouldFallBack, trackLossEpisodes, type MissingSample } from './nativeOutputFallback'
+import { audible, BROKEN_JUMPS, FALLBACK_GRACE_MS, LOCK_GRACE_MS, missingInWindowMs, onBrokenStream, quietUntil, shouldFallBack, timestampJumpsInWindow, trackLossEpisodes, type MissingSample } from './nativeOutputFallback'
 
 const RATE = 48000
 
@@ -63,5 +63,25 @@ describe('nativeOutputFallback', () => {
     expect(audible(null, 1000)).toBe(false)
     expect(audible(10_000, 20_000)).toBe(true)
     expect(audible(10_000, 26_000)).toBe(false)
+  })
+})
+
+describe('broken stream (#837)', () => {
+  it('counts timestamp jumps over the last 10 s only', () => {
+    const samples = [
+      { at: 0, timestampJumps: 1 },
+      { at: 4000, timestampJumps: 1 },
+      { at: 8000, timestampJumps: 3 },
+      { at: 12_000, timestampJumps: 5 },
+    ]
+    expect(timestampJumpsInWindow(samples, 12_000)).toBe(4) // 4000 → 12000
+    expect(timestampJumpsInWindow(samples.slice(0, 2), 4000)).toBe(0)
+    expect(timestampJumpsInWindow(samples, 12_000) >= BROKEN_JUMPS).toBe(true)
+  })
+
+  it('opens the stream again the first time, falls back if it breaks again within 2 min', () => {
+    expect(onBrokenStream(null, 100_000)).toBe('reopen')
+    expect(onBrokenStream(100_000, 160_000)).toBe('fall-back')
+    expect(onBrokenStream(100_000, 100_000 + 121_000)).toBe('reopen')
   })
 })

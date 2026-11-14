@@ -93,7 +93,7 @@ export function DeviceVitalsPanel() {
           ) : (
             <>
               <Row label={t('vit.output')} status={fellBack ? 'error' : audio.estimated ? 'warning' : undefined}>
-                {audio.path === 'native' ? t(audio.estimated ? 'vit.nativeEstimated' : 'vit.native', { ms: audio.delayMs }) : fellBack ? t('vit.fellBack', { time: new Date(fellBack.at).toLocaleTimeString(i18n.language), ms: num(fellBack.missingMs) }) : t('vit.webview')}
+                {audio.path === 'native' ? t(audio.estimated ? 'vit.nativeEstimated' : 'vit.native', { ms: audio.delayMs }) : fellBack ? t(fellBack.reason === 'broken' ? 'vit.fellBackBroken' : 'vit.fellBack', { time: new Date(fellBack.at).toLocaleTimeString(i18n.language), ms: num(fellBack.missingMs) }) : t('vit.webview')}
               </Row>
               {audio.path === 'native' && (
                 <>
