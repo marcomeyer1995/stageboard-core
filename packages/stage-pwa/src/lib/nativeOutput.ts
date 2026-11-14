@@ -73,7 +73,7 @@ export interface AnnouncementClip {
 
 interface NativeOutputPlugin {
   /** Opens the stream and the loopback WebSocket the frames go to (`ws://127.0.0.1:port/token`). */
-  start(options: { sampleRate: number; lowLatency?: boolean; usb?: boolean }): Promise<{ started?: boolean; error?: string; path?: 'usb'; usbError?: string; performance?: string; framesPerBurst?: number; port: number; token: string }>
+  start(options: { sampleRate: number; lowLatency?: boolean; usb?: boolean }): Promise<{ started?: boolean; engineGen?: number; error?: string; path?: 'usb'; usbError?: string; performance?: string; framesPerBurst?: number; port: number; token: string }>
   status(): Promise<NativeOutputStatus>
   stop(): Promise<void>
   engineEnable(options: { on: boolean }): Promise<void>
@@ -214,6 +214,8 @@ interface NativeOutputStore {
   usb: boolean
   /** Why the own USB driver was wanted but AAudio plays (permission denied, no output alt setting, …). */
   usbError: string | null
+  /** Which engine the native side runs: a reopen keeps it - and the clips in it - unless this changes. */
+  engineGen: number | null
   setWanted: (wanted: boolean) => void
 }
 
@@ -237,6 +239,7 @@ export const useNativeOutputStore = create<NativeOutputStore>((set) => ({
   reopened: [],
   usb: false,
   usbError: null,
+  engineGen: null,
   setWanted: (wanted) => {
     try {
       localStorage.setItem(SWITCH_KEY, wanted ? '1' : '0')
@@ -433,25 +436,63 @@ export function nativeOutputHealth(): AudioOutputHealth | null {
     ...(useNativeOutputStore.getState().status?.estimated ? { estimated: true } : {}),
   }
 }
-/** Per context: the one node every source ends in - to the speaker, or to the tap. */
-const masters = new Map<AudioContext, GainNode>()
+/** Per context: the one node every source ends in - to the speaker, or to the tap - and the soft
+ * clipper right after it. */
+const masters = new Map<AudioContext, { master: GainNode; out: AudioNode }>()
+
+/** Below this the mix passes untouched; above it bends smoothly towards full scale. */
+export const SOFT_CLIP_KNEE = 0.8
+
+/**
+ * The soft clipper's curve (#835): straight up to the knee, then a tanh bend that never quite
+ * reaches 1 - a mix above full scale (announcements at 200 %) is rounded off instead of cut hard
+ * at the pipe's 16 bit or the speaker. A curve, not a DynamicsCompressor: that delays everything
+ * by a fixed 6 ms, and the timing here is measured to the millisecond.
+ */
+export function softClipCurve(points = 2049): Float32Array {
+  const curve = new Float32Array(points)
+  const room = 1 - SOFT_CLIP_KNEE
+  for (let i = 0; i < points; i++) {
+    // The curve spans input -2 … 2: 200 % still has room before the curve's end.
+    const x = (i / (points - 1)) * 4 - 2
+    const a = Math.abs(x)
+    const y = a <= SOFT_CLIP_KNEE ? a : SOFT_CLIP_KNEE + room * Math.tanh((a - SOFT_CLIP_KNEE) / room)
+    curve[i] = Math.sign(x) * y
+  }
+  return curve
+}
+
+function masterNodes(ctx: AudioContext): { master: GainNode; out: AudioNode } {
+  let nodes = masters.get(ctx)
+  if (!nodes) {
+    const master = ctx.createGain()
+    let out: AudioNode = master
+    // A context without shapers (test doubles) goes out unclipped.
+    if (typeof ctx.createWaveShaper === 'function') {
+      // The input is halved and the curve spans ±2, so nothing up to 200 % falls off its end.
+      master.gain.value = 0.5
+      const clip = ctx.createWaveShaper()
+      clip.curve = softClipCurve()
+      master.connect(clip)
+      out = clip
+    }
+    out.connect(pipe?.ctx === ctx && pipe.delayMs !== null ? pipe.tap : ctx.destination)
+    nodes = { master, out }
+    masters.set(ctx, nodes)
+  }
+  return nodes
+}
 
 /** Where the mix leaves the context: connect here instead of `ctx.destination`. */
 export function masterOutput(ctx: AudioContext): AudioNode {
-  let master = masters.get(ctx)
-  if (!master) {
-    master = ctx.createGain()
-    master.connect(pipe?.ctx === ctx && pipe.delayMs !== null ? pipe.tap : ctx.destination)
-    masters.set(ctx, master)
-  }
-  return master
+  return masterNodes(ctx).master
 }
 
 function rewire(ctx: AudioContext, toTap: AudioNode | null): void {
-  const master = masters.get(ctx)
-  if (!master) return
-  master.disconnect()
-  master.connect(toTap ?? ctx.destination)
+  const nodes = masters.get(ctx)
+  if (!nodes) return
+  nodes.out.disconnect()
+  nodes.out.connect(toTap ?? ctx.destination)
 }
 
 /**
@@ -529,7 +570,7 @@ async function attach(ctx: AudioContext): Promise<void> {
     // Only with an interface plugged in - a device without one is never asked for the microphone.
     if (usb && (await NativeOutput.usbPresent().then((r) => r.present, () => false))) await ensureRecordPermission()
     const started = await NativeOutput.start({ sampleRate: ctx.sampleRate, lowLatency: !safeMode, usb })
-    useNativeOutputStore.setState({ usb: started.path === 'usb', usbError: started.usbError ?? null })
+    useNativeOutputStore.setState({ usb: started.path === 'usb', usbError: started.usbError ?? null, engineGen: started.engineGen ?? null })
     if (!started.started) throw new Error(started.error ?? 'start')
     const opened = new Promise<void>((resolve, reject) => {
       worker.onmessage = (e: MessageEvent<{ type: string; at: number; line: number }>) => {

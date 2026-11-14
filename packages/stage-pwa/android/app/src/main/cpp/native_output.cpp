@@ -102,6 +102,9 @@ std::atomic<bool> gEstimated{false};   // playing on an estimated timestamp (NO_
 std::mutex gEngineLock;
 std::unique_ptr<stageboard::Engine> gEngine;
 std::atomic<bool> gEngineOn{false};
+/** Counts the engines made: a reopen keeps the engine (and its clips) unless the rate changed - the
+ * page loads the track again only when this moved. */
+std::atomic<int> gEngineGen{0};
 /** Band time minus wall clock (server offset + this output's trim), from JS; NaN until known. */
 std::atomic<double> gBandOffsetMs{NAN};
 /** The clock goes to the engine this often - it learns the drift over a minute of these. */
@@ -548,6 +551,7 @@ void prepareOutput(int sampleRate) {
         std::lock_guard<std::mutex> engine(gEngineLock);
         if (!gEngine || gRate != sampleRate) {
             gEngine = std::make_unique<stageboard::Engine>(sampleRate, 2);
+            gEngineGen.fetch_add(1);
             gStaging.clear();
             gStreamed.clear();
         }
@@ -594,8 +598,8 @@ Java_de_stageboard_app_NativeOutputPlugin_nativeStart(JNIEnv *env, jclass, jint 
     gLowLatency = lowLatency;
     const aaudio_result_t r = openStream();
     if (!gStream) return env->NewStringUTF(json("{\"error\":\"%s\"}", AAudio_convertResultToText(r)).c_str());
-    return env->NewStringUTF(json("{\"started\":%s,\"sampleRate\":%d,\"channels\":%d,\"performance\":\"%s\",\"framesPerBurst\":%d,\"bufferFrames\":%d}",
-                                  r == AAUDIO_OK ? "true" : "false", AAudioStream_getSampleRate(gStream), gChannels,
+    return env->NewStringUTF(json("{\"started\":%s,\"engineGen\":%d,\"sampleRate\":%d,\"channels\":%d,\"performance\":\"%s\",\"framesPerBurst\":%d,\"bufferFrames\":%d}",
+                                  r == AAUDIO_OK ? "true" : "false", gEngineGen.load(), AAudioStream_getSampleRate(gStream), gChannels,
                                   perf(AAudioStream_getPerformanceMode(gStream)), AAudioStream_getFramesPerBurst(gStream),
                                   AAudioStream_getBufferSizeInFrames(gStream)).c_str());
 }
@@ -673,8 +677,8 @@ std::string startUsbThread(const UsbConfig &cfg) {
         stopUsb();
         return json("{\"error\":\"usb start: %s\"}", strerror(gUsbErrno.load()));
     }
-    return json("{\"started\":true,\"path\":\"usb\",\"sampleRate\":%d,\"channels\":%d,\"performance\":\"usb\",\"framesPerBurst\":%d}",
-                cfg.rate, cfg.channels, static_cast<int>(gUsbFbFrames.load() * cfg.packetsPerUrb));
+    return json("{\"started\":true,\"path\":\"usb\",\"engineGen\":%d,\"sampleRate\":%d,\"channels\":%d,\"performance\":\"usb\",\"framesPerBurst\":%d}",
+                gEngineGen.load(), cfg.rate, cfg.channels, static_cast<int>(gUsbFbFrames.load() * cfg.packetsPerUrb));
 }
 
 bool usbFormatOk(int channels, int subslot, int maxPacket) {

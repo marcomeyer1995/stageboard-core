@@ -28,22 +28,30 @@ export function useNativeTrackDriver(): void {
   const nativeOn = useNativeOutputStore((s) => s.state === 'on')
   const { currentEntry, currentVariant } = queue
   const track = resolveTrackForEntry(currentEntry, currentVariant, trackOverride)
-  const wanted = nativeOn && engine === 'local-mine' && wantsNativeTrack() && currentVariant !== null && track !== null
+  const engineGen = useNativeOutputStore((s) => s.engineGen)
+  // The track for the engine, native output running or not: a reopen (a device change, a broken
+  // stream) keeps the engine and the track in it - loading it again took seconds on the Fire,
+  // the track silent meanwhile (2026-11-14).
+  const forEngine = engine === 'local-mine' && wantsNativeTrack() && currentVariant !== null && track !== null
+  const wanted = nativeOn && forEngine
   useEffect(() => {
     useNativeTrackStore.setState({ why: { nativeOn, engine, switch: wantsNativeTrack(), variant: currentVariant?.id ?? null, track: track?.id ?? null } })
   }, [nativeOn, engine, currentVariant?.id, track?.id])
   const variantId = currentVariant?.id ?? null
   const trackId = track?.id ?? null
 
-  // Load on every song/track change, and again when the native output (re)starts - a new stream
-  // may come with a new engine.
+  // Load on every song/track change, and when the native output came up with a new engine (another
+  // rate) - not when it only reopened.
   useEffect(() => {
-    if (!wanted || !variantId || !trackId) {
+    if (!forEngine || !variantId || !trackId) {
       if (useNativeTrackStore.getState().key !== null) unloadNativeTrack()
       return
     }
+    if (!nativeOn) return
+    const held = useNativeTrackStore.getState()
+    if (held.key === `${variantId}:${trackId}` && held.status === 'ready' && held.engineGen === engineGen && engineGen !== null) return
     void loadNativeTrack(variantId, trackId)
-  }, [wanted, variantId, trackId, nativeOn])
+  }, [forEngine, variantId, trackId, nativeOn, engineGen])
 
   const status = useNativeTrackStore((s) => s.status)
   const loadedKey = useNativeTrackStore((s) => s.key)
