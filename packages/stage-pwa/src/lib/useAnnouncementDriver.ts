@@ -11,6 +11,7 @@ import { getSharedAudioContext } from './sharedAudioContext'
 import { useShowModeSong } from './showMode'
 import { loadSpeechClip, speechClip, type ClipVoice } from './speechClips'
 import { useNativeAnnouncements, wantsNativeVoice } from './engine/nativeEngineVoice'
+import { alignsOnVowel, MAX_ONSET_MS, vowelOnsetMs } from './engine/announcementClip'
 import { bandAnnouncementSettings, bandSpeechVoice } from './speechVoices'
 import { useCapabilityRouting } from './useCapabilityRouting'
 import { resolveBuiltInBinding } from './hardwareRouting'
@@ -152,10 +153,12 @@ export function usePlayAnnouncements(
       lastElapsed = elapsed
       const rate = latest.current.playbackRate ?? 1
       const audioNow = audioClock.now(ctx)
-      for (const { index, inMs } of announcementsDue(current, elapsed, (LOOKAHEAD_MS + latencyMs) * rate, done)) {
+      for (const { index, inMs } of announcementsDue(current, elapsed, (LOOKAHEAD_MS + latencyMs + MAX_ONSET_MS) * rate, done)) {
         const buffer = speechClip(current[index]!.text, currentVoice)
         if (!buffer) continue
-        const when = Math.max(ctx.currentTime, audioNow + inMs / 1000 / rate - latencyMs / 1000)
+        // The vowel on the beat, not the clip's first sample (#842).
+        const onset = alignsOnVowel() ? vowelOnsetMs(buffer) / 1000 : 0
+        const when = Math.max(ctx.currentTime, audioNow + inMs / 1000 / rate - latencyMs / 1000 - onset)
         const node = ctx.createBufferSource()
         node.buffer = buffer
         const gain = ctx.createGain()

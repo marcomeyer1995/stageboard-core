@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Announcement } from '../announcements'
-import { announcementClip } from './announcementClip'
+import { alignsOnVowel, announcementClip } from './announcementClip'
 import { mixGain, useOutputPlanStore } from '../audioMix'
 import { getServerTime } from '../clockSync'
 import { useAudioOutputLatencyMs } from '../latencyCompensation'
@@ -59,7 +59,7 @@ export function useNativeAnnouncements(items: Announcement[] | null, voice: Clip
       const buffers = new Map<string, AudioBuffer | null>()
       for (const text of new Set(current.map((item) => item.text))) buffers.set(text, await loadSpeechClip(text, currentVoice))
       if (cancelled) return
-      const clip = announcementClip(current, (text) => buffers.get(text) ?? null)
+      const clip = announcementClip(current, (text) => buffers.get(text) ?? null, alignsOnVowel())
       if (!clip) return
       const { error } = await nativeEngine.announceCommit(ANNOUNCE_CLIP, clip, ENGINE_BUS.announce, 1).catch((e: unknown) => ({ error: String(e) }))
       if (cancelled) return
