@@ -355,6 +355,7 @@
     "volumeUsb": "Am Interface regeln - eigener USB-Treiber, die Lautstärke von Android wirkt hier nicht",
     "usbDriver": "USB-Treiber",
     "usbDriverFailed": "Nicht gestartet ({{error}}) - spielt über Android",
+    "usbGone": "Interface abgezogen - stumm, bis es wieder steckt",
     "webview": "WebView",
     "fellBack": "Notbetrieb über die WebView seit {{time}} ({{ms}} ms Ton fehlten) - bis zum Neustart der App",
     "fellBackBroken": "Notbetrieb über die WebView seit {{time}} - die native Ausgabe kam nach einem Gerätewechsel ohne Zeitangabe hoch. App neu starten.",

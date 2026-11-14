@@ -79,7 +79,8 @@ final class UsbAudioOut {
                 if (um.hasPermission(dev)) {
                     done.result(true);
                 } else if (android.os.SystemClock.elapsedRealtime() < until) {
-                    handler.postDelayed(this, 250);
+                    // Android grants it a moment after the attach broadcast - checked often, a replug waits for it.
+                    handler.postDelayed(this, 25);
                 } else {
                     ask(ctx, um, dev, done);
                 }
@@ -108,7 +109,9 @@ final class UsbAudioOut {
         close();
         Opened r = new Opened();
         r.device = dev.getProductName();
+        final long t0 = android.os.SystemClock.elapsedRealtime();
         UsbDeviceConnection c = um.openDevice(dev);
+        final long tOpened = android.os.SystemClock.elapsedRealtime();
         if (c == null) {
             r.error = "openDevice failed";
             return r;
@@ -134,12 +137,16 @@ final class UsbAudioOut {
             return r;
         }
         claimed.add(as0);
+        final long tClaimed = android.os.SystemClock.elapsedRealtime();
         c.setInterface(as0);
         if (desc.protocol == 0x20 && desc.clockId >= 0) {
             byte[] le = {(byte) rate, (byte) (rate >> 8), (byte) (rate >> 16), (byte) (rate >> 24)};
             c.controlTransfer(0x21, 0x01, 0x0100, (desc.clockId << 8) | desc.acIf, le, 4, 1000);
         }
-        if (!c.setInterface(asAlt)) {
+        final long tRate = android.os.SystemClock.elapsedRealtime();
+        boolean alt = c.setInterface(asAlt);
+        android.util.Log.i("NativeOutput", "usb open: device " + (tOpened - t0) + " ms, claim " + (tClaimed - tOpened) + " ms, rate " + (tRate - tClaimed) + " ms, alt " + (android.os.SystemClock.elapsedRealtime() - tRate) + " ms");
+        if (!alt) {
             close();
             r.error = "setInterface failed";
             return r;

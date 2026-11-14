@@ -657,6 +657,33 @@ Java_de_stageboard_app_NativeOutputPlugin_nativeStatus(JNIEnv *env, jclass) {
 
 /** The own USB driver instead of AAudio (docs/28 §4): the interface's file descriptor and what the
  * Java side picked from its descriptors. */
+namespace {
+
+/** Starts the USB thread on `cfg` - gLock held, nothing playing. */
+std::string startUsbThread(const UsbConfig &cfg) {
+    gChannels = cfg.channels;
+    gUsb = cfg;
+    gUsbFbFrames = cfg.rate / (cfg.highSpeed ? 8000.0 : 1000.0);  // nominal until the feedback arrives
+    gUsbErrno = 0;
+    gUsbDisconnected = false;
+    gUsbThread = std::thread(runUsb);
+    for (int i = 0; i < 100 && !gUsbRunning.load() && gUsbErrno.load() == 0; i++) std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    if (!gUsbRunning.load()) {
+        stopUsb();
+        return json("{\"error\":\"usb start: %s\"}", strerror(gUsbErrno.load()));
+    }
+    return json("{\"started\":true,\"path\":\"usb\",\"sampleRate\":%d,\"channels\":%d,\"performance\":\"usb\",\"framesPerBurst\":%d}",
+                cfg.rate, cfg.channels, static_cast<int>(gUsbFbFrames.load() * cfg.packetsPerUrb));
+}
+
+bool usbFormatOk(int channels, int subslot, int maxPacket) {
+    return channels >= 1 && channels <= kUsbMaxChannels && subslot >= 2 && subslot <= 4 && maxPacket > 0;
+}
+
+}  // namespace
+
+/** The own USB driver instead of AAudio (docs/28 §4): the interface's file descriptor and what the
+ * Java side picked from its descriptors. */
 extern "C" JNIEXPORT jstring JNICALL
 Java_de_stageboard_app_NativeOutputPlugin_nativeUsbStart(JNIEnv *env, jclass, jint fd, jint epOut, jint maxPacket, jint epFb, jint fbMaxPacket,
                                                          jint channels, jint subslot, jint sampleRate, jboolean highSpeed) {
@@ -666,26 +693,33 @@ Java_de_stageboard_app_NativeOutputPlugin_nativeUsbStart(JNIEnv *env, jclass, ji
         AAudioStream_close(gStream);
         gStream = nullptr;
     }
-    if (channels < 1 || channels > kUsbMaxChannels || subslot < 2 || subslot > 4 || maxPacket <= 0)
+    if (!usbFormatOk(channels, subslot, maxPacket))
         return env->NewStringUTF(json("{\"error\":\"unsupported format: %d channels, %d bytes\"}", channels, subslot).c_str());
     prepareOutput(sampleRate);
     resetCallbackState();
-    gChannels = channels;
-    gUsb = UsbConfig{fd, epOut, maxPacket, epFb, fbMaxPacket, channels, subslot, sampleRate, highSpeed ? 8 : 1, static_cast<bool>(highSpeed)};
-    gUsbFbFrames = sampleRate / (highSpeed ? 8000.0 : 1000.0);  // nominal until the feedback arrives
     gUsbUrbs = 0;
     gUsbPacketErrors = 0;
     gUsbFbCount = 0;
-    gUsbErrno = 0;
-    gUsbDisconnected = false;
-    gUsbThread = std::thread(runUsb);
-    for (int i = 0; i < 100 && !gUsbRunning.load() && gUsbErrno.load() == 0; i++) std::this_thread::sleep_for(std::chrono::milliseconds(5));
-    if (!gUsbRunning.load()) {
-        stopUsb();
-        return env->NewStringUTF(json("{\"error\":\"usb start: %s\"}", strerror(gUsbErrno.load())).c_str());
-    }
-    return env->NewStringUTF(json("{\"started\":true,\"path\":\"usb\",\"sampleRate\":%d,\"channels\":%d,\"performance\":\"usb\",\"framesPerBurst\":%d}",
-                                  sampleRate, channels, static_cast<int>(gUsbFbFrames.load() * gUsb.packetsPerUrb)).c_str());
+    return env->NewStringUTF(startUsbThread(UsbConfig{fd, epOut, maxPacket, epFb, fbMaxPacket, channels, subslot, sampleRate, highSpeed ? 8 : 1, static_cast<bool>(highSpeed)}).c_str());
+}
+
+/** The interface plugged in again after it was pulled while the own driver played: the stream goes
+ * on where it is - the engine, its clips and the pipe stay, only the output is new (no detour
+ * through Android's output meanwhile: silent while it is gone, docs/28 §4). Works on a locked
+ * screen - nothing waits for the page. */
+extern "C" JNIEXPORT jstring JNICALL
+Java_de_stageboard_app_NativeOutputPlugin_nativeUsbResume(JNIEnv *env, jclass, jint fd, jint epOut, jint maxPacket, jint epFb, jint fbMaxPacket,
+                                                          jint channels, jint subslot, jint sampleRate, jboolean highSpeed) {
+    std::lock_guard<std::mutex> guard(gLock);
+    stopUsb();
+    if (gStream || sampleRate != gRate || !usbFormatOk(channels, subslot, maxPacket))
+        return env->NewStringUTF(json("{\"error\":\"cannot resume: rate %d, %d channels\"}", sampleRate, channels).c_str());
+    // The new output's frames count from 0, heard from its own first timestamp: the pipe and the
+    // engine's clock find their place again (the clock counts it as a restart).
+    resetCallbackState();
+    const std::string result = startUsbThread(UsbConfig{fd, epOut, maxPacket, epFb, fbMaxPacket, channels, subslot, sampleRate, highSpeed ? 8 : 1, static_cast<bool>(highSpeed)});
+    LOG("usb resumed: %s", result.c_str());
+    return env->NewStringUTF(result.c_str());
 }
 
 /** After releasing an interface: Android's own driver binds it again (usbfs leaves it without one). */

@@ -80,7 +80,7 @@ interface NativeOutputPlugin {
   /** An output device was added or removed (USB interface, headphones, Bluetooth). */
   addListener(event: 'outputDevicesChanged', listener: () => void): Promise<{ remove: () => Promise<void> }>
   /** A USB audio interface was plugged in - told at once, before Android's audio side takes it up. */
-  addListener(event: 'usbAttached', listener: () => void): Promise<{ remove: () => Promise<void> }>
+  addListener(event: 'usbAttached', listener: (event: { resumed?: boolean }) => void): Promise<{ remove: () => Promise<void> }>
 }
 
 const NativeOutput = registerPlugin<NativeOutputPlugin>('NativeOutput')
@@ -555,11 +555,12 @@ async function attach(ctx: AudioContext): Promise<void> {
       void NativeOutput.status().then((s) => {
         if (p.closed) return
         const now = Date.now()
-        // The interface was pulled while the own USB driver played: it stopped at once (nothing
-        // plays on) - open again, on whatever is there now.
+        // The interface was pulled while the own USB driver played: silent until it is plugged in
+        // again - then the driver goes on by itself (NativeOutputPlugin.resumeUsb), on a locked
+        // screen too. Never Android's output meanwhile: the tablet's speaker is a wrong signal.
         if (s.path === 'usb' && s.usbDisconnected) {
-          console.warn('[native-output] USB interface gone - opening the output again')
-          reopen(ctx, 'device')
+          if (!useNativeOutputStore.getState().status?.usbDisconnected) console.warn('[native-output] USB interface gone - silent until it is plugged in again')
+          useNativeOutputStore.setState({ status: s })
           return
         }
         // A stream that came up broken (#837): timestamp jumps piling up, in silence as well - opened
@@ -659,17 +660,21 @@ function listenForDevices(): void {
     if (deviceTimer !== null) clearTimeout(deviceTimer)
     deviceTimer = setTimeout(() => {
       deviceTimer = null
-      // The own driver plays on the interface itself - Android's device list doesn't touch it.
-      if (ownDriverPlays()) return
+      // The own driver plays on the interface itself (or waits for it) - Android's device list doesn't touch it.
+      if (useNativeOutputStore.getState().usb && useNativeOutputStore.getState().state === 'on') return
       const ctx = reopenable()
       if (ctx) reopen(ctx, 'device')
     }, DEVICE_SETTLE_MS)
   }).catch(() => {
     deviceListening = false
   })
-  // The interface plugged in again with the own driver wanted: opened at once - it needs no settling
-  // of Android's audio side (that took seconds after a replug, 2026-11-13).
-  void NativeOutput.addListener('usbAttached', () => {
+  // A USB interface plugged in. The own driver playing (pulled before) goes on by itself; with it
+  // wanted but Android's output playing, it is opened at once - no settling of Android's audio side.
+  void NativeOutput.addListener('usbAttached', (event) => {
+    if (event.resumed !== undefined) {
+      console.info(`[native-output] USB interface plugged in again - ${event.resumed ? 'the own driver goes on' : 'could not go on, opening it again'}`)
+      if (event.resumed) return
+    }
     if (!wantsUsbDriver() || ownDriverPlays()) return
     if (deviceTimer !== null) clearTimeout(deviceTimer)
     deviceTimer = null
