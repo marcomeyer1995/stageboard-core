@@ -403,7 +403,12 @@ export function StageMap() {
   // Pan, pinch and drag - pointer events in map coordinates.
   const svgRef = useRef<SVGSVGElement>(null)
   const pointers = useRef(new Map<number, { x: number; y: number }>())
-  const gesture = useRef<{ kind: 'pan' | 'node' | 'pinch'; id?: string; startView: ViewBox; start: { x: number; y: number }; dist?: number; moved: boolean } | null>(null)
+  const gesture = useRef<{ kind: 'pan' | 'node' | 'pinch'; id?: string; startView: ViewBox; start: { x: number; y: number }; dist?: number; moved: boolean; touch?: boolean } | null>(null)
+  // On the page, one finger scrolls the page and two move the map (Marco, 2026-11-14, #866: one
+  // finger on the map got stuck there). Editing (dragging devices, drawing cables) and fullscreen
+  // (no page to scroll) keep one finger for the map; a mouse always pans.
+  const oneFingerMap = full || canEdit
+  const coarsePointer = typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches === true
   const unitsPerPx = () => {
     const rect = svgRef.current?.getBoundingClientRect()
     if (!rect || rect.width === 0) return 1
@@ -415,11 +420,12 @@ export function StageMap() {
     pointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY })
     if (pointers.current.size === 2) {
       const [a, b] = [...pointers.current.values()]
-      gesture.current = { kind: 'pinch', startView: viewBox, start: { x: 0, y: 0 }, dist: Math.hypot(a!.x - b!.x, a!.y - b!.y), moved: true }
+      // Two fingers: zoom by their distance, pan by their midpoint.
+      gesture.current = { kind: 'pinch', startView: viewBox, start: { x: (a!.x + b!.x) / 2, y: (a!.y + b!.y) / 2 }, dist: Math.hypot(a!.x - b!.x, a!.y - b!.y), moved: true }
       return
     }
     const node = nodeId ? byId.get(nodeId) : undefined
-    gesture.current = { kind: node && canEdit ? 'node' : 'pan', id: nodeId, startView: viewBox, start: { x: event.clientX, y: event.clientY }, moved: false }
+    gesture.current = { kind: node && canEdit ? 'node' : 'pan', id: nodeId, startView: viewBox, start: { x: event.clientX, y: event.clientY }, moved: false, touch: event.pointerType === 'touch' }
   }
   const onPointerMove = (event: ReactPointerEvent) => {
     if (!pointers.current.has(event.pointerId)) return
@@ -429,9 +435,13 @@ export function StageMap() {
     if (g.kind === 'pinch' && pointers.current.size === 2 && g.dist) {
       const [a, b] = [...pointers.current.values()]
       const factor = g.dist / Math.max(1, Math.hypot(a!.x - b!.x, a!.y - b!.y))
-      zoomTo(g.startView, factor)
+      const zoomed = zoomedView(g.startView, factor)
+      const k = unitsPerPx()
+      setView({ ...zoomed, x: zoomed.x - ((a!.x + b!.x) / 2 - g.start.x) * k, y: zoomed.y - ((a!.y + b!.y) / 2 - g.start.y) * k })
       return
     }
+    // One finger on the page: the page scrolls (touch-action pan-y), a tap still selects.
+    if (g.kind === 'pan' && g.touch && !oneFingerMap) return
     const dx = event.clientX - g.start.x
     const dy = event.clientY - g.start.y
     if (!g.moved && Math.hypot(dx, dy) < 6) return
@@ -464,10 +474,13 @@ export function StageMap() {
     if (connectFrom && node) void finishConnect(node)
     else setSelection({ kind: 'node', id: nodeId })
   }
-  const zoomTo = (from: ViewBox, factor: number) => {
+  const zoomedView = (from: ViewBox, factor: number): ViewBox => {
     const w = Math.min(Math.max(from.w * factor, 200), 4000)
     const h = (from.h / from.w) * w
-    setView({ x: from.x + (from.w - w) / 2, y: from.y + (from.h - h) / 2, w, h })
+    return { x: from.x + (from.w - w) / 2, y: from.y + (from.h - h) / 2, w, h }
+  }
+  const zoomTo = (from: ViewBox, factor: number) => {
+    setView(zoomedView(from, factor))
   }
   const onWheel = (event: React.WheelEvent) => zoomTo(viewBox, wheelZoomFactor(event.deltaY, event.deltaMode))
 
@@ -770,7 +783,7 @@ export function StageMap() {
       <svg
         ref={svgRef}
         viewBox={`${viewBox.x} ${viewBox.y} ${viewBox.w} ${viewBox.h}`}
-        className={`w-full touch-none select-none rounded-container border border-line bg-surface ${full ? 'min-h-0 flex-1' : 'h-[60vh] max-h-[560px]'}`}
+        className={`w-full ${oneFingerMap ? 'touch-none' : 'touch-pan-y'} select-none rounded-container border border-line bg-surface ${full ? 'min-h-0 flex-1' : 'h-[60vh] max-h-[560px]'}`}
         onPointerDown={(e) => onPointerDown(e)}
         onPointerMove={onPointerMove}
         onPointerUp={(e) => onPointerUp(e)}
@@ -993,7 +1006,7 @@ export function StageMap() {
           />
         )}
 
-        {!selectedNode && !selectedLink && !connectFrom && <p className="text-base text-ink-muted">{t('map.hint')}</p>}
+        {!selectedNode && !selectedLink && !connectFrom && <p className="text-base text-ink-muted">{t(!oneFingerMap && coarsePointer ? 'map.hintTwoFingers' : 'map.hint')}</p>}
         {canEdit && !selectedNode && !selectedLink && (
           <div className="flex flex-col gap-2">
             <AddRow label={t('map.addEquipment')} onClick={() => void addEquipment()} />
