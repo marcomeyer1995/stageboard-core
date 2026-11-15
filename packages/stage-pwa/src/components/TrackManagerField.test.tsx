@@ -9,6 +9,8 @@ vi.mock('../lib/songVariantsDb', () => variants)
 const youtube = vi.hoisted(() => ({ searchYoutube: vi.fn(), youtubeThumbnailUrl: (id: string) => `https://server/youtube/thumbnail?id=${id}`, formatVideoLength: (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` }))
 vi.mock('../lib/youtubeSearch', () => youtube)
 vi.mock('../lib/measureAudioDuration', () => ({ measureAudioDurationMs: vi.fn(async () => 180_000) }))
+// The upload converts to Ogg Opus (#775) - here the file passes as it is (trackFile.test.ts tests the conversion).
+vi.mock('../lib/engine/trackFile', () => ({ toTrackFile: vi.fn(async (f: Blob) => f), TRACK_MIME: 'audio/ogg; codecs=opus', NoEncoderError: class extends Error {} }))
 // Where YouTube runs (useYoutubeRoute.ts): by default unknown - the host is asked, as before.
 const route = vi.hoisted(() => ({ value: { route: null as 'server' | 'device' | 'none' | null, helper: null as unknown, trusted: [] as readonly string[] } }))
 vi.mock('../lib/useYoutubeRoute', () => ({ useYoutubeRoute: () => route.value }))

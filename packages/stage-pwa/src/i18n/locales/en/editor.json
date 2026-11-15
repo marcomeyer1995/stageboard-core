@@ -376,6 +376,8 @@
     "edit": "Edit {{name}}",
     "lengthsDiffer": "The tracks differ in length - they run together from 0:00, one may not fit.",
     "uploading": "Uploading track {{n}} of {{total}}…",
+    "converting": "Converting “{{name}}” to Opus… {{pct}} %",
+    "noEncoder": "This device cannot convert the file to Opus (browser too old). Please upload it on another device.",
     "youtubeLink": "Please paste a youtube.com or youtu.be link.",
     "youtubeRef": "YouTube reference",
     "removeAsk": "Remove “{{name}}”?",
