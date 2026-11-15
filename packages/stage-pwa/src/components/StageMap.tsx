@@ -425,7 +425,7 @@ export function StageMap() {
       return
     }
     const node = nodeId ? byId.get(nodeId) : undefined
-    gesture.current = { kind: node && canEdit ? 'node' : 'pan', id: nodeId, startView: viewBox, start: { x: event.clientX, y: event.clientY }, moved: false, touch: event.pointerType === 'touch' }
+    gesture.current = { kind: node && canEdit ? 'node' : 'pan', id: nodeId, startView: viewBox, start: { x: event.clientX, y: event.clientY }, moved: false, touch: event.pointerType !== 'mouse' }
   }
   const onPointerMove = (event: ReactPointerEvent) => {
     if (!pointers.current.has(event.pointerId)) return
