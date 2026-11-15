@@ -690,15 +690,12 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted, onBack }: Se
     { key: 'seconds', label: t('item.seconds'), defaultValue: secondsText(entry?.estimatedDurationMs) },
   ]
 
-  /** Adds an announcement/pause between songs (#29) - a real queue position with notes, no audio. */
-  async function addTransition(defaultStyle: ItemStyle) {
+  /** Adds a program item between songs (#29) - an announcement/pause or a section heading, chosen
+   * in the dialog (Marco, 2026-11-14: one "+ Programmpunkt", #872); a real queue position with
+   * notes, no audio. */
+  async function addTransition() {
     if (!setlist) return
-    const heading = defaultStyle === 'heading'
-    const result = await promptFields(
-      heading ? t('item.addHeading') : t('item.addAnnouncement'),
-      transitionFields(undefined, defaultStyle),
-      t('item.add'),
-    )
+    const result = await promptFields(t('item.addProgramItem'), transitionFields(undefined, 'announcement'), t('item.add'))
     if (!result?.title?.trim()) return
     const item: TransitionEntry = {
       id: randomId(),
@@ -829,15 +826,14 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted, onBack }: Se
           </ul>
         </SortableContext>
       </DndContext>
-      {/* Phone (#414): search field across the full width, the two buttons below it - in one row
-          the buttons squeezed the search field to "Sor…". Wide screens keep one row. */}
+      {/* Phone (#414): search field across the full width, the button below it - in one row
+          it squeezed the search field to "Sor…". Wide screens keep one row. */}
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
         <div className="min-w-0 flex-1">
           <AddSongCombobox songs={songs} onAdd={addSong} />
         </div>
         <div className="flex gap-2">
-          <AddRow inline label={t('addAnnouncement')} onClick={() => void addTransition('announcement')} />
-          <AddRow inline label={t('addHeading')} onClick={() => void addTransition('heading')} />
+          <AddRow inline label={t('addProgramItem')} onClick={() => void addTransition()} />
         </div>
       </div>
     </div>

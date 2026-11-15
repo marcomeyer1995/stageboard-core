@@ -114,8 +114,7 @@
     "styleHeading": "Section heading (e.g. Set 1)",
     "notes": "Notes for the band (optional)",
     "seconds": "Duration (seconds, optional - for an automatic transition)",
-    "addHeading": "Add section",
-    "addAnnouncement": "Add announcement / pause",
+    "addProgramItem": "Add program item",
     "add": "Add",
     "edit": "Edit entry"
   },
@@ -127,8 +126,7 @@
   "setlistRemoved": "The setlist was removed.",
   "name": "Name",
   "gigDate": "Gig date",
-  "addAnnouncement": "Announcement / pause",
-  "addHeading": "Section",
+  "addProgramItem": "Program item",
   "pv": {
     "songs_one": "{{count}} song",
     "songs_other": "{{count}} songs",
