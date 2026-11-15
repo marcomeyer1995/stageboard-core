@@ -157,6 +157,8 @@
     "exitFull": "Vollbild beenden",
     "whole": "Ganze Bühne",
     "ports": "Anschlüsse",
+    "showPorts": "Anschlüsse zeigen",
+    "hidePorts": "Anschlüsse ausblenden",
     "edit": "Bearbeiten",
     "setup": "Aufbau",
     "newSetup": "Aufbau (Kopie)",

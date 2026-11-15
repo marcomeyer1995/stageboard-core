@@ -72,7 +72,7 @@ import { StageWiring } from './StageWiring'
 import { StageLiveList } from './StageLiveList'
 import { PATH_MARK } from '../lib/stageLive'
 import { useStageLive } from '../lib/useStageLive'
-import { AddRow, Badge, Button, IconButton, InfoHint, Segmented, Switch } from './ui'
+import { ActionMenu, AddRow, Badge, Button, IconButton, InfoHint, Segmented, Select, Switch } from './ui'
 
 /** The map's own coordinates - positions are stored in these. */
 const W = 1000
@@ -729,11 +729,34 @@ export function StageMap() {
           <InfoHint label={t('map.explainLabel')} text={t('map.explain')} />
         </div>
       )}
-      {setups.length > 1 && (
-        <div className="mb-2">
-          <Segmented label={t('map.setup')} value={setup.id} onChange={(id) => { setSetupId(id); setSelection(null) }} options={setups.map((s) => ({ value: s.id, label: setupLabel(s) }))} />
+      {/* Two rows above the map (Marco, 2026-11-14, #864/#865: four rows took half a phone screen,
+          and the setup row widened the page). The setups in a dropdown - their number is open;
+          "Ganze Bühne" and "Anschlüsse" behind ⋮; mode and Bearbeiten in the second row. */}
+      <div className="mb-2 flex items-end gap-2">
+        <div className="min-w-0 flex-1">
+          {setups.length > 1 && (
+            <Select
+              aria-label={t('map.setup')}
+              value={setup.id}
+              onChange={(e) => {
+                setSetupId(e.target.value)
+                setSelection(null)
+              }}
+              options={setups.map((s) => ({ value: s.id, label: setupLabel(s) }))}
+              className="w-full"
+            />
+          )}
         </div>
-      )}
+        <ActionMenu
+          scope="page"
+          title={t('map.title')}
+          actions={[
+            { icon: 'fitAll', label: t('map.whole'), onClick: showWhole },
+            showPorts ? { icon: 'eyeOff', label: t('map.hidePorts'), onClick: () => setShowPorts(false) } : { icon: 'eye', label: t('map.showPorts'), onClick: () => setShowPorts(true) },
+          ]}
+        />
+        <IconButton icon={full ? 'exitFullscreen' : 'fullscreen'} label={full ? t('map.exitFull') : t('map.full')} onClick={() => toggleFull(!full)} />
+      </div>
       {ownSetup && <p className="mb-2 text-base text-ink-muted">{setup.owner === myProfileId ? t('map.ownSetupHint') : t('map.ownSetupOfHint', { person: personName(setup.owner) ?? '?' })}</p>}
       <div className="mb-2 flex flex-wrap items-center gap-2">
         <Segmented
@@ -751,11 +774,7 @@ export function StageMap() {
             { value: 'check', label: t('live.check') },
           ]}
         />
-        <Button onClick={showWhole}>{t('map.whole')}</Button>
-        <Switch layout="inline" label={t('map.ports')} checked={showPorts} onChange={setShowPorts} />
         {isAdmin && !checking && <Switch layout="inline" label={t('map.edit')} checked={editing} onChange={(on) => { setEditing(on); setConnectFrom(null) }} />}
-        <span className="flex-1" />
-        <IconButton icon={full ? 'exitFullscreen' : 'fullscreen'} label={full ? t('map.exitFull') : t('map.full')} onClick={() => toggleFull(!full)} />
       </div>
       {!signedIn ? <p className="mb-2 text-base text-ink-muted">{t('stage.viewOnly')}</p> : !isAdmin && <p className="mb-2 text-base text-ink-muted">{t('map.adminEdits')}</p>}
       {connectFrom && (

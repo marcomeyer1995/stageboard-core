@@ -392,6 +392,12 @@ describe('StageMap (docs/31 §7)', () => {
     expect(screen.getByText('kommt nirgends an')).toBeInTheDocument()
   })
 
+  // The setup is a dropdown (#864).
+  const pickSetup = (name: string) => {
+    const option = screen.getByRole('option', { name }) as HTMLOptionElement
+    fireEvent.change(screen.getByRole('combobox', { name: 'Aufbau' }), { target: { value: option.value } })
+  }
+
   describe('own setups (#799, docs/31 §0d)', () => {
     const home = (owner: string, name: string): StageSetup => ({ id: `home-${owner}`, name, owner, positions: { [`device:${me}`]: { x: 0, y: 0 } }, links: [], routing: {} })
 
@@ -405,13 +411,13 @@ describe('StageMap (docs/31 §7)', () => {
       setUp(true)
       useStageMapStore.setState({ ownSetups: [home('p-kai', 'Keller')] })
       const admin = render(<StageMap />)
-      expect(screen.getByRole('radio', { name: 'Keller (Kai)' })).toBeInTheDocument()
+      expect(screen.getByRole('option', { name: 'Keller (Kai)' })).toBeInTheDocument()
       admin.unmount()
 
       setUp(false)
       useStageMapStore.setState({ ownSetups: [home('p-marco', 'Zuhause')] })
       render(<StageMap />)
-      fireEvent.click(screen.getByRole('radio', { name: 'Mein: Zuhause' }))
+      pickSetup('Mein: Zuhause')
       expect(screen.getByText(/nur du und der Admin sehen ihn/)).toBeInTheDocument()
     })
 
@@ -428,7 +434,7 @@ describe('StageMap (docs/31 §7)', () => {
       fireEvent.click(screen.getByRole('switch', { name: 'Bearbeiten' }))
       // The band's setup does not offer the own unit.
       expect(screen.queryByRole('button', { name: /Effektgerät/ })).toBeNull()
-      fireEvent.click(screen.getByRole('radio', { name: 'Keller (Kai)' }))
+      pickSetup('Keller (Kai)')
       expect(screen.getByRole('button', { name: /Effektgerät/ })).toBeInTheDocument()
       fireEvent.click(screen.getByRole('button', { name: /Ausrüstung hinzufügen/ }))
       fireEvent.click(await screen.findByRole('button', { name: 'Hinzufügen' }))

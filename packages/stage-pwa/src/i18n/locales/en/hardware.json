@@ -157,6 +157,8 @@
     "exitFull": "Exit fullscreen",
     "whole": "Whole stage",
     "ports": "Ports",
+    "showPorts": "Show ports",
+    "hidePorts": "Hide ports",
     "edit": "Edit",
     "setup": "Setup",
     "newSetup": "Setup (copy)",
