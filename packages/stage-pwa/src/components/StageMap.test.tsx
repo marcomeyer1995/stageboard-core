@@ -107,7 +107,7 @@ describe('StageMap (docs/31 §7)', () => {
   it('the admin lists a mixer\'s ports freely: a mono-jack Aux group added, cables kept (2026-11-07)', async () => {
     setUp(true)
     render(<StageMap />)
-    fireEvent.click(screen.getByRole('switch', { name: 'Bearbeiten' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Bearbeiten' }))
     tapNode('Pult')
     fireEvent.click(screen.getByRole('button', { name: 'Anschlüsse' }))
     expect(screen.getByRole('dialog', { name: 'Anschlüsse: Pult' })).toBeInTheDocument()
@@ -136,7 +136,7 @@ describe('StageMap (docs/31 §7)', () => {
         <DialogHost />
       </>,
     )
-    fireEvent.click(screen.getByRole('switch', { name: 'Bearbeiten' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Bearbeiten' }))
     tapNode('Pult')
     fireEvent.click(screen.getAllByRole('button', { name: 'Verbinden' }).find((b) => b.closest('li')?.textContent?.includes('Aux'))!)
     tapNode('IEM Kai')
@@ -162,7 +162,7 @@ describe('StageMap (docs/31 §7)', () => {
         <DialogHost />
       </>,
     )
-    fireEvent.click(screen.getByRole('switch', { name: 'Bearbeiten' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Bearbeiten' }))
     tapNode('Redmi')
     fireEvent.click(screen.getAllByRole('button', { name: 'Verbinden' }).find((b) => b.closest('li')?.textContent?.includes('USB-C'))!)
     tapNode('Kemper')
@@ -194,7 +194,7 @@ describe('StageMap (docs/31 §7)', () => {
       </>,
     )
     expect(screen.getByText('nicht registriert')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('switch', { name: 'Bearbeiten' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Bearbeiten' }))
     tapNode('Kai geplant')
     fireEvent.click(screen.getByRole('button', { name: 'Mit Gerät verbinden' }))
     // Fire is registered and was added to the map on its own.
@@ -217,7 +217,7 @@ describe('StageMap (docs/31 §7)', () => {
         <DialogHost />
       </>,
     )
-    fireEvent.click(screen.getByRole('switch', { name: 'Bearbeiten' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Bearbeiten' }))
     tapNode('Fire')
     fireEvent.click(screen.getByRole('button', { name: 'Dasselbe Gerät wie …' }))
     await vi.waitFor(() => expect(screen.getByRole('radio', { name: 'Redmi' })).toBeInTheDocument())
@@ -230,7 +230,7 @@ describe('StageMap (docs/31 §7)', () => {
   it('only the admin edits: a member has no "Bearbeiten" and is told who does (#810)', () => {
     setUp(false)
     render(<StageMap />)
-    expect(screen.queryByRole('switch', { name: 'Bearbeiten' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Bearbeiten' })).toBeNull()
     expect(screen.getByText('Die Bühne bearbeitet nur der Admin.')).toBeInTheDocument()
     tapNode('Redmi')
     expect(screen.queryByRole('button', { name: 'Verbinden' })).toBeNull()
@@ -240,7 +240,7 @@ describe('StageMap (docs/31 §7)', () => {
   it('a device shows its interfaces and its routing matrix; a tick in the mixer is written for this setup', () => {
     setUp(true)
     render(<StageMap />)
-    fireEvent.click(screen.getByRole('switch', { name: 'Bearbeiten' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Bearbeiten' }))
     tapNode('Pult')
     expect(screen.getByRole('group', { name: 'Routing von Pult' })).toBeInTheDocument()
     // Groups are closed until opened (#744): the inputs as a column, the Aux outs as a row.
@@ -263,7 +263,7 @@ describe('StageMap (docs/31 §7)', () => {
       setups: s.setups.map((x) => ({ ...x, positions: { ...x.positions, umc: { x: 900, y: 900 } }, links: [...x.links, { id: 'usb', from: { equipmentId: `device:${me}`, portId: 'usb' }, to: { equipmentId: 'umc', portId: 'usb' }, signals: ['usb-audio', 'midi'] }] })),
     }))
     render(<StageMap />)
-    fireEvent.click(screen.getByRole('switch', { name: 'Bearbeiten' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Bearbeiten' }))
     tapNode('Redmi')
     // Smart matrix (#744): the stereo track dropped on the closed USB audio group takes channels 1 and 2.
     fireEvent.click(screen.getByRole('switch', { name: 'Track → USB-C · Audio aus · 0/4' }))
@@ -300,7 +300,7 @@ describe('StageMap (docs/31 §7)', () => {
       })),
     }))
     render(<StageMap />)
-    fireEvent.click(screen.getByRole('switch', { name: 'Bearbeiten' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Bearbeiten' }))
     tapNode('Redmi')
     const matrix = screen.getByRole('group', { name: 'Routing von Redmi' })
     fireEvent.click(within(matrix).getAllByRole('button', { name: 'Kopfhörer: auf- oder zuklappen' })[0]!)
@@ -324,7 +324,7 @@ describe('StageMap (docs/31 §7)', () => {
         <DialogHost />
       </>,
     )
-    fireEvent.click(screen.getByRole('switch', { name: 'Bearbeiten' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Bearbeiten' }))
     tapNode('UMC204HD')
     fireEvent.click(screen.getAllByRole('button', { name: 'USB · Audio ein (vom Host): auf- oder zuklappen' })[0]!)
     fireEvent.click(screen.getAllByRole('button', { name: 'Ausgang: auf- oder zuklappen' })[0]!)
@@ -351,7 +351,7 @@ describe('StageMap (docs/31 §7)', () => {
     const ifc = equipmentFrom(BUILTIN_MODELS.find((m) => m.id === 'audio-interface')!, 'ifc', 'Interface')
     useStageMapStore.setState((s) => ({ equipment: [...s.equipment, ifc], setups: s.setups.map((x) => ({ ...x, positions: { ...x.positions, ifc: { x: 900, y: 900 } } })) }))
     render(<StageMap />)
-    fireEvent.click(screen.getByRole('switch', { name: 'Bearbeiten' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Bearbeiten' }))
     tapNode('Interface')
     expect(screen.queryByRole('switch', { name: /^USB · MIDI ein → Ausgang/ })).toBeNull()
     expect(screen.getByRole('switch', { name: /^USB · MIDI ein → USB · MIDI aus$/ })).toBeInTheDocument()
@@ -361,7 +361,7 @@ describe('StageMap (docs/31 §7)', () => {
   it('hum loops (#748): "Strom" per device, the cable list warns, an isolator on the cable clears it', async () => {
     setUp(true)
     render(<StageMap />)
-    fireEvent.click(screen.getByRole('switch', { name: 'Bearbeiten' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Bearbeiten' }))
     tapNode('Pult')
     expect(screen.getByRole('radio', { name: 'Geerdet (Schuko)' })).toHaveAttribute('aria-checked', 'true')
     tapNode('Redmi')
@@ -431,7 +431,7 @@ describe('StageMap (docs/31 §7)', () => {
           <DialogHost />
         </>,
       )
-      fireEvent.click(screen.getByRole('switch', { name: 'Bearbeiten' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Bearbeiten' }))
       // The band's setup does not offer the own unit.
       expect(screen.queryByRole('button', { name: /Effektgerät/ })).toBeNull()
       pickSetup('Keller (Kai)')
@@ -456,7 +456,7 @@ describe('StageMap (docs/31 §7)', () => {
     expect(screen.getByText(/Akku 64 %/)).toBeInTheDocument()
     expect(screen.getByText(/offline/)).toBeInTheDocument()
     expect([...container.querySelectorAll('circle[data-live]')].map((c) => c.getAttribute('data-live')).sort()).toEqual(['error', 'ok'])
-    expect(screen.queryByRole('switch', { name: 'Bearbeiten' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Bearbeiten' })).toBeNull()
 
     // Back to "Aufbau": the layer is gone.
     fireEvent.click(screen.getByRole('radio', { name: 'Aufbau' }))
@@ -478,7 +478,7 @@ describe('StageMap (docs/31 §7)', () => {
     render(<StageMap />)
     fireEvent.click(screen.getByRole('button', { name: /Verkabelung \(/ }))
     expect(screen.getByText(/NUX MG-30: Plugin fehlt/)).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('switch', { name: 'Bearbeiten' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Bearbeiten' }))
     tapNode('NUX MG-30')
     expect(screen.getByText(/Für Cues braucht NUX MG-30 sein Plugin/)).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Einrichten' }))
