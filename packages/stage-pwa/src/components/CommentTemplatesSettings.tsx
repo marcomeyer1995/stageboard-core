@@ -2,7 +2,8 @@ import { DEFAULT_COMMENT_TEMPLATES } from 'shared-types'
 import { useBandSettingsStore } from '../store/useBandSettingsStore'
 import { useDialogStore } from '../store/useDialogStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
-import { AddRow, IconButton, InfoHint } from './ui'
+import { useState } from 'react'
+import { AddRow, Dialog, IconButton, InfoHint, SummaryRow } from './ui'
 import { useTranslation } from 'react-i18next'
 
 /** The band's comment templates (#608), or the defaults while the band has none of its own. */
@@ -13,7 +14,8 @@ export function useCommentTemplates(): readonly string[] {
 /**
  * System → Band: the texts "+ Kommentar" offers in the song editor (#608) - one list for the whole
  * band, so "Solo 8 Takte" reads the same on every Prompter. Band settings are admin-only (server
- * rule), like "Geprobt".
+ * rule), like "Geprobt". On the Band page one row with how many there are; the list in a dialog
+ * (#863) - it grows with every template.
  */
 export function CommentTemplatesSettings() {
   const { t } = useTranslation('band')
@@ -23,6 +25,7 @@ export function CommentTemplatesSettings() {
   const promptText = useDialogStore((state) => state.promptText)
   const templates = useCommentTemplates()
   const store = (next: string[]) => void save({ ...settings, commentTemplates: next })
+  const [open, setOpen] = useState(false)
 
   return (
     <section aria-label={t('templates.title')} className="space-y-2">
@@ -32,24 +35,31 @@ export function CommentTemplatesSettings() {
       </div>
       {/* Who may change it is a consequence, not an explanation - stays visible. */}
       {!isAdmin && <p className="text-sm text-ink-faint">{t('templates.adminOnly')}</p>}
-      <ul className="flex flex-col gap-1">
-        {templates.map((template) => (
-          <li key={template} className="flex min-h-form items-center gap-2 rounded-control bg-control pl-4 pr-1 text-base text-ink">
-            <span className="min-w-0 flex-1 truncate">{template}</span>
+      <SummaryRow label={t('templates.title')} summary={t('templates.count', { count: templates.length })} onOpen={() => setOpen(true)} />
+      {open && (
+        <Dialog title={t('templates.title')} onClose={() => setOpen(false)}>
+          <div className="flex flex-col gap-2">
+            <ul className="flex flex-col gap-1">
+              {templates.map((template) => (
+                <li key={template} className="flex min-h-form items-center gap-2 rounded-control bg-control pl-4 pr-1 text-base text-ink">
+                  <span className="min-w-0 flex-1 truncate">{template}</span>
+                  {isAdmin && (
+                    <IconButton icon="delete" label={t('templates.delete', { template })} variant="quiet" onClick={() => store(templates.filter((other) => other !== template))} />
+                  )}
+                </li>
+              ))}
+            </ul>
             {isAdmin && (
-              <IconButton icon="delete" label={t('templates.delete', { template })} variant="quiet" onClick={() => store(templates.filter((other) => other !== template))} />
+              <AddRow
+                label={t('templates.new')}
+                onClick={async () => {
+                  const text = (await promptText(t('templates.new'), { label: t('templates.text') }))?.trim()
+                  if (text && !templates.includes(text)) store([...templates, text])
+                }}
+              />
             )}
-          </li>
-        ))}
-      </ul>
-      {isAdmin && (
-        <AddRow
-          label={t('templates.new')}
-          onClick={async () => {
-            const text = (await promptText(t('templates.new'), { label: t('templates.text') }))?.trim()
-            if (text && !templates.includes(text)) store([...templates, text])
-          }}
-        />
+          </div>
+        </Dialog>
       )}
     </section>
   )

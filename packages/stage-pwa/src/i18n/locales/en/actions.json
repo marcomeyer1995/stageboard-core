@@ -163,6 +163,8 @@
     "off": "off"
   },
   "switchesTitle": "Switches",
+  "switchesCount_one": "1 switch",
+  "switchesCount_other": "{{count}} switches",
   "switchesExplainLabel": "Explanation: switches",
   "switchesExplain": "Set up once, trigger anywhere: a switch like “Blinder” works by pedal, MIDI button and dashboard button - all show the same state.",
   "noSwitch": "No switch yet.",

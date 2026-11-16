@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Icon, type IconName } from '../Icon'
 import { FOCUS } from './styles'
 
@@ -23,11 +23,33 @@ const PHONE_ROW = 'max-[599px]:flex-nowrap max-[599px]:overflow-x-auto max-[599p
 export function Tabs<T extends string>({ tabs, value, onChange, label, orientation = 'horizontal' }: TabsProps<T>) {
   const vertical = orientation === 'vertical'
   const selectedRef = useRef<HTMLButtonElement>(null)
+  const rowRef = useRef<HTMLDivElement>(null)
+  // More tabs off one edge (the phone's row scrolls sideways): an arrow there says so (Marco,
+  // 2026-11-14, #860) - and a tap on it scrolls on.
+  const [more, setMore] = useState({ left: false, right: false })
+  const measure = useCallback(() => {
+    const row = rowRef.current
+    if (!row || vertical) return
+    const left = row.scrollLeft > 2
+    const right = row.scrollLeft + row.clientWidth < row.scrollWidth - 2
+    setMore((was) => (was.left === left && was.right === right ? was : { left, right }))
+  }, [vertical])
   useEffect(() => {
     if (!vertical) selectedRef.current?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' })
-  }, [value, vertical])
-  return (
+    measure()
+  }, [value, vertical, measure])
+  useEffect(() => {
+    const row = rowRef.current
+    if (!row || vertical || typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(measure)
+    observer.observe(row)
+    return () => observer.disconnect()
+  }, [vertical, measure])
+  const scrollBy = (direction: 1 | -1) => rowRef.current?.scrollBy?.({ left: direction * rowRef.current.clientWidth * 0.6, behavior: 'smooth' })
+  const tablist = (
     <div
+      ref={rowRef}
+      onScroll={vertical ? undefined : measure}
       role="tablist"
       aria-label={label}
       aria-orientation={orientation}
@@ -60,6 +82,27 @@ export function Tabs<T extends string>({ tabs, value, onChange, label, orientati
           </button>
         )
       })}
+    </div>
+  )
+  if (vertical) return tablist
+  // The arrows lie over the row's ends on a fade of the page's background; they are only a hint
+  // and a shortcut (the tabs themselves stay reachable by swiping and the keyboard).
+  const arrow = (side: 'left' | 'right') => (
+    <button
+      type="button"
+      tabIndex={-1}
+      aria-hidden="true"
+      onClick={() => scrollBy(side === 'left' ? -1 : 1)}
+      className={`absolute inset-y-0 ${side === 'left' ? 'left-0 bg-gradient-to-r' : 'right-0 bg-gradient-to-l'} flex w-12 items-center ${side === 'left' ? 'justify-start' : 'justify-end'} from-stage via-stage/90 to-transparent text-ink-soft`}
+    >
+      <Icon name={side === 'left' ? 'previous' : 'next'} size="1.4em" />
+    </button>
+  )
+  return (
+    <div className="relative flex-none">
+      {tablist}
+      {more.left && arrow('left')}
+      {more.right && arrow('right')}
     </div>
   )
 }

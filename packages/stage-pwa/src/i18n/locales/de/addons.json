@@ -118,5 +118,8 @@
     "stem-separation": "Spuren trennen (Stems)",
     "youtube-download": "YouTube-Download",
     "section-announcements": "Ansagen der Songteile"
-  }
+  },
+  "off": "aus",
+  "activate": "Aktivieren",
+  "deactivate": "Deaktivieren"
 }

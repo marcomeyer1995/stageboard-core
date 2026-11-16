@@ -23,6 +23,8 @@ describe('CommentTemplatesSettings (#608)', () => {
     setAdmin(true)
     useDialogStore.setState({ promptText: vi.fn(async () => 'Leise') } as never)
     render(<CommentTemplatesSettings />)
+    // One row on the Band page (#863) with the count - the list in its dialog.
+    fireEvent.click(screen.getByRole('button', { name: /^Kommentar-Vorlagen: \d+ Vorlagen$/ }))
     const list = screen.getByRole('list')
     expect(within(list).getAllByRole('listitem').map((li) => li.textContent)).toEqual(['A cappella', 'Build-up', 'Solo 8 Takte', 'Auf Drummer achten'])
     fireEvent.click(screen.getByRole('button', { name: 'Neue Vorlage' }))
@@ -35,6 +37,7 @@ describe('CommentTemplatesSettings (#608)', () => {
     setAdmin(false)
     useBandSettingsStore.setState({ settings: { id: 'band', commentTemplates: ['Nur Bass'] } })
     render(<CommentTemplatesSettings />)
+    fireEvent.click(screen.getByRole('button', { name: /^Kommentar-Vorlagen:/ }))
     expect(screen.getByText('Nur Bass')).toBeInTheDocument()
     expect(screen.getByText('Nur der Band-Admin kann die Vorlagen ändern.')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Neue Vorlage' })).not.toBeInTheDocument()

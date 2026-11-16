@@ -9,13 +9,14 @@ import { useSwitchesStore } from '../store/useSwitchesStore'
 import { WIDGET_COLOR_SOLID } from '../widgets/widgetColors'
 import { useDescribeBehavior } from './BehaviorEditor'
 import { SwitchDialog } from './SwitchEditor'
-import { AddRow, Badge, InfoHint } from './ui'
+import { AddRow, Badge, Dialog, InfoHint, SummaryRow } from './ui'
 import { useTranslation } from 'react-i18next'
 
 
 /**
  * The band's switches (docs/23 §11.4): each with its behaviour, its state and everything that
- * triggers it. Tapping one edits it - for all its triggers at once.
+ * triggers it. Tapping one edits it - for all its triggers at once. On the Band page one row with
+ * how many there are; the list in a dialog (#877) - it grows with every switch.
  */
 export function SwitchOverview() {
   const { t } = useTranslation('actions')
@@ -27,6 +28,7 @@ export function SwitchOverview() {
   const dashboards = useDashboardsStore((state) => state.dashboards)
   const describe = useDescribeBehavior()
   const [editing, setEditing] = useState<Switch | 'new' | null>(null)
+  const [open, setOpen] = useState(false)
 
   return (
     <section className="space-y-2">
@@ -37,28 +39,35 @@ export function SwitchOverview() {
           text={t('switchesExplain')}
         />
       </div>
-      {switches.length === 0 && <p className="text-base text-ink-soft">{t('noSwitch')}</p>}
-      {switches.map((sw) => {
-        const usage = switchUsage(sw.id, { bindings, midiDocs, devices, dashboards })
-        const state = states[sw.id] ?? 'off'
-        return (
-          <button
-            key={sw.id}
-            type="button"
-            onClick={() => setEditing(sw)}
-            className="flex w-full items-center gap-3 rounded-control border border-line bg-surface px-3 py-2 text-left [@media(hover:hover)]:hover:bg-control-hover"
-          >
-            <span aria-hidden className={`h-4 w-4 flex-shrink-0 rounded-sb-pill ${WIDGET_COLOR_SOLID[sw.color]}`} />
-            <span className="flex min-w-0 flex-1 flex-col">
-              <span className="font-semibold text-ink">{sw.name}</span>
-              <span className="break-words text-sm text-ink-muted">{describe(sw.behavior)}</span>
-              <span className="break-words text-sm text-ink-faint">{usage.length > 0 ? t('triggeredBy', { list: usage.join(', ') }) : t('notTriggered')}</span>
-            </span>
-            <Badge tone={state === 'off' ? undefined : 'accent'}>{t(`switchState.${state}`)}</Badge>
-          </button>
-        )
-      })}
-      <AddRow label={t('newSwitch')} onClick={() => setEditing('new')} />
+      <SummaryRow label={t('switchesTitle')} summary={t('switchesCount', { count: switches.length })} onOpen={() => setOpen(true)} />
+      {open && (
+        <Dialog title={t('switchesTitle')} onClose={() => setOpen(false)}>
+          <div className="flex flex-col gap-2">
+            {switches.length === 0 && <p className="text-base text-ink-soft">{t('noSwitch')}</p>}
+            {switches.map((sw) => {
+              const usage = switchUsage(sw.id, { bindings, midiDocs, devices, dashboards })
+              const state = states[sw.id] ?? 'off'
+              return (
+                <button
+                  key={sw.id}
+                  type="button"
+                  onClick={() => setEditing(sw)}
+                  className="flex w-full items-center gap-3 rounded-control border border-line bg-surface px-3 py-2 text-left [@media(hover:hover)]:hover:bg-control-hover"
+                >
+                  <span aria-hidden className={`h-4 w-4 flex-shrink-0 rounded-sb-pill ${WIDGET_COLOR_SOLID[sw.color]}`} />
+                  <span className="flex min-w-0 flex-1 flex-col">
+                    <span className="font-semibold text-ink">{sw.name}</span>
+                    <span className="break-words text-sm text-ink-muted">{describe(sw.behavior)}</span>
+                    <span className="break-words text-sm text-ink-faint">{usage.length > 0 ? t('triggeredBy', { list: usage.join(', ') }) : t('notTriggered')}</span>
+                  </span>
+                  <Badge tone={state === 'off' ? undefined : 'accent'}>{t(`switchState.${state}`)}</Badge>
+                </button>
+              )
+            })}
+            <AddRow label={t('newSwitch')} onClick={() => setEditing('new')} />
+          </div>
+        </Dialog>
+      )}
       {editing && <SwitchDialog initial={editing === 'new' ? null : editing} onSaved={() => setEditing(null)} onClose={() => setEditing(null)} />}
     </section>
   )
