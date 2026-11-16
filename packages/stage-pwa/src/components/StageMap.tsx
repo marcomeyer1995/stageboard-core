@@ -72,7 +72,7 @@ import { StageWiring } from './StageWiring'
 import { StageLiveList } from './StageLiveList'
 import { PATH_MARK } from '../lib/stageLive'
 import { useStageLive } from '../lib/useStageLive'
-import { AddRow, Badge, Button, IconButton, InfoHint, Segmented, Switch } from './ui'
+import { AddRow, Badge, Button, IconButton, InfoHint, Segmented, Select } from './ui'
 
 /** The map's own coordinates - positions are stored in these. */
 const W = 1000
@@ -453,7 +453,7 @@ export function StageMap() {
       setDragPos({ id: g.id, x: Math.round(start.x + dx * k), y: Math.round(start.y + dy * k) })
     }
   }
-  const onPointerUp = (event: ReactPointerEvent, nodeId?: string) => {
+  const onPointerUp = (event: ReactPointerEvent, nodeId?: string, cancelled = false) => {
     event.stopPropagation()
     pointers.current.delete(event.pointerId)
     const g = gesture.current
@@ -464,7 +464,8 @@ export function StageMap() {
       void updateSetup(setup.id, (s) => ({ ...s, positions: { ...s.positions, [id]: { x, y } } })).finally(() => setDragPos(null))
       return
     }
-    if (g?.moved) return
+    // A cancelled touch was taken over by the page scroll (touch-action: pan-y) - never a tap.
+    if (cancelled || g?.moved) return
     // A tap.
     if (!nodeId) {
       if (!connectFrom) setSelection(null)
@@ -742,33 +743,66 @@ export function StageMap() {
           <InfoHint label={t('map.explainLabel')} text={t('map.explain')} />
         </div>
       )}
-      {setups.length > 1 && (
-        <div className="mb-2">
-          <Segmented label={t('map.setup')} value={setup.id} onChange={(id) => { setSetupId(id); setSelection(null) }} options={setups.map((s) => ({ value: s.id, label: setupLabel(s) }))} />
-        </div>
-      )}
+      {/* Two rows above the map (Marco, 2026-11-14, #864/#865: four rows took half a phone screen,
+          and the setup row widened the page). The first row holds only the setup dropdown; the
+          second is a toolbar with everything else: mode bar, ports, "Ganze Bühne", full screen and
+          "Bearbeiten". The ⋮ is gone - it only held the ports toggle. The mode bar is only as wide
+          as its two options, and "Bearbeiten" follows the page header: pen + word from 600 px, the
+          icon alone on a phone (2026-11-16). */}
+      <div className="mb-2">
+        <Select
+          aria-label={t('map.setup')}
+          value={setup.id}
+          onChange={(e) => {
+            setSetupId(e.target.value)
+            setSelection(null)
+          }}
+          options={setups.map((s) => ({ value: s.id, label: setupLabel(s) }))}
+          className="w-full"
+        />
+      </div>
       {ownSetup && <p className="mb-2 text-base text-ink-muted">{setup.owner === myProfileId ? t('map.ownSetupHint') : t('map.ownSetupOfHint', { person: personName(setup.owner) ?? '?' })}</p>}
       <div className="mb-2 flex flex-wrap items-center gap-2">
-        <Segmented
-          label={t('live.mode')}
-          value={checking ? 'check' : 'setup'}
-          onChange={(mode) => {
-            setChecking(mode === 'check')
-            if (mode === 'check') {
-              setEditing(false)
-              setConnectFrom(null)
-            }
-          }}
-          options={[
-            { value: 'setup', label: t('live.setup') },
-            { value: 'check', label: t('live.check') },
-          ]}
-        />
-        <Button onClick={showWhole}>{t('map.whole')}</Button>
-        <Switch layout="inline" label={t('map.ports')} checked={showPorts} onChange={setShowPorts} />
-        {isAdmin && !checking && <Switch layout="inline" label={t('map.edit')} checked={editing} onChange={(on) => { setEditing(on); setConnectFrom(null) }} />}
-        <span className="flex-1" />
-        <IconButton icon={full ? 'exitFullscreen' : 'fullscreen'} label={full ? t('map.exitFull') : t('map.full')} onClick={() => toggleFull(!full)} />
+        <div className="w-fit">
+          <Segmented
+            compact
+            label={t('live.mode')}
+            value={checking ? 'check' : 'setup'}
+            onChange={(mode) => {
+              setChecking(mode === 'check')
+              if (mode === 'check') {
+                setEditing(false)
+                setConnectFrom(null)
+              }
+            }}
+            options={[
+              { value: 'setup', label: t('live.setup') },
+              { value: 'check', label: t('live.check') },
+            ]}
+          />
+        </div>
+        <div className="ml-auto flex items-center gap-2">
+          <IconButton
+            icon={showPorts ? 'eyeOff' : 'eye'}
+            label={showPorts ? t('map.hidePorts') : t('map.showPorts')}
+            onClick={() => setShowPorts(!showPorts)}
+          />
+          <IconButton icon="fitAll" label={t('map.whole')} onClick={showWhole} />
+          <IconButton icon={full ? 'exitFullscreen' : 'fullscreen'} label={full ? t('map.exitFull') : t('map.full')} onClick={() => toggleFull(!full)} />
+          {isAdmin && !checking && (
+            <Button
+              icon="edit"
+              variant={editing ? 'primary' : 'secondary'}
+              aria-pressed={editing}
+              onClick={() => {
+                setEditing(!editing)
+                setConnectFrom(null)
+              }}
+            >
+              <span className="max-[599px]:sr-only">{t('map.edit')}</span>
+            </Button>
+          )}
+        </div>
       </div>
       {!signedIn ? <p className="mb-2 text-base text-ink-muted">{t('stage.viewOnly')}</p> : !isAdmin && <p className="mb-2 text-base text-ink-muted">{t('map.adminEdits')}</p>}
       {connectFrom && (
@@ -787,7 +821,7 @@ export function StageMap() {
         onPointerDown={(e) => onPointerDown(e)}
         onPointerMove={onPointerMove}
         onPointerUp={(e) => onPointerUp(e)}
-        onPointerCancel={(e) => onPointerUp(e)}
+        onPointerCancel={(e) => onPointerUp(e, undefined, true)}
         onWheel={onWheel}
         role="img"
         aria-label={t('map.title')}
