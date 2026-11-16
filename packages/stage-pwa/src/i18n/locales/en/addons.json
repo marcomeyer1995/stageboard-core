@@ -118,5 +118,8 @@
     "stem-separation": "Stem separation",
     "youtube-download": "YouTube download",
     "section-announcements": "Song part announcements"
-  }
+  },
+  "off": "off",
+  "activate": "Activate",
+  "deactivate": "Deactivate"
 }

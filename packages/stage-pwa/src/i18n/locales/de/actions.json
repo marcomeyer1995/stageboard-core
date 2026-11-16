@@ -163,6 +163,8 @@
     "off": "aus"
   },
   "switchesTitle": "Schalter",
+  "switchesCount_one": "1 Schalter",
+  "switchesCount_other": "{{count}} Schalter",
   "switchesExplainLabel": "Erklärung: Schalter",
   "switchesExplain": "Einmal einrichten, überall auslösen: ein Schalter wie „Blinder“ geht per Pedal, MIDI-Knopf und Dashboard-Knopf - alle zeigen denselben Zustand.",
   "noSwitch": "Noch kein Schalter.",
