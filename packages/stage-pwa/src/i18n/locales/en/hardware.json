@@ -180,6 +180,7 @@
     "ownSetupOfHint": "{{person}}'s own setup for practising - only {{person}} and you as admin see it, it is never a choice in the Gig.",
     "nobody": "nobody signed in",
     "hint": "Tap a device or a cable.",
+    "hintTwoFingers": "Tap a device or a cable. Move and zoom with two fingers.",
     "connect": "Connect",
     "connecting": "Connecting from {{port}} - tap a highlighted device.",
     "cancel": "Cancel",
