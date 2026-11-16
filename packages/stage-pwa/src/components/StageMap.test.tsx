@@ -104,6 +104,18 @@ describe('StageMap (docs/31 §7)', () => {
     expect(container.querySelector('section')).toHaveAttribute('data-no-tab-swipe')
   })
 
+  it('a page scroll that starts on the map keeps the selected device (#866, 2026-11-16)', () => {
+    setUp(false)
+    const { container } = render(<StageMap />)
+    tapNode('Pult')
+    expect(screen.getByText('Pult', { selector: 'span.font-bold' })).toBeInTheDocument()
+    // touch-action: pan-y hands one finger to the page - the browser cancels the pointer.
+    const svg = container.querySelector('svg')!
+    fireEvent.pointerDown(svg, { pointerId: 7, pointerType: 'touch' })
+    fireEvent.pointerCancel(svg, { pointerId: 7, pointerType: 'touch' })
+    expect(screen.getByText('Pult', { selector: 'span.font-bold' })).toBeInTheDocument()
+  })
+
   it('the admin lists a mixer\'s ports freely: a mono-jack Aux group added, cables kept (2026-11-07)', async () => {
     setUp(true)
     render(<StageMap />)

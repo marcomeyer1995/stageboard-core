@@ -453,7 +453,7 @@ export function StageMap() {
       setDragPos({ id: g.id, x: Math.round(start.x + dx * k), y: Math.round(start.y + dy * k) })
     }
   }
-  const onPointerUp = (event: ReactPointerEvent, nodeId?: string) => {
+  const onPointerUp = (event: ReactPointerEvent, nodeId?: string, cancelled = false) => {
     event.stopPropagation()
     pointers.current.delete(event.pointerId)
     const g = gesture.current
@@ -464,7 +464,8 @@ export function StageMap() {
       void updateSetup(setup.id, (s) => ({ ...s, positions: { ...s.positions, [id]: { x, y } } })).finally(() => setDragPos(null))
       return
     }
-    if (g?.moved) return
+    // A cancelled touch was taken over by the page scroll (touch-action: pan-y) - never a tap.
+    if (cancelled || g?.moved) return
     // A tap.
     if (!nodeId) {
       if (!connectFrom) setSelection(null)
@@ -820,7 +821,7 @@ export function StageMap() {
         onPointerDown={(e) => onPointerDown(e)}
         onPointerMove={onPointerMove}
         onPointerUp={(e) => onPointerUp(e)}
-        onPointerCancel={(e) => onPointerUp(e)}
+        onPointerCancel={(e) => onPointerUp(e, undefined, true)}
         onWheel={onWheel}
         role="img"
         aria-label={t('map.title')}
