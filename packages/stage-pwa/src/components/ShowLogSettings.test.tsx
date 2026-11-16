@@ -21,10 +21,14 @@ describe('ShowLogSettings (#673)', () => {
   it('records everything by default; an admin switches a category off and on again', () => {
     setAdmin(true)
     render(<ShowLogSettings />)
+    // One row on the Band page (#862): "Alles wird aufgezeichnet" - the switches in its dialog.
+    expect(screen.queryByRole('switch')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Nachbericht aufzeichnen: Alles wird aufgezeichnet' }))
     expect(screen.getAllByRole('switch').every((s) => s.getAttribute('aria-checked') === 'true')).toBe(true)
     fireEvent.click(screen.getByRole('switch', { name: /Abschnitte/ }))
     expect(save).toHaveBeenCalledWith({ id: 'band', showLogOff: ['sections'] })
     act(() => useBandSettingsStore.setState({ settings: { id: 'band', showLogOff: ['sections'] } }))
+    expect(screen.getByRole('button', { name: /^Nachbericht aufzeichnen: \d+ von \d+ Bereichen$/ })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('switch', { name: /Abschnitte/ }))
     expect(save).toHaveBeenLastCalledWith({ id: 'band', showLogOff: [] })
   })
@@ -33,6 +37,7 @@ describe('ShowLogSettings (#673)', () => {
     setAdmin(false)
     render(<ShowLogSettings />)
     expect(screen.getByText('Nur Band-Admins können das ändern.')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /^Nachbericht aufzeichnen:/ }))
     expect(screen.getAllByRole('switch').every((s) => (s as HTMLButtonElement).disabled)).toBe(true)
   })
 })

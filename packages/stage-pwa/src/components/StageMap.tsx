@@ -72,7 +72,7 @@ import { StageWiring } from './StageWiring'
 import { StageLiveList } from './StageLiveList'
 import { PATH_MARK } from '../lib/stageLive'
 import { useStageLive } from '../lib/useStageLive'
-import { AddRow, Badge, Button, IconButton, InfoHint, Segmented, Switch } from './ui'
+import { AddRow, Badge, Button, IconButton, InfoHint, Segmented, Select } from './ui'
 
 /** The map's own coordinates - positions are stored in these. */
 const W = 1000
@@ -403,7 +403,12 @@ export function StageMap() {
   // Pan, pinch and drag - pointer events in map coordinates.
   const svgRef = useRef<SVGSVGElement>(null)
   const pointers = useRef(new Map<number, { x: number; y: number }>())
-  const gesture = useRef<{ kind: 'pan' | 'node' | 'pinch'; id?: string; startView: ViewBox; start: { x: number; y: number }; dist?: number; moved: boolean } | null>(null)
+  const gesture = useRef<{ kind: 'pan' | 'node' | 'pinch'; id?: string; startView: ViewBox; start: { x: number; y: number }; dist?: number; moved: boolean; touch?: boolean } | null>(null)
+  // On the page, one finger scrolls the page and two move the map (Marco, 2026-11-14, #866: one
+  // finger on the map got stuck there). Editing (dragging devices, drawing cables) and fullscreen
+  // (no page to scroll) keep one finger for the map; a mouse always pans.
+  const oneFingerMap = full || canEdit
+  const coarsePointer = typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches === true
   const unitsPerPx = () => {
     const rect = svgRef.current?.getBoundingClientRect()
     if (!rect || rect.width === 0) return 1
@@ -415,11 +420,12 @@ export function StageMap() {
     pointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY })
     if (pointers.current.size === 2) {
       const [a, b] = [...pointers.current.values()]
-      gesture.current = { kind: 'pinch', startView: viewBox, start: { x: 0, y: 0 }, dist: Math.hypot(a!.x - b!.x, a!.y - b!.y), moved: true }
+      // Two fingers: zoom by their distance, pan by their midpoint.
+      gesture.current = { kind: 'pinch', startView: viewBox, start: { x: (a!.x + b!.x) / 2, y: (a!.y + b!.y) / 2 }, dist: Math.hypot(a!.x - b!.x, a!.y - b!.y), moved: true }
       return
     }
     const node = nodeId ? byId.get(nodeId) : undefined
-    gesture.current = { kind: node && canEdit ? 'node' : 'pan', id: nodeId, startView: viewBox, start: { x: event.clientX, y: event.clientY }, moved: false }
+    gesture.current = { kind: node && canEdit ? 'node' : 'pan', id: nodeId, startView: viewBox, start: { x: event.clientX, y: event.clientY }, moved: false, touch: event.pointerType !== 'mouse' }
   }
   const onPointerMove = (event: ReactPointerEvent) => {
     if (!pointers.current.has(event.pointerId)) return
@@ -429,9 +435,13 @@ export function StageMap() {
     if (g.kind === 'pinch' && pointers.current.size === 2 && g.dist) {
       const [a, b] = [...pointers.current.values()]
       const factor = g.dist / Math.max(1, Math.hypot(a!.x - b!.x, a!.y - b!.y))
-      zoomTo(g.startView, factor)
+      const zoomed = zoomedView(g.startView, factor)
+      const k = unitsPerPx()
+      setView({ ...zoomed, x: zoomed.x - ((a!.x + b!.x) / 2 - g.start.x) * k, y: zoomed.y - ((a!.y + b!.y) / 2 - g.start.y) * k })
       return
     }
+    // One finger on the page: the page scrolls (touch-action pan-y), a tap still selects.
+    if (g.kind === 'pan' && g.touch && !oneFingerMap) return
     const dx = event.clientX - g.start.x
     const dy = event.clientY - g.start.y
     if (!g.moved && Math.hypot(dx, dy) < 6) return
@@ -443,7 +453,7 @@ export function StageMap() {
       setDragPos({ id: g.id, x: Math.round(start.x + dx * k), y: Math.round(start.y + dy * k) })
     }
   }
-  const onPointerUp = (event: ReactPointerEvent, nodeId?: string) => {
+  const onPointerUp = (event: ReactPointerEvent, nodeId?: string, cancelled = false) => {
     event.stopPropagation()
     pointers.current.delete(event.pointerId)
     const g = gesture.current
@@ -454,7 +464,8 @@ export function StageMap() {
       void updateSetup(setup.id, (s) => ({ ...s, positions: { ...s.positions, [id]: { x, y } } })).finally(() => setDragPos(null))
       return
     }
-    if (g?.moved) return
+    // A cancelled touch was taken over by the page scroll (touch-action: pan-y) - never a tap.
+    if (cancelled || g?.moved) return
     // A tap.
     if (!nodeId) {
       if (!connectFrom) setSelection(null)
@@ -464,10 +475,13 @@ export function StageMap() {
     if (connectFrom && node) void finishConnect(node)
     else setSelection({ kind: 'node', id: nodeId })
   }
-  const zoomTo = (from: ViewBox, factor: number) => {
+  const zoomedView = (from: ViewBox, factor: number): ViewBox => {
     const w = Math.min(Math.max(from.w * factor, 200), 4000)
     const h = (from.h / from.w) * w
-    setView({ x: from.x + (from.w - w) / 2, y: from.y + (from.h - h) / 2, w, h })
+    return { x: from.x + (from.w - w) / 2, y: from.y + (from.h - h) / 2, w, h }
+  }
+  const zoomTo = (from: ViewBox, factor: number) => {
+    setView(zoomedView(from, factor))
   }
   const onWheel = (event: React.WheelEvent) => zoomTo(viewBox, wheelZoomFactor(event.deltaY, event.deltaMode))
 
@@ -729,33 +743,66 @@ export function StageMap() {
           <InfoHint label={t('map.explainLabel')} text={t('map.explain')} />
         </div>
       )}
-      {setups.length > 1 && (
-        <div className="mb-2">
-          <Segmented label={t('map.setup')} value={setup.id} onChange={(id) => { setSetupId(id); setSelection(null) }} options={setups.map((s) => ({ value: s.id, label: setupLabel(s) }))} />
-        </div>
-      )}
+      {/* Two rows above the map (Marco, 2026-11-14, #864/#865: four rows took half a phone screen,
+          and the setup row widened the page). The first row holds only the setup dropdown; the
+          second is a toolbar with everything else: mode bar, ports, "Ganze Bühne", full screen and
+          "Bearbeiten". The ⋮ is gone - it only held the ports toggle. The mode bar is only as wide
+          as its two options, and "Bearbeiten" follows the page header: pen + word from 600 px, the
+          icon alone on a phone (2026-11-16). */}
+      <div className="mb-2">
+        <Select
+          aria-label={t('map.setup')}
+          value={setup.id}
+          onChange={(e) => {
+            setSetupId(e.target.value)
+            setSelection(null)
+          }}
+          options={setups.map((s) => ({ value: s.id, label: setupLabel(s) }))}
+          className="w-full"
+        />
+      </div>
       {ownSetup && <p className="mb-2 text-base text-ink-muted">{setup.owner === myProfileId ? t('map.ownSetupHint') : t('map.ownSetupOfHint', { person: personName(setup.owner) ?? '?' })}</p>}
       <div className="mb-2 flex flex-wrap items-center gap-2">
-        <Segmented
-          label={t('live.mode')}
-          value={checking ? 'check' : 'setup'}
-          onChange={(mode) => {
-            setChecking(mode === 'check')
-            if (mode === 'check') {
-              setEditing(false)
-              setConnectFrom(null)
-            }
-          }}
-          options={[
-            { value: 'setup', label: t('live.setup') },
-            { value: 'check', label: t('live.check') },
-          ]}
-        />
-        <Button onClick={showWhole}>{t('map.whole')}</Button>
-        <Switch layout="inline" label={t('map.ports')} checked={showPorts} onChange={setShowPorts} />
-        {isAdmin && !checking && <Switch layout="inline" label={t('map.edit')} checked={editing} onChange={(on) => { setEditing(on); setConnectFrom(null) }} />}
-        <span className="flex-1" />
-        <IconButton icon={full ? 'exitFullscreen' : 'fullscreen'} label={full ? t('map.exitFull') : t('map.full')} onClick={() => toggleFull(!full)} />
+        <div className="w-fit">
+          <Segmented
+            compact
+            label={t('live.mode')}
+            value={checking ? 'check' : 'setup'}
+            onChange={(mode) => {
+              setChecking(mode === 'check')
+              if (mode === 'check') {
+                setEditing(false)
+                setConnectFrom(null)
+              }
+            }}
+            options={[
+              { value: 'setup', label: t('live.setup') },
+              { value: 'check', label: t('live.check') },
+            ]}
+          />
+        </div>
+        <div className="ml-auto flex items-center gap-2">
+          <IconButton
+            icon={showPorts ? 'eyeOff' : 'eye'}
+            label={showPorts ? t('map.hidePorts') : t('map.showPorts')}
+            onClick={() => setShowPorts(!showPorts)}
+          />
+          <IconButton icon="fitAll" label={t('map.whole')} onClick={showWhole} />
+          <IconButton icon={full ? 'exitFullscreen' : 'fullscreen'} label={full ? t('map.exitFull') : t('map.full')} onClick={() => toggleFull(!full)} />
+          {isAdmin && !checking && (
+            <Button
+              icon="edit"
+              variant={editing ? 'primary' : 'secondary'}
+              aria-pressed={editing}
+              onClick={() => {
+                setEditing(!editing)
+                setConnectFrom(null)
+              }}
+            >
+              <span className="max-[599px]:sr-only">{t('map.edit')}</span>
+            </Button>
+          )}
+        </div>
       </div>
       {!signedIn ? <p className="mb-2 text-base text-ink-muted">{t('stage.viewOnly')}</p> : !isAdmin && <p className="mb-2 text-base text-ink-muted">{t('map.adminEdits')}</p>}
       {connectFrom && (
@@ -770,11 +817,11 @@ export function StageMap() {
       <svg
         ref={svgRef}
         viewBox={`${viewBox.x} ${viewBox.y} ${viewBox.w} ${viewBox.h}`}
-        className={`w-full touch-none select-none rounded-container border border-line bg-surface ${full ? 'min-h-0 flex-1' : 'h-[60vh] max-h-[560px]'}`}
+        className={`w-full ${oneFingerMap ? 'touch-none' : 'touch-pan-y'} select-none rounded-container border border-line bg-surface ${full ? 'min-h-0 flex-1' : 'h-[60vh] max-h-[560px]'}`}
         onPointerDown={(e) => onPointerDown(e)}
         onPointerMove={onPointerMove}
         onPointerUp={(e) => onPointerUp(e)}
-        onPointerCancel={(e) => onPointerUp(e)}
+        onPointerCancel={(e) => onPointerUp(e, undefined, true)}
         onWheel={onWheel}
         role="img"
         aria-label={t('map.title')}
@@ -993,7 +1040,7 @@ export function StageMap() {
           />
         )}
 
-        {!selectedNode && !selectedLink && !connectFrom && <p className="text-base text-ink-muted">{t('map.hint')}</p>}
+        {!selectedNode && !selectedLink && !connectFrom && <p className="text-base text-ink-muted">{t(!oneFingerMap && coarsePointer ? 'map.hintTwoFingers' : 'map.hint')}</p>}
         {canEdit && !selectedNode && !selectedLink && (
           <div className="flex flex-col gap-2">
             <AddRow label={t('map.addEquipment')} onClick={() => void addEquipment()} />

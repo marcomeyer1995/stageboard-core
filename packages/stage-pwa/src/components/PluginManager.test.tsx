@@ -33,6 +33,21 @@ describe('PluginManager (System cleanup 2026-10-16)', () => {
     expect(confirm).toHaveBeenCalled()
   })
 
+  it('one row per add-on: on/off from ⋯, a switched-off one dimmed and "aus" (#870)', async () => {
+    const setEnabled = vi.fn()
+    usePluginsStore.setState({ installed: [plugin('mock-mixer', 'Mock Mixer', ['mixer'])], setEnabled } as never)
+    const { rerender } = render(<PluginManager kind="test" />)
+    expect(screen.queryByRole('switch')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Menü: Mock Mixer' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Deaktivieren' }))
+    expect(setEnabled).toHaveBeenCalledWith('mock-mixer', false)
+    usePluginsStore.setState({ installed: [{ ...plugin('mock-mixer', 'Mock Mixer', ['mixer']), enabled: false }] } as never)
+    rerender(<PluginManager kind="test" />)
+    expect(screen.getByText(/Mischpult · aus/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Menü: Mock Mixer' }))
+    expect(screen.getByRole('button', { name: 'Aktivieren' })).toBeInTheDocument()
+  })
+
   it('lists each plugin in one place: drivers (with a transport), test stand-ins, the rest as Add-ons', () => {
     const kemper = { ...plugin('kemper-profiler', 'Kemper Profiler', ['kemper-control']), transports: [{ kind: 'midi' }] }
     usePluginsStore.setState({ installed: [kemper, plugin('mock-mixer', 'Mock Mixer', ['mixer']), plugin('piper-speech', 'Sprachausgabe (Piper)', ['speech-synthesis'])] } as never)

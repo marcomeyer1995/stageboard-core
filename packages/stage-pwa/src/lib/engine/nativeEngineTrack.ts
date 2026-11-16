@@ -3,8 +3,10 @@ import { getTrack } from '../songVariantsDb'
 import { useNativeTrackStore, type NativeTrackStatus } from './nativeTrackStore'
 import { ENGINE_BUS } from './wasmEngine'
 import { base64 } from './announcementClip'
+import { isOggOpus } from './trackFile'
 
 export { useNativeTrackStore } from './nativeTrackStore'
+export { isOggOpus } from './trackFile'
 
 /**
  * The backing track from the engine core in the native output's callback (docs/30 §8h stage 4),
@@ -33,12 +35,6 @@ export function wantsNativeTrack(): boolean {
   }
 }
 
-/** Ogg with an OpusHead in its first page - what the engine plays. */
-export async function isOggOpus(blob: Blob): Promise<boolean> {
-  const head = new Uint8Array(await blob.slice(0, 36).arrayBuffer())
-  const text = (from: number, to: number) => String.fromCharCode(...head.subarray(from, to))
-  return head.length >= 36 && text(0, 4) === 'OggS' && text(28, 36) === 'OpusHead'
-}
 
 
 let generation = 0

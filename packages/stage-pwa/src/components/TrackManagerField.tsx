@@ -14,6 +14,7 @@ import { newDeviceJob, runOnDevice, searchOnDevice } from '../lib/youtubeDevice'
 import { HelperError } from '../lib/nativeHelper'
 import { getDeviceId } from '../lib/deviceId'
 import { useAsyncJobsStore } from '../store/useAsyncJobsStore'
+import { NoEncoderError, toTrackFile, TRACK_MIME } from '../lib/engine/trackFile'
 import { useDialogStore } from '../store/useDialogStore'
 import { usePluginsStore } from '../store/usePluginsStore'
 import { StemSeparationDialog } from './StemSeparationDialog'
@@ -212,6 +213,8 @@ export function TrackManagerField({ variantId, tracks, disabled, searchQuery = '
       const durationMs = await measureAudioDurationMs(file)
       const role: StemRole | undefined = stem ? guessStemRole(file.name) : undefined
       try {
+        // Every file goes up as Ogg Opus, converted here (#775) - the host never has to.
+        const track = await toTrackFile(file, (done) => setUploadProgress(t('tm.converting', { name: file.name, pct: Math.round(done * 100) })))
         await putTrack(
           variantId,
           {
@@ -221,14 +224,14 @@ export function TrackManagerField({ variantId, tracks, disabled, searchQuery = '
             source: 'upload',
             parentTrackId: null,
             ...(role && { role }),
-            mimeType: file.type,
+            mimeType: TRACK_MIME,
             addedAt: Date.now(),
             ...(durationMs !== null && { durationMs }),
           },
-          file,
+          track,
         )
       } catch (err) {
-        setUploadProgress(`${file.name}: ${err instanceof Error ? err.message : String(err)}`)
+        setUploadProgress(err instanceof NoEncoderError ? t('tm.noEncoder') : `${file.name}: ${err instanceof Error ? err.message : String(err)}`)
         setBusyTrackId(null)
         return
       }

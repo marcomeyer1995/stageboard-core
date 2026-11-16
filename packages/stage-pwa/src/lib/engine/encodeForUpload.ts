@@ -5,7 +5,7 @@ import wasmUrl from './stageboard_opus.wasm?url'
 /**
  * Any audio file the browser can read (MP3, AAC, WAV, FLAC, WebM, …) → the track format, Ogg Opus
  * (docs/30 §8h). The browser decodes it straight to 48 kHz (an OfflineAudioContext at that rate
- * resamples on decoding), a worker encodes it. Not wired into the upload yet.
+ * resamples on decoding), a worker encodes it. Used by every upload (trackFile.ts, #775).
  */
 export async function encodeForUpload(source: Blob, onProgress?: (done: number) => void): Promise<Blob> {
   const decoded = await new OfflineAudioContext(2, 1, TRACK_RATE).decodeAudioData(await source.arrayBuffer())

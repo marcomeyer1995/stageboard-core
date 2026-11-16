@@ -65,6 +65,7 @@ import {
   Redo2,
   Undo2,
   Settings,
+  Scan,
   Lock,
   LockOpen,
   Maximize2,
@@ -125,6 +126,8 @@ const ICONS = {
   sort: ArrowUpDown,
   fullscreen: Maximize2,
   exitFullscreen: Minimize2,
+  /** Show the whole map again (stage map, #865). */
+  fitAll: Scan,
   more: Ellipsis,
   moreVertical: EllipsisVertical,
   blocked: Ban,

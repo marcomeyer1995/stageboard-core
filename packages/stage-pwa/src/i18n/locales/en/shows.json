@@ -57,7 +57,9 @@
     "title": "Record for the Nachbericht",
     "explainLabel": "Explanation: record for the Nachbericht",
     "explain": "What the band records during a show - for a Nachbericht that shows what happened when and how. Applies to all of the band’s devices, from the moment it is changed.",
-    "adminOnly": "Only band admins can change this."
+    "adminOnly": "Only band admins can change this.",
+    "all": "Everything is recorded",
+    "someOn": "{{on}} of {{total}} areas"
   },
   "cat": {
     "songs": "Songs",
