@@ -4,7 +4,7 @@ import { useActiveProfileStore } from '../store/useActiveProfileStore'
 import { useAppModeStore } from '../store/useAppModeStore'
 import { useStageMapStore } from '../store/useStageMapStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
-import { choiceRow } from './ui'
+import { Select } from './ui'
 import { useTranslation } from 'react-i18next'
 
 /**
@@ -12,6 +12,8 @@ import { useTranslation } from 'react-i18next'
  * band - then click, announcements and track sit where this device's matrix puts them there. In
  * the Gig the active setup decides; this choice is per device and only for practising. Own setups
  * (#799) are offered to their owner only - the admin sees them in Stage, but practises by their own.
+ * One dropdown, the chosen option's explanation once below it (Marco, 2026-11-14, #861: one big
+ * row per setup, each with the same three lines, filled a phone screen).
  */
 export function PracticeOutputSettings() {
   const { t } = useTranslation('system')
@@ -29,16 +31,18 @@ export function PracticeOutputSettings() {
     ...mine.map((s) => ({ id: s.id, title: t('practiceOutput.ownSetup', { name: s.name }), detail: t('practiceOutput.ownSetupDetail') })),
     ...setups.map((s) => ({ id: s.id, title: t('practiceOutput.setup', { name: s.name }), detail: t('practiceOutput.setupDetail') })),
   ]
+  // Ids of the dropdown: '' stands for "both ears" (null).
+  const chosen = options.find((option) => option.id === setupId) ?? options[0]!
   return (
-    <div className="flex flex-col gap-2" role="radiogroup" aria-label={t('practiceOutput.label')}>
-      {options.map((option) => (
-        <button key={option.id ?? ''} type="button" role="radio" aria-checked={setupId === option.id} onClick={() => setSetupId(option.id)} className={choiceRow(setupId === option.id)}>
-          <span className="flex flex-col text-left">
-            <span className="text-base font-semibold">{option.title}</span>
-            <span className="text-sm opacity-80">{option.detail}</span>
-          </span>
-        </button>
-      ))}
+    <div className="flex flex-col gap-2">
+      <Select
+        aria-label={t('practiceOutput.label')}
+        value={chosen.id ?? ''}
+        onChange={(e) => setSetupId(e.target.value === '' ? null : e.target.value)}
+        options={options.map((option) => ({ value: option.id ?? '', label: option.title }))}
+        className="w-full"
+      />
+      <p className="text-sm text-ink-muted">{chosen.detail}</p>
       {practising && fellBack && (
         <p role="status" className="text-base text-ink-muted">
           {t('practiceOutput.fellBack')}

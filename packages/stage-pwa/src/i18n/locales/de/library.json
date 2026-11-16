@@ -114,8 +114,7 @@
     "styleHeading": "Abschnitts-Überschrift (z. B. Set 1)",
     "notes": "Notizen für die Band (optional)",
     "seconds": "Dauer (Sekunden, optional - für automatischen Übergang)",
-    "addHeading": "Abschnitt hinzufügen",
-    "addAnnouncement": "Ansage / Pause hinzufügen",
+    "addProgramItem": "Programmpunkt hinzufügen",
     "add": "Hinzufügen",
     "edit": "Eintrag bearbeiten"
   },
@@ -127,8 +126,7 @@
   "setlistRemoved": "Setlist wurde entfernt.",
   "name": "Name",
   "gigDate": "Auftrittsdatum",
-  "addAnnouncement": "Ansage / Pause",
-  "addHeading": "Abschnitt",
+  "addProgramItem": "Programmpunkt",
   "pv": {
     "songs_one": "{{count}} Song",
     "songs_other": "{{count}} Songs",

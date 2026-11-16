@@ -23,10 +23,13 @@ describe('PracticeOutputSettings (#742)', () => {
   it('starts on both ears and switches to a setup of the band, kept per device', () => {
     useStageMapStore.setState({ ...defaultStageMap([{ id: 'redmi', name: 'Redmi' }]), loaded: true })
     render(<PracticeOutputSettings />)
-    expect(screen.getByRole('radio', { name: /Alles auf beide Ohren/ })).toHaveAttribute('aria-checked', 'true')
-    fireEvent.click(screen.getByRole('radio', { name: /Wie im Aufbau „Standard“/ }))
+    const select = screen.getByRole('combobox', { name: 'Ausgang beim Üben' }) as HTMLSelectElement
+    expect(select.value).toBe('')
+    expect(screen.getByText(/braucht keine Karte/)).toBeInTheDocument()
+    fireEvent.change(select, { target: { value: (screen.getByRole('option', { name: 'Wie im Aufbau „Standard“' }) as HTMLOptionElement).value } })
     expect(usePracticeOutputStore.getState().setupId).toBe('standard')
     expect(localStorage.getItem('sb:audio:practiceSetup')).toBe('standard')
-    expect(screen.getByRole('radio', { name: /Wie im Aufbau „Standard“/ })).toHaveAttribute('aria-checked', 'true')
+    expect(select.value).toBe('standard')
+    expect(screen.getByText(/wie in der Matrix dieses Geräts/)).toBeInTheDocument()
   })
 })

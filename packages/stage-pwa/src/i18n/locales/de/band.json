@@ -6,7 +6,9 @@
     "adminOnly": "Nur der Band-Admin kann die Vorlagen ändern.",
     "delete": "Vorlage „{{template}}“ löschen",
     "new": "Neue Vorlage",
-    "text": "Text des Kommentars"
+    "text": "Text des Kommentars",
+    "count_one": "1 Vorlage",
+    "count_other": "{{count}} Vorlagen"
   },
   "master": {
     "title": "Master-Kontrolle - {{band}}",
