@@ -6,7 +6,9 @@
     "adminOnly": "Only the band admin can change the templates.",
     "delete": "Delete template “{{template}}”",
     "new": "New template",
-    "text": "Text of the comment"
+    "text": "Text of the comment",
+    "count_one": "1 template",
+    "count_other": "{{count}} templates"
   },
   "master": {
     "title": "Master control - {{band}}",
