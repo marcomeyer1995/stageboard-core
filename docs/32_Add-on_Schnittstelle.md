@@ -169,3 +169,66 @@ Im Manifest (*gebaut*, #756 – `HelpersSchema`; `certSha256` ist eine Liste, da
 | YouTube-Download | JS-Add-on | Laptop: `yt-dlp`; Android: App-Paket mit NewPipeExtractor (zuerst) |
 
 Reihenfolge: erst das YouTube-Hilfsprogramm für Android (prüft §8 an einem echten Fall), dann die Sandbox (§4/§6) mit einem Geräte-Translator als erstem Umzug, dann die übrigen.
+
+## 12. Distribution: one repository per add-on – *concept* (#852, decisions by Marco on 2026-11-14)
+
+*(In English per #785; the rest of this file is still German.)*
+
+Today the catalogue is fixed in code (`core-backend/src/plugins/catalog.ts`, `stage-pwa/src/lib/pluginCatalog.ts`), and an Android helper comes onto a device only via adb. The goal is a catalogue a band builds itself from repositories.
+
+### 12a. Decisions
+
+| Question | Decision |
+|---|---|
+| Repositories | **one repository per add-on** (as HACS does for Home Assistant: "einheitlicher"), also for StageBoard's own add-ons, so there is no index file listing several |
+| Scope | **per band**: the band's list of add-on sources lives in its database, like everything else of the band |
+| Who | **only the admin** installs, updates, removes and manages the sources |
+| Finding | a **suggestion list** in the Add-ons tab plus **"Aus Repository installieren"** (a GitHub address, also by QR code) |
+| Suggestion list | StageBoard's own public repository listing recommended add-on repositories (like the HACS default list); developers ask to be added, Marco decides |
+| Before installing | the add-on's **permissions** (§7, like Android app permissions), the **publisher** with a **warning if unknown**, **download size and exact source** (repository, release), **where it runs** (devices / host / needs a helper on Android or a laptop) |
+| Updates | the host checks regularly and shows "Update verfügbar (v1.2 → v1.3)" with the changes; installed only **when the admin confirms**, **never during a gig** |
+| Failure | the installed version **stays**: the host keeps its files locally, it keeps running when the repository disappears, and a broken update can be **rolled back** to the previous version |
+| StageBoard's own add-ons | the **important ones are preinstalled** in every new band, the rest are loaded when needed. Which ones count as important is open. Proposal: section announcements, speech (Piper), MIDI clock |
+
+### 12b. An add-on repository
+
+A GitHub repository whose **releases** are the versions. The latest release that is not a pre-release is the current version, and its tag is the version (`v1.3.0` → `1.3.0`, SemVer).
+
+- **`stageboard-addon.json`** in each release (as a release asset, so a version's manifest never changes afterwards): the manifest of §2 (`id`, `name`, `version`, `apiVersion`, `runtime`, `capabilities`, `transports`, `hardwareIds`, `timing`, `permissions`, `helpers`, settings schema), plus
+  - `files`: every file of this version with its **SHA-256** and size: the client bundle (`client.js`), the server part (`server.js`), assets. Paths refer to assets of the same release.
+  - `changes`: a short text of what is new (shown with the update).
+  - `minStageBoard`: the oldest StageBoard version it runs on, optional.
+- **Helpers** stay as in §8: `helpers.android` names the APK (asset of the same release) and its signing certificate fingerprint; `helpers.desktop` names the program and minimum version. StageBoard downloads the APK and checks the fingerprint **before** opening Android's installer (#764).
+- The **publisher** is the repository owner (`github.com/<owner>/<repo>`). It is "known" when it is StageBoard's own organisation or on the suggestion list, otherwise "unknown" and the warning shows. A future signature (as F-Droid has) can replace this.
+
+### 12c. In the band
+
+- **`addon-sources:<id>`** documents in the band database: repository URL, the version installed, the versions kept (for rollback), when last checked, and "publisher confirmed" (the admin accepted the warning once).
+- The **installed add-on** stays the `PluginInstallation` of §2. Its `clientSource`/`source` now point to the **host's copy** (`/addons/<id>/<version>/client.js`), never to GitHub, so devices load from the host, also offline.
+- The **host** downloads a version's files once, checks every SHA-256, keeps them under its state directory (`addons/<id>/<version>/`) and serves them. It keeps the current and the previous version (rollback). Without a host (Solo) the device does the same in its own storage.
+
+### 12d. Flows
+
+1. **Install from the suggestion list:** Add-ons tab → "Hinzufügen" → list (name, short text, publisher, where it runs) → an entry → the details of 12a (permissions, publisher, size, source, where it runs; the unknown-publisher warning when it applies) → "Installieren" → the host downloads and checks → the add-on appears like a built-in one today.
+2. **Install from a repository address:** the same, after typing or scanning the address. An address that is not an add-on repository (no `stageboard-addon.json`, wrong `apiVersion`) gets a clear message.
+3. **Update:** the host checks the sources (at start and every 24 h, not during a gig). A newer version → "Update verfügbar (v1.2 → v1.3)" with `changes` and **new permissions highlighted**. The admin confirms, the host downloads and checks, and the devices switch at the next idle moment (not mid-song).
+4. **Rollback:** at an updated add-on, "Vorige Version" switches back to the kept copy, no download needed.
+5. **Repository gone / no internet:** the add-on keeps running from the host's copy, and the source shows "nicht erreichbar seit …".
+6. **New band:** the preinstalled set comes with the app (its files in the APK/web build), with updates from their repositories as for any other.
+
+### 12e. Steps
+
+1. **Manifest file and release layout** (`stageboard-addon.json`, schema in shared-types, `files` with SHA-256) and one real repository as reference: the YouTube add-on (its helper repo exists).
+2. **Host:** sources documents, download + verify + serve (`/addons/…`), keep two versions; the device in Solo the same.
+3. **Install from an address** in the Add-ons tab with the details screen and the warning (#763's scope, done this way).
+4. **Suggestion list:** StageBoard's list repository and the list in the tab.
+5. **Updates and rollback**, never during a gig.
+6. **Helper install from StageBoard** (#764) on top of 1–3.
+7. **Move the built-in add-ons** into their own repositories one by one (§11), and define the preinstalled set.
+
+### 12f. Acceptance
+
+- Install an add-on that is not built in (the MG-30 translator as the first moved one) from its repository address; it works on the devices and keeps working with the internet off.
+- An update shows with its new permissions, is installed only after confirming, and can be rolled back.
+- An unknown publisher shows the warning, and a member who is not admin cannot install.
+- A new band has the preinstalled set without internet.
