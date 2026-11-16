@@ -57,7 +57,9 @@
     "title": "Nachbericht aufzeichnen",
     "explainLabel": "Erklärung: Nachbericht aufzeichnen",
     "explain": "Was die Band während einer Show aufzeichnet - für einen Nachbericht, der zeigt, was wann wie passiert ist. Gilt für alle Geräte der Band, ab dem Moment der Änderung.",
-    "adminOnly": "Nur Band-Admins können das ändern."
+    "adminOnly": "Nur Band-Admins können das ändern.",
+    "all": "Alles wird aufgezeichnet",
+    "someOn": "{{on}} von {{total}} Bereichen"
   },
   "cat": {
     "songs": "Songs",
