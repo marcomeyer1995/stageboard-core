@@ -7,7 +7,7 @@ import { useDialogStore } from '../store/useDialogStore'
 import { useServerNow } from '../lib/useNow'
 import { AnnouncementTextsDialog } from './AnnouncementTextsDialog'
 import { SpeechVoiceDialog } from './SpeechVoiceDialog'
-import { ActionMenu, Badge, Button, Switch, InfoHint } from './ui'
+import { ActionMenu, Badge, Button, InfoHint } from './ui'
 import { useTranslation } from 'react-i18next'
 
 /** Plugins with band-wide settings of their own - opened with "Einstellungen" on their card. */
@@ -61,42 +61,37 @@ export function PluginManager({ kind = 'extensions' }: { kind?: PluginKind }) {
       <div className="mb-6 space-y-2">
         {mine.length === 0 && <p className="text-sm text-ink-faint">{header.empty}</p>}
         {mine.map((plugin) => (
-          <div key={plugin.id} className="flex flex-col gap-3 rounded-container border border-line bg-surface px-4 py-3 shadow-sb">
-            {/* Name and ⋯ on top - the ⋯ always top right, on every card (2026-10-20: beside the
-                switch it wandered into the middle once "Einstellungen" wrapped). Text keeps the full
-                width otherwise; the controls go in one row below (Marco, 2026-10-07). */}
-            <div className="flex items-start gap-2">
-              <div className="min-w-0 flex-1">
-                <p className="font-semibold">
-                  {pluginName(plugin)} <span className="text-sm font-normal text-ink-faint">v{plugin.version}</span>{' '}
-                  {/* A stand-in that only logs (lib/pluginCatalog.ts TEST_PLUGIN_IDS) - never mistaken for the real thing. */}
-                  {isTestPlugin(plugin.id) && <Badge tone="warning">{t('testBadge')}</Badge>}
-                </p>
-                <p className="text-sm text-ink-muted">
-                  {capabilitiesLabel(plugin.capabilities) || t('noFunctions')} · {healthLabel(plugin)}
-                </p>
-              </div>
-              {/* Entfernen behind ⋯ like every list row - a red button on every card was nine red
-                  buttons on one page (System cleanup, 2026-10-16). */}
-              <ActionMenu
-                title={pluginName(plugin)}
-                actions={[
-                  {
-                    icon: 'remove',
-                    label: t('remove'),
-                    danger: true,
-                    onClick: async () => {
-                      if (await confirm(t('removeConfirm', { name: pluginName(plugin) }), { confirmLabel: t('remove'), danger: true })) void uninstall(plugin.id)
-                    },
+          <div key={plugin.id} className={`flex items-start gap-2 rounded-container border border-line bg-surface px-4 py-3 shadow-sb ${plugin.enabled ? '' : 'opacity-60'}`}>
+            {/* One row (Marco, 2026-11-14, #870): name, version, what it does and its state - on/off,
+                settings and removal behind ⋯ (later also update, version check, repository, #852).
+                Switched off stays visible: dimmed and "aus" in the status line. */}
+            <div className="min-w-0 flex-1">
+              <p className="font-semibold">
+                {pluginName(plugin)} <span className="text-sm font-normal text-ink-faint">v{plugin.version}</span>{' '}
+                {/* A stand-in that only logs (lib/pluginCatalog.ts TEST_PLUGIN_IDS) - never mistaken for the real thing. */}
+                {isTestPlugin(plugin.id) && <Badge tone="warning">{t('testBadge')}</Badge>}
+              </p>
+              <p className="text-sm text-ink-muted">
+                {capabilitiesLabel(plugin.capabilities) || t('noFunctions')} · {plugin.enabled ? healthLabel(plugin) : t('off')}
+              </p>
+            </div>
+            <ActionMenu
+              title={pluginName(plugin)}
+              actions={[
+                plugin.enabled
+                  ? { icon: 'deactivate' as const, label: t('deactivate'), onClick: () => void setEnabled(plugin.id, false) }
+                  : { icon: 'activate' as const, label: t('activate'), onClick: () => void setEnabled(plugin.id, true) },
+                ...(SETTINGS[plugin.id] ? [{ icon: 'setup' as const, label: t('settings'), onClick: () => setSettingsOf(plugin.id) }] : []),
+                {
+                  icon: 'remove' as const,
+                  label: t('remove'),
+                  danger: true,
+                  onClick: async () => {
+                    if (await confirm(t('removeConfirm', { name: pluginName(plugin) }), { confirmLabel: t('remove'), danger: true })) void uninstall(plugin.id)
                   },
-                ]}
-              />
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              {/* On/off = a switch (docs/15 D5), never a button whose text flips. */}
-              <Switch layout="inline" label={t('active')} checked={plugin.enabled} onChange={(on) => void setEnabled(plugin.id, on)} />
-              {SETTINGS[plugin.id] && <Button onClick={() => setSettingsOf(plugin.id)}>{t('settings')}</Button>}
-            </div>
+                },
+              ]}
+            />
           </div>
         ))}
       </div>
