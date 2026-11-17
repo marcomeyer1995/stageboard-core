@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { INPUT_FREE } from './ui/styles'
-import { Button } from './ui'
+import { Button, PinInput } from './ui'
 import { useTranslation } from 'react-i18next'
 
 type Step = 'checking' | 'code' | 'roster' | 'pin'
@@ -187,14 +187,7 @@ export function VerifyWorkspaceAdmin({
           }}
           className="flex gap-2"
         >
-          <input
-            value={pinInput}
-            onChange={(e) => setPinInput(e.target.value.replace(/\D/g, '').slice(0, 4))}
-            placeholder={t('adm.pin4')}
-            inputMode="numeric"
-            autoFocus
-            className={`h-form min-w-0 flex-1 min-w-0 px-3 text-center text-lg tracking-widest ${INPUT_FREE}`}
-          />
+          <PinInput value={pinInput} onChange={setPinInput} placeholder={t('adm.pin4')} autoFocus className="flex-1" />
           <Button variant="primary" className="flex-shrink-0" type="submit" disabled={busy || pinInput.length !== 4}>
             {busy ? '…' : t('adm.confirm')}
           </Button>

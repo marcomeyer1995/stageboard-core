@@ -8,15 +8,21 @@ import { getStageServerUrl } from './stageServer'
  * caller falls back to the older code-only QR rather than showing an error for something that
  * doesn't block joining by hand.
  */
-export async function fetchServerAddress(): Promise<{ lanIp: string; certFingerprint: string | null } | null> {
+/** The address another device uses to reach this server: the LAN IP, plus the port when it is not
+ * HTTPS's 443 (a laptop host, a second server - #896). */
+export function hostWithPort(lanIp: string, port: number | null | undefined): string {
+  return port && port !== 443 ? `${lanIp}:${port}` : lanIp
+}
+
+export async function fetchServerAddress(): Promise<{ host: string; certFingerprint: string | null } | null> {
   const base = getStageServerUrl()
   if (!base) return null
   try {
     const response = await fetch(`${base}/server-info`)
     if (!response.ok) return null
-    const { lanIp, certFingerprint } = (await response.json()) as { lanIp: string | null; certFingerprint?: string | null }
+    const { lanIp, port, certFingerprint } = (await response.json()) as { lanIp: string | null; port?: number | null; certFingerprint?: string | null }
     // The certificate fingerprint lets the native app pin the server when it scans the QR (#348).
-    return lanIp ? { lanIp, certFingerprint: certFingerprint ?? null } : null
+    return lanIp ? { host: hostWithPort(lanIp, port), certFingerprint: certFingerprint ?? null } : null
   } catch {
     return null
   }

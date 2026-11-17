@@ -7,8 +7,7 @@ import { useDialogStore } from '../store/useDialogStore'
 import { useProfilesStore } from '../store/useProfilesStore'
 import { useShowStateStore } from '../store/useShowStateStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
-import { Button, Dialog, choiceRow } from './ui'
-import { INPUT_FREE } from './ui/styles'
+import { Button, Dialog, choiceRow, PinInput } from './ui'
 import { useTranslation } from 'react-i18next'
 
 /**
@@ -72,14 +71,13 @@ export function SwitchProfileDialog({ onClose }: { onClose: () => void }) {
         >
           <p className="text-base text-ink-soft">{t('menu:profile.pinOf', { name: askingPinFor.name })}</p>
           <div className="flex gap-2">
-            <input
+            <PinInput
               value={pin}
-              onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+              onChange={setPin}
               placeholder={t('menu:profile.pinPlaceholder')}
-              inputMode="numeric"
-              aria-label={t('menu:profile.pinOf', { name: askingPinFor.name })}
+              ariaLabel={t('menu:profile.pinOf', { name: askingPinFor.name })}
               autoFocus
-              className={`h-form flex-1 min-w-0 px-3 text-center text-lg tracking-widest ${INPUT_FREE}`}
+              className="flex-1"
             />
             <Button variant="primary" type="submit" disabled={busy || pin.length !== 4}>
               {busy ? '…' : t('menu:profile.switch')}

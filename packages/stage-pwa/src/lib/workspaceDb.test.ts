@@ -59,6 +59,11 @@ describe('remoteDbUrl', () => {
   it('returns null when no Stage-Server is configured at all', () => {
     expect(remoteDbUrl('band-a')).toBeNull()
   })
+  it('uses the given server instead of the configured one (#897)', () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(import.meta.env as any).VITE_STAGE_SERVER_URL = 'https://old-server'
+    expect(remoteDbUrl('band-b', 'https://new-server:8443')).toBe('https://new-server:8443/db/stageboard-band-b')
+  })
 })
 
 describe('destroyLocalWorkspaceDb', () => {
@@ -77,6 +82,16 @@ describe('startWorkspaceSync', () => {
 
     const remote = constructed.find((c) => c.name === 'https://stage-server:3001/db/stageboard-band-a')
     expect(remote?.options).toEqual({ auth: { username: 'stageboard-band-a', password: 'secret-pw' } })
+  })
+
+  it('syncs with the server it is given - a server switch restarts it against the new one (#897)', () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(import.meta.env as any).VITE_STAGE_SERVER_URL = 'https://old-server'
+
+    startWorkspaceSync('band-a', { username: 'stageboard-band-a', password: 'secret-pw' }, 'https://new-server:8443')
+
+    expect(constructed.some((c) => c.name === 'https://new-server:8443/db/stageboard-band-a')).toBe(true)
+    expect(constructed.some((c) => c.name === 'https://old-server/db/stageboard-band-a')).toBe(false)
   })
 
   it('returns null without constructing a remote db when no Stage-Server is configured', () => {

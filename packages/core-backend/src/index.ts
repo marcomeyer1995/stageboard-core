@@ -467,6 +467,9 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
 
   app.get('/server-info', async () => ({
     lanIp: process.env.LAN_IP ?? detectLanIp(),
+    // The port this server listens on - a host off 443 (a laptop, a second server) must put it
+    // into the invite QR, else a scan lands on whatever answers on 443 (#896).
+    port: Number(process.env.PORT ?? 3001),
     hostname: process.env.MDNS_HOSTNAME ?? 'stageboard.local',
     certFingerprint: CERT_FINGERPRINT,
   }))
