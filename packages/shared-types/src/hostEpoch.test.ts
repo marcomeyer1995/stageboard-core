@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { HostTimeAnswerSchema, HostTimeSchema } from './hostEpoch'
+import { HostTimeAnswerSchema, HostTimeSchema } from './hostEpoch.js'
 
 describe('HostTimeSchema (#910)', () => {
   it('accepts serverTime, hostId and an epoch of 1 or more', () => {
