@@ -46,7 +46,7 @@ function flush() {
 }
 
 beforeEach(() => {
-  useSyncStore.setState({ streams: {}, progress: {} })
+  useSyncStore.setState({ streams: {}, progress: {}, notOnServer: {} })
   __resetSyncQueueForTests()
 })
 
@@ -110,6 +110,30 @@ describe('trackedSync', () => {
     await flush()
     emit('error', new Error('fatal'))
     expect(useSyncStore.getState().streams.songs).toBe('error')
+  })
+
+  it('flags a stream whose band the server does not have (404), but not any other fatal error (#897)', async () => {
+    const missing = fakeLocalDb()
+    const refused = fakeLocalDb()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    trackedSync('band', missing.db as any, {} as any, { workspaceId: 'band-a' })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    trackedSync('other', refused.db as any, {} as any, { workspaceId: 'band-b' })
+    await flush()
+    missing.emit('error', Object.assign(new Error('missing'), { status: 404 }))
+    refused.emit('error', Object.assign(new Error('unauthorized'), { status: 401 }))
+    expect(useSyncStore.getState().notOnServer).toEqual({ 'band-a': true })
+  })
+
+  it('drops the flag once the stream is cancelled or reports anything but the 404', async () => {
+    const { db, emit } = fakeLocalDb()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    trackedSync('band', db as any, {} as any, { workspaceId: 'band-a' })
+    await flush()
+    emit('error', Object.assign(new Error('missing'), { status: 404 }))
+    expect(useSyncStore.getState().notOnServer['band-a']).toBe(true)
+    emit('complete')
+    expect(useSyncStore.getState().notOnServer['band-a']).toBeUndefined()
   })
 
   it('removes the stream entirely on "complete" (cancelled), instead of leaving a stale status', async () => {
