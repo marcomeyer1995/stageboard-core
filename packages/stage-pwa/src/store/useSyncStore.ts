@@ -45,6 +45,10 @@ interface SyncState {
    */
   browserOffline: boolean
   setBrowserOffline: (offline: boolean) => void
+  /** Bands (by workspace id) whose database the paired Stage-Server answered with 404: the band
+   * is not on that server (#897). Reports for it have nowhere to go, so the reporters skip them. */
+  notOnServer: Record<string, true>
+  setNotOnServer: (name: string, missing: boolean) => void
 }
 
 export const useSyncStore = create<SyncState>((set) => ({
@@ -81,6 +85,15 @@ export const useSyncStore = create<SyncState>((set) => ({
   // events themselves degrade to on such a browser (they simply never fire).
   browserOffline: typeof navigator !== 'undefined' && 'onLine' in navigator ? !navigator.onLine : false,
   setBrowserOffline: (offline) => set({ browserOffline: offline }),
+  notOnServer: {},
+  setNotOnServer: (name, missing) =>
+    set((state) => {
+      if (missing === (name in state.notOnServer)) return state
+      const notOnServer = { ...state.notOnServer }
+      if (missing) notOnServer[name] = true
+      else delete notOnServer[name]
+      return { notOnServer }
+    }),
 }))
 
 /**
