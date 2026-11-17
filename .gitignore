@@ -19,3 +19,4 @@ tools/*/out/
 
 # Python bytecode (stem_separate.py when imported)
 __pycache__/
+.worktrees/
