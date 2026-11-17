@@ -1,4 +1,6 @@
 import i18n from '../i18n'
+import { AddonSandbox } from './addonSandbox/sandboxHost'
+import { sandboxTranslator } from './addonSandbox/sandboxTranslator'
 import { CAPABILITIES, type CapabilityId, type PluginInstallation, type ShowControlEvent, type ShowControlResult, apiVersionFits } from 'shared-types'
 import { CQ18T_CAPABILITY, cq18tTranslator } from './cq18tTranslator'
 import { KEMPER_CAPABILITY, kemperTranslator } from './kemperTranslator'
@@ -6,7 +8,7 @@ import { MG30_CAPABILITY, mg30Translator } from './mg30Translator'
 import { MIDI_CLOCK_CAPABILITY, midiClockTranslator } from './midiClockOutputs'
 import { RC500_CAPABILITY, rc500Translator } from './rc500Translator'
 import { UI24R_CAPABILITY, ui24rTranslator } from './ui24rTranslator'
-import { loadClientPlugin } from './loadClientPlugin'
+import { fetchClientBundle, isRepositoryAddon, loadClientPlugin } from './loadClientPlugin'
 import { useLocalLightingStore } from '../store/useLocalLightingStore'
 import { useLocalMixerStore } from '../store/useLocalMixerStore'
 
@@ -98,7 +100,7 @@ export function preloadDynamicTranslator(
   installed: PluginInstallation[],
   stageServerUrl: string | null,
 ): Promise<void> {
-  if (TRANSLATORS[capability] || dynamicTranslators.has(capability)) return Promise.resolve()
+  if (dynamicTranslators.has(capability)) return Promise.resolve()
   const pending = pendingDynamicLoads.get(capability)
   if (pending) return pending
 
@@ -108,10 +110,12 @@ export function preloadDynamicTranslator(
     (candidate) => candidate.enabled && candidate.capabilities.includes(capability) && candidate.clientSource && apiVersionFits(candidate),
   )
   if (!plugin) return Promise.resolve()
+  // A built-in translator stays unless the band installed the add-on from its own repository
+  // (#757): then the sandboxed one replaces it.
+  if (TRANSLATORS[capability] && !isRepositoryAddon(plugin)) return Promise.resolve()
 
-  const promise = loadClientPlugin(plugin, stageServerUrl)
-    .then((module) => {
-      const translator = module?.registerTranslator?.(capability)
+  const promise = (isRepositoryAddon(plugin) ? loadSandboxedTranslator(plugin, capability, stageServerUrl) : loadClientPlugin(plugin, stageServerUrl).then((module) => module?.registerTranslator?.(capability) ?? null))
+    .then((translator) => {
       if (translator) dynamicTranslators.set(capability, translator)
     })
     .catch(() => {
@@ -147,7 +151,17 @@ export function hasClientTranslator(installed: PluginInstallation[], capability:
  * already checked it can assert non-null. Static registry wins on the (today, impossible) off
  * chance a capability somehow has both. */
 export function getTranslator(capability: CapabilityId): Translator | null {
-  return TRANSLATORS[capability] ?? dynamicTranslators.get(capability) ?? null
+  // A loaded add-on wins: it is there only when no built-in one exists, or when the band installed
+  // the add-on from its own repository to replace the built-in one (#757).
+  return dynamicTranslators.get(capability) ?? TRANSLATORS[capability] ?? null
+}
+
+/** The sandboxed add-on (#757): its code from the host's checked copy, run in its own Worker. */
+async function loadSandboxedTranslator(plugin: PluginInstallation, capability: CapabilityId, stageServerUrl: string | null): Promise<Translator | null> {
+  const blob = await fetchClientBundle(plugin, stageServerUrl)
+  if (!blob) return null
+  const sandbox = new AddonSandbox(plugin, await blob.text(), i18n.language)
+  return sandboxTranslator(capability, sandbox, plugin.name)
 }
 
 /**

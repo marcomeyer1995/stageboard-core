@@ -76,6 +76,8 @@ export default {
 | | `health` | `online` / `offline` / `error` + Meldung (§9) |
 | | `log` | Zeile fürs Protokoll |
 
+*Built (2026-11-17, #757, in English per #785):* the sandbox for device add-ons - `stage-pwa/src/lib/addonSandbox/` (`protocol.ts`, `sandboxHost.ts`, `sandboxTranslator.ts`). An add-on installed from its own repository (`clientSource` under `/addons/…`, §12) runs as a **classic Worker script** (no imports) from the host's checked copy and replaces a built-in translator for its capability; others are untouched. Messages as in the table, version 1 (`ADDON_PROTOCOL_VERSION`): `init` also carries `protocol` and the app's `language`; `event` carries `context.midiChannel` (the device's channel - StageBoard picks the device and port, the add-on never names a port). **Added:** `midi-out` may ask for a reply (`request`, `expectReply: { prefix, timeoutMs }`); StageBoard then listens on the same device's input *before* sending and answers with `midi-reply` (the identity handshake needs it - a reply can be faster than a listener attached afterwards, found with the real MG-30 on 2026-09-08). `midi-out` without a `midi-out:` permission is refused; an event without an answer fails after 5 s. First add-on: [stageboard-addon-nux-mg30](https://github.com/marcomeyer1995/stageboard-addon-nux-mg30) (release v0.1.0).
+
 Widgets eines Add-ons kommen als Beschreibung (welche Bedienelemente, welche Werte), nicht als eigener React-Code – damit sie in StageBoards UI-System (docs/15) bleiben und das Add-on keinen Zugriff auf die Seite braucht.
 
 ## 5. Ereignisse und Zeit – *gebaut*
