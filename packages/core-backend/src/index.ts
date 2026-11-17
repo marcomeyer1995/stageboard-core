@@ -1,5 +1,8 @@
 import { createSocket } from 'node:dgram'
+import { AddonError, addonFilePath, addonRoot, installAddonVersion, previewAddon, pruneAddonVersions } from './addons/addonStore.js'
+import { AddonInstallRequestSchema, AddonPreviewRequestSchema } from 'shared-types'
 import { existsSync, readFileSync } from 'node:fs'
+import { readFile } from 'node:fs/promises'
 import { CalibrationRuns } from './calibration/calibrationRuns.js'
 import { listAudioInputs, MeasureInputStore, measureLevel } from './calibration/measureInputs.js'
 import { fallbackMicDevice, startMicCapture } from './calibration/micCapture.js'
@@ -382,6 +385,14 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
     if ((await verifyUser(couch, login.username, login.password)) === null) return false
     verifiedBandLogins.set(key, Date.now() + BAND_LOGIN_CACHE_MS)
     return true
+  }
+
+  /** A device login of this band with the admin role (docs/32 §12a: only the admin installs add-ons). */
+  async function isBandAdmin(workspaceId: string, authorization: string | undefined): Promise<boolean> {
+    const login = basicAuthCredentials(authorization)
+    if (!login || !login.username.startsWith(`${workspaceDbName(workspaceId)}-`)) return false
+    const verified = await verifyUser(couch, login.username, login.password)
+    return verified !== null && verified.roles.includes('admin')
   }
 
 
@@ -1050,6 +1061,66 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
       return reply.status(404).send({ status: 'error', message: 'No client bundle cached for this plugin' })
     }
     return reply.type('application/javascript').send(bundle)
+  })
+
+  // Add-ons from their own repositories (docs/32 §12, #852): the host keeps each version's files,
+  // checked against their SHA-256, and the devices load them from here - never from the internet.
+  app.get('/addons/:id/:version/:file', async (request, reply) => {
+    const { id, version, file } = request.params as { id: string; version: string; file: string }
+    const path = addonFilePath(addonRoot(), id, version, file)
+    if (!path) return reply.status(400).send({ status: 'error', message: 'Invalid add-on file' })
+    const data = await readFile(path).catch(() => null)
+    if (data === null) return reply.status(404).send({ status: 'error', message: 'No such add-on file kept' })
+    // A version's files never change - only a new version does.
+    reply.header('cache-control', 'public, max-age=31536000, immutable')
+    return reply.type(file.endsWith('.js') ? 'application/javascript' : file.endsWith('.json') ? 'application/json' : 'application/octet-stream').send(data)
+  })
+
+  /** What the admin sees before installing: the latest release's manifest, publisher, source, size. */
+  app.post('/workspaces/:workspaceId/addons/preview', async (request, reply) => {
+    const { workspaceId } = request.params as { workspaceId: string }
+    if (!(await isBandAdmin(workspaceId, request.headers.authorization))) {
+      return reply.status(403).send({ status: 'error', message: 'Only an admin of this band manages add-ons' })
+    }
+    const parsed = AddonPreviewRequestSchema.safeParse(request.body)
+    if (!parsed.success) return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
+    try {
+      const { preview } = await previewAddon(parsed.data.repository, { apiBase: process.env.STAGEBOARD_GITHUB_API })
+      return preview
+    } catch (err) {
+      if (err instanceof AddonError) return reply.status(422).send({ status: 'error', code: err.code, message: err.message })
+      throw err
+    }
+  })
+
+  /** Downloads and checks the latest release and keeps it (with the version before it, for
+   * rollback). `expectedVersion`: what the admin saw in the preview - a newer release in between is
+   * refused rather than installed unseen. The band's documents are written by the admin's device. */
+  app.post('/workspaces/:workspaceId/addons/install', async (request, reply) => {
+    const { workspaceId } = request.params as { workspaceId: string }
+    if (!(await isBandAdmin(workspaceId, request.headers.authorization))) {
+      return reply.status(403).send({ status: 'error', message: 'Only an admin of this band manages add-ons' })
+    }
+    const parsed = AddonInstallRequestSchema.safeParse(request.body)
+    if (!parsed.success) return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
+    const deps = { apiBase: process.env.STAGEBOARD_GITHUB_API }
+    try {
+      const { preview, release } = await previewAddon(parsed.data.repository, deps)
+      if (preview.manifest.version !== parsed.data.expectedVersion) {
+        return reply.status(409).send({ status: 'error', code: 'version-changed', message: `The repository now offers ${preview.manifest.version}`, version: preview.manifest.version })
+      }
+      await installAddonVersion(preview.manifest, release, addonRoot(), deps)
+      const keep = [preview.manifest.version, ...(parsed.data.previousVersion ? [parsed.data.previousVersion] : [])]
+      await pruneAddonVersions(addonRoot(), preview.manifest.id, keep)
+      app.log.info({ workspaceId, addon: preview.manifest.id, version: preview.manifest.version, repository: preview.repository }, 'Add-on version kept')
+      return { ...preview, keptVersions: keep }
+    } catch (err) {
+      if (err instanceof AddonError) {
+        app.log.warn({ workspaceId, repository: parsed.data.repository, code: err.code, detail: err.message }, 'Add-on install refused')
+        return reply.status(422).send({ status: 'error', code: err.code, message: err.message })
+      }
+      throw err
+    }
   })
 
   app.post('/plugins/:name/trigger', async (request, reply) => {

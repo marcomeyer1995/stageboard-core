@@ -174,6 +174,20 @@ describe('Fastify routes', () => {
     })
   })
 
+  describe('add-ons from repositories (#852)', () => {
+    it('serves only plain add-on files, never a path out of the folder', async () => {
+      expect((await app.inject({ method: 'GET', url: '/addons/nux-mg30/0.1.0/..%2F..%2Fsecret' })).statusCode).toBe(400)
+      expect((await app.inject({ method: 'GET', url: '/addons/nux-mg30/0.1.0/stageboard-addon.json' })).statusCode).toBe(400)
+      expect((await app.inject({ method: 'GET', url: '/addons/nux-mg30/9.9.9/client.js' })).statusCode).toBe(404)
+    })
+
+    it('preview and install only for an admin of the band', async () => {
+      const body = { repository: 'github.com/someone/stageboard-addon-x', expectedVersion: '1.0.0' }
+      expect((await app.inject({ method: 'POST', url: '/workspaces/band-a/addons/preview', payload: body })).statusCode).toBe(403)
+      expect((await app.inject({ method: 'POST', url: '/workspaces/band-a/addons/install', payload: body })).statusCode).toBe(403)
+    })
+  })
+
   describe('GET /server-info', () => {
     afterEach(() => {
       delete process.env.LAN_IP

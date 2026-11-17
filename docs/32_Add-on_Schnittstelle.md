@@ -195,7 +195,9 @@ Today the catalogue is fixed in code (`core-backend/src/plugins/catalog.ts`, `st
 A GitHub repository whose **releases** are the versions. The latest release that is not a pre-release is the current version, and its tag is the version (`v1.3.0` → `1.3.0`, SemVer).
 
 - **`stageboard-addon.json`** in each release (as a release asset, so a version's manifest never changes afterwards): the manifest of §2 (`id`, `name`, `version`, `apiVersion`, `runtime`, `capabilities`, `transports`, `hardwareIds`, `timing`, `permissions`, `helpers`, settings schema), plus
-  - `files`: every file of this version with its **SHA-256** and size: the client bundle (`client.js`), the server part (`server.js`), assets. Paths refer to assets of the same release.
+  - `files`: every file of this version with its **SHA-256** and size: the client bundle (`client.js`), the server part (`server.js`), assets. Each `name` is an asset of the same release - a plain file name, no folders (a release's assets are flat, and a name can never leave the version's folder on the host).
+  - `clientFile` / `serverFile`: which of `files` is the client bundle the devices load, and the host's server part.
+  - *Built (2026-11-17, #852 steps 1-2):* `AddonReleaseManifestSchema` / `AddonSourceSchema` in `shared-types/src/addonRelease.ts`; the host's part in `core-backend/src/addons/addonStore.ts` - read the latest release, check the manifest (schema, version = tag, `apiVersion`, every file present), download, check each SHA-256, keep under `<state>/addons/<id>/<version>/`, keep two versions; routes `GET /addons/:id/:version/:file`, `POST /workspaces/:id/addons/preview` and `…/install` (admin only).
   - `changes`: a short text of what is new (shown with the update).
   - `minStageBoard`: the oldest StageBoard version it runs on, optional.
 - **Helpers** stay as in §8: `helpers.android` names the APK (asset of the same release) and its signing certificate fingerprint; `helpers.desktop` names the program and minimum version. StageBoard downloads the APK and checks the fingerprint **before** opening Android's installer (#764).
