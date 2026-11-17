@@ -892,7 +892,9 @@ describe('listWorkspaces', () => {
     ])
     const [url, init] = fetchMock.mock.calls[0]
     expect(url).toBe('https://stage-server:3001/workspaces')
-    expect(init).toBeUndefined()
+    // No auth, no code - only a time limit, so a host that is gone counts as unreachable (#782).
+    expect(init?.headers).toBeUndefined()
+    expect(init?.signal).toBeInstanceOf(AbortSignal)
   })
 
   it('returns null quietly when no Stage-Server is configured - a background load, no pop-up', async () => {

@@ -11,6 +11,9 @@ import { getWorkspaceAccessDoc, watchWorkspaceAccessDoc } from '../lib/workspace
 import { persist } from 'zustand/middleware'
 import { useDialogStore } from './useDialogStore'
 
+/** The band list from the host: no answer within this counts as "not reachable". */
+const LIST_TIMEOUT_MS = 8_000
+
 export interface Workspace {
   id: string
   name: string
@@ -734,7 +737,9 @@ export const useWorkspaceStore = create<WorkspaceState>()(
 
         let response: Response
         try {
-          response = await fetch(`${base}/workspaces`)
+          // A host that is gone answers nothing - without a limit the join screen waited forever
+          // instead of saying the Stage-Server can't be reached (#782).
+          response = await fetch(`${base}/workspaces`, { signal: AbortSignal.timeout(LIST_TIMEOUT_MS) })
         } catch (err) {
           console.error('Failed to reach Stage-Server for workspace list', err)
           void useDialogStore

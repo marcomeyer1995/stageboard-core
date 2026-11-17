@@ -12,6 +12,7 @@
     "audioError": "Audio error",
     "audioFallback": "Sound: fallback",
     "outputMissing": "Output missing",
+    "hostGone": "Host gone",
     "syncError": "Sync error",
     "offline": "Offline",
     "noMaster": "No master",

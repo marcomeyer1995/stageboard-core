@@ -47,6 +47,10 @@ interface ShowStateStore {
    * actions go through, so "only the current master ever writes ShowState" (claimMaster's
    * trust model) stays enforced in a single place rather than duplicated per caller. */
   applyPatch: (patch: Partial<ShowState>) => Promise<void>
+  /** This device only: no database write, no push - for a device that has to act while there is
+   * no host to hear from the master (#782: the song ends on every device by itself). The master's
+   * next change (newer stateIssuedAt) replaces it as usual once the host is back. */
+  applyLocally: (patch: Partial<ShowState>) => void
 }
 
 let changesHandle: LocalChangesHandle<ShowState> | null = null
@@ -164,6 +168,7 @@ export const useShowStateStore = create<ShowStateStore>((set, get) => ({
     // Pushed like a transport change: every device must go by the same setup before the next Play.
     await get().applyPatch({ activeSetupId: setupId })
   },
+  applyLocally: (patch) => set({ state: { ...get().state, ...patch } }),
   applyPatch: async (patch) => {
     if (!get().isMaster) return
     // This device's own state first, the database second: waiting for the write to come back

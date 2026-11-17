@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useHostStatus } from '../lib/hostContact'
 import { useTranslation } from 'react-i18next'
 import { ScrollOnceText } from './ScrollOnceText'
 import { fitStatusBarItems, STATUS_BAR_ITEMS, type StatusBarItem } from '../lib/statusBarItems'
@@ -134,9 +135,13 @@ export function StatusBar({
   const { mode, queue, elapsedNow, playbackStatus, liveTempoAdjustPercent, trackOverride, canControl, trackEnded } = useShowModeCore()
   const { currentEntry, currentSong, currentVariant } = queue
   const noMaster = useShowStateStore((state) => state.state.masterHolderId === null)
-  const syncStatus = useSyncStore((state) => deriveSyncStatus(state.streams, state.browserOffline))
+  const streamSyncStatus = useSyncStore((state) => deriveSyncStatus(state.streams, state.browserOffline))
   const holdsToken = useShowStateStore((state) => state.holdsToken)
   const audioError = useLocalAudioOutputStore((state) => state.error)
+  const hostGone = useHostStatus() === 'gone'
+  // Requests to a host that is gone hang instead of failing, so the streams still say "synced" -
+  // the bar must not show a tick beside "Host weg" (#782).
+  const syncStatus = hostGone && streamSyncStatus !== 'error' ? 'offline' : streamSyncStatus
   const audioFallback = useNativeOutputStore((state) => state.fellBack !== null)
   const outputMissing = useOutputPlanStore((state) => silencedSources(state.plan).length > 0)
   const profile = useActiveProfile()
@@ -196,6 +201,7 @@ export function StatusBar({
     isCountIn,
     finished,
     noMaster,
+    hostGone,
     syncStatus,
     audioError,
     audioFallback,

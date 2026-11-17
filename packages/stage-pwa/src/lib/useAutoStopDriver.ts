@@ -1,4 +1,6 @@
 import { useEffect, useRef } from 'react'
+import { useHostStatus } from './hostContact'
+import { endSongLocally } from './queue'
 import { isSongEntry } from 'shared-types'
 import { songDurationMs } from './entryDuration'
 import { resolveTrackForEntry } from './computeQueue'
@@ -28,7 +30,11 @@ import { useFrameValue } from './useFrameValue'
  * end point this driver waits for, so it delays the handoff too.
  */
 export function useAutoStopDriver(): void {
-  const { elapsedNow, playbackStatus, drivesAutomation: canControl, clickExtendMs, stopAtTrackEnd, next, play, queue, trackOverride } = useShowModeCore()
+  const { mode, elapsedNow, playbackStatus, drivesAutomation: canControl, clickExtendMs, stopAtTrackEnd, next, play, queue, trackOverride } = useShowModeCore()
+  // Gig without a host (#782): the master can't take the band into the next song - nobody would
+  // hear it - so the song only ends, and every other device ends it by itself.
+  const host = useHostStatus()
+  const noHost = mode === 'gig' && host !== 'ok'
   const { currentEntry, currentVariant, nextEntry } = queue
 
   // Whether the entry has run out - looked at every frame, but this re-renders only when it flips
@@ -61,8 +67,18 @@ export function useAutoStopDriver(): void {
       handledForRunRef.current = false
       return
     }
-    if (!canControl || handledForRunRef.current || !pastEnd) return
+    if (handledForRunRef.current || !pastEnd) return
+    if (!canControl) {
+      if (!noHost) return
+      handledForRunRef.current = true
+      endSongLocally()
+      return
+    }
     handledForRunRef.current = true
+    if (noHost) {
+      void stopAtTrackEnd()
+      return
+    }
     const action = resolveTrackEndAction(currentEntry, nextEntry)
     if (action.kind === 'stop') {
       void stopAtTrackEnd()
@@ -72,7 +88,7 @@ export function useAutoStopDriver(): void {
       pendingStartRef.current = { entryId: nextEntry.id, skipCountIn: action.skipCountIn, delayMs: action.delayMs }
     }
     void next()
-  }, [playbackStatus, canControl, pastEnd, stopAtTrackEnd, next, currentEntry, nextEntry])
+  }, [playbackStatus, canControl, noHost, pastEnd, stopAtTrackEnd, next, currentEntry, nextEntry])
 
   const currentEntryId = currentEntry?.id ?? null
   useEffect(() => {

@@ -57,6 +57,13 @@ describe('masterSelfCheck (#378 option B)', () => {
   const base = { deviceId: 'me', now: 100_000, holdingSince: 0, hasStageServer: true }
   const beat = (deviceId: string, at: number) => ({ deviceId, at })
 
+  it('keeps control while the host is unreachable - nobody can take over without it (#782)', () => {
+    expect(masterSelfCheck({ ...base, syncStatus: 'offline', heartbeat: null, hostUnreachable: true })).toBe('ok')
+    expect(masterSelfCheck({ ...base, syncStatus: 'idle', heartbeat: beat('other', 99_000), hostUnreachable: true })).toBe('ok')
+    // With the host reachable the old rule stands.
+    expect(masterSelfCheck({ ...base, syncStatus: 'offline', heartbeat: null, hostUnreachable: false })).toBe('offline')
+  })
+
   it("passes while the server confirms this device's heartbeat", () => {
     expect(masterSelfCheck({ ...base, syncStatus: 'idle', heartbeat: beat('me', 95_000) })).toBe('ok')
   })
