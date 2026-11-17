@@ -2,12 +2,13 @@ import { pluginName } from '../lib/pluginCatalog'
 import { useState, type ComponentType } from 'react'
 import { API_VERSION_MISMATCH_CODE, apiVersionFits, HEALTH_TIMEOUT_MS, type PluginInstallation } from 'shared-types'
 import { usePluginsStore } from '../store/usePluginsStore'
-import { capabilitiesLabel, installableCatalog, isTestPlugin, pluginKind, type PluginKind } from '../lib/pluginCatalog'
+import { capabilitiesLabel, catalogEntry, installableCatalog, isTestPlugin, pluginKind, type PluginKind } from '../lib/pluginCatalog'
+import { availableUpdate, updatedInstallation } from '../lib/pluginUpdate'
 import { useDialogStore } from '../store/useDialogStore'
 import { useServerNow } from '../lib/useNow'
 import { AnnouncementTextsDialog } from './AnnouncementTextsDialog'
 import { SpeechVoiceDialog } from './SpeechVoiceDialog'
-import { ActionMenu, Badge, Button, InfoHint } from './ui'
+import { ActionMenu, Badge, Button, InfoHint, type MenuAction } from './ui'
 import { useTranslation } from 'react-i18next'
 
 /** Plugins with band-wide settings of their own - opened with "Einstellungen" on their card. */
@@ -70,6 +71,10 @@ export function PluginManager({ kind = 'extensions' }: { kind?: PluginKind }) {
                 {pluginName(plugin)} <span className="text-sm font-normal text-ink-faint">v{plugin.version}</span>{' '}
                 {/* A stand-in that only logs (lib/pluginCatalog.ts TEST_PLUGIN_IDS) - never mistaken for the real thing. */}
                 {isTestPlugin(plugin.id) && <Badge tone="warning">{t('testBadge')}</Badge>}
+                {(() => {
+                  const update = availableUpdate(plugin, catalogEntry(plugin.id))
+                  return update && <Badge tone="accent">{update.from === update.to ? t('updateBadgeSame') : t('updateBadge', { to: update.to })}</Badge>
+                })()}
               </p>
               <p className="text-sm text-ink-muted">
                 {capabilitiesLabel(plugin.capabilities) || t('noFunctions')} · {plugin.enabled ? healthLabel(plugin) : t('off')}
@@ -82,6 +87,27 @@ export function PluginManager({ kind = 'extensions' }: { kind?: PluginKind }) {
                   ? { icon: 'deactivate' as const, label: t('deactivate'), onClick: () => void setEnabled(plugin.id, false) }
                   : { icon: 'activate' as const, label: t('activate'), onClick: () => void setEnabled(plugin.id, true) },
                 ...(SETTINGS[plugin.id] ? [{ icon: 'setup' as const, label: t('settings'), onClick: () => setSettingsOf(plugin.id) }] : []),
+                ...((): MenuAction[] => {
+                  // #834: the catalogue has a newer version, or the same one with manifest fields this
+                  // copy lacks - update in place, settings and on/off kept; new permissions confirmed first.
+                  const entry = catalogEntry(plugin.id)
+                  const update = availableUpdate(plugin, entry)
+                  if (!entry || !update) return []
+                  return [
+                    {
+                      icon: 'update' as const,
+                      // Same version, newer manifest (fields the band's copy lacks): no "v0.0.1 → v0.0.1".
+                      label: update.from === update.to ? t('updateSame') : t('update', { from: update.from, to: update.to }),
+                      onClick: async () => {
+                        if (update.newPermissions.length > 0) {
+                          const ok = await confirm(t('updatePermissions', { name: pluginName(plugin), permissions: update.newPermissions.join(', ') }), { confirmLabel: t('updateConfirm') })
+                          if (!ok) return
+                        }
+                        void install(updatedInstallation(plugin, entry))
+                      },
+                    },
+                  ]
+                })(),
                 {
                   icon: 'remove' as const,
                   label: t('remove'),
