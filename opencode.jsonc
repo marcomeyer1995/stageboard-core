@@ -1,0 +1,21 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "claude-agent/sonnet",
+  "agents": {
+    "explore": {
+      "model": "opencode/deepseek-v4.1-flash-free",
+      "mode": "subagent"
+    },
+    "general": {
+      "model": "opencode/deepseek-v4.1-flash-free",
+      "mode": "subagent"
+    }
+  },
+  "plugin": [
+    "superpowers@git+https://github.com/obra/superpowers.git#v7.0.2"
+  ],
+  "tool_output": {
+    "max_lines": 200,
+    "max_bytes": 8192
+  }
+}
