@@ -50,6 +50,8 @@ import { useWakeLock } from './lib/useWakeLock'
 import { useWorkspaceResource } from './lib/useWorkspaceResource'
 import { useOpusConvertJobs } from './lib/useOpusConvertJobs'
 import { startWorkspaceSync } from './lib/workspaceDb'
+import { getAutomaticStageServerUrl } from './lib/stageServer'
+import { useStageServerStore } from './store/useStageServerStore'
 import { useActiveProfileStore } from './store/useActiveProfileStore'
 import { useDashboardsStore } from './store/useDashboardsStore'
 import { useDeviceTransportConfigStore } from './store/useDeviceTransportConfigStore'
@@ -177,18 +179,24 @@ function App() {
   // own document kind), but none of them starts an independent remote sync anymore. No
   // credentials stored yet (JoinBandView below hasn't been completed) just means no sync
   // starts - joining re-triggers this.
+  // The paired Stage-Server: a switch to another one must restart the sync against it (#897).
+  const stageServerUrl = useStageServerStore((state) => state.url) ?? getAutomaticStageServerUrl()
   const startSync = useCallback(
     (workspaceId: string): TrackedSync | null => {
       if (!activeWorkspacePassword || !activeWorkspaceUsername) return null
       // Per-person-accounts follow-up: the username is whatever this device's own personal
       // account turned out to be (stored per-Workspace, no longer a fixed derivable formula -
       // see useWorkspaceStore.ts's doc comment on `Workspace.username`).
-      return startWorkspaceSync(workspaceId, {
-        username: activeWorkspaceUsername,
-        password: activeWorkspacePassword,
-      })
+      return startWorkspaceSync(
+        workspaceId,
+        {
+          username: activeWorkspaceUsername,
+          password: activeWorkspacePassword,
+        },
+        stageServerUrl,
+      )
     },
-    [activeWorkspacePassword, activeWorkspaceUsername],
+    [activeWorkspacePassword, activeWorkspaceUsername, stageServerUrl],
   )
   useWorkspaceResource(noopInit, startSync, activeWorkspaceId)
 
