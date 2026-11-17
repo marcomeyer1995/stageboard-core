@@ -419,5 +419,20 @@
       "click": "Click",
       "voice": "Announcements"
     }
+  },
+  "hostRole": {
+    "title": "Host role",
+    "primary": "Primary",
+    "backup": "Backup",
+    "none": "No role",
+    "setPrimary": "Set as primary",
+    "setBackup": "Set as backup",
+    "remove": "Remove role",
+    "askPrimary": "Address of the primary host",
+    "askBackup": "Address of the backup host",
+    "address": "Address",
+    "check": "Check and save",
+    "notReached": "The host does not answer, or it is too old to be named. Is it running and reachable? Nothing was saved.",
+    "locked": "Not changeable while a song plays."
   }
 }

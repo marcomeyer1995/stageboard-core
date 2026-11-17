@@ -65,6 +65,7 @@ import { samePoint, stereoBadge } from '../lib/matrixPoint'
 import { RoutingMatrix, type MatrixLine } from './RoutingMatrix'
 import { PortListDialog } from './PortListDialog'
 import { HostPlugins } from './HostPlugins'
+import { HostRole } from './HostRole'
 import { wheelZoomFactor } from '../lib/wheelZoom'
 import { listMidiOutputs } from '../lib/webMidiOutput'
 import { PLUGIN_CATALOG } from '../lib/pluginCatalog'
@@ -916,6 +917,7 @@ export function StageMap() {
             </div>
             {/* The host: its server plugins, installable where it can run them (docs/25 §6). */}
             {(selectedNode.kind === 'stage-server' || appsOf(selectedNode).includes(SERVER_EXECUTION_TARGET)) && <HostPlugins canInstall={canEdit} />}
+            {(selectedNode.kind === 'stage-server' || appsOf(selectedNode).includes(SERVER_EXECUTION_TARGET)) && <HostRole boxId={selectedNode.id} canEdit={canEdit} />}
             {appsOf(selectedNode).length > 1 && (
               <div className="flex flex-col gap-1">
                 <span className="text-base font-semibold">{t('map.appsHere')}</span>
