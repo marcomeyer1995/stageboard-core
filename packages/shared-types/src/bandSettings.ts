@@ -26,6 +26,8 @@ export const BandHostEntrySchema = z.object({
   hostId: z.string().min(1),
   url: z.string().url().startsWith('https://'),
   certFingerprint: z.string().regex(/^[0-9a-f]{64}$/).optional(),
+  /** The stage-map box this host runs on (docs/31) - the map sets the roles, so it must find the box again. */
+  equipmentId: z.string().min(1).optional(),
   /** 1 = the primary, 2 = the backup. */
   priority: z.union([z.literal(1), z.literal(2)]),
 })

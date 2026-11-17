@@ -16,6 +16,11 @@ describe('BandSettings.hosts (#912)', () => {
     expect(parse([{ hostId: 'laptop', url: 'https://x.local', priority: 1 }]).success).toBe(true)
   })
 
+  it('may name the stage-map box the host runs on, and rejects an empty name', () => {
+    expect(parse([{ ...primary, equipmentId: 'laptop-box' }]).success).toBe(true)
+    expect(parse([{ ...primary, equipmentId: '' }]).success).toBe(false)
+  })
+
   it('rejects more than two hosts', () => {
     expect(parse([primary, backup, { ...backup, hostId: 'third', priority: 1 }]).success).toBe(false)
   })
