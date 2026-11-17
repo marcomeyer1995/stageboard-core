@@ -167,6 +167,8 @@ void followHeard(double measured) {
             gTimestampJumps.fetch_add(1);
             LOG("timestamp jump: %.1f ms at frame %lld", gPendingErr, gFrames);
             gHeardMs0 = measured;
+            // A step of the frame clock, not drift: the engine's clock map re-anchors on it (#874).
+            if (gEngine) gEngine->clockStepNow();
             gPendingSince = -1;
         }
     } else {

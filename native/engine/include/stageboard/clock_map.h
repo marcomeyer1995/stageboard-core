@@ -66,6 +66,16 @@ class ClockMap {
    */
   void setOffset(double offsetMs, int64_t frame);
 
+  /**
+   * The output says its frame clock stepped: frames went missing or were played twice (a USB
+   * transfer late under load, a confirmed timestamp jump), so from here a frame is heard earlier or
+   * later than before - a step, not drift. The next observation re-anchors at once (counted as a
+   * jump) and the learned drift is kept. Fed as ordinary observations, such steps of 3-16 ms (below
+   * `jumpMs`) were read as drift by the slope fit: 340-750 ppm for up to a minute after Play on the
+   * Redmi (#874).
+   */
+  void markStep() { stepPending_ = true; }
+
   bool valid() const { return valid_; }
   double bandMsAt(double frame) const;
   /** Inverse of bandMsAt, as a fractional frame. */
@@ -114,6 +124,8 @@ class ClockMap {
   /** Observations beyond jumpMs in a row, and their direction. */
   int off_ = 0;
   int offSign_ = 0;
+  /** markStep() was called: the next observation starts a new window. */
+  bool stepPending_ = false;
 
   /** The offset glides from `offsetFrom_` at `offsetFrame_` to `offsetTo_` over `offsetFrames_`. */
   bool offsetSet_ = false;

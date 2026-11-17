@@ -285,6 +285,41 @@ static void testClockMapOffset() {
   }
 }
 
+static void testClockMapStep() {
+  std::printf("clock map: a step of the output's frame clock (#874)\n");
+  // The Redmi on its own USB driver (2026-11-17): at Play a late transfer loses 16.2 ms (or 3.5 ms)
+  // of frames - from then on each frame is heard that much later. The output confirms it as a
+  // timestamp jump half a second on and marks the step. Observations every 0.5 s, ±0.1 ms.
+  const double ppm = 247;
+  for (double stepMs : {16.2, 3.5}) {
+    for (bool marked : {true, false}) {
+      ClockMap map(kRate);
+      std::mt19937 rng(5);
+      std::uniform_real_distribution<double> noise(-0.1, 0.1);
+      double worstPpm = 0, worstMs = 0;
+      for (int i = 0; i <= 240; ++i) {
+        const int64_t frame = static_cast<int64_t>(i * 0.5 * kRate);
+        const double step = i >= 140 ? stepMs : 0;  // lost at 70 s, after the drift is known
+        auto truth = [&](double f) { return 1000 + f * (1000.0 / kRate) * (1 + ppm * 1e-6) + step; };
+        if (marked && i == 141) map.markStep();  // confirmed half a second later
+        map.observe(frame, truth(static_cast<double>(frame)) + noise(rng));
+        if (i >= 141) {
+          worstPpm = std::fmax(worstPpm, std::fabs(map.driftPpm() - ppm));
+          worstMs = std::fmax(worstMs, std::fabs(map.bandMsAt(static_cast<double>(frame)) - truth(static_cast<double>(frame))));
+        }
+      }
+      std::printf("  %.1f ms step, %s: worst drift error %.1f ppm, position %.3f ms\n", stepMs, marked ? "marked" : "unmarked", worstPpm, worstMs);
+      if (marked) {
+        CHECK(map.jumps() == 1);
+        CHECK(worstPpm < 10);
+        CHECK(worstMs < 0.3);
+      } else {
+        CHECK(worstPpm > 40);  // the bug: the step read as drift
+      }
+    }
+  }
+}
+
 static void testAndroidCallback() {
   std::printf("as in the AAudio callback (stage 3)\n");
   // The Fire: 240-frame bursts, its crystal 256 ppm fast, AAudio's heard time smoothed to ±0.4 ms,
@@ -695,6 +730,7 @@ int main() {
   testClockMap();
   testClockMapNoisy();
   testClockMapOffset();
+  testClockMapStep();
   testAndroidCallback();
   testClickOnsets();
   testFractionalOnset();

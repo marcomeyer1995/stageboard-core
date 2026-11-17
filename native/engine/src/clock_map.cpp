@@ -27,6 +27,7 @@ double middleMean(double* v, int n) {
 ClockMap::ClockMap(double sampleRate, Options options) : options_(options), nominalMsPerFrame_(1000.0 / sampleRate) {}
 
 void ClockMap::restartWindow(int64_t frame, double bandMs) {
+  stepPending_ = false;
   anchorAt(frame, bandMs);
   count_ = 0;
   off_ = 0;
@@ -66,6 +67,13 @@ void ClockMap::observe(int64_t frame, double bandMs) {
     // The first observation - or the frame count went back (the output restarted): start over.
     if (valid_) ++jumps_;
     valid_ = true;
+    restartWindow(frame, bandMs);
+    return;
+  }
+  if (stepPending_) {
+    // The output's frame clock stepped (markStep): the old observations describe the old clock.
+    stepPending_ = false;
+    ++jumps_;
     restartWindow(frame, bandMs);
     return;
   }
