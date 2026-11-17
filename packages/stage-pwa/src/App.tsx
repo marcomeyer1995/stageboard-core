@@ -34,6 +34,7 @@ import { useBrowserOnlineStatus } from './lib/useBrowserOnlineStatus'
 import { useClockSync } from './lib/useClockSync'
 import { useFullscreenOnLaunch } from './lib/useFullscreen'
 import { useDeviceInfoReporter } from './lib/useDeviceInfoReporter'
+import { useHostFollower } from './lib/useHostFollower'
 import { useDiscoveryTrigger } from './lib/useDiscoveryTrigger'
 import { useHardwareDetection } from './lib/useHardwareDetection'
 import { useReadyCheckResponder } from './lib/useReadyCheckResponder'
@@ -257,6 +258,8 @@ function App() {
   // open but no profile is picked yet" is itself a state the Device Ledger should show, not
   // hide (see that file's own doc comment).
   useDeviceInfoReporter(activeWorkspaceId)
+  // The host with the highest epoch is the one to follow (host backup, #916).
+  useHostFollower()
 
   // Three full-screen gates before the normal mode tabs (see #21, and the #21 follow-up that
   // added needsRosterSetup): join/found the band first (no band at all yet), then - only for a

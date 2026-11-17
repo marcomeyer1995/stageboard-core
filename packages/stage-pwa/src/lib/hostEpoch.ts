@@ -7,6 +7,9 @@ import { create } from 'zustand'
  */
 interface HostEpochState {
   highestEpoch: number
+  /** The epoch the host this device talks to announced last (0: none yet) - unlike the highest, it
+   * follows the host: after a switch it is the new host's. The follower compares the other host to it. */
+  currentEpoch: number
   /** The host that answered last announced an epoch lower than one already seen. */
   staleHost: boolean
   /** `undefined`: a host built before the epoch existed - never stale, never counted. */
@@ -15,12 +18,15 @@ interface HostEpochState {
 
 export const useHostEpochStore = create<HostEpochState>((set) => ({
   highestEpoch: 0,
+  currentEpoch: 0,
   staleHost: false,
   observe: (epoch) =>
     set((state) => {
       if (epoch === undefined) return state
       const highestEpoch = Math.max(state.highestEpoch, epoch)
       const staleHost = epoch < state.highestEpoch
-      return highestEpoch === state.highestEpoch && staleHost === state.staleHost ? state : { highestEpoch, staleHost }
+      return highestEpoch === state.highestEpoch && staleHost === state.staleHost && epoch === state.currentEpoch
+        ? state
+        : { highestEpoch, currentEpoch: epoch, staleHost }
     }),
 }))
