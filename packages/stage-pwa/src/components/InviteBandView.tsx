@@ -56,18 +56,18 @@ export function InviteBandView({
 
   const [code, setCode] = useState<string | null>(null)
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
-  const [server, setServer] = useState<{ lanIp: string; certFingerprint: string | null } | null>(null)
-  const lanIp = server?.lanIp ?? null
+  const [server, setServer] = useState<{ host: string; certFingerprint: string | null } | null>(null)
+  const host = server?.host ?? null
   const [error, setError] = useState<string | null>(null)
   const [rotating, setRotating] = useState(false)
 
-  async function loadQr(nextCode: string, address: { lanIp: string; certFingerprint: string | null } | null) {
+  async function loadQr(nextCode: string, address: { host: string; certFingerprint: string | null } | null) {
     // The QR carries workspaceId+code together (WiFi-QR-style - SSID and password in one
     // scan) either way; wrapped in a real URL when the server's current LAN IP is known, so a
     // scanning device's native camera app can open it directly - falls back to the older bare
     // `workspaceId:code` text (still fine for the in-app scanner) if the IP couldn't be
     // determined, rather than blocking the invite screen on that.
-    const payload = address ? buildJoinUrl(address.lanIp, workspaceId, nextCode, address.certFingerprint) : `${workspaceId}:${nextCode}`
+    const payload = address ? buildJoinUrl(address.host, workspaceId, nextCode, address.certFingerprint) : `${workspaceId}:${nextCode}`
     const url = await renderQrCode(payload)
     setQrDataUrl(url)
   }
@@ -119,9 +119,9 @@ export function InviteBandView({
             </p>
             {qrDataUrl && <img src={qrDataUrl} alt={t('inv.qrAlt', { code })} className="mx-auto w-48" />}
             <p className="text-center text-2xl font-bold tracking-widest">{code}</p>
-            {lanIp ? (
+            {host ? (
               <p className="text-center text-xs text-ink-faint">
-                {t('inv.address', { ip: lanIp })}
+                {t('inv.address', { ip: host })}
                 <br />
                 {t('inv.addressChange', { code })}
               </p>
@@ -165,7 +165,7 @@ export function InviteBandView({
       </div>
       {code &&
         createPortal(
-          <PrintSheet bandName={bandName} code={code} qrDataUrl={qrDataUrl} lanIp={lanIp} />,
+          <PrintSheet bandName={bandName} code={code} qrDataUrl={qrDataUrl} host={host} />,
           document.body,
         )}
     </div>
@@ -173,7 +173,7 @@ export function InviteBandView({
 }
 
 /** What goes on paper (index.css `.sb-print-sheet`): black on white, whatever the theme. */
-function PrintSheet({ bandName, code, qrDataUrl, lanIp }: { bandName: string; code: string; qrDataUrl: string | null; lanIp: string | null }) {
+function PrintSheet({ bandName, code, qrDataUrl, host }: { bandName: string; code: string; qrDataUrl: string | null; host: string | null }) {
   const { t } = useTranslation('band')
   useEffect(() => {
     document.body.classList.add('sb-has-print-sheet')
@@ -188,7 +188,7 @@ function PrintSheet({ bandName, code, qrDataUrl, lanIp }: { bandName: string; co
       {qrDataUrl && <img src={qrDataUrl} alt="" style={{ width: '70mm', height: '70mm', display: 'block' }} />}
       <p style={{ fontSize: '28pt', fontWeight: 700, letterSpacing: '0.2em', margin: '8mm 0 2mm' }}>{code}</p>
       <p style={{ fontSize: '11pt', margin: 0 }}>
-        {lanIp ? t('inv.sheetServer', { ip: lanIp }) : t('inv.sheetNoServer')}
+        {host ? t('inv.sheetServer', { ip: host }) : t('inv.sheetNoServer')}
       </p>
       <p style={{ fontSize: '10pt', marginTop: '10mm', color: '#444' }}>
         {t('inv.sheetValid', { date: new Date().toLocaleDateString(i18n.language) })}
