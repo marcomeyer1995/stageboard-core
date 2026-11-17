@@ -5,7 +5,7 @@ Local-first live OS for bands. npm workspaces: `shared-types`, `core-backend` (F
 ## Always
 
 - Read `CONTRIBUTING.md` before changing code. Repo and tracker language is English.
-- Work issue-first: acceptance criteria before code, small commits, draft PRs. The maintainer merges.
+- Work issue-first: acceptance criteria before code, small commits, draft PRs. Merging: only when the maintainer has said so for that PR (or a named set of PRs), the CI check `build-test` has passed, and the PR is not a stacked one waiting on another; squash-merge, then delete nothing else. Never push to `main`, never deploy.
 - Run `npm run verify` (lint + typecheck + tests for every workspace) before claiming anything is done. CI also checks the C++/WASM audio engine (`.github/workflows/ci.yml`).
 - Strict TypeScript only. Validate every boundary (HTTP, replication docs, plugin messages) with Zod schemas from `shared-types`.
 - For audio, click, timing, clock sync or native-app changes, a passing mock test is not ground truth. If no real device was used, say "needs device verification" in the PR. Never invent measurements.

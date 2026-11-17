@@ -11,7 +11,7 @@ description: Use when changing code in stageboard-core, implementing a GitHub is
 4. **Verify.** Run `npm run verify` after each task and before any claim of done. Report the command and its result, not a guess. C++/WASM changes also need the engine steps from `.github/workflows/ci.yml` (requires cmake and wasi-sdk).
 5. **Device truth.** For playback, click, timing, clock sync or native-app work, use the real-device methods in docs/09, docs/19, docs/24 and docs/30. If no device was available, write "needs device verification" in the PR. Never invent measurements.
 6. **Review.** Invoke Superpowers `requesting-code-review` between tasks. Keep commits small: `<area>: <what changed> (#issue)`, English, no secrets, no docs created unless asked.
-7. **Finish.** Invoke `finishing-a-development-branch`. Draft PR must list what changed, what was tested (commands and devices), and what is left. Never merge, deploy or push to `main`; the maintainer merges.
+7. **Finish.** Invoke `finishing-a-development-branch`. Draft PR must list what changed, what was tested (commands and devices), and what is left. Merge only when the maintainer has said so for that PR and `build-test` is green (squash); never deploy or push to `main`.
 
 ## Token discipline
 
