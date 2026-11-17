@@ -438,7 +438,9 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
   // The NTP-style "burst handshake" target (docs/00 §4, #31): clients hit this repeatedly and
   // keep the lowest-RTT sample's offset (see stage-pwa's clockSync.ts) - a single Date.now()
   // read is all a client needs, no session/state on this end.
-  app.get('/time', async () => ({ serverTime: Date.now() }))
+  // The epoch is 1 until a backup takeover exists (host backup, #910); hostId tells devices which host answers.
+  const hostId = process.env.STAGEBOARD_HOST_ID || hostname()
+  app.get('/time', async () => ({ serverTime: Date.now(), hostId, epoch: 1 }))
 
   // Lets InviteBandView.tsx embed a *reachable* address in its QR code (see #21 seventh
   // follow-up, at Marco's explicit request) rather than baking one host in forever - detected
