@@ -118,6 +118,13 @@ describe('Fastify routes', () => {
       expect(serverTime).toBeGreaterThanOrEqual(before)
       expect(serverTime).toBeLessThanOrEqual(after)
     })
+
+    it('also announces which host answers and its epoch (#910)', async () => {
+      const response = await app.inject({ method: 'GET', url: '/time' })
+      const { hostId, epoch } = response.json() as { hostId: string; epoch: number }
+      expect(hostId.length).toBeGreaterThan(0)
+      expect(epoch).toBe(1)
+    })
   })
 
   describe('GET /server/backup-status (#363)', () => {
@@ -171,6 +178,20 @@ describe('Fastify routes', () => {
     it('answers 404 for an unknown run', async () => {
       const response = await app.inject({ method: 'GET', url: '/calibration/runs/nope' })
       expect(response.statusCode).toBe(404)
+    })
+  })
+
+  describe('add-ons from repositories (#852)', () => {
+    it('serves only plain add-on files, never a path out of the folder', async () => {
+      expect((await app.inject({ method: 'GET', url: '/addons/nux-mg30/0.1.0/..%2F..%2Fsecret' })).statusCode).toBe(400)
+      expect((await app.inject({ method: 'GET', url: '/addons/nux-mg30/0.1.0/stageboard-addon.json' })).statusCode).toBe(400)
+      expect((await app.inject({ method: 'GET', url: '/addons/nux-mg30/9.9.9/client.js' })).statusCode).toBe(404)
+    })
+
+    it('preview and install only for an admin of the band', async () => {
+      const body = { repository: 'github.com/someone/stageboard-addon-x', expectedVersion: '1.0.0' }
+      expect((await app.inject({ method: 'POST', url: '/workspaces/band-a/addons/preview', payload: body })).statusCode).toBe(403)
+      expect((await app.inject({ method: 'POST', url: '/workspaces/band-a/addons/install', payload: body })).statusCode).toBe(403)
     })
   })
 

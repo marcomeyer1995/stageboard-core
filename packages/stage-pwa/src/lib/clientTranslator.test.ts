@@ -2,7 +2,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { CAPABILITIES, type PluginInstallation } from 'shared-types'
 
 const loadClientPlugin = vi.hoisted(() => vi.fn())
-vi.mock('./loadClientPlugin', () => ({ loadClientPlugin }))
+const fetchClientBundle = vi.hoisted(() => vi.fn())
+vi.mock('./loadClientPlugin', () => ({
+  loadClientPlugin,
+  fetchClientBundle,
+  isRepositoryAddon: (p: { clientSource?: string }) => p.clientSource?.startsWith('/addons/') ?? false,
+}))
+// #757: the sandbox itself is tested in addonSandbox/; here only which translator wins.
+const sandboxTranslatorFn = vi.hoisted(() => vi.fn())
+vi.mock('./addonSandbox/sandboxHost', () => ({ AddonSandbox: class {} }))
+vi.mock('./addonSandbox/sandboxTranslator', () => ({ sandboxTranslator: () => sandboxTranslatorFn }))
 
 // #231: click-track's own Translator dispatches to queue.ts/practiceQueue.ts by session mode -
 // mocked here rather than exercised for real, same reasoning as the pouchdb-browser mock below
@@ -80,6 +89,25 @@ describe('supportsLocalExecution', () => {
   it('otherwise defers to hasClientTranslator', () => {
     expect(supportsLocalExecution([], CAPABILITIES.mixer)).toBe(false)
     expect(supportsLocalExecution([plugin({ runtime: 'client' })], CAPABILITIES.mixer)).toBe(true)
+  })
+})
+
+describe('an add-on installed from its own repository replaces the built-in one (#757)', () => {
+  it('loads the sandbox from the host copy and wins over the built-in MG-30', async () => {
+    const mg30 = plugin({ id: 'nux-mg30', capabilities: ['mg30-control'], clientSource: '/addons/nux-mg30/0.1.0/client.js' })
+    fetchClientBundle.mockResolvedValue(new Blob(['self.onmessage = () => {}']))
+    const builtIn = getTranslator('mg30-control')
+    expect(builtIn).not.toBeNull()
+    await preloadDynamicTranslator('mg30-control', [mg30], 'https://stage.local')
+    expect(fetchClientBundle).toHaveBeenCalledWith(mg30, 'https://stage.local')
+    expect(getTranslator('mg30-control')).toBe(sandboxTranslatorFn)
+  })
+
+  it('an ordinary add-on with a clientSource never replaces a built-in translator', async () => {
+    loadClientPlugin.mockReset()
+    const kemper = plugin({ id: 'kemper-cdn', capabilities: ['kemper-control'], clientSource: 'https://cdn.example/kemper.js' })
+    await preloadDynamicTranslator('kemper-control', [kemper], 'https://stage.local')
+    expect(loadClientPlugin).not.toHaveBeenCalled()
   })
 })
 

@@ -15,11 +15,19 @@ function cacheKeyFor(plugin: Pick<PluginInstallation, 'id' | 'version'>): string
 /** The Stage-Server's local mirror when one is configured (never needs this tablet's own
  * internet access), `clientSource` directly otherwise - the solo/home case (docs/00 §1's
  * Dry-Run Listener), fetched once over whatever internet this one device has, then cached. */
+/** An add-on installed from its own repository: its client bundle is the host's checked copy
+ * (`/addons/<id>/<version>/<file>`, docs/32 §12c) and it runs in the sandbox (#757). */
+export function isRepositoryAddon(plugin: Pick<PluginInstallation, 'clientSource'>): boolean {
+  return plugin.clientSource?.startsWith('/addons/') ?? false
+}
+
 export function resolveClientBundleUrl(
   plugin: Pick<PluginInstallation, 'id' | 'clientSource'>,
   stageServerUrl: string | null,
 ): string | null {
   if (!plugin.clientSource) return null
+  // An add-on from its own repository (#852): the host keeps its files - always from there.
+  if (isRepositoryAddon(plugin)) return stageServerUrl ? `${stageServerUrl.replace(/\/$/, '')}${plugin.clientSource}` : null
   return stageServerUrl ? `${stageServerUrl}/plugins/${plugin.id}/client.js` : plugin.clientSource
 }
 

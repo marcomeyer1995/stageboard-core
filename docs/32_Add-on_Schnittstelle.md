@@ -76,6 +76,8 @@ export default {
 | | `health` | `online` / `offline` / `error` + Meldung (§9) |
 | | `log` | Zeile fürs Protokoll |
 
+*Built (2026-11-17, #757, in English per #785):* the sandbox for device add-ons - `stage-pwa/src/lib/addonSandbox/` (`protocol.ts`, `sandboxHost.ts`, `sandboxTranslator.ts`). An add-on installed from its own repository (`clientSource` under `/addons/…`, §12) runs as a **classic Worker script** (no imports) from the host's checked copy and replaces a built-in translator for its capability; others are untouched. Messages as in the table, version 1 (`ADDON_PROTOCOL_VERSION`): `init` also carries `protocol` and the app's `language`; `event` carries `context.midiChannel` (the device's channel - StageBoard picks the device and port, the add-on never names a port). **Added:** `midi-out` may ask for a reply (`request`, `expectReply: { prefix, timeoutMs }`); StageBoard then listens on the same device's input *before* sending and answers with `midi-reply` (the identity handshake needs it - a reply can be faster than a listener attached afterwards, found with the real MG-30 on 2026-09-08). `midi-out` without a `midi-out:` permission is refused; an event without an answer fails after 5 s. First add-on: [stageboard-addon-nux-mg30](https://github.com/marcomeyer1995/stageboard-addon-nux-mg30) (release v0.1.0).
+
 Widgets eines Add-ons kommen als Beschreibung (welche Bedienelemente, welche Werte), nicht als eigener React-Code – damit sie in StageBoards UI-System (docs/15) bleiben und das Add-on keinen Zugriff auf die Seite braucht.
 
 ## 5. Ereignisse und Zeit – *gebaut*
@@ -195,7 +197,9 @@ Today the catalogue is fixed in code (`core-backend/src/plugins/catalog.ts`, `st
 A GitHub repository whose **releases** are the versions. The latest release that is not a pre-release is the current version, and its tag is the version (`v1.3.0` → `1.3.0`, SemVer).
 
 - **`stageboard-addon.json`** in each release (as a release asset, so a version's manifest never changes afterwards): the manifest of §2 (`id`, `name`, `version`, `apiVersion`, `runtime`, `capabilities`, `transports`, `hardwareIds`, `timing`, `permissions`, `helpers`, settings schema), plus
-  - `files`: every file of this version with its **SHA-256** and size: the client bundle (`client.js`), the server part (`server.js`), assets. Paths refer to assets of the same release.
+  - `files`: every file of this version with its **SHA-256** and size: the client bundle (`client.js`), the server part (`server.js`), assets. Each `name` is an asset of the same release - a plain file name, no folders (a release's assets are flat, and a name can never leave the version's folder on the host).
+  - `clientFile` / `serverFile`: which of `files` is the client bundle the devices load, and the host's server part.
+  - *Built (2026-11-17, #852 steps 1-2):* `AddonReleaseManifestSchema` / `AddonSourceSchema` in `shared-types/src/addonRelease.ts`; the host's part in `core-backend/src/addons/addonStore.ts` - read the latest release, check the manifest (schema, version = tag, `apiVersion`, every file present), download, check each SHA-256, keep under `<state>/addons/<id>/<version>/`, keep two versions; routes `GET /addons/:id/:version/:file`, `POST /workspaces/:id/addons/preview` and `…/install` (admin only).
   - `changes`: a short text of what is new (shown with the update).
   - `minStageBoard`: the oldest StageBoard version it runs on, optional.
 - **Helpers** stay as in §8: `helpers.android` names the APK (asset of the same release) and its signing certificate fingerprint; `helpers.desktop` names the program and minimum version. StageBoard downloads the APK and checks the fingerprint **before** opening Android's installer (#764).

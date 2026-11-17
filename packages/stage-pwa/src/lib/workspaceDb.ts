@@ -127,6 +127,6 @@ export function startWorkspaceSync(
 
   const localDb = getWorkspaceDb(workspaceId)
   const remoteDb = new PouchDB(url, { auth })
-  syncHandle = trackedSync('workspace', localDb, remoteDb, { isNoiseDocId: isStatusDocId, activeGraceMs: STATUS_GRACE_MS })
+  syncHandle = trackedSync('workspace', localDb, remoteDb, { isNoiseDocId: isStatusDocId, activeGraceMs: STATUS_GRACE_MS, workspaceId })
   return syncHandle
 }
