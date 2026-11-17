@@ -16,6 +16,33 @@ export const DEFAULT_REHEARSAL_WINDOW: RehearsalWindow = { kind: 'days', days: 9
  * System → Band. Until the band changes them, these defaults are offered. */
 export const DEFAULT_COMMENT_TEMPLATES: readonly string[] = ['A cappella', 'Build-up', 'Solo 8 Takte', 'Auf Drummer achten']
 
+/**
+ * One host the band's devices may follow (host backup, #912, docs/25 §6e). `certFingerprint` is what
+ * the native app's pinning compares against (SHA-256, lowercase hex, no separators - same form as
+ * `GET /server-info`); a band's admin enters it once, so every device can switch to the backup
+ * without having confirmed its certificate itself (Marco, 2026-11-17). Absent for a host without pinning.
+ */
+export const BandHostEntrySchema = z.object({
+  hostId: z.string().min(1),
+  url: z.string().url().startsWith('https://'),
+  certFingerprint: z.string().regex(/^[0-9a-f]{64}$/).optional(),
+  /** 1 = the primary, 2 = the backup. */
+  priority: z.union([z.literal(1), z.literal(2)]),
+})
+export type BandHostEntry = z.infer<typeof BandHostEntrySchema>
+
+/** The band's hosts: at most a primary and one backup (the data model leaves room for a longer chain). */
+export const BandHostsSchema = z
+  .array(BandHostEntrySchema)
+  .max(2)
+  .refine((hosts) => new Set(hosts.map((h) => h.hostId)).size === hosts.length, 'hostId repeated')
+  .refine((hosts) => new Set(hosts.map((h) => h.priority)).size === hosts.length, 'priority repeated')
+
+/** The hosts, primary first, whatever order they are stored in. */
+export function hostsByPriority(hosts: readonly BandHostEntry[] | undefined): BandHostEntry[] {
+  return [...(hosts ?? [])].sort((a, b) => a.priority - b.priority)
+}
+
 /** Settings that apply to the whole band - one document (id "band"); only admins may change it. */
 export const BandSettingsSchema = z.object({
   id: z.literal('band'),
@@ -33,6 +60,8 @@ export const BandSettingsSchema = z.object({
    * DEFAULT_PLAY_LEAD_MS. Long enough for the Play to reach every device and for the slowest output
    * to schedule it (Marco, 2026-11-06: set it in Bühne, a device that needed more says so). */
   playLeadMs: z.number().int().optional(),
+  /** The primary host and the backup devices may follow (#912); absent: the one paired server only. */
+  hosts: BandHostsSchema.optional(),
 })
 export type BandSettings = z.infer<typeof BandSettingsSchema>
 
