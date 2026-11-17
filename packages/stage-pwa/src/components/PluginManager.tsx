@@ -7,6 +7,8 @@ import { useDialogStore } from '../store/useDialogStore'
 import { useServerNow } from '../lib/useNow'
 import { AnnouncementTextsDialog } from './AnnouncementTextsDialog'
 import { SpeechVoiceDialog } from './SpeechVoiceDialog'
+import { RepositoryAddonInstall } from './RepositoryAddonInstall'
+import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { ActionMenu, Badge, Button, InfoHint } from './ui'
 import { useTranslation } from 'react-i18next'
 
@@ -34,6 +36,9 @@ export function PluginManager({ kind = 'extensions' }: { kind?: PluginKind }) {
   // runs 18 s fast: every add-on read "Heartbeat veraltet", 2026-11-14).
   const now = useServerNow()
   const [settingsOf, setSettingsOf] = useState<string | null>(null)
+  // Only the admin installs from a repository (docs/32 §12a) - the host refuses anyone else too.
+  const workspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
+  const isAdmin = useWorkspaceStore((state) => state.workspaces.find((w) => w.id === state.activeWorkspaceId)?.isAdmin ?? false)
   const Settings = settingsOf ? SETTINGS[settingsOf] : undefined
 
   function healthLabel(plugin: PluginInstallation): string {
@@ -117,6 +122,8 @@ export function PluginManager({ kind = 'extensions' }: { kind?: PluginKind }) {
           </div>
         ))}
       </div>
+
+      {page && isAdmin && workspaceId && <RepositoryAddonInstall workspaceId={workspaceId} installed={installed} install={install} />}
     </section>
   )
 }

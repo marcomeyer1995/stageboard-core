@@ -121,5 +121,59 @@
   },
   "off": "aus",
   "activate": "Aktivieren",
-  "deactivate": "Deaktivieren"
+  "deactivate": "Deaktivieren",
+  "repo": {
+    "title": "Aus Repository installieren",
+    "address": "GitHub-Adresse des Add-ons",
+    "check": "Prüfen",
+    "cancel": "Abbrechen",
+    "install": "Installieren",
+    "installAnyway": "Trotzdem installieren",
+    "update": "Aktualisieren",
+    "publisher": "Anbieter",
+    "unknownPublisher": "Unbekannt",
+    "unknownWarning": "Dieser Anbieter ist StageBoard nicht bekannt. Ein Add-on läuft abgeschirmt und darf nur, was unten steht - installiere es trotzdem nur, wenn du dem Anbieter vertraust.",
+    "source": "Quelle",
+    "size": "Download",
+    "runsLabel": "Läuft",
+    "runs": {
+      "client": "auf den Geräten",
+      "server": "auf dem Stage-Server",
+      "both": "auf den Geräten und dem Stage-Server"
+    },
+    "helperAndroid": "braucht auf Android das Hilfsprogramm {{name}}",
+    "helperDesktop": "braucht auf dem Laptop {{name}}",
+    "permissions": "Darf",
+    "noPermissions": "nichts außer Ereignisse empfangen",
+    "changes": "Neu",
+    "replacesBuiltIn": "Ersetzt das eingebaute Add-on - Einstellungen bleiben.",
+    "updateFrom": "Update v{{from}} → v{{to}} - Einstellungen bleiben.",
+    "installed": "{{name}} v{{version}} installiert.",
+    "perm": {
+      "midiOut": "MIDI senden an {{target}}",
+      "midiIn": "MIDI empfangen von {{target}}",
+      "osc": "OSC senden an {{target}}",
+      "http": "Internet: {{target}}",
+      "helper": "mit dem Hilfsprogramm {{target}} sprechen",
+      "audioStore": "Audiodateien der Band ablegen",
+      "songsRead": "Songs lesen",
+      "songsWrite": "Songs ändern"
+    },
+    "err": {
+      "offline": "Stage-Server nicht erreichbar.",
+      "not-admin": "Nur ein Admin der Band installiert Add-ons.",
+      "bad-repository": "Das ist keine GitHub-Adresse eines Repositorys (github.com/anbieter/name).",
+      "no-release": "Das Repository hat keine Version (Release).",
+      "not-an-addon": "Das ist kein StageBoard-Add-on (keine stageboard-addon.json im Release).",
+      "bad-manifest": "Die Beschreibung des Add-ons ist fehlerhaft.",
+      "version-mismatch": "Version und Release passen nicht zusammen.",
+      "api-version": "Das Add-on ist für eine andere StageBoard-Version geschrieben.",
+      "missing-file": "Im Release fehlt eine Datei des Add-ons.",
+      "checksum": "Eine Datei stimmt nicht mit ihrer Prüfsumme überein - nichts installiert.",
+      "too-large": "Eine Datei des Add-ons ist zu groß.",
+      "unreachable": "GitHub ist gerade nicht erreichbar.",
+      "version-changed": "Inzwischen gibt es eine neuere Version - bitte noch einmal prüfen.",
+      "other": "Fehler ({{code}})."
+    }
+  }
 }
