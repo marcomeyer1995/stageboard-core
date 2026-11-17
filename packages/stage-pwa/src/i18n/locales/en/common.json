@@ -35,7 +35,9 @@
     "noShape": "No chord shape",
     "cancel": "Cancel",
     "openMenu": "Open menu",
-    "noText": "No text."
+    "noText": "No text.",
+    "showPin": "Show PIN",
+    "hidePin": "Hide PIN"
   },
   "tiers": {
     "gig": "During song",
