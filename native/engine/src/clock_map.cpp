@@ -27,6 +27,7 @@ double middleMean(double* v, int n) {
 ClockMap::ClockMap(double sampleRate, Options options) : options_(options), nominalMsPerFrame_(1000.0 / sampleRate) {}
 
 void ClockMap::restartWindow(int64_t frame, double bandMs) {
+  stepPending_ = false;
   anchorAt(frame, bandMs);
   count_ = 0;
   off_ = 0;
@@ -69,7 +70,14 @@ void ClockMap::observe(int64_t frame, double bandMs) {
     restartWindow(frame, bandMs);
     return;
   }
-  const double predicted = bandMsAt(static_cast<double>(frame));
+  if (stepPending_) {
+    // The output's frame clock stepped (markStep): the old observations describe the old clock.
+    stepPending_ = false;
+    ++jumps_;
+    restartWindow(frame, bandMs);
+    return;
+  }
+  const double predicted = clockMsAt(static_cast<double>(frame));
   const double error = bandMs - predicted;
   if (std::fabs(error) > options_.jumpMs) {
     const int sign = error > 0 ? 1 : -1;
@@ -103,7 +111,7 @@ void ClockMap::observe(int64_t frame, double bandMs) {
   double residuals[kWindow];
   for (int i = 0; i < k; ++i) {
     const Observation& o = at(count_ - k + i);
-    residuals[i] = o.bandMs - bandMsAt(static_cast<double>(o.frame));
+    residuals[i] = o.bandMs - clockMsAt(static_cast<double>(o.frame));
   }
   const double offset = middleMean(residuals, k);
   const double minFrames = std::fabs(offset) / (options_.maxSlewPpm * 1e-6 * msPerFrame());
@@ -111,19 +119,61 @@ void ClockMap::observe(int64_t frame, double bandMs) {
   slewPerFrame_ = offset / slewFrames_;
 }
 
-double ClockMap::bandMsAt(double frame) const {
+double ClockMap::clockMsAt(double frame) const {
   const double since = frame - static_cast<double>(anchorFrame_);
   const double glided = since <= 0 ? 0 : std::min(since, slewFrames_);
   return anchorBandMs_ + since * msPerFrame() + glided * slewPerFrame_;
 }
 
-double ClockMap::frameAt(double bandMs) const {
+double ClockMap::frameAtClock(double bandMs) const {
   const double gliding = msPerFrame() + slewPerFrame_;
   const double slewEndBandMs = anchorBandMs_ + slewFrames_ * gliding;
   const double anchor = static_cast<double>(anchorFrame_);
   if (bandMs <= anchorBandMs_) return anchor + (bandMs - anchorBandMs_) / msPerFrame();
   if (bandMs <= slewEndBandMs) return anchor + (bandMs - anchorBandMs_) / gliding;
   return anchor + slewFrames_ + (bandMs - slewEndBandMs) / msPerFrame();
+}
+
+void ClockMap::setOffset(double offsetMs, int64_t frame) {
+  if (!offsetSet_ || frame < offsetFrame_) {
+    // The first one - or the frame count went back (the output restarted): from here, at once.
+    offsetSet_ = true;
+    offsetFrom_ = offsetTo_ = offsetMs;
+    offsetFrame_ = frame;
+    offsetFrames_ = 0;
+    return;
+  }
+  if (offsetMs == offsetTo_) return;
+  const double now = offsetAt(static_cast<double>(frame));
+  const double delta = offsetMs - now;
+  offsetFrame_ = frame;
+  if (std::fabs(delta) > options_.jumpMs) {
+    // A real step (a clock-sync step, the other clock in Solo Üben): at once, counted.
+    ++jumps_;
+    offsetFrom_ = offsetTo_ = offsetMs;
+    offsetFrames_ = 0;
+    return;
+  }
+  offsetFrom_ = now;
+  offsetTo_ = offsetMs;
+  offsetFrames_ = std::max(options_.slewMs / nominalMsPerFrame_, std::fabs(delta) / (options_.maxSlewPpm * 1e-6 * nominalMsPerFrame_));
+}
+
+double ClockMap::offsetAt(double frame) const {
+  const double since = frame - static_cast<double>(offsetFrame_);
+  if (since <= 0) return offsetFrom_;
+  if (since >= offsetFrames_) return offsetTo_;
+  return offsetFrom_ + (offsetTo_ - offsetFrom_) * since / offsetFrames_;
+}
+
+double ClockMap::bandMsAt(double frame) const { return clockMsAt(frame) + offsetAt(frame); }
+
+double ClockMap::frameAt(double bandMs) const {
+  // The offset changes by at most maxSlewPpm per frame's time (or not at all), so a few rounds
+  // settle on the exact frame.
+  double frame = frameAtClock(bandMs - offsetTo_);
+  for (int i = 0; i < 4; ++i) frame = frameAtClock(bandMs - offsetAt(frame));
+  return frame;
 }
 
 }  // namespace stageboard
