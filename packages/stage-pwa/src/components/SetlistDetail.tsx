@@ -1,5 +1,5 @@
 import i18n from '../i18n'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { DndContext, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
 import {
   arrayMove,
@@ -37,6 +37,7 @@ import { useSongVariantsStore } from '../store/useSongVariantsStore'
 import { formatItemSeconds } from '../lib/formatItemDuration'
 import { OverflowMenu } from './OverflowMenu'
 import { SetlistPreview } from './SetlistPreview'
+import { SetlistTransitionChip, SetlistTransitionSeam } from './SetlistTransition'
 import { Icon } from './Icon'
 import { AddRow, Badge, Dialog, Field, InfoHint, PageHeader, choiceRow } from './ui'
 import { INPUT } from './ui/styles'
@@ -174,8 +175,7 @@ const TRANSITION_OPTIONS: { type: TransitionType; label: string; hint: string; i
 
 /** Per-entry "what happens when this song ends" (#232) - same portal-dialog shape as
  * VariantPicker above, for the same reason (a row-embedded popup gets clipped by the scrolling
- * entries list). The button shows "→" plus a short label only when it isn't the default, so the
- * common all-manual setlist stays uncluttered. */
+ * entries list). The chip that opens it sits on the seam between the two entries (#873). */
 function TransitionPicker({
   type,
   delayMs,
@@ -190,23 +190,10 @@ function TransitionPicker({
 }) {
   const { t } = useTranslation('library')
   const [open, setOpen] = useState(false)
-  const current = TRANSITION_OPTIONS.find((option) => option.type === type) ?? TRANSITION_OPTIONS[0]!
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        title={t('tr.buttonTitle', { label: current.label })}
-        className={`h-form min-w-form flex-shrink-0 rounded-control px-3 text-base [@media(hover:hover)]:hover:bg-control-strong-hover ${
-          type === 'manual' ? 'text-ink-faint' : 'bg-control-strong text-ink'
-        }`}
-      >
-        <span className="flex items-center gap-1">
-          <Icon name="forward" />
-          {type === 'manual' ? null : current.label}
-        </span>
-      </button>
+      <SetlistTransitionChip type={type} delayMs={delayMs} isItem={isItem} onPress={() => setOpen(true)} />
       {open && (
         <Dialog title={isItem ? t('tr.afterItem') : t('tr.toNext')} size="s" onClose={() => setOpen(false)}>
           <div className="flex flex-col gap-2" role="radiogroup" aria-label={t('tr.aria')}>
@@ -249,8 +236,8 @@ interface EntryRowProps {
   songVariants: SongVariant[]
   onSelectSong: (songId: string, variantId: string | null) => void
   onSetVariant: (entryId: string, variantId: string | null) => void
-  /** Omitted for the last entry - nothing follows it to transition into. */
-  onSetTransition?: (entryId: string, type: TransitionType, delayMs: number) => void
+  /** The transition to the next entry - omitted for the last one. */
+  transitionSlot?: ReactNode
   onRemove: (index: number) => void
 }
 
@@ -268,7 +255,7 @@ function EntryRow({
   songVariants,
   onSelectSong,
   onSetVariant,
-  onSetTransition,
+  transitionSlot,
   onRemove,
 }: EntryRowProps) {
   const { t } = useTranslation('library')
@@ -285,7 +272,7 @@ function EntryRow({
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
       // One line per song (Marco, 2026-10-30: on the phone a row was so tall only one fit).
-      className={`flex items-center gap-1 rounded-control bg-control py-1 pl-1 pr-1 text-base ${isDragging ? 'opacity-50' : ''}`}
+      className={`relative flex items-center gap-1 rounded-control bg-control py-3 pl-1 pr-1 text-base ${isDragging ? 'opacity-50' : ''}`}
     >
       <button
         type="button"
@@ -297,8 +284,9 @@ function EntryRow({
       >
         ⠿
       </button>
-      {/* Tablet: one line. Phone (Marco, 2026-10-30): the title in full on line 1, variant and
-          transition on line 2 - in one line both were cut to "2. Highway to …" / "Standar…". */}
+      {/* Tablet: one line. Phone (Marco, 2026-10-30): the title in full on line 1, variant on
+          line 2 - in one line both were cut to "2. Highway to …" / "Standar…". The transition
+          moved to the seam between the rows (#873). */}
       <div className="flex min-w-0 flex-1 flex-col min-[600px]:flex-row min-[600px]:items-center min-[600px]:gap-2">
         <button
           type="button"
@@ -307,23 +295,14 @@ function EntryRow({
         >
           {songNumber}. {title}
         </button>
-        {((songVariants.length > 1 || issue) || onSetTransition) && (
+        {(songVariants.length > 1 || issue) && (
           <div className="flex min-w-0 items-center gap-1 min-[600px]:contents">
-            {(songVariants.length > 1 || issue) && (
-              <VariantPicker
-                variants={songVariants}
-                selectedId={entry.variantId}
-                issue={issue}
-                onSelect={(variantId) => onSetVariant(entry.id, variantId)}
-              />
-            )}
-            {onSetTransition && (
-              <TransitionPicker
-                type={entry.transitionType ?? 'manual'}
-                delayMs={entry.transitionDelayMs ?? DEFAULT_TRANSITION_DELAY_MS}
-                onChange={(type, delayMs) => onSetTransition(entry.id, type, delayMs)}
-              />
-            )}
+            <VariantPicker
+              variants={songVariants}
+              selectedId={entry.variantId}
+              issue={issue}
+              onSelect={(variantId) => onSetVariant(entry.id, variantId)}
+            />
           </div>
         )}
       </div>
@@ -334,6 +313,7 @@ function EntryRow({
         variant="flat"
         actions={[{ icon: 'remove', label: t('remove'), danger: true, onClick: () => onRemove(index) }]}
       />
+      {transitionSlot && <SetlistTransitionSeam>{transitionSlot}</SetlistTransitionSeam>}
     </li>
   )
 }
@@ -413,13 +393,14 @@ interface TransitionItemRowProps {
   entry: TransitionEntry
   index: number
   onEdit: (entry: TransitionEntry) => void
-  onSetTransition?: (entryId: string, type: TransitionType, delayMs: number) => void
+  /** The transition to the next entry - omitted for the last one. */
+  transitionSlot?: ReactNode
   onRemove: (index: number) => void
 }
 
 /** A non-song item (#29): announcement/pause. Same drag handle as EntryRow; tapping the title
  * edits it. Shown distinctly (accent text + "Ansage" tag) so it can't be mistaken for a song. */
-function TransitionItemRow({ entry, index, onEdit, onSetTransition, onRemove }: TransitionItemRowProps) {
+function TransitionItemRow({ entry, index, onEdit, transitionSlot, onRemove }: TransitionItemRowProps) {
   const { t } = useTranslation('library')
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: entry.id })
   const heading = isHeadingEntry(entry)
@@ -427,7 +408,7 @@ function TransitionItemRow({ entry, index, onEdit, onSetTransition, onRemove }: 
     <li
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
-      className={`flex items-center gap-1 py-1 pl-1 pr-1 text-base ${
+      className={`relative flex items-center gap-1 py-3 pl-1 pr-1 text-base ${
         heading ? 'mt-2 border-b-2 border-accent' : 'rounded-control border border-dashed border-line bg-control'
       } ${isDragging ? 'opacity-50' : ''}`}
     >
@@ -454,14 +435,6 @@ function TransitionItemRow({ entry, index, onEdit, onSetTransition, onRemove }: 
           <span className="ml-2 text-xs text-ink-faint">{formatItemSeconds(entry.estimatedDurationMs)}</span>
         ) : null}
       </button>
-      {onSetTransition && (
-        <TransitionPicker
-          isItem
-          type={entry.transitionType ?? 'manual'}
-          delayMs={entry.transitionDelayMs ?? DEFAULT_TRANSITION_DELAY_MS}
-          onChange={(type, delayMs) => onSetTransition(entry.id, type, delayMs)}
-        />
-      )}
       <OverflowMenu
         title={entry.title}
         variant="flat"
@@ -470,6 +443,7 @@ function TransitionItemRow({ entry, index, onEdit, onSetTransition, onRemove }: 
           { icon: 'remove', label: t('remove'), danger: true, onClick: () => onRemove(index) },
         ]}
       />
+      {transitionSlot && <SetlistTransitionSeam>{transitionSlot}</SetlistTransitionSeam>}
     </li>
   )
 }
@@ -797,32 +771,43 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted, onBack }: Se
       <ScheduleSettings setlist={setlist} onSave={update} />
       <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
         <SortableContext items={setlist.entries.map((e) => e.id)} strategy={verticalListSortingStrategy}>
-          <ul className="flex flex-col gap-1">
-            {setlist.entries.map((entry, index) =>
-              isTransitionEntry(entry) ? (
+          {/* gap-4 leaves room for the transition chip on the seam; it does not add a row (#873).
+              Raised from 4 after Marco found the chip too close to the entry text (2026-11-17). */}
+          <ul className="flex flex-col gap-4">
+            {setlist.entries.map((entry, index) => {
+              const transition =
+                index < setlist.entries.length - 1 ? (
+                  <TransitionPicker
+                    isItem={isTransitionEntry(entry)}
+                    type={entry.transitionType ?? 'manual'}
+                    delayMs={entry.transitionDelayMs ?? DEFAULT_TRANSITION_DELAY_MS}
+                    onChange={(type, delayMs) => setTransition(entry.id, type, delayMs)}
+                  />
+                ) : undefined
+              return isTransitionEntry(entry) ? (
                 <TransitionItemRow
                   key={entry.id}
                   entry={entry}
                   index={index}
                   onEdit={(item) => void editTransition(item)}
-                  onSetTransition={index < setlist.entries.length - 1 ? setTransition : undefined}
+                  transitionSlot={transition}
                   onRemove={removeSong}
                 />
               ) : (
-              <EntryRow
-                key={entry.id}
-                entry={entry}
-                index={index}
-                songNumber={setlist.entries.slice(0, index + 1).filter(isSongEntry).length}
-                song={songs.find((s) => s.id === entry.songId)}
-                songVariants={variants.filter((v) => v.songId === entry.songId)}
-                onSelectSong={onSelectSong}
-                onSetVariant={setVariant}
-                onSetTransition={index < setlist.entries.length - 1 ? setTransition : undefined}
-                onRemove={removeSong}
-              />
-              ),
-            )}
+                <EntryRow
+                  key={entry.id}
+                  entry={entry}
+                  index={index}
+                  songNumber={setlist.entries.slice(0, index + 1).filter(isSongEntry).length}
+                  song={songs.find((s) => s.id === entry.songId)}
+                  songVariants={variants.filter((v) => v.songId === entry.songId)}
+                  onSelectSong={onSelectSong}
+                  onSetVariant={setVariant}
+                  transitionSlot={transition}
+                  onRemove={removeSong}
+                />
+              )
+            })}
           </ul>
         </SortableContext>
       </DndContext>

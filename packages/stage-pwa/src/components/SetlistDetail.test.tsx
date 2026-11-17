@@ -308,6 +308,91 @@ describe('SetlistDetail - preview and editing (Marco, 2026-10-07: like a song)',
   })
 })
 
+describe('SetlistDetail - transition on the seam between two entries (#873)', () => {
+  beforeEach(() => {
+    useSongVariantsStore.setState({ variants: [] })
+  })
+
+  it('the preview shows the transition as a read-only chip between the two cards, with its icon and delay', () => {
+    useSetlistsStore.setState({
+      setlists: [
+        {
+          ...setlist,
+          entries: [
+            { ...entry('e1', 'a'), transitionType: 'delayed', transitionDelayMs: 30000 },
+            entry('e2', 'b'),
+          ],
+        },
+      ],
+    })
+    render(<SetlistDetail setlistId="sl-1" onSelectSong={vi.fn()} onDeleted={vi.fn()} />)
+
+    const chip = screen.getByText('30 s Pause').closest('.sb-hit')!
+    expect(chip.tagName).toBe('SPAN')
+    expect(chip.closest('li')).toBe(screen.getByRole('button', { name: /Alpha/ }).closest('li'))
+    expect(chip.querySelector('.lucide-timer')).not.toBeNull()
+    // Only the first entry has a transition - the last one has nothing to transition into.
+    expect(screen.getAllByText(/Pause$/)).toHaveLength(1)
+  })
+
+  it('uses one icon per kind: hand, arrow onto a bar, two chevrons, stopwatch', () => {
+    useSetlistsStore.setState({
+      setlists: [
+        {
+          ...setlist,
+          entries: [
+            { ...entry('e1', 'a'), transitionType: 'manual' },
+            { ...entry('e2', 'b'), transitionType: 'next-ready' },
+            { ...entry('e3', 'c'), transitionType: 'seamless' },
+            { ...entry('e4', 'a'), transitionType: 'delayed', transitionDelayMs: 30000 },
+            entry('e5', 'b'),
+          ],
+        },
+      ],
+    })
+    render(<SetlistDetail setlistId="sl-1" onSelectSong={vi.fn()} onDeleted={vi.fn()} />)
+
+    expect(screen.getByText('Manuell').closest('.sb-hit')!.querySelector('.lucide-hand')).not.toBeNull()
+    expect(screen.getByText('Nächster bereit').closest('.sb-hit')!.querySelector('.lucide-arrow-down-to-line')).not.toBeNull()
+    expect(screen.getByText('Nahtlos').closest('.sb-hit')!.querySelector('.lucide-chevrons-down')).not.toBeNull()
+    expect(screen.getByText('30 s Pause').closest('.sb-hit')!.querySelector('.lucide-timer')).not.toBeNull()
+  })
+
+  it('the chip belongs to the upper card, so a drag takes it along', () => {
+    renderEditing()
+
+    const upper = screen.getByText('1. Alpha').closest('li')!
+    const lower = screen.getByText('2. Bravo').closest('li')!
+    const chip = screen.getByRole('button', { name: 'Manuell' })
+
+    expect(upper.contains(chip)).toBe(true)
+    expect(lower.contains(chip)).toBe(false)
+  })
+
+  it('a tap opens the picker; the choice and pause are saved with the setlist', async () => {
+    const saveSetlist = vi.fn(async () => {})
+    useSetlistsStore.setState({ saveSetlist })
+    renderEditing()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Manuell' }))
+    fireEvent.click(await screen.findByRole('radio', { name: /Mit Pause/ }))
+    fireEvent.change(screen.getByLabelText('Pause (Sekunden)'), { target: { value: '45' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Fertig' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Speichern' }))
+
+    await waitFor(() =>
+      expect(saveSetlist).toHaveBeenCalledWith(
+        expect.objectContaining({
+          entries: [
+            expect.objectContaining({ id: 'e1', transitionType: 'delayed', transitionDelayMs: 45000 }),
+            entry('e2', 'b'),
+          ],
+        }),
+      ),
+    )
+  })
+})
+
 describe('SetlistDetail - preview ⋮ menu (#181, docs/15 D9)', () => {
   /** The page menu: ⋮ top right beside the setlist's name. */
   function headerMenuButton() {

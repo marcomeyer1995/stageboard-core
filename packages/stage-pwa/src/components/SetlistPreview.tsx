@@ -1,5 +1,5 @@
 import i18n from '../i18n'
-import { isSongEntry, isTransitionEntry, type Setlist } from 'shared-types'
+import { DEFAULT_TRANSITION_DELAY_MS, isSongEntry, isTransitionEntry, type Setlist } from 'shared-types'
 import { useSongsStore } from '../store/useSongsStore'
 import { useSongVariantsStore } from '../store/useSongVariantsStore'
 import { formatItemSeconds } from '../lib/formatItemDuration'
@@ -7,6 +7,7 @@ import { resolveVariantForEntry } from '../lib/computeQueue'
 import { VARIANT_ISSUE_LABEL } from '../lib/variantLabel'
 import { type OverflowMenuAction } from './OverflowMenu'
 import { Badge, PageHeader } from './ui'
+import { SetlistTransitionChip, SetlistTransitionSeam } from './SetlistTransition'
 import { useTranslation } from 'react-i18next'
 
 interface SetlistPreviewProps {
@@ -72,18 +73,32 @@ export function SetlistPreview({ setlist, active, canActivate, onActivate, onDea
       {setlist.entries.length === 0 ? (
         <p className="text-ink-faint">{t('pv.empty')}</p>
       ) : (
-        <ol className="flex flex-col gap-1">
-          {setlist.entries.map((entry) => {
+        // gap-4 leaves room for the transition chip on the seam; it does not add a row (#873).
+        // The cards' taller padding (py-5) keeps the text clear of the chip (Marco, 2026-11-17).
+        <ol className="flex flex-col gap-4">
+          {setlist.entries.map((entry, index) => {
+            // The last entry has nothing to transition into, so it gets no chip.
+            const transition =
+              index < setlist.entries.length - 1 ? (
+                <SetlistTransitionChip
+                  type={entry.transitionType ?? 'manual'}
+                  delayMs={entry.transitionDelayMs ?? DEFAULT_TRANSITION_DELAY_MS}
+                  isItem={isTransitionEntry(entry)}
+                />
+              ) : null
+            const seam = transition && <SetlistTransitionSeam>{transition}</SetlistTransitionSeam>
             if (isTransitionEntry(entry)) {
               const seconds = entry.estimatedDurationMs !== undefined ? formatItemSeconds(entry.estimatedDurationMs) : null
               return entry.style === 'heading' ? (
-                <li key={entry.id} className="mt-2 px-1 text-sm font-semibold uppercase tracking-widest text-ink-muted">
+                <li key={entry.id} className="relative mt-2 px-1 text-sm font-semibold uppercase tracking-widest text-ink-muted">
                   {entry.title}
+                  {seam}
                 </li>
               ) : (
-                <li key={entry.id} className="px-4 py-2 text-base italic text-ink-faint">
+                <li key={entry.id} className="relative px-4 py-2 text-base italic text-ink-faint">
                   {entry.title}
                   {seconds && ` · ${seconds}`}
+                  {seam}
                 </li>
               )
             }
@@ -99,11 +114,11 @@ export function SetlistPreview({ setlist, active, canActivate, onActivate, onDea
               ? variantText
               : variant && (entry.variantId === null ? t('variant.isDefaultShort', { name: variant.label }) : variant.label)
             return (
-              <li key={entry.id}>
+              <li key={entry.id} className="relative">
                 <button
                   type="button"
                   onClick={() => onSelectSong(entry.songId, entry.variantId)}
-                  className="flex min-h-form w-full items-center gap-2 rounded-control bg-control py-2 pl-2 pr-3 text-left text-base [@media(hover:hover)]:hover:bg-control-hover"
+                  className="flex min-h-form w-full items-center gap-2 rounded-control bg-control py-5 pl-2 pr-3 text-left text-base [@media(hover:hover)]:hover:bg-control-hover"
                 >
                   <span className="w-6 flex-shrink-0 text-right tabular-nums text-ink-faint">{songNumber}</span>
                   {/* The variant as a badge (Marco, 2026-10-29) that always stays readable. From 600 px on
@@ -133,6 +148,7 @@ export function SetlistPreview({ setlist, active, canActivate, onActivate, onDea
                     )}
                   </span>
                 </button>
+                {seam}
               </li>
             )
           })}
