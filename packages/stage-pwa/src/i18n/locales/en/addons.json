@@ -121,5 +121,59 @@
   },
   "off": "off",
   "activate": "Activate",
-  "deactivate": "Deactivate"
+  "deactivate": "Deactivate",
+  "repo": {
+    "title": "Install from repository",
+    "address": "The add-on's GitHub address",
+    "check": "Check",
+    "cancel": "Cancel",
+    "install": "Install",
+    "installAnyway": "Install anyway",
+    "update": "Update",
+    "publisher": "Publisher",
+    "unknownPublisher": "Unknown",
+    "unknownWarning": "StageBoard doesn't know this publisher. An add-on runs isolated and may only do what is listed below - still, only install it if you trust the publisher.",
+    "source": "Source",
+    "size": "Download",
+    "runsLabel": "Runs",
+    "runs": {
+      "client": "on the devices",
+      "server": "on the Stage-Server",
+      "both": "on the devices and the Stage-Server"
+    },
+    "helperAndroid": "needs the helper {{name}} on Android",
+    "helperDesktop": "needs {{name}} on the laptop",
+    "permissions": "May",
+    "noPermissions": "nothing but receive events",
+    "changes": "New",
+    "replacesBuiltIn": "Replaces the built-in add-on - settings stay.",
+    "updateFrom": "Update v{{from}} → v{{to}} - settings stay.",
+    "installed": "{{name}} v{{version}} installed.",
+    "perm": {
+      "midiOut": "send MIDI to {{target}}",
+      "midiIn": "receive MIDI from {{target}}",
+      "osc": "send OSC to {{target}}",
+      "http": "internet: {{target}}",
+      "helper": "talk to the helper {{target}}",
+      "audioStore": "store the band's audio files",
+      "songsRead": "read songs",
+      "songsWrite": "change songs"
+    },
+    "err": {
+      "offline": "Stage-Server not reachable.",
+      "not-admin": "Only an admin of the band installs add-ons.",
+      "bad-repository": "That's not the GitHub address of a repository (github.com/owner/name).",
+      "no-release": "The repository has no version (release).",
+      "not-an-addon": "That's not a StageBoard add-on (no stageboard-addon.json in the release).",
+      "bad-manifest": "The add-on's description is broken.",
+      "version-mismatch": "Version and release don't match.",
+      "api-version": "The add-on is written for another StageBoard version.",
+      "missing-file": "A file of the add-on is missing from the release.",
+      "checksum": "A file doesn't match its checksum - nothing installed.",
+      "too-large": "A file of the add-on is too large.",
+      "unreachable": "GitHub can't be reached right now.",
+      "version-changed": "There is a newer version by now - please check again.",
+      "other": "Error ({{code}})."
+    }
+  }
 }
