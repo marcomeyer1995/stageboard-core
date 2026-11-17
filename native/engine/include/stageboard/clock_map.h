@@ -52,14 +52,37 @@ class ClockMap {
   explicit ClockMap(double sampleRate) : ClockMap(sampleRate, Options()) {}
   ClockMap(double sampleRate, Options options);
 
-  /** Frame `frame` is heard at band time `bandMs`. */
-  void observe(int64_t frame, double bandMs);
+  /** Frame `frame` is heard at `ms` on the observed clock - band time itself, or the device's
+   * wall clock when the band offset comes separately (setOffset). */
+  void observe(int64_t frame, double ms);
+
+  /**
+   * Band time minus the observed clock (server offset + this output's trim), from `frame` on. Kept
+   * out of the observations: fed into them, a step of a few ms (below `jumpMs`, so no re-anchor)
+   * was read as drift by the slope fit until it left the window - 400-870 ppm for up to 46 s after
+   * every Play on the Redmi (#874). Here a change moves the map directly and never the drift: it
+   * glides in at `maxSlewPpm` (the track never skips), beyond `jumpMs` it steps at once (counted).
+   * Unset, the offset is 0. Call it as often as you like; the same value changes nothing.
+   */
+  void setOffset(double offsetMs, int64_t frame);
+
+  /**
+   * The output says its frame clock stepped: frames went missing or were played twice (a USB
+   * transfer late under load, a confirmed timestamp jump), so from here a frame is heard earlier or
+   * later than before - a step, not drift. The next observation re-anchors at once (counted as a
+   * jump) and the learned drift is kept. Fed as ordinary observations, such steps of 3-16 ms (below
+   * `jumpMs`) were read as drift by the slope fit: 340-750 ppm for up to a minute after Play on the
+   * Redmi (#874).
+   */
+  void markStep() { stepPending_ = true; }
 
   bool valid() const { return valid_; }
   double bandMsAt(double frame) const;
   /** Inverse of bandMsAt, as a fractional frame. */
   double frameAt(double bandMs) const;
 
+  /** The offset in effect at `frame` (gliding toward the last one set). */
+  double offsetAt(double frame) const;
   double driftPpm() const { return (ratio_ - 1) * 1e6; }
   int jumps() const { return jumps_; }
   /** Observations ignored as single outliers. */
@@ -70,6 +93,10 @@ class ClockMap {
     int64_t frame;
     double bandMs;
   };
+
+  /** The map on the observed clock alone (without the offset), and its inverse. */
+  double clockMsAt(double frame) const;
+  double frameAtClock(double ms) const;
 
   void anchorAt(int64_t frame, double bandMs);
   /** A new window from this observation (first one, restart, confirmed jump). */
@@ -97,6 +124,15 @@ class ClockMap {
   /** Observations beyond jumpMs in a row, and their direction. */
   int off_ = 0;
   int offSign_ = 0;
+  /** markStep() was called: the next observation starts a new window. */
+  bool stepPending_ = false;
+
+  /** The offset glides from `offsetFrom_` at `offsetFrame_` to `offsetTo_` over `offsetFrames_`. */
+  bool offsetSet_ = false;
+  double offsetFrom_ = 0;
+  double offsetTo_ = 0;
+  int64_t offsetFrame_ = 0;
+  double offsetFrames_ = 0;
 
   Observation window_[kWindow] = {};
   int head_ = 0;

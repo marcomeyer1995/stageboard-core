@@ -89,6 +89,14 @@ class Engine {
    * it that way.
    */
   void observeClockNow(int64_t frame, double bandMs) { clock_.observe(frame, bandMs); }
+  /**
+   * Audio thread: band time minus the clock observeClockNow is fed on, from `frame` on - for an
+   * output that observes its wall clock and learns the band offset separately (AAudio, Android).
+   * Kept out of the observations so an offset change never reads as drift (ClockMap::setOffset, #874).
+   */
+  void setClockOffsetNow(int64_t frame, double offsetMs) { clock_.setOffset(offsetMs, frame); }
+  /** Audio thread: the output's frame clock stepped (frames lost or repeated) - ClockMap::markStep. */
+  void clockStepNow() { clock_.markStep(); }
 
   // Readable by the audio thread's owner for self-monitoring (§8i).
   int clockJumps() const { return clock_.jumps(); }
