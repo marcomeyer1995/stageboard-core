@@ -184,6 +184,40 @@ When the host is gone and no backup takes over (the add-on is not installed, or 
   5. **Display:** status bar and map (#747).
 - **Acceptance:** unplug the primary during a running song: the song runs to the end on all devices, the clock drifts measurably little, the backup takes over within 5-8 s, and after the song (primary back) the primary takes over again; without the add-on, joining reports "no host".
 
+## 6f. Measured: every device as host (2026-11-17, #778)
+
+A second server on the laptop with the built-in database (port 8443, a fresh test band), four devices (Fire, Redmi, Xiaomi phone, a Windows PC in Chrome), and the same measurements against every host. Two levels:
+
+**With the full app** (Linux hosts only - the Android host does not serve the whole app yet, see below). Play latency = Play pressed on the master (Fire) until each device shows the count-in, in server time, 10 Plays:
+
+| | Fire (master) | Redmi | Phone | Windows PC |
+|---|---|---|---|---|
+| Linux, CouchDB (real band) | 120 ms | 78 ms | 51 ms | - |
+| Linux, built-in (test band) | 88 ms | 64 ms | 55 ms | 43 ms |
+
+The followers show Play within about ±15 ms of the master's own screen - the push adds little, most of the time is each device drawing. Clock uncertainty 0.3-1.2 ms on all devices (the PC's own clock was 10.7 s off - measured out without trouble). The Rig-Check test song (36 s track) reached all four devices 73 s after "Vorbereiten", including the conversion on the Fire.
+
+**Scripted client on another machine** (`hostbench`: 50 × `/time`, 20 events on the live channel, 10 live changes A → host → B, 3 first full syncs into an empty copy), the same against every host; load = the host's CPU idle → under the bench (Android and Windows: whole device or process over all cores; Linux converted to all 16 threads):
+
+| Host | `/time` round trip | Live channel (Play signal) | Live change | First full sync (~190 docs) | Load idle → bench | Memory |
+|---|---|---|---|---|---|---|
+| **Linux, built-in** | 5.0 ms | **18 ms** (p95 44) | **54 ms** | **120 ms** | ~0 → 0.6 % | 182 MB |
+| **Windows** (i5-5200U from 2015), built-in | 5.7 ms | 22 ms (p95 28) | 69 ms | 162 ms | 0.2 → 2.3 % | 100-120 MB |
+| Linux, CouchDB (real band, **7,087** docs) | 5.2 ms | 21 ms (p95 80) | 96 ms (p95 734) | 3.3 s | 0.1 → 2.4 % | 400 MB |
+| **Redmi** (Android host, spike) | 7.3 ms | 38 ms (p95 63) | 139 ms | 437 ms | 16.3 → 21.9 % (no host: 15.9 %) | device |
+| **Xiaomi phone** | 10.3 ms | 41 ms (p95 68) | 136 ms | 480 ms | 16.4 → 22.0 % (no host: 16.0 %) | device |
+| **Fire** (Android 9) | 14.9 ms | 33 ms (**p95 100**) | 149 ms (**p95 338**) | 559 ms | 9.5 → 15.7 % (no host: 9.1 %) | device |
+
+**Result:**
+- **Every device can be host**, the clock is precise everywhere (spread 1-2.3 ms) - the tiers are flexible.
+- **Desktop hosts lead clearly**, even a ten-year-old Windows laptop: Play signal ~20 ms, live change 55-70 ms. The built-in database is at least as fast as CouchDB with less than half the memory.
+- **Android hosts are usable but slower:** Play signal ~35-40 ms, live change ~140 ms - the WebView's database is the bottleneck, as in the spike; the Fire has the worst outliers.
+- **Hosting costs the device little:** Android +0.4 % idle and about +6 % CPU under sync; desktops practically nothing.
+
+**Not covered:** the Android host serves only the clock, sync and the Play/switch channels - not the ~70 other routes the app uses (audio, presence, device info, master heartbeat, join, …), and the app can't be pointed at it yet (discovery, certificate) - that is #781. No battery figures (devices on USB). The hour-long gig runs in a night test.
+
+**Findings** (issues): the invite QR code drops the port (#896); after a server switch the sync status still shows ✓ for the old band (#897); the admin PIN is shown in clear in "Band wechseln" (#898); a band move by replication must copy `_security` too (#779); on Windows the execution policy blocks `npm.ps1` and a "Public" network needs the firewall rule for all profiles (#780); the Android host reads request bodies without a length (chunked) as empty, so Play/switch events arrive empty (#781).
+
 ## 7. Proposed order
 
 Issues since 2026-11-10: tracking issue **#777**, under it #778 (real run of `sync-host`), #779 (move from CouchDB), #780 (installer Windows/Mac), #781 (spike Android as host), #782 (host fails during the gig, §6e).
