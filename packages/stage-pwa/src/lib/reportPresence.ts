@@ -1,3 +1,4 @@
+import { useSyncStore } from '../store/useSyncStore'
 import { getStageServerUrl } from './stageServer'
 
 /**
@@ -10,6 +11,8 @@ import { getStageServerUrl } from './stageServer'
 export async function reportPresence(workspaceId: string, deviceId: string, profileId: string): Promise<void> {
   const base = getStageServerUrl()
   if (!base) return
+  // The paired server does not have this band (#897): nothing there to report to.
+  if (useSyncStore.getState().notOnServer[workspaceId]) return
 
   try {
     await fetch(`${base}/workspaces/${encodeURIComponent(workspaceId)}/presence/report`, {

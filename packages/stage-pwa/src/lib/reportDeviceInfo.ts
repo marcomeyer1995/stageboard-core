@@ -1,4 +1,5 @@
 import type { DeviceInfoReport } from 'shared-types'
+import { useSyncStore } from '../store/useSyncStore'
 import { getStageServerUrl } from './stageServer'
 
 /**
@@ -11,6 +12,8 @@ import { getStageServerUrl } from './stageServer'
 export async function reportDeviceInfo(workspaceId: string, report: DeviceInfoReport): Promise<void> {
   const base = getStageServerUrl()
   if (!base) return
+  // The paired server does not have this band (#897): nothing there to report to.
+  if (useSyncStore.getState().notOnServer[workspaceId]) return
 
   try {
     await fetch(`${base}/workspaces/${encodeURIComponent(workspaceId)}/device-info/report`, {

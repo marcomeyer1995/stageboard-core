@@ -1,9 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { useSyncStore } from '../store/useSyncStore'
 import { reportDeviceInfo } from './reportDeviceInfo'
 
 const REPORT = { deviceId: 'device-1', os: 'iPad', environment: 'browser' as const, syncStatus: 'idle' as const }
 
 afterEach(() => {
+  useSyncStore.setState({ notOnServer: {} })
   vi.unstubAllGlobals()
   vi.unstubAllEnvs()
 })
@@ -29,6 +31,17 @@ describe('reportDeviceInfo', () => {
     vi.stubEnv('VITE_STAGE_SERVER_URL', '')
     const fetchMock = vi.fn()
     vi.stubGlobal('fetch', fetchMock)
+
+    await reportDeviceInfo('band-a', REPORT)
+
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('does not report a band the Stage-Server does not have (#897)', async () => {
+    vi.stubEnv('VITE_STAGE_SERVER_URL', 'https://stage.example')
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    useSyncStore.setState({ notOnServer: { 'band-a': true } })
 
     await reportDeviceInfo('band-a', REPORT)
 
