@@ -88,6 +88,7 @@
     "delayedHint": "Der nächste Song startet nach einer festen Pause, mit Einzähler.",
     "delayedItem": "Nach Ablauf der Dauer und einer weiteren Pause startet der nächste Eintrag, mit Einzähler.",
     "buttonTitle": "Übergang zum nächsten Eintrag: {{label}}",
+    "chipDelay": "{{s}} s Pause",
     "afterItem": "Übergang nach der Ansage",
     "toNext": "Übergang zum nächsten Song",
     "aria": "Übergang",

@@ -88,6 +88,7 @@
     "delayedHint": "The next song starts after a fixed pause, with count-in.",
     "delayedItem": "After the duration and a further pause the next entry starts, with count-in.",
     "buttonTitle": "Transition to the next entry: {{label}}",
+    "chipDelay": "{{s}} s pause",
     "afterItem": "Transition after the announcement",
     "toNext": "Transition to the next song",
     "aria": "Transition",

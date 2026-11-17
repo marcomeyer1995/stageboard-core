@@ -1,4 +1,5 @@
 import {
+  ArrowDownToLine,
   ArrowLeft,
   BrushCleaning,
   CircleCheck,
@@ -11,6 +12,7 @@ import {
   Download,
   FilePen,
   Guitar,
+  Hand,
   Heading,
   Keyboard,
   KeyRound,
@@ -190,6 +192,13 @@ const ICONS = {
   redo: Redo2,
   /** Song is in the active setlist - a quiet marker in the song list (2026-10-20). */
   setlist: ListMusic,
+  // Transition kinds between two setlist entries (#873, Marco 2026-11-14): a hand for "by hand",
+  // an arrow onto a bar for "readied and stopped there", two chevrons for "straight through",
+  // and a stopwatch for the pause before the next entry.
+  transitionManual: Hand,
+  transitionNextReady: ArrowDownToLine,
+  transitionSeamless: ChevronsDown,
+  transitionDelayed: Timer,
 } satisfies Record<string, LucideIcon>
 
 export type IconName = keyof typeof ICONS
