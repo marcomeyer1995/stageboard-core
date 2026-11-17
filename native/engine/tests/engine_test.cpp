@@ -208,6 +208,83 @@ static void testClockMapNoisy() {
   }
 }
 
+static void testClockMapOffset() {
+  std::printf("clock map with the band offset on its own (#874)\n");
+  // The Redmi: crystal 247 ppm, the wall clock observed every 0.5 s with ±0.5 ms noise, the band
+  // offset 2126 ms. At 120 s (Play) the page sends an offset 5 ms larger - below jumpMs.
+  const double ppm = 247;
+  auto wall = [&](double frame) { return 50000 + frame * (1000.0 / kRate) * (1 + ppm * 1e-6); };
+  auto offsetAt = [](int i) { return i < 240 ? 2126.0 : 2131.0; };
+  for (bool separate : {true, false}) {
+    ClockMap map(kRate);
+    std::mt19937 rng(3);
+    std::uniform_real_distribution<double> noise(-0.5, 0.5);
+    double worstPpm = 0, worstMs = 0;
+    for (int i = 0; i <= 480; ++i) {
+      const int64_t frame = static_cast<int64_t>(i * 0.5 * kRate);
+      const double heard = wall(static_cast<double>(frame)) + noise(rng);
+      if (separate) {
+        map.setOffset(offsetAt(i), frame);
+        map.observe(frame, heard);
+      } else {
+        map.observe(frame, heard + offsetAt(i));  // as before: the offset inside the observation
+      }
+      if (i >= 240) worstPpm = std::fmax(worstPpm, std::fabs(map.driftPpm() - ppm));
+      // From 5 s after the change: on the new offset.
+      if (i >= 250) worstMs = std::fmax(worstMs, std::fabs(map.bandMsAt(static_cast<double>(frame)) - wall(static_cast<double>(frame)) - offsetAt(i)));
+    }
+    std::printf("  %s: worst drift error after the change %.1f ppm, position %.3f ms\n", separate ? "offset apart" : "offset inside", worstPpm, worstMs);
+    if (separate) {
+      CHECK(map.jumps() == 0);
+      CHECK(worstPpm < 10);
+      CHECK(worstMs < 0.5);
+    } else {
+      CHECK(worstPpm > 100);  // the bug: the step read as drift
+    }
+  }
+
+  // A change glides: continuous, never faster than maxSlewPpm, and frameAt stays the exact inverse.
+  {
+    ClockMap map(kRate);
+    map.setOffset(100, 0);
+    map.observe(0, 0);
+    map.observe(48000, 1000);
+    CHECK_NEAR(map.bandMsAt(48000), 1100, 1e-9);
+    map.setOffset(105, 48000);
+    CHECK_NEAR(map.bandMsAt(48000), 1100, 1e-9);  // no step where it changed
+    double worstStep = 0;
+    for (int64_t f = 48000; f < 48000 + 4 * 48000; f += 480) {
+      const double step = map.bandMsAt(static_cast<double>(f + 480)) - map.bandMsAt(static_cast<double>(f)) - 10;
+      worstStep = std::fmax(worstStep, std::fabs(step));
+      CHECK_NEAR(map.frameAt(map.bandMsAt(static_cast<double>(f) + 0.25)), f + 0.25, 1e-6);
+    }
+    CHECK(worstStep <= 10 * 2000e-6 + 1e-9);         // ≤ 2000 ppm over each 10 ms
+    CHECK_NEAR(map.bandMsAt(5 * 48000), 5105, 1e-9);  // there after 2.5 s
+    CHECK(map.jumps() == 0);
+    map.setOffset(105, 5 * 48000);  // the same again: nothing
+    CHECK_NEAR(map.bandMsAt(5 * 48000), 5105, 1e-9);
+  }
+  // Beyond jumpMs (the other clock, a clock-sync step): at once, counted; the drift untouched.
+  {
+    ClockMap map(kRate);
+    map.setOffset(0, 0);
+    for (int s = 0; s <= 20; ++s) map.observe(static_cast<int64_t>(s * kRate), s * 1000.0);
+    map.setOffset(650, static_cast<int64_t>(20 * kRate));
+    CHECK(map.jumps() == 1);
+    CHECK_NEAR(map.bandMsAt(20 * kRate), 20650, 1e-9);
+    CHECK_NEAR(map.driftPpm(), 0, 1e-6);
+  }
+  // The frame count going back (the output restarted): the offset holds from the new count on.
+  {
+    ClockMap map(kRate);
+    map.setOffset(10, 96000);
+    map.observe(96000, 2000);
+    map.setOffset(12, 0);
+    map.observe(0, 5000);
+    CHECK_NEAR(map.bandMsAt(48000), 6012, 1e-9);
+  }
+}
+
 static void testAndroidCallback() {
   std::printf("as in the AAudio callback (stage 3)\n");
   // The Fire: 240-frame bursts, its crystal 256 ppm fast, AAudio's heard time smoothed to ±0.4 ms,
@@ -231,8 +308,11 @@ static void testAndroidCallback() {
   int64_t frames = 0, clockAt = -1;  // the callback's own count, restarted by the reopen
   for (int64_t g = 0; g < total; g += burst) {
     if (g == static_cast<int64_t>(30 * kRate)) frames = 0, clockAt = -1;
+    // As native_output.cpp: the wall clock observed, the band offset (server + trim) on its own.
+    const double bandOffset = 2126;
+    engine.setClockOffsetNow(frames, bandOffset);
     if (clockAt < 0 || (frames - clockAt) * (1000.0 / kRate) >= 500) {
-      engine.observeClockNow(frames, heard(g) + jitter(rng));
+      engine.observeClockNow(frames, heard(g) - bandOffset + jitter(rng));
       clockAt = frames;
     }
     engine.render(out.data() + g * 2, burst, frames);
@@ -614,6 +694,7 @@ int main() {
   testTransport();
   testClockMap();
   testClockMapNoisy();
+  testClockMapOffset();
   testAndroidCallback();
   testClickOnsets();
   testFractionalOnset();

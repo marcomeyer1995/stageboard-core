@@ -218,9 +218,12 @@ void produce(float *out, int numFrames) {
     }
     if (gEngineOn.load() && gEngine) {
         // Frame gFrames - this buffer's first - is heard at gHeardMs0 (wall clock, smoothed above).
+        // The clock map learns the wall clock only; the band offset goes in on its own, so a new
+        // one (sent again at every Play) moves the map at once and never reads as drift (#874).
         const double offset = gBandOffsetMs.load();
+        if (!std::isnan(offset)) gEngine->setClockOffsetNow(gFrames, offset);
         if (gLocked && !std::isnan(offset) && (gEngineClockAt < 0 || (gFrames - gEngineClockAt) * msPerFrame >= ENGINE_CLOCK_MS)) {
-            gEngine->observeClockNow(gFrames, gHeardMs0 + offset);
+            gEngine->observeClockNow(gFrames, gHeardMs0);
             gEngineClockAt = gFrames;
         }
         for (int done = 0; done < numFrames;) {
