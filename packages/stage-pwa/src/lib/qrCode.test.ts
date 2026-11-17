@@ -52,3 +52,11 @@ describe('parseJoinPayload', () => {
     expect(parseJoinPayload('')).toBeNull()
   })
 })
+
+describe('join URL with a port (#896)', () => {
+  it('keeps the port through the QR round trip', () => {
+    const url = buildJoinUrl('192.168.178.158:8443', 'ws-1', '12345678', 'ab')
+    expect(url).toBe('https://192.168.178.158:8443/?ws=ws-1&code=12345678&fp=ab')
+    expect(parseJoinPayload(url)).toEqual({ workspaceId: 'ws-1', code: '12345678', host: '192.168.178.158:8443', fingerprint: 'ab' })
+  })
+})

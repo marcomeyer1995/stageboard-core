@@ -180,6 +180,18 @@ describe('Fastify routes', () => {
       delete process.env.MDNS_HOSTNAME
     })
 
+    it('reports the port it listens on (#896)', async () => {
+      const before = process.env.PORT
+      process.env.PORT = '8443'
+      try {
+        const response = await app.inject({ method: 'GET', url: '/server-info' })
+        expect(response.json()).toMatchObject({ port: 8443 })
+      } finally {
+        if (before === undefined) delete process.env.PORT
+        else process.env.PORT = before
+      }
+    })
+
     it('reports the LAN_IP override when set', async () => {
       process.env.LAN_IP = '10.1.2.3'
       const response = await app.inject({ method: 'GET', url: '/server-info' })
