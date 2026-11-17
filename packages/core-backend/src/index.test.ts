@@ -118,6 +118,13 @@ describe('Fastify routes', () => {
       expect(serverTime).toBeGreaterThanOrEqual(before)
       expect(serverTime).toBeLessThanOrEqual(after)
     })
+
+    it('also announces which host answers and its epoch (#910)', async () => {
+      const response = await app.inject({ method: 'GET', url: '/time' })
+      const { hostId, epoch } = response.json() as { hostId: string; epoch: number }
+      expect(hostId.length).toBeGreaterThan(0)
+      expect(epoch).toBe(1)
+    })
   })
 
   describe('GET /server/backup-status (#363)', () => {

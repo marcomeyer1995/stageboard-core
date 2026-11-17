@@ -1,5 +1,7 @@
+import { HostTimeAnswerSchema } from 'shared-types'
 import { useClockSyncStore } from '../store/useClockSyncStore'
 import { useHostContactStore } from './hostContact'
+import { useHostEpochStore } from './hostEpoch'
 import { clockSyncLog } from './clockSyncDebug'
 import { getStageServerUrl } from './stageServer'
 
@@ -157,7 +159,10 @@ async function takeSample(base: string, intoWindow: boolean): Promise<ClockSampl
     // A host that is gone answers nothing - without a limit the requests hung and piled up (#782).
     const response = await fetch(`${base}/time`, { signal: AbortSignal.timeout(SAMPLE_TIMEOUT_MS) })
     if (!response.ok) return null
-    const { serverTime } = (await response.json()) as { serverTime: number }
+    const parsed = HostTimeAnswerSchema.safeParse(await response.json())
+    if (!parsed.success) return null
+    const { serverTime, epoch } = parsed.data
+    useHostEpochStore.getState().observe(epoch)
     const t1 = Date.now()
     useHostContactStore.getState().markContact()
     const sample = { rtt: t1 - t0, offset: serverTime - (t0 + t1) / 2 }
