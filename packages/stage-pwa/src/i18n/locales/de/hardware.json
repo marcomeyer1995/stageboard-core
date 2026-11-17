@@ -419,5 +419,20 @@
       "click": "Klick",
       "voice": "Ansagen"
     }
+  },
+  "hostRole": {
+    "title": "Host-Rolle",
+    "primary": "Primary",
+    "backup": "Backup",
+    "none": "Keine Rolle",
+    "setPrimary": "Als Primary festlegen",
+    "setBackup": "Als Backup festlegen",
+    "remove": "Rolle entfernen",
+    "askPrimary": "Adresse des Primary-Hosts",
+    "askBackup": "Adresse des Backup-Hosts",
+    "address": "Adresse",
+    "check": "Prüfen und speichern",
+    "notReached": "Der Host antwortet nicht, oder er ist zu alt, um benannt zu werden. Läuft er und ist er erreichbar? Es wurde nichts gespeichert.",
+    "locked": "Während ein Song läuft, nicht änderbar."
   }
 }
