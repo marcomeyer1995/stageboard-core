@@ -59,9 +59,15 @@ export function masterSelfCheck(input: {
   now: number
   /** Server time at which this device started holding the token (as far as it knows). */
   holdingSince: number
+  /** No answer from the host for a while (hostContact.ts). Then nobody can take the token over -
+   * there is no host to do it through - so the holder keeps control locally: its Stop and Play act
+   * on its own device at once and reach the others when the host is back (Marco, 2026-11-17, #782).
+   * The rule above (step down when not confirmed) stays for the case where a host is reachable. */
+  hostUnreachable?: boolean
 }): MasterSelfCheck {
-  const { syncStatus, hasStageServer, deviceId, heartbeat, now, holdingSince } = input
+  const { syncStatus, hasStageServer, deviceId, heartbeat, now, holdingSince, hostUnreachable = false } = input
   if (!hasStageServer) return 'ok'
+  if (hostUnreachable) return 'ok'
   if (syncStatus === 'error') return 'sync-error'
   if (syncStatus === 'offline') return 'offline'
   if (now - holdingSince <= MASTER_HEARTBEAT_TIMEOUT_MS) return 'ok'

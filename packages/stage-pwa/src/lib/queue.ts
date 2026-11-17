@@ -256,6 +256,13 @@ export async function stopSongAtTrackEnd(): Promise<void> {
   await applyPatch({ ...REARM_PATCH, trackEnded: true })
 }
 
+/** No host (#782): every device that is not the master ends the song by itself at its end, at the
+ * same moment as the master (they share the clock) - locally, nothing written or sent; the master's
+ * own stop reaches everyone once the host is back. */
+export function endSongLocally(): void {
+  useShowStateStore.getState().applyLocally({ ...REARM_PATCH, trackEnded: true })
+}
+
 /** Rearms the current entry without logging anything - an explicit "that didn't count"
  * override (a false start), usable even past the confirmation threshold, unlike Stop. */
 export async function resetSong(): Promise<void> {

@@ -1,4 +1,5 @@
 import { useClockSyncStore } from '../store/useClockSyncStore'
+import { useHostContactStore } from './hostContact'
 import { clockSyncLog } from './clockSyncDebug'
 import { getStageServerUrl } from './stageServer'
 
@@ -53,6 +54,8 @@ let offsetHistory: number[] = []
  * at most instead of jumping. The first burst still locks on at once.
  */
 export const SAMPLE_INTERVAL_MS = 2_000
+/** A /time answer later than this is no answer (the host is gone or stuck). */
+export const SAMPLE_TIMEOUT_MS = 3_000
 const WINDOW_MS = 120_000
 const BEST_FRACTION = 0.25
 const MIN_BEST = 5
@@ -151,10 +154,12 @@ export function estimateFromWindow(samples: readonly TimedSample[], now: number)
 async function takeSample(base: string, intoWindow: boolean): Promise<ClockSample | null> {
   const t0 = Date.now()
   try {
-    const response = await fetch(`${base}/time`)
+    // A host that is gone answers nothing - without a limit the requests hung and piled up (#782).
+    const response = await fetch(`${base}/time`, { signal: AbortSignal.timeout(SAMPLE_TIMEOUT_MS) })
     if (!response.ok) return null
     const { serverTime } = (await response.json()) as { serverTime: number }
     const t1 = Date.now()
+    useHostContactStore.getState().markContact()
     const sample = { rtt: t1 - t0, offset: serverTime - (t0 + t1) / 2 }
     clockSyncLog('sample', sample)
     if (intoWindow) window_.push({ ...sample, at: (t0 + t1) / 2 })

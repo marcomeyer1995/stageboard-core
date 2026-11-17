@@ -12,6 +12,7 @@
     "audioError": "Audio-Fehler",
     "audioFallback": "Ton: Notbetrieb",
     "outputMissing": "Ausgang fehlt",
+    "hostGone": "Host weg",
     "syncError": "Sync-Fehler",
     "offline": "Offline",
     "noMaster": "Kein Master",

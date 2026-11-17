@@ -13,7 +13,7 @@ import type { SyncStatus } from '../store/useSyncStore'
 export type StatusBarKind = 'ready' | 'count-in' | 'playing' | 'loop' | 'paused' | 'finished' | 'fault'
 
 /** The word for the state - a key into the `statusbar` texts (state.*), translated where shown (#456). */
-export type StatusBarLabel = 'ready' | 'countIn' | 'playing' | 'loop' | 'paused' | 'finished' | 'audioError' | 'audioFallback' | 'outputMissing' | 'syncError' | 'offline' | 'noMaster' | 'variantDeleted' | 'noDefaultVariant'
+export type StatusBarLabel = 'ready' | 'countIn' | 'playing' | 'loop' | 'paused' | 'finished' | 'audioError' | 'audioFallback' | 'outputMissing' | 'hostGone' | 'syncError' | 'offline' | 'noMaster' | 'variantDeleted' | 'noDefaultVariant'
 
 export interface StatusBarState {
   kind: StatusBarKind
@@ -29,6 +29,9 @@ export interface StatusBarInput {
   finished: boolean
   /** Gig mode: nobody holds the Master token, so nobody can start the next song. */
   noMaster: boolean
+  /** Gig mode: no answer from the host for HOST_GONE_MS (#782) - the song plays to its end, the next
+   * one needs the host back. */
+  hostGone?: boolean
   syncStatus: SyncStatus
   /** The local audio driver's current error, if any. */
   audioError: string | null
@@ -52,6 +55,7 @@ export function statusBarState(input: StatusBarInput): StatusBarState {
   if (input.audioError) return { kind: 'fault', label: 'audioError' }
   if (input.audioFallback) return { kind: 'fault', label: 'audioFallback' }
   if (input.mode === 'gig' && input.outputMissing) return { kind: 'fault', label: 'outputMissing' }
+  if (input.mode === 'gig' && input.hostGone) return { kind: 'fault', label: 'hostGone' }
   if (input.syncStatus === 'error') return { kind: 'fault', label: 'syncError' }
   if (input.mode === 'gig' && input.syncStatus === 'offline') return { kind: 'fault', label: 'offline' }
   if (input.mode === 'gig' && input.noMaster) return { kind: 'fault', label: 'noMaster' }

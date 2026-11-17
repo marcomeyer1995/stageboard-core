@@ -226,3 +226,15 @@ describe('the setup the Gig goes by (#745)', () => {
     expect(useShowStateStore.getState().state.activeSetupId).toBe('club')
   })
 })
+
+describe('applyLocally (#782: no host)', () => {
+  it('changes only this device - no database write, no push - and needs no master', () => {
+    vi.mocked(putShowState).mockReset()
+    vi.mocked(pushShowState).mockReset()
+    setState({ playbackStatus: 'playing', masterHolderId: 'someone-else' }, false)
+    useShowStateStore.getState().applyLocally({ playbackStatus: 'stopped', trackEnded: true })
+    expect(useShowStateStore.getState().state).toMatchObject({ playbackStatus: 'stopped', trackEnded: true })
+    expect(putShowState).not.toHaveBeenCalled()
+    expect(pushShowState).not.toHaveBeenCalled()
+  })
+})

@@ -98,3 +98,15 @@ describe('countInPosition with a corrected tempo (real beatAt)', () => {
     expect(seen).toEqual(['1.1', '1.2', '1.3', '1.4', '2.1', '2.2', '2.3', '2.4', '3.1', '3.2', '3.3', '3.4'])
   })
 })
+
+describe('statusBarState: host gone (#782)', () => {
+  it('is a fault in the Gig, after audio and output problems, before sync problems', () => {
+    expect(statusBarState({ ...base, mode: 'gig', hostGone: true })).toEqual({ kind: 'fault', label: 'hostGone' })
+    expect(statusBarState({ ...base, mode: 'gig', hostGone: true, syncStatus: 'offline' }).label).toBe('hostGone')
+    expect(statusBarState({ ...base, mode: 'gig', hostGone: true, audioError: 'x' }).label).toBe('audioError')
+  })
+
+  it('does not matter in Solo Üben', () => {
+    expect(statusBarState({ ...base, mode: 'practice', hostGone: true }).kind).not.toBe('fault')
+  })
+})
