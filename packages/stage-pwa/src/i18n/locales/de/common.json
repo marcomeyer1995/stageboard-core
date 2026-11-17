@@ -35,7 +35,9 @@
     "noShape": "Kein Griffbild",
     "cancel": "Abbrechen",
     "openMenu": "Menü öffnen",
-    "noText": "Kein Text."
+    "noText": "Kein Text.",
+    "showPin": "PIN zeigen",
+    "hidePin": "PIN verbergen"
   },
   "tiers": {
     "gig": "Im Song",

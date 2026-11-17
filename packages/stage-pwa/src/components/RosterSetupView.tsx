@@ -8,7 +8,7 @@ import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { BackToWorkingBandLink } from './BackToWorkingBandLink'
 import { InviteBandView } from './InviteBandView'
 import { INPUT_FREE } from './ui/styles'
-import { Button } from './ui'
+import { Button, PinInput } from './ui'
 
 type Phase = 'founder' | 'members' | 'summary'
 
@@ -204,13 +204,7 @@ export function RosterSetupView() {
             autoFocus
             className={`h-form min-w-0 px-3 ${INPUT_FREE}`}
           />
-          <input
-            value={founderPin}
-            onChange={(e) => setFounderPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
-            placeholder={t('roster.pin')}
-            inputMode="numeric"
-            className={`h-form min-w-0 px-3 text-center text-lg tracking-widest ${INPUT_FREE}`}
-          />
+          <PinInput value={founderPin} onChange={setFounderPin} placeholder={t('roster.pin')} />
           <Button variant="primary" fullWidth type="submit" disabled={busy || !founderName.trim() || founderPin.length !== 4}>
             {busy ? '…' : t('roster.next')}
           </Button>

@@ -17,8 +17,8 @@ import { useStageServerStore } from '../store/useStageServerStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { useBackHandler } from '../lib/backNavigation'
 import { MASTER_MODE_LABEL, MasterModeDialog } from './MasterModeDialog'
-import { ActionMenuDialog, AddRow, Badge, Button } from './ui'
-import { CONTROL, FOCUS, INPUT_FREE } from './ui/styles'
+import { ActionMenuDialog, AddRow, Badge, Button, PinInput } from './ui'
+import { CONTROL, FOCUS } from './ui/styles'
 import { useTranslation } from 'react-i18next'
 
 /**
@@ -616,14 +616,7 @@ export function BandManagementView() {
                     className="flex flex-col gap-2"
                   >
                     <div className="flex gap-2">
-                      <input
-                        value={activatePasswordInput}
-                        onChange={(e) => setActivatePasswordInput(e.target.value.replace(/\D/g, '').slice(0, 4))}
-                        placeholder={t('code')}
-                        inputMode="numeric"
-                        autoFocus
-                        className={`h-form min-w-0 flex-1 min-w-0 px-3 text-center text-lg tracking-widest ${INPUT_FREE}`}
-                      />
+                      <PinInput value={activatePasswordInput} onChange={setActivatePasswordInput} placeholder={t('code')} autoFocus className="flex-1" />
                       <Button variant="primary" className="flex-shrink-0" type="submit" disabled={activating || activatePasswordInput.length !== 4}>
                         {activating ? '…' : t('switch')}
                       </Button>

@@ -11,7 +11,7 @@ import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { BackToWorkingBandLink } from './BackToWorkingBandLink'
 import { useBackHandler } from '../lib/backNavigation'
 import { Icon } from './Icon'
-import { Switch, Button } from './ui'
+import { Switch, Button, PinInput } from './ui'
 import { INPUT, INPUT_FREE } from './ui/styles'
 import { useTranslation } from 'react-i18next'
 
@@ -336,14 +336,7 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
                   >
                     <span className="font-semibold">{member.name}</span>
                     <div className="flex gap-2">
-                      <input
-                        value={memberPasswordInput}
-                        onChange={(e) => setMemberPasswordInput(e.target.value.replace(/\D/g, '').slice(0, 4))}
-                        placeholder={t('code')}
-                        inputMode="numeric"
-                        autoFocus
-                        className={`h-form min-w-0 flex-1 min-w-0 px-3 text-center text-lg tracking-widest ${INPUT_FREE}`}
-                      />
+                      <PinInput value={memberPasswordInput} onChange={setMemberPasswordInput} placeholder={t('code')} autoFocus className="flex-1" />
                       <Button variant="primary" className="flex-shrink-0" type="submit" disabled={busy || memberPasswordInput.length !== 4}>
                         {busy ? '…' : t('join.join')}
                       </Button>
