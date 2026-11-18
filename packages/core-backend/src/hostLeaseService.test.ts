@@ -92,6 +92,8 @@ describe('host lease service (#918)', () => {
     const none = service('stage-pc', [primary, backup], { get: vi.fn().mockResolvedValue({ nonsense: true }) })
     await none.s.sampleOnce()
     expect(none.s.clockOffsetMs()).toBeNull()
+  })
+
   it('knows the origins of the listed hosts after it has read the list', async () => {
     const { s } = service('laptop', [primary, backup])
     expect(s.listedOrigins()).toEqual([])
