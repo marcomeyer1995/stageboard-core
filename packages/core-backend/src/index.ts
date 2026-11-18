@@ -1,6 +1,6 @@
 import { createSocket } from 'node:dgram'
 import { AddonError, addonFilePath, addonRoot, installAddonVersion, previewAddon, pruneAddonVersions } from './addons/addonStore.js'
-import { AddonInstallRequestSchema, AddonPreviewRequestSchema, HostTimeAnswerSchema, LEASE_INTERVAL_MS, type BandHostEntry } from 'shared-types'
+import { AddonInstallRequestSchema, AddonPreviewRequestSchema, HostAdminActionSchema, HostTimeAnswerSchema, LEASE_INTERVAL_MS, type BandHostEntry } from 'shared-types'
 import { existsSync, readFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { CalibrationRuns } from './calibration/calibrationRuns.js'
@@ -1067,6 +1067,24 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
     )
     return result.ok ? { status: 'ok' } : reply.status(result.status).send({ status: 'error', message: result.message })
   })
+  // The admin's hand-made host change (#943): "take over now" on the backup, "hand back now" on the primary.
+  // Checked with the admin's device login of the band, as on the other admin routes.
+  for (const [path, act] of [
+    ['/host/take-over', async () => ({ result: await hostLease.takeoverNow(), ok: 'taken' })],
+    ['/host/hand-back', async () => ({ result: hostLease.requestHandback(), ok: 'requested' })],
+  ] as const) {
+    app.post(path, async (request, reply) => {
+      const parsed = HostAdminActionSchema.safeParse(request.body)
+      if (!parsed.success) return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
+      const workspaceId = workspaceHardware.getActiveWorkspaceId()
+      if (!workspaceId) return reply.status(409).send({ status: 'error', message: 'This host serves no band' })
+      if (!(await isWorkspaceAdmin(request, workspaceId, parsed.data.adminUsername, parsed.data.adminPassword))) {
+        return reply.status(403).send({ status: 'error', message: 'Not this band\'s admin' })
+      }
+      const { result, ok } = await act()
+      return result === ok ? { status: 'ok', result } : reply.status(409).send({ status: 'error', result })
+    })
+  }
   app.post('/host/replication-account', async (request, reply) => {
     const account = await replicationAccounts.issue(request.body)
     return account ?? reply.status(403).send({})

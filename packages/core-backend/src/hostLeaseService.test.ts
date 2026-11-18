@@ -330,6 +330,88 @@ describe('takeover (#920)', () => {
   })
 })
 
+describe('by hand (#943)', () => {
+  const caught = { state: 'caught-up' as const, docsCopied: 5, lastChangeAt: 0 }
+
+  async function heardBackup() {
+    const h = service('stage-pc', [primary, backup])
+    await h.s.receive(signLease({ hostId: 'laptop', epoch: 1, leaseMs: 4000, sentAt: 1 }, KEY))
+    return h
+  }
+
+  it('"take over now": the passive backup becomes host at once, epoch + 1, while the primary is still alive', async () => {
+    const h = await heardBackup()
+    expect(await h.s.takeoverNow()).toBe('taken')
+    expect(h.s.isActive()).toBe(true)
+    expect(h.s.epoch()).toBe(2)
+    expect(h.store.load()).toEqual({ epoch: 2, active: true })
+  })
+
+  it('"take over now" refuses: not the backup, already the host, no band, or a backup that never heard its primary', async () => {
+    const primaryHost = service('laptop', [primary, backup])
+    await primaryHost.s.sendOnce()
+    expect(await primaryHost.s.takeoverNow()).toBe('refused')
+    const active = await heardBackup()
+    await active.s.takeoverNow()
+    expect(await active.s.takeoverNow()).toBe('refused')
+    const none = service('stage-pc', [primary, backup], { workspaceId: () => null })
+    expect(await none.s.takeoverNow()).toBe('refused')
+    const deaf = service('stage-pc', [primary, backup])
+    await deaf.s.sampleOnce()
+    expect(await deaf.s.takeoverNow()).toBe('refused')
+  })
+
+  /** The returned primary, out of date, with a caught-up copy and no song. */
+  async function returned(over: Record<string, unknown> = {}) {
+    const h = service('laptop', [primary, backup], { catchUp: () => caught, songRunning: async () => false, ...over })
+    h.get.mockImplementation(async () => ({ serverTime: 1, hostId: 'stage-pc', epoch: 2 }))
+    h.post.mockResolvedValue({ accepted: false, epoch: 2, active: true })
+    await h.s.sendOnce() // learns it is out of date
+    h.advance(1_000)
+    await h.s.sendOnce() // the backup answers once - the primary has seen it alive
+    return h
+  }
+
+  it('"hand back now" skips the 30 s wait, but not the rest: the copy must be current and no song may play', async () => {
+    const h = await returned()
+    expect(await h.s.handbackCheck()).toBe('no') // answered once, but not for 30 s, and not asked
+    expect(h.s.requestHandback()).toBe('requested')
+    expect(await h.s.handbackCheck()).toBe('handed-back')
+    expect(h.s.epoch()).toBe(3)
+  })
+
+  it('"hand back now" still waits for the end of a song', async () => {
+    let playing = true
+    const h = await returned({ songRunning: async () => playing })
+    h.s.requestHandback()
+    expect(await h.s.handbackCheck()).toBe('no')
+    expect(h.s.outdated()).toBe(true)
+    playing = false
+    expect(await h.s.handbackCheck()).toBe('handed-back')
+  })
+
+  it('"hand back now" still waits for the copy', async () => {
+    const h = await returned({ catchUp: () => ({ state: 'active' as const, lastChangeAt: 0 }) })
+    h.s.requestHandback()
+    expect(await h.s.handbackCheck()).toBe('no')
+  })
+
+  it('"hand back now" asks for nothing when the host is not out of date, and the wish is gone after the handback', async () => {
+    const fine = service('laptop', [primary, backup])
+    await fine.s.sendOnce()
+    expect(fine.s.requestHandback()).toBe('not-needed')
+    const h = await returned()
+    h.s.requestHandback()
+    await h.s.handbackCheck()
+    // out of date again later: the old wish must not skip the wait this time
+    h.post.mockResolvedValue({ accepted: false, epoch: 5, active: true })
+    h.get.mockImplementation(async () => ({ serverTime: 1, hostId: 'stage-pc', epoch: 5 }))
+    await h.s.sendOnce()
+    expect(h.s.outdated()).toBe(true)
+    expect(await h.s.handbackCheck()).toBe('no')
+  })
+})
+
 describe('handback (#935)', () => {
   const caught = { state: 'caught-up' as const, docsCopied: 5, lastChangeAt: 0 }
 
