@@ -92,6 +92,20 @@ describe('host lease service (#918)', () => {
     const none = service('stage-pc', [primary, backup], { get: vi.fn().mockResolvedValue({ nonsense: true }) })
     await none.s.sampleOnce()
     expect(none.s.clockOffsetMs()).toBeNull()
+  it('knows the origins of the listed hosts after it has read the list', async () => {
+    const { s } = service('laptop', [primary, backup])
+    expect(s.listedOrigins()).toEqual([])
+    await s.sendOnce()
+    expect(s.listedOrigins()).toEqual(['https://10.0.0.1:8443', 'https://10.0.0.2:8443'])
+  })
+
+  it('keeps the last list when the band database cannot be read any more', async () => {
+    let fail = false
+    const { s } = service('laptop', [primary, backup], { readHosts: async () => { if (fail) throw new Error('db down'); return [primary, backup] } })
+    await s.sendOnce()
+    fail = true
+    await s.sendOnce()
+    expect(s.listedOrigins()).toHaveLength(2)
   })
 
   it('a failing post does not throw', async () => {

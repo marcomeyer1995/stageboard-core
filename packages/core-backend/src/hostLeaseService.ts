@@ -92,6 +92,8 @@ export interface HostLeaseService {
   sampleOnce(): Promise<void>
   /** The primary's clock minus ours as the backup last learned it, or null. */
   clockOffsetMs(): number | null
+  /** Origins (scheme, host, port) of the hosts in the band's list, as last read - for CORS (#926). */
+  listedOrigins(): string[]
 }
 
 /**
@@ -114,11 +116,13 @@ export function createHostLeaseService(deps: {
   const keeper = createLeaseKeeper({ selfHostId: deps.selfHostId, listedHostIds: () => listed, keys: () => keys, now: deps.now })
   let lastSentAt = 0
   const clock = createHostClock({ now: deps.now })
+  let origins: string[] = []
 
   async function load(workspaceId: string) {
     const hosts = BandHostsSchema.safeParse(await deps.readHosts(workspaceId))
     const code = await deps.readAccessCode(workspaceId)
     listed = hosts.success ? hosts.data.map((h) => h.hostId) : []
+    origins = hosts.success ? hosts.data.map((h) => new URL(h.url).origin) : []
     keys = code ? [leaseKey(code, workspaceId)] : []
     return hosts.success ? hosts.data : []
   }
@@ -143,7 +147,11 @@ export function createHostLeaseService(deps: {
     async receive(raw) {
       const workspaceId = deps.workspaceId()
       if (!workspaceId) return 'ignored'
-      await load(workspaceId)
+      try {
+        await load(workspaceId)
+      } catch {
+        return 'ignored'
+      }
       return keeper.accept(raw)
     },
     status: () => keeper.status(),
@@ -164,5 +172,6 @@ export function createHostLeaseService(deps: {
         // The primary being gone is what the lease is about; the clock simply keeps its last offset.
       }
     },
+    listedOrigins: () => origins,
   }
 }
