@@ -15,7 +15,8 @@ function service(self: string, hosts: BandHostEntry[] | null, over: Partial<Para
   const store = { load: () => saved, save: (r: { epoch: number; active: boolean }) => void (saved = r) }
   const post = vi.fn().mockResolvedValue({ accepted: true, epoch: 1, active: false })
   // The primary's clock runs 250 ms ahead of ours; an answer takes 4 ms.
-  const get = vi.fn(async (): Promise<unknown> => {
+  const get = vi.fn(async (url?: string): Promise<unknown> => {
+    void url
     t += 2
     const serverTime = t + 250
     t += 2
@@ -557,5 +558,74 @@ describe('handback (#935)', () => {
       await h.s.sampleOnce()
       expect(h.get).toHaveBeenCalled()
     })
+  })
+})
+
+describe('teaching a listed backup its band (#945)', () => {
+  const selfUrl = 'https://10.0.0.1:8443'
+  /** Answers `/server/active-workspace` with the given band, everything else like the plain fixture. */
+  function inviter(activeWorkspaceId: string | null, over: Partial<Parameters<typeof createHostLeaseService>[0]> = {}) {
+    const h = service('laptop', [primary, backup], { selfUrl, selfFingerprint: FP1, ...over })
+    h.get.mockImplementation(async (url = '') => {
+      if (url.endsWith('/server/active-workspace')) return { activeWorkspaceId }
+      return { serverTime: 10_250, hostId: 'laptop', epoch: 1 }
+    })
+    return h
+  }
+
+  it('the primary invites a listed backup that serves no band - with the code, its own address and fingerprint', async () => {
+    const { s, post } = inviter(null)
+    await s.sendOnce()
+    const invite = post.mock.calls.find((c) => String(c[0]).endsWith('/host/join-band-invite'))
+    expect(invite).toBeDefined()
+    const [url, body, fingerprint] = invite!
+    expect(url).toBe('https://10.0.0.2:8443/host/join-band-invite')
+    expect(body).toEqual({
+      workspaceId: 'band-a',
+      accessCode: '12345678',
+      primaryUrl: selfUrl,
+      targetHostId: 'stage-pc',
+      fingerprint: FP1,
+      sentAt: 10_000,
+    })
+    // The invitation goes to the address and certificate the band's list names, not to whatever answers.
+    expect(fingerprint).toBe(FP2)
+  })
+
+  it('does not invite a backup that already serves this band, or another one', async () => {
+    for (const band of ['band-a', 'another-band']) {
+      const { s, post } = inviter(band)
+      await s.sendOnce()
+      expect(post.mock.calls.some((c) => String(c[0]).endsWith('/host/join-band-invite'))).toBe(false)
+    }
+  })
+
+  it('repeats the invitation after the interval, not on every lease', async () => {
+    const { s, post, advance } = inviter(null)
+    const invites = () => post.mock.calls.filter((c) => String(c[0]).endsWith('/host/join-band-invite')).length
+    await s.sendOnce()
+    advance(1_000)
+    await s.sendOnce()
+    expect(invites()).toBe(1)
+    advance(5_000)
+    await s.sendOnce()
+    expect(invites()).toBe(2)
+  })
+
+  it('sends no invitation as the backup, and none when the other host does not answer properly', async () => {
+    const asBackup = service('stage-pc', [primary, backup], { selfUrl: 'https://10.0.0.2:8443', selfFingerprint: FP2 })
+    await asBackup.s.sendOnce()
+    expect(asBackup.post.mock.calls.some((c) => String(c[0]).endsWith('/host/join-band-invite'))).toBe(false)
+
+    for (const answer of [null, {}, { activeWorkspaceId: 7 }]) {
+      const { s, post } = inviter(null, {})
+      s // keep the fixture's own get
+      const h = service('laptop', [primary, backup], { selfUrl, selfFingerprint: FP1 })
+      h.get.mockImplementation(async () => answer)
+      await h.s.sendOnce()
+      expect(h.post.mock.calls.some((c) => String(c[0]).endsWith('/host/join-band-invite'))).toBe(false)
+      expect(post).toBeDefined()
+      expect(s).toBeDefined()
+    }
   })
 })

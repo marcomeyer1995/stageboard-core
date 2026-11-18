@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import type { BandHostEntry } from 'shared-types'
-import { createBandBootstrapStore, effectiveHosts, joinBand, joinFromMap, type Bootstrap } from './bandJoin.js'
+import { createBandBootstrapStore, effectiveHosts, joinBand, joinBandInvite, type Bootstrap } from './bandJoin.js'
 
 const FP = 'a'.repeat(64)
 const primary: BandHostEntry = { hostId: 'laptop', url: 'https://10.0.0.1:8443', certFingerprint: FP, priority: 1 }
@@ -112,14 +112,14 @@ describe('effectiveHosts (#933)', () => {
   })
 })
 
-describe('joining from the stage map (#945)', () => {
+describe('a host inviting a listed backup (#945)', () => {
   /** How the map asks a fresh host to join: the band's code is the proof, and the host must be the one named. */
-  const invite = { workspaceId: 'band-a', accessCode: '12345678', primaryUrl: 'https://10.0.0.1:8443', targetHostId: 'stage-pc', primaryHostId: 'laptop', fingerprint: 'f'.repeat(64), sentAt: 10_000 }
+  const invite = { workspaceId: 'band-a', accessCode: '12345678', primaryUrl: 'https://10.0.0.1:8443', targetHostId: 'stage-pc', fingerprint: 'f'.repeat(64), sentAt: 10_000 }
 
   function invited(over: Record<string, unknown> = {}) {
     const { deps, store } = setup()
     const verifyWithPrimary = vi.fn(async () => 'laptop' as string | null)
-    const s = joinFromMap({ ...deps, verifyWithPrimary, now: () => 10_000, ...over })
+    const s = joinBandInvite({ ...deps, verifyWithPrimary, now: () => 10_000, ...over })
     return { s, deps, store, verifyWithPrimary: (over.verifyWithPrimary as typeof verifyWithPrimary) ?? verifyWithPrimary }
   }
 
@@ -156,7 +156,7 @@ describe('joining from the stage map (#945)', () => {
   it('the stored time survives a restart: a new service with the same file still refuses the replay', async () => {
     const first = invited()
     await first.s(invite)
-    const second = joinFromMap({ ...first.deps, verifyWithPrimary: vi.fn(async () => 'laptop'), now: () => 10_000 })
+    const second = joinBandInvite({ ...first.deps, verifyWithPrimary: vi.fn(async () => 'laptop'), now: () => 10_000 })
     expect(await second(invite)).toMatchObject({ ok: false, status: 409 })
   })
 

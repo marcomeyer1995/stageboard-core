@@ -22,10 +22,11 @@ import { makeLocalBandDb, makeRemoteBandDb } from './bandPouch.js'
 import { createReplicationAccountIssuer } from './replicationAccount.js'
 import { createReplicationRunner } from './replicationRunner.js'
 import { createAudioMirror } from './audioMirror.js'
-import { createBandBootstrapStore, joinFromMap, effectiveHosts, joinBand } from './bandJoin.js'
+import { createBandBootstrapStore, joinBandInvite, effectiveHosts, joinBand } from './bandJoin.js'
 import { mirrorTracksOf, readLocalRevision, saveMirrorFile } from './audioMirrorFiles.js'
 import { createPinnedFetch } from './pinnedFetch.js'
 import { corsOriginAllowed } from './corsOrigin.js'
+import { HostLookupQuerySchema, lookUpHost } from './hostLookup.js'
 import { configuredHostEpoch } from './hostEpochConfig.js'
 import { importHostAccounts, watchHostAccounts } from './hostAccounts.js'
 import fastifyStatic from '@fastify/static'
@@ -1016,8 +1017,12 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
 
   // Host backup, #918 (docs/25 §6e): the primary tells the backup every second that it is alive,
   // signed with the band code. The sender is started in main(), not here, so tests stay quiet.
+  const selfUrl = `https://${process.env.LAN_IP ?? detectLanIp() ?? '127.0.0.1'}:${Number(process.env.PORT ?? 3001)}`
   const hostLease = createHostLeaseService({
     selfHostId: hostId,
+    // The primary teaches a fresh, listed backup its band by itself (#945) - the admin only picks the host.
+    selfUrl,
+    selfFingerprint: CERT_FINGERPRINT,
     baseEpoch: hostEpoch,
     roleStore: createHostRoleStore(process.env.STAGEBOARD_STATE_DIR ?? './data'),
     workspaceId: () => workspaceHardware.getActiveWorkspaceId(),
@@ -1053,7 +1058,7 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
     const result = await joinBand(
       {
         selfHostId: hostId,
-        selfUrl: `https://${process.env.LAN_IP ?? detectLanIp() ?? '127.0.0.1'}:${Number(process.env.PORT ?? 3001)}`,
+        selfUrl,
         activeWorkspaceId: () => workspaceHardware.getActiveWorkspaceId(),
         fetchPrimaryId: async (url, fingerprint) => {
           const answer = HostTimeAnswerSchema.safeParse(await getFromHost(`${url}/time`, fingerprint, 3_000))
@@ -1085,12 +1090,12 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
       return result === ok ? { status: 'ok', result } : reply.status(409).send({ status: 'error', result })
     })
   }
-  // The map asks a fresh backup host to join the band (#945): the band code is the proof, checked with the
-  // primary (its roster route is code-gated), and the invite names the host that must be us. Not loopback-only:
-  // the admin sends it from the tablet on the stage map.
-  const acceptJoinFromMap = joinFromMap({
+  // A fresh backup is taught its band by the primary itself (#945): the primary sees the admin's new entry in
+  // the band's host list and invites the still band-less host - the band code is the proof, checked with the
+  // primary (its roster route is code-gated), and the invite names the host that must be us.
+  const acceptJoinInvite = joinBandInvite({
     selfHostId: hostId,
-    selfUrl: `https://${process.env.LAN_IP ?? detectLanIp() ?? '127.0.0.1'}:${Number(process.env.PORT ?? 3001)}`,
+    selfUrl,
     activeWorkspaceId: () => workspaceHardware.getActiveWorkspaceId(),
     verifyWithPrimary: async (primaryUrl, workspaceId, code, fingerprint) => {
       // Roster is gated by the standing band code; /time tells us who the primary is.
@@ -1110,9 +1115,19 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
     store: bootstrapStore,
     now: () => Date.now(),
   })
-  app.post('/host/join-band-from-map', async (request, reply) => {
-    const result = await acceptJoinFromMap(request.body)
+  app.post('/host/join-band-invite', async (request, reply) => {
+    const result = await acceptJoinInvite(request.body)
     return result.ok ? { status: 'ok' } : reply.status(result.status).send({ status: 'error', message: result.message })
+  })
+  // Who a host is (host backup, #914): the stage app asks its *own* host to look up the address the admin
+  // typed, so the page never has to trust a certificate it does not know yet - in the browser that would be
+  // CORS, in the app a missing pin (#945).
+  app.get('/host/look-up', async (request, reply) => {
+    const parsed = HostLookupQuerySchema.safeParse(request.query)
+    if (!parsed.success) return reply.status(400).send({ status: 'error', message: 'An https host address is needed' })
+    // A host the admin named, not yet trusted: no fingerprint to check it against.
+    const host = await lookUpHost(parsed.data.address, (url) => getFromHost(url, undefined, 3_000))
+    return host ?? reply.status(502).send({ status: 'error', message: 'That address does not answer as a Stage-Server' })
   })
   app.post('/host/replication-account', async (request, reply) => {
     const account = await replicationAccounts.issue(request.body)

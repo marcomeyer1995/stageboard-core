@@ -1,6 +1,6 @@
 import { request } from 'node:http'
 import { connect } from 'node:tls'
-import { BandHostsSchema, HostTimeAnswerSchema, LEASE_LENGTH_MS, type BandHostEntry, type SignedHostLease } from 'shared-types'
+import { ActiveWorkspaceStatusSchema, BandHostsSchema, HostTimeAnswerSchema, LEASE_LENGTH_MS, type BandHostEntry } from 'shared-types'
 import { z } from 'zod'
 import { createHostClock } from './hostClock.js'
 import type { HostRoleStore } from './hostRoleStore.js'
@@ -138,6 +138,9 @@ export interface HostLeaseService {
 /** Without a lease for this long, and with the primary not answering directly either, the backup takes over (docs/25 §6e: 5-8 s, with the up to 1 s check interval and the direct request of 1 s on top). Above the 1-3 s Wi-Fi hiccups. */
 export const TAKEOVER_AFTER_MS = 5_000
 
+/** How often the primary repeats the band invitation to a fresh backup - a doorbell, not a stream (#945). */
+export const INVITE_INTERVAL_MS = 5_000
+
 /** The returned primary waits until the backup has answered without a gap for this long (#935). */
 export const HANDBACK_STEADY_MS = 30_000
 /** ... and until its copy of the backup's data has been quiet for this long. */
@@ -156,17 +159,24 @@ export function createHostLeaseService(deps: {
   workspaceId: () => string | null
   readHosts: (workspaceId: string) => Promise<readonly BandHostEntry[] | null>
   readAccessCode: (workspaceId: string) => Promise<string | null>
-  /** POSTs the lease; the answer is the other host's `{ accepted, epoch }`, null when it did not answer. */
-  post: (url: string, body: SignedHostLease, fingerprint: string | undefined) => Promise<unknown>
+  /** POSTs JSON to the other host (the lease, and the band invitation of #945); null when it did not answer. */
+  post: (url: string, body: unknown, fingerprint: string | undefined) => Promise<unknown>
   get: (url: string, fingerprint: string | undefined) => Promise<unknown>
   now: () => number
   /** The returned primary's copy of the backup's data (#935). Without it no handback. */
   catchUp?: () => { state: string; lastChangeAt: number | null } | null
   /** Whether a song is playing right now (`show-state`); a throw means "cannot tell". */
   songRunning?: () => Promise<boolean>
+  /** This host's own address for the other host - set together with `selfFingerprint` to teach a fresh backup its band (#945). */
+  selfUrl?: string
+  /** This host's certificate fingerprint: what the invited backup pins (#945). */
+  selfFingerprint?: string | null
 }): HostLeaseService {
   let listed: string[] = []
   let keys: Buffer[] = []
+  let accessCode: string | null = null
+  /** When the primary last invited the backup - the doorbell, not every lease (#945). */
+  let lastInviteAt = 0
   const keeper = createLeaseKeeper({ selfHostId: deps.selfHostId, listedHostIds: () => listed, keys: () => keys, now: deps.now })
   let lastSentAt = 0
   const clock = createHostClock({ now: deps.now })
@@ -189,6 +199,7 @@ export function createHostLeaseService(deps: {
     listed = hosts.success ? hosts.data.map((h) => h.hostId) : []
     origins = hosts.success ? hosts.data.map((h) => new URL(h.url).origin) : []
     keys = code ? [leaseKey(code, workspaceId)] : []
+    accessCode = code ?? null
     selfPriority = hosts.success && hosts.data.length >= 2 ? (hosts.data.find((h) => h.hostId === deps.selfHostId)?.priority ?? null) : null
     return hosts.success ? hosts.data : []
   }
@@ -222,6 +233,28 @@ export function createHostLeaseService(deps: {
         const reply = LeaseReplySchema.safeParse(await deps.post(`${otherUrl}/host/lease`, body, other.certFingerprint))
         // The backup took over while this host was away: its epoch is higher, this host is out of date.
         if (reply.success && reply.data.epoch > epochNow()) outdated = true
+        if (outdated) return
+        // A listed backup that serves no band yet is fresh: it needs the band and knows nothing of it (#945).
+        // The primary teaches it here instead of the admin typing a code - the list already names it, so no
+        // stranger can pick a host by asking. Once it serves a band it is left alone, whatever the band.
+        if (deps.selfUrl && accessCode && deps.now() - lastInviteAt >= INVITE_INTERVAL_MS) {
+          lastInviteAt = deps.now()
+          const serving = ActiveWorkspaceStatusSchema.safeParse(await deps.get(`${otherUrl}/server/active-workspace`, other.certFingerprint))
+          if (serving.success && serving.data.activeWorkspaceId === null) {
+            await deps.post(
+              `${otherUrl}/host/join-band-invite`,
+              {
+                workspaceId,
+                accessCode,
+                primaryUrl: deps.selfUrl.replace(/\/+$/, ''),
+                targetHostId: other.hostId,
+                ...(deps.selfFingerprint ? { fingerprint: deps.selfFingerprint } : {}),
+                sentAt: deps.now(),
+              },
+              other.certFingerprint,
+            )
+          }
+        }
       } catch {
         // The backup being unreachable is exactly what the lease is about - nothing to recover here.
       }

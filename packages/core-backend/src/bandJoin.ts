@@ -105,16 +105,17 @@ export async function joinBand(
 }
 
 /**
- * A fresh backup joins the band because the admin named it on the stage map (#945): the map sends the band's
- * code as proof, with the primary's address and fingerprint, and the host id that must be ours. The code is
- * checked with the primary (its `/workspaces/:id/roster` is code-gated), so a stranger who heard the address
- * cannot name this host for their band. The invite's `sentAt` must rise, so a recorded request is worth nothing.
+ * A fresh backup joins the band because a host of that band invited it (#945): the primary sees the admin's
+ * new entry in the band's host list, notices the backup serves no band yet, and sends the band's code with its
+ * own address and fingerprint. The code is checked with the primary (its `/workspaces/:id/roster` is
+ * code-gated), so a stranger who heard the address cannot name this host for their band. The invite's `sentAt`
+ * must rise, so a recorded request is worth nothing. The admin only picks the host on the stage map.
  */
 /** Alias kept local for the service's type; the wire schema lives in shared-types. */
 const InviteSchema = HostJoinInviteSchema
 export type JoinInvite = z.infer<typeof InviteSchema>
 
-export function joinFromMap(deps: {
+export function joinBandInvite(deps: {
   selfHostId: string
   selfUrl: string
   activeWorkspaceId: () => string | null
