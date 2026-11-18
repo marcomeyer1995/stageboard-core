@@ -1,9 +1,19 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { HostOverview as Overview } from '../lib/hostOverview'
 import '../i18n'
 
 const overview = vi.hoisted(() => ({ value: null as Overview | null }))
+const session = vi.hoisted(() => ({ isAdmin: true, playing: false }))
+const action = vi.hoisted(() => ({ run: vi.fn(async () => 'done' as string) }))
+const dialogs = vi.hoisted(() => ({ confirm: vi.fn(async () => true), alert: vi.fn(async () => {}) }))
+vi.mock('../lib/hostActions', () => ({ hostAction: action.run }))
+vi.mock('../store/useWorkspaceStore', () => ({
+  useWorkspaceStore: (select: (s: unknown) => unknown) =>
+    select({ activeWorkspaceId: 'w', workspaces: [{ id: 'w', isAdmin: session.isAdmin, username: 'stageboard-w-a~d', couchPassword: 'secret' }] }),
+}))
+vi.mock('../store/useShowStateStore', () => ({ useShowStateStore: (select: (s: unknown) => unknown) => select({ state: { playbackStatus: session.playing ? 'playing' : 'stopped' } }) }))
+vi.mock('../store/useDialogStore', () => ({ useDialogStore: (select: (s: unknown) => unknown) => select(dialogs) }))
 vi.mock('../lib/useHostOverview', () => ({ useHostOverview: () => overview.value }))
 
 const { HostOverview } = await import('./HostOverview')
@@ -12,6 +22,13 @@ const row = (over: object = {}) => ({ hostId: 'laptop', role: 'primary' as const
 
 beforeEach(() => {
   overview.value = null
+  session.isAdmin = true
+  session.playing = false
+  action.run.mockClear()
+  action.run.mockResolvedValue('done')
+  dialogs.confirm.mockClear()
+  dialogs.confirm.mockResolvedValue(true)
+  dialogs.alert.mockClear()
 })
 
 describe('HostOverview (#941)', () => {
@@ -62,4 +79,70 @@ describe('HostOverview (#941)', () => {
     expect(screen.getByText(/Epoch 4/)).toBeTruthy()
     expect(screen.queryAllByText(/Epoch/)).toHaveLength(1)
   })
+
+  describe('by hand (#943)', () => {
+    const backupStanding = () => ({
+      rows: [row({ state: 'host', current: true }), row({ hostId: 'stage-pc', role: 'backup', state: 'standby', status: 'off', url: 'https://10.0.0.2:8443' })],
+      problem: null,
+    })
+    const primaryOutdated = () => ({
+      rows: [row({ state: 'outdated', status: 'warning', url: 'https://10.0.0.1:8443' }), row({ hostId: 'stage-pc', role: 'backup', state: 'host', url: 'https://10.0.0.2:8443' })],
+      problem: null,
+    })
+
+    it('the admin can take over now on the backup that stands by: asked first, sent to the BACKUP, with their login', async () => {
+      overview.value = backupStanding()
+      render(<HostOverview />)
+      fireEvent.click(screen.getByRole('button', { name: /Jetzt übernehmen/ }))
+      await waitFor(() => expect(action.run).toHaveBeenCalledTimes(1))
+      expect(dialogs.confirm).toHaveBeenCalled()
+      expect(action.run).toHaveBeenCalledWith('https://10.0.0.2:8443', 'take-over', { adminUsername: 'stageboard-w-a~d', adminPassword: 'secret' })
+    })
+
+    it('does nothing when the admin says no to the question', async () => {
+      overview.value = backupStanding()
+      dialogs.confirm.mockResolvedValue(false)
+      render(<HostOverview />)
+      fireEvent.click(screen.getByRole('button', { name: /Jetzt übernehmen/ }))
+      await waitFor(() => expect(dialogs.confirm).toHaveBeenCalled())
+      expect(action.run).not.toHaveBeenCalled()
+    })
+
+    it('the admin can hand back now when the primary is back and out of date: sent to the PRIMARY', async () => {
+      overview.value = primaryOutdated()
+      render(<HostOverview />)
+      fireEvent.click(screen.getByRole('button', { name: /Jetzt zurückgeben/ }))
+      await waitFor(() => expect(action.run).toHaveBeenCalledTimes(1))
+      expect(action.run).toHaveBeenCalledWith('https://10.0.0.1:8443', 'hand-back', expect.objectContaining({ adminUsername: 'stageboard-w-a~d' }))
+    })
+
+    it('says when the host did not accept, and does not pretend', async () => {
+      overview.value = backupStanding()
+      action.run.mockResolvedValue('denied')
+      render(<HostOverview />)
+      fireEvent.click(screen.getByRole('button', { name: /Jetzt übernehmen/ }))
+      await waitFor(() => expect(dialogs.alert).toHaveBeenCalled())
+    })
+
+    it('offers nothing to a member, and nothing where it makes no sense (the host itself, an unreachable host)', () => {
+      session.isAdmin = false
+      overview.value = backupStanding()
+      render(<HostOverview />)
+      expect(screen.queryByRole('button')).toBeNull()
+    })
+
+    it('no take-over button on the host that is the host, none for a host that does not answer', () => {
+      overview.value = { rows: [row({ state: 'host' }), row({ hostId: 'stage-pc', role: 'backup', state: 'unreachable', status: 'warning', epoch: null, url: 'https://10.0.0.2:8443' })], problem: null }
+      render(<HostOverview />)
+      expect(screen.queryByRole('button')).toBeNull()
+    })
+
+    it('says that handing back waits for the end of the song, while one plays', () => {
+      session.playing = true
+      overview.value = primaryOutdated()
+      render(<HostOverview />)
+      expect(screen.getByText(/nach dem Song/)).toBeTruthy()
+    })
+  })
 })
+

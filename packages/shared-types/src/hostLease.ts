@@ -34,3 +34,8 @@ export const AccountRequestSchema = z.object({ hostId: z.string().min(1), sentAt
 export type AccountRequest = z.infer<typeof AccountRequestSchema>
 export const SignedAccountRequestSchema = z.object({ request: AccountRequestSchema, sig: z.string().regex(/^[0-9a-f]{64}$/) })
 export type SignedAccountRequest = z.infer<typeof SignedAccountRequestSchema>
+
+/** The admin's hand-made host change (#943): "take over now" on the backup, "hand back now" on the primary.
+ * The admin proves who they are with their device login of the band, as on the other admin routes. */
+export const HostAdminActionSchema = z.object({ adminUsername: z.string().min(1), adminPassword: z.string().min(1) })
+export type HostAdminAction = z.infer<typeof HostAdminActionSchema>

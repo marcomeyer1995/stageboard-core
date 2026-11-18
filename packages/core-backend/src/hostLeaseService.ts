@@ -127,6 +127,12 @@ export interface HostLeaseService {
   isBandHost(): boolean
   /** The returned primary hands the host role back (call every second): 'handed-back' once, else 'no'. #935 */
   handbackCheck(): Promise<'handed-back' | 'no'>
+  /** The admin's "take over now" on the passive backup (#943): becomes host at once, also while the primary is alive.
+   * Refused unless this is a passive backup that has heard its primary (it must know the epoch to rise above). */
+  takeoverNow(): Promise<'taken' | 'refused'>
+  /** The admin's "hand back now" on a returned primary (#943): skips the 30 s of steady answers - nothing else.
+   * The copy must still be current and no song may play. 'not-needed' when this host is not out of date. */
+  requestHandback(): 'requested' | 'not-needed'
 }
 
 /** Without a lease for this long, and with the primary not answering directly either, the backup takes over (docs/25 §6e: 5-8 s, with the up to 1 s check interval and the direct request of 1 s on top). Above the 1-3 s Wi-Fi hiccups. */
@@ -170,6 +176,8 @@ export function createHostLeaseService(deps: {
   let selfPriority: 1 | 2 | null = null
   let checking = false
   let handingBack = false
+  /** The admin asked for the handback now (#943): the 30 s of steady answers no longer count. */
+  let handbackAsked = false
   /** While out of date: since when the backup has answered without a gap, and the epoch it announced. */
   let steadySince: number | null = null
   let peerEpoch = 0
@@ -236,12 +244,35 @@ export function createHostLeaseService(deps: {
       }
       return result
     },
+    requestHandback() {
+      if (!outdated) return 'not-needed'
+      handbackAsked = true
+      return 'requested'
+    },
+    async takeoverNow() {
+      if (role.active || checking) return 'refused'
+      checking = true
+      try {
+        const workspaceId = deps.workspaceId()
+        if (!workspaceId) return 'refused'
+        const hosts = await load(workspaceId)
+        const lease = keeper.status()
+        if (hosts.length < 2 || selfPriority !== 2 || !lease) return 'refused'
+        role = { epoch: Math.max(epochNow(), lease.epoch) + 1, active: true }
+        deps.roleStore.save(role)
+        return 'taken'
+      } catch {
+        return 'refused'
+      } finally {
+        checking = false
+      }
+    },
     async handbackCheck() {
       if (!outdated || handingBack || steadySince === null) return 'no'
       handingBack = true
       try {
         // The primary is healthy again only after the backup has answered for a while, not once.
-        if (deps.now() - steadySince < HANDBACK_STEADY_MS) return 'no'
+        if (!handbackAsked && deps.now() - steadySince < HANDBACK_STEADY_MS) return 'no'
         // Its copy of what was written while the backup was host must be current, and quiet.
         const copy = deps.catchUp?.() ?? null
         if (!copy || copy.state !== 'caught-up' || (copy.lastChangeAt !== null && deps.now() - copy.lastChangeAt < HANDBACK_SETTLE_MS)) return 'no'
@@ -251,6 +282,7 @@ export function createHostLeaseService(deps: {
         deps.roleStore.save(role)
         outdated = false
         steadySince = null
+        handbackAsked = false
         return 'handed-back'
       } catch {
         return 'no'

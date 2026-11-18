@@ -177,6 +177,21 @@ describe('Fastify routes', () => {
     })
   })
 
+  describe('POST /host/take-over and /host/hand-back (#943)', () => {
+    for (const path of ['/host/take-over', '/host/hand-back']) {
+      it(`${path}: a request without the admin's login is a 400, and nobody else gets in (403)`, async () => {
+        expect((await app.inject({ method: 'POST', url: path, payload: {} })).statusCode).toBe(400)
+        const refused = await app.inject({ method: 'POST', url: path, payload: { adminUsername: 'stageboard-leasetest-x~y', adminPassword: 'nope' } })
+        expect([403, 409]).toContain(refused.statusCode)
+      })
+    }
+
+    it('says "no band" (409) instead of acting when this host serves none', async () => {
+      const response = await app.inject({ method: 'POST', url: '/host/take-over', payload: { adminUsername: 'stageboard-leasetest-x~y', adminPassword: 'nope' } })
+      expect(response.statusCode).toBe(409)
+    })
+  })
+
   describe('POST /host/replication-account (#919)', () => {
     it('gives nothing to what is not a good signed request - an empty 403, no account', async () => {
       for (const payload of [{}, { request: { hostId: 'x', sentAt: 1 }, sig: 'zz' }, 'nonsense']) {

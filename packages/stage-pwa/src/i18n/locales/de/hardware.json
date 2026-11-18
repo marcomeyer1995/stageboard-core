@@ -454,6 +454,22 @@
       "none-reachable": "Kein Host antwortet.",
       "no-host": "Keiner der Hosts ist gerade der Host.",
       "two-hosts": "Zwei Hosts halten sich für den Host."
+    },
+    "take-over": {
+      "button": "Jetzt übernehmen",
+      "title": "Host übernehmen",
+      "ask": "{{name}} übernimmt jetzt den Host. Der Primary wird dadurch veraltet und holt sich den Host nach dem Song zurück. Ein laufender Song läuft weiter."
+    },
+    "hand-back": {
+      "button": "Jetzt zurückgeben",
+      "title": "Host zurückgeben",
+      "ask": "{{name}} wieder zum Host machen? Das geschieht erst nach dem Song und wenn die Daten vom Backup kopiert sind.",
+      "waits": "Wird erst nach dem Song zurückgegeben."
+    },
+    "result": {
+      "refused": "Der Host kann das gerade nicht: Er ist nicht in dem Zustand dafür.",
+      "denied": "Der Host hat deine Anmeldung nicht angenommen. Bist du Admin dieser Band?",
+      "unreachable": "Der Host antwortet nicht."
     }
   }
 }

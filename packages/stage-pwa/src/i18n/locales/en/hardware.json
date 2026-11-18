@@ -454,6 +454,22 @@
       "none-reachable": "No host answers.",
       "no-host": "None of the hosts is the host right now.",
       "two-hosts": "Two hosts think they are the host."
+    },
+    "take-over": {
+      "button": "Take over now",
+      "title": "Take over as host",
+      "ask": "{{name}} takes over as host now. The primary becomes out of date and takes the host back after the song. A song that plays goes on."
+    },
+    "hand-back": {
+      "button": "Hand back now",
+      "title": "Hand back the host",
+      "ask": "Make {{name}} the host again? It happens after the song and once the backup's data has been copied.",
+      "waits": "Handed back only after the song."
+    },
+    "result": {
+      "refused": "The host cannot do that right now: it is not in the state for it.",
+      "denied": "The host did not accept your login. Are you this band's admin?",
+      "unreachable": "The host does not answer."
     }
   }
 }
