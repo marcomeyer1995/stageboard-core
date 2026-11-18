@@ -16,7 +16,7 @@ import cors from '@fastify/cors'
 import httpProxy from '@fastify/http-proxy'
 import { startBuiltinCouch } from './builtinCouch.js'
 import { hostCapabilities } from './hostCapabilities.js'
-import { createHostLeaseService, postToHost } from './hostLeaseService.js'
+import { createHostLeaseService, getFromHost, postToHost } from './hostLeaseService.js'
 import { watchHostAccounts } from './hostAccounts.js'
 import fastifyStatic from '@fastify/static'
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify'
@@ -997,10 +997,11 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
     readHosts: async (workspaceId) => (await getDoc<CouchDoc & { hosts?: BandHostEntry[] }>(couch, workspaceDbName(workspaceId), 'band-settings:band'))?.hosts ?? null,
     readAccessCode: async (workspaceId) => (await getAccessCode(couch, workspaceId))?.code ?? null,
     post: (url, body, fingerprint) => postToHost(url, body, fingerprint),
+    get: (url, fingerprint) => getFromHost(url, fingerprint),
     now: () => Date.now(),
   })
   app.post('/host/lease', async (request) => ({ accepted: (await hostLease.receive(request.body)) === 'accepted' }))
-  app.get('/server/host-lease', async () => ({ lease: hostLease.status() }))
+  app.get('/server/host-lease', async () => ({ lease: hostLease.status(), clockOffsetMs: hostLease.clockOffsetMs() }))
 
   // OSC devices (#484): host and port are the device's transport config for the Stage-Server
   // (Bühnentechnik), in the band whose hardware this server serves.
@@ -2016,7 +2017,12 @@ async function main() {
     // The alive signal to the backup (#918), every second; does nothing unless this host is the
     // band's listed primary.
     const leaseTimer = setInterval(() => void hostLease.sendOnce(), LEASE_INTERVAL_MS)
-    app.addHook('onClose', async () => clearInterval(leaseTimer))
+    // The backup follows the primary's clock like any device (#919), every 2 s.
+    const clockTimer = setInterval(() => void hostLease.sampleOnce(), 2_000)
+    app.addHook('onClose', async () => {
+      clearInterval(leaseTimer)
+      clearInterval(clockTimer)
+    })
 
     // OSC in (#484): one UDP port for the whole box; what arrives goes to the band whose hardware
     // it serves (like the MIDI watcher). 0 switches it off.

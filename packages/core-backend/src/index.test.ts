@@ -131,7 +131,7 @@ describe('Fastify routes', () => {
     it('GET /server/host-lease is null while no lease has arrived', async () => {
       const response = await app.inject({ method: 'GET', url: '/server/host-lease' })
       expect(response.statusCode).toBe(200)
-      expect(response.json()).toEqual({ lease: null })
+      expect(response.json()).toEqual({ lease: null, clockOffsetMs: null })
     })
 
     it('POST /host/lease ignores what is not a signed lease, without an error', async () => {
