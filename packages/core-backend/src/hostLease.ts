@@ -1,4 +1,4 @@
-import { HostLeaseSchema } from 'shared-types'
+import { verifyLease } from './hostLeaseAuth.js'
 
 export interface LeaseStatus {
   hostId: string
@@ -8,29 +8,39 @@ export interface LeaseStatus {
 }
 
 export interface LeaseKeeper {
-  /** Takes a message from the network: 'accepted', or 'ignored' (invalid, not from the other listed
-   * host, or older than the epoch already held). */
+  /** Takes a message from the network: 'accepted', or 'ignored' (unsigned or wrongly signed, not
+   * from the other listed host, replayed, or older than the epoch already held). */
   accept(raw: unknown): 'accepted' | 'ignored'
   /** The last accepted lease, or null if none has arrived. */
   status(): LeaseStatus | null
 }
 
 /**
- * The backup's side of the alive signal (host backup, #918, docs/25 §6e). Only a lease from the
- * *other* host the band lists counts, and only while the band lists two - a stranger on the network
- * must not hold the lease open. Expiry is counted from arrival on this host's own clock.
+ * The backup's side of the alive signal (host backup, #918, docs/25 §6e). Only a lease signed with
+ * the band's key (hostLeaseAuth.ts) from the *other* listed host counts, and only while the band
+ * lists two. Expiry is counted from arrival on this host's own clock. `keys`: every key that may be
+ * valid - the band code can change mid-gig, and the database may not have replicated yet.
  */
-export function createLeaseKeeper(deps: { selfHostId: string; listedHostIds: () => readonly string[]; now: () => number }): LeaseKeeper {
-  let held: { hostId: string; epoch: number; expiresAt: number } | null = null
+export function createLeaseKeeper(deps: {
+  selfHostId: string
+  listedHostIds: () => readonly string[]
+  keys: () => readonly Buffer[]
+  now: () => number
+}): LeaseKeeper {
+  let held: { hostId: string; epoch: number; sentAt: number; expiresAt: number } | null = null
   return {
     accept(raw) {
-      const parsed = HostLeaseSchema.safeParse(raw)
-      if (!parsed.success) return 'ignored'
-      const { hostId, epoch, leaseMs } = parsed.data
       const listed = deps.listedHostIds()
-      if (listed.length < 2 || hostId === deps.selfHostId || !listed.includes(hostId)) return 'ignored'
-      if (held && epoch < held.epoch) return 'ignored'
-      held = { hostId, epoch, expiresAt: deps.now() + leaseMs }
+      if (listed.length < 2) return 'ignored'
+      let lease = null
+      for (const key of deps.keys()) {
+        lease = verifyLease(raw, key)
+        if (lease) break
+      }
+      if (!lease || lease.hostId === deps.selfHostId || !listed.includes(lease.hostId)) return 'ignored'
+      if (held && lease.epoch < held.epoch) return 'ignored'
+      if (held && lease.hostId === held.hostId && lease.epoch === held.epoch && lease.sentAt <= held.sentAt) return 'ignored'
+      held = { hostId: lease.hostId, epoch: lease.epoch, sentAt: lease.sentAt, expiresAt: deps.now() + lease.leaseMs }
       return 'accepted'
     },
     status() {
