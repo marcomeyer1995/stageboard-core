@@ -5,6 +5,8 @@ export interface LeaseStatus {
   epoch: number
   /** The lease has not run out on this host's own clock. */
   alive: boolean
+  /** How long ago the last lease arrived, ms on this host's own clock. */
+  silentForMs: number
 }
 
 export interface LeaseKeeper {
@@ -27,7 +29,7 @@ export function createLeaseKeeper(deps: {
   keys: () => readonly Buffer[]
   now: () => number
 }): LeaseKeeper {
-  let held: { hostId: string; epoch: number; sentAt: number; expiresAt: number } | null = null
+  let held: { hostId: string; epoch: number; sentAt: number; expiresAt: number; arrivedAt: number } | null = null
   return {
     accept(raw) {
       const listed = deps.listedHostIds()
@@ -40,11 +42,11 @@ export function createLeaseKeeper(deps: {
       if (!lease || lease.hostId === deps.selfHostId || !listed.includes(lease.hostId)) return 'ignored'
       if (held && lease.epoch < held.epoch) return 'ignored'
       if (held && lease.hostId === held.hostId && lease.epoch === held.epoch && lease.sentAt <= held.sentAt) return 'ignored'
-      held = { hostId: lease.hostId, epoch: lease.epoch, sentAt: lease.sentAt, expiresAt: deps.now() + lease.leaseMs }
+      held = { hostId: lease.hostId, epoch: lease.epoch, sentAt: lease.sentAt, expiresAt: deps.now() + lease.leaseMs, arrivedAt: deps.now() }
       return 'accepted'
     },
     status() {
-      return held ? { hostId: held.hostId, epoch: held.epoch, alive: deps.now() <= held.expiresAt } : null
+      return held ? { hostId: held.hostId, epoch: held.epoch, alive: deps.now() <= held.expiresAt, silentForMs: deps.now() - held.arrivedAt } : null
     },
   }
 }
