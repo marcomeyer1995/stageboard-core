@@ -13,6 +13,7 @@ let server: Server
 let url: string
 let fingerprint: string
 const received: string[] = []
+const hostHeaders: (string | undefined)[] = []
 
 beforeAll(async () => {
   const dir = mkdtempSync(join(tmpdir(), 'lease-'))
@@ -20,6 +21,7 @@ beforeAll(async () => {
   const cert = readFileSync(join(dir, 'c.pem'), 'utf8')
   fingerprint = certFingerprint(cert)
   server = createServer({ key: readFileSync(join(dir, 'k.pem')), cert }, (req, res) => {
+    hostHeaders.push(req.headers.host)
     let body = ''
     req.on('data', (c) => (body += c))
     req.on('end', () => {
@@ -38,6 +40,12 @@ describe('postToHost (#918)', () => {
   it('delivers to a host whose certificate has the listed fingerprint', async () => {
     expect(await postToHost(url, { hello: 1 }, fingerprint)).toBe(true)
     expect(received.at(-1)).toBe('{"hello":1}')
+  })
+
+  it('names the real port in the Host header, not the default one', async () => {
+    await postToHost(url, {}, fingerprint)
+    expect(hostHeaders.at(-1)).toBe(new URL(url).host)
+    expect(hostHeaders.at(-1)).toMatch(/:\d{4,5}$/)
   })
 
   it('refuses a host whose certificate has another fingerprint, and sends nothing', async () => {
