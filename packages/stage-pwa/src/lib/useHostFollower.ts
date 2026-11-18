@@ -34,6 +34,7 @@ export function useHostFollower(): void {
         hosts,
         currentUrl,
         currentEpoch: useHostEpochStore.getState().currentEpoch,
+        currentActive: useHostEpochStore.getState().currentActive,
         probe: probeHostEpoch,
         switchTo: (host) => {
           configLog('hostFollower', 'switching to', host.hostId, host.url)

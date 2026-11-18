@@ -149,6 +149,49 @@ describe('fingerprintMatches (#918)', () => {
   })
 })
 
+describe('is this host the band host? (#938)', () => {
+  it('a host with no host list, and a primary that is not out of date, are', async () => {
+    expect(service('laptop', null).s.isBandHost()).toBe(true)
+    const p = service('laptop', [primary, backup])
+    await p.s.sendOnce()
+    expect(p.s.isBandHost()).toBe(true)
+  })
+
+  it('a passive backup is not, an active one (after the takeover) is', async () => {
+    const h = service('stage-pc', [primary, backup])
+    h.get.mockResolvedValue(null)
+    await h.s.receive(signLease({ hostId: 'laptop', epoch: 1, leaseMs: 4000, sentAt: 1 }, KEY))
+    expect(h.s.isBandHost()).toBe(false)
+    h.advance(6_000)
+    await h.s.takeoverCheck()
+    expect(h.s.isBandHost()).toBe(true)
+  })
+
+  it('a returned primary that is out of date is not, until it has handed back', async () => {
+    const h = service('laptop', [primary, backup], { catchUp: () => ({ state: 'caught-up', lastChangeAt: 0 }), songRunning: async () => false })
+    h.get.mockImplementation(async () => ({ serverTime: 1, hostId: 'stage-pc', epoch: 2 }))
+    h.post.mockResolvedValue({ accepted: false, epoch: 2, active: true })
+    await h.s.sendOnce()
+    expect(h.s.isBandHost()).toBe(false)
+    for (let i = 0; i < 31; i++) {
+      h.advance(1_000)
+      await h.s.sendOnce()
+    }
+    expect(await h.s.handbackCheck()).toBe('handed-back')
+    expect(h.s.isBandHost()).toBe(true)
+  })
+
+  it('the backup that stepped down after a handback is not', async () => {
+    const h = service('stage-pc', [primary, backup])
+    h.get.mockResolvedValue(null)
+    await h.s.receive(signLease({ hostId: 'laptop', epoch: 1, leaseMs: 4000, sentAt: 1 }, KEY))
+    h.advance(6_000)
+    await h.s.takeoverCheck()
+    await h.s.receive(signLease({ hostId: 'laptop', epoch: 3, leaseMs: 4000, sentAt: 100 }, KEY))
+    expect(h.s.isBandHost()).toBe(false)
+  })
+})
+
 describe('passive backup (#919)', () => {
   it('is true for the backup until it takes over, false for the primary and for a host with no list', async () => {
     const backupHost = service('stage-pc', [primary, backup])
