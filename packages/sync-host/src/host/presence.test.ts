@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createHostPresence } from './presence'
+import { createHostPresence } from './presence.js'
 
 describe('presence on the tablet host (#947)', () => {
   it('starts empty and stamps the master\'s beat with its own (band) time', () => {
