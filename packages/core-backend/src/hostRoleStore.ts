@@ -1,5 +1,6 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import type { HostRole, HostRoleStore } from 'sync-host'
 
 /**
  * What a host remembers of its role (host backup, #920): the epoch it serves under and whether it is
@@ -7,15 +8,7 @@ import { join } from 'node:path'
  * same epoch, or two hosts would announce different ones. A plain file on this box's own disk, not a
  * database document: it describes this one host, not the band's data (like active-workspace.json).
  */
-export interface HostRole {
-  epoch: number
-  active: boolean
-}
-
-export interface HostRoleStore {
-  load(): HostRole
-  save(role: HostRole): void
-}
+export type { HostRole, HostRoleStore }
 
 const START: HostRole = { epoch: 0, active: false }
 

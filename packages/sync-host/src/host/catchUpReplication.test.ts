@@ -3,7 +3,7 @@ import MemoryAdapter from 'pouchdb-adapter-memory'
 import HttpAdapter from 'pouchdb-adapter-http'
 import ReplicationPlugin from 'pouchdb-replication'
 import { afterEach, describe, expect, it } from 'vitest'
-import { startBandReplication, type BandReplication } from './bandReplication.js'
+import { startCatchUp as startBandReplication, type CatchUp as BandReplication } from './catchUp.js'
 
 PouchDB.plugin(MemoryAdapter)
 PouchDB.plugin(HttpAdapter)

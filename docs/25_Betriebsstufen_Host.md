@@ -1,6 +1,6 @@
 # Operating tiers: StageBoard without a fixed Stage-Server
 
-Basic idea as of 2026-10-28, discussed with Marco on 2026-10-27/28. Decided and started since 2026-11-07: §6a. Since 2026-11-10 (#784) the three operating tiers replace the old hardware matrix: [docs/02](02_Operating_Tiers.md) was rewritten, and core principle 1 in CLAUDE.md now reads "the host is the heart". Since 2026-11-17: the host backup (a primary and a passive backup, as an add-on) is decided, §6e. Translated to English on 2026-11-17 (#785), together with the decisions that until then lived only on the branch `spike/android-host` (§6a measurements, §6c, §6d).
+Basic idea as of 2026-10-28, discussed with Marco on 2026-10-27/28. Decided and started since 2026-11-07: §6a. Since 2026-11-10 (#784) the three operating tiers replace the old hardware matrix: [docs/02](02_Operating_Tiers.md) was rewritten, and core principle 1 in CLAUDE.md now reads "the host is the heart". Since 2026-11-17: the host backup (a primary and a passive backup) is decided, §6e; since 2026-11-18 as a module of the base package, not an add-on (#949). Translated to English on 2026-11-17 (#785), together with the decisions that until then lived only on the branch `spike/android-host` (§6a measurements, §6c, §6d).
 
 ## 1. Why
 
@@ -145,7 +145,7 @@ Every device has the data and the accounts (§6c); clock sync and push, however,
 
 | Question | Decision |
 |---|---|
-| Where it lives | A **dedicated add-on "Host backup"**, **not installed by default**. Without it the band has no backup; a host failure then leads to the no-host mode (below), which is part of the core |
+| Where it lives | **Changed 2026-11-18 (Marco, #949):** not a runtime add-on but a **module in the base package** (`sync-host`), **switchable by configuration** - on a laptop host it always runs, in the app behind "Start host". Reason: it is a fundamental function of the app, and the clean interface (network, storage, time) is what makes it modular, not an add-on mechanism. *Before:* a dedicated add-on, not installed by default. Without a backup the band has none; a host failure then leads to the no-host mode (below), which is part of the core |
 | How many devices | **Two**: the **primary** (priority 1) and **one backup**. The data model stays open for a longer chain later (a list with priorities, today at most two entries) |
 | Roles | The primary is **active**; the backup is **passive**: it replicates continuously from the primary as a full copy and follows its clock like any device, but serves nothing |
 | Alive signal | The primary sends the backup an **alive signal** - every 1 s, as a lease ("I am the host until now + X") |
@@ -165,9 +165,9 @@ Every device has the data and the accounts (§6c); clock sync and push, however,
 6. **What a takeover cannot move:** gear plugged into the primary (MIDI, DMX on the laptop). The backup can take that over only with its own path - that is #753 (failover only to defined fallback paths); the map shows what is lost and what has a fallback.
 7. **A fresh backup learns the band by itself (#945):** the admin names the primary and the backup on the stage map, and nothing else - no shell on the backup, no band code to type. The primary sees the new entry in the band's host list, asks whether that host already serves a band, and only if it serves none hands it the band, the code, its own address and certificate fingerprint. The backup checks the code with the primary (its roster route) before it accepts; a host that serves a band - this one or another - is never taken over. The code is not a secret among the band's hosts: both already hold the band's database, including `workspace:access`. The page itself never talks to the unknown host for this: it asks its own Stage-Server (`GET /host/look-up`), which also keeps the certificate question - CORS in a browser, pinning in the app - in one place.
 
-### No host at all (core, without the add-on)
+### No host at all (core, without a backup)
 
-When the host is gone and no backup takes over (the add-on is not installed, or the backup is gone too):
+When the host is gone and no backup takes over (none is set up, or the backup is gone too):
 - the running song plays to its end on every device, from its own data, the clock free-running on its last offset;
 - the status bar turns red: "host gone";
 - joining a new device reports "no host";
@@ -261,7 +261,7 @@ After **5 s without a lease** and a **failed direct `/time`** to the primary, th
 
 **Limits.** Not the other ~70 routes (audio, presence, plugins, join) - #781. No foreground service, so the screen must stay on / the app in front; no hotspot. The switch is off by default and only in the native app.
 
-**Target model.** This is the first step toward #932: a host is the app plus a host module, not a different program. Once the backup works on real devices, the state machine and the band access move into the shared module.
+**One host module (#949, 2026-11-18, Marco: "the code on Android, Windows and Linux shares as much as possible; the app itself becomes the host").** The lease/takeover/handback/invitation logic, the lease keeper, the host clock, presence and the catch-up copy now live **once**, in `sync-host` (no Node API, no DOM - WebCrypto and plain objects). The laptop's Stage-Server (`core-backend`) and the tablet's app both use `createHostLeaseService`; what stays platform-specific is only the transport (Node's pinned https on the laptop, `fetch` plus the app's certificate pinning on the tablet), where the role is stored (a file / the app's storage) and where the band's hosts and code are read from. The tablet adds one rule of its own (`host/tabletHost.ts`): it serves only when the band's list names it. The laptop's 53 service tests are the specification and run against the shared code. Verified on devices after the switch: tablet primary + laptop backup, song running, primary killed: takeover 5.6 s, followers +6.4 / +7.2 s, song without a gap; handback ~36 s after the restart and the stop. **Still open:** the HTTP answers (`hostHttp.ts`) and the native server are the tablet's; the Stage-Server's routes are Fastify's - one route table for both is the next candidate; the locked-screen throttling (§6g) needs the host module outside the WebView (nodejs-mobile spike, #949 step 3).
 
 **Measured (2026-11-18, Redmi as the backup, laptop host as the primary, home Wi-Fi, test band, no song playing):**
 - The tablet verified the laptop's signed lease (WebCrypto) and showed it alive.
