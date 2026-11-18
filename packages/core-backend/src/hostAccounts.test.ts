@@ -5,8 +5,8 @@ import PouchDB from 'pouchdb-core'
 import MemoryAdapter from 'pouchdb-adapter-memory'
 import { createCouchHost, type Catalog } from 'sync-host/couch-host'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { createUser, ensureDb, getDoc, putDoc, putSecurity, type CouchConfig } from './couch.js'
-import { bandsOfUserIds, HOST_ACCOUNTS_DOC_ID, hostAccountsOf, publishHostAccounts, watchHostAccounts, type HostAccountsDoc } from './hostAccounts.js'
+import { createUser, deleteUser, ensureDb, getDoc, putDoc, putSecurity, verifyUser, type CouchConfig } from './couch.js'
+import { bandsOfUserIds, HOST_ACCOUNTS_DOC_ID, hostAccountsOf, importHostAccounts, publishHostAccounts, watchHostAccounts, type HostAccountsDoc } from './hostAccounts.js'
 import { deviceUsername, memberUsername, ROSTER_VALIDATOR_SOURCE, workspaceDbName } from './workspaceProvisioning.js'
 
 PouchDB.plugin(MemoryAdapter)
@@ -103,5 +103,47 @@ describe('hostAccountsOf / bandsOfUserIds', () => {
 
   it('maps changed account ids to their band', () => {
     expect(bandsOfUserIds(['stageboard-a', 'stageboard-b'], ['org.couchdb.user:stageboard-b-p~d', '_design/_auth'])).toEqual(['stageboard-b'])
+  })
+})
+
+describe('importing the host accounts on a backup (#919)', () => {
+  it('turns the replicated list into real logins: a device that never had an account here can sign in', async () => {
+    await publishHostAccounts(config, db)
+    // The backup is another host: it has the band's database (with the list) but not these users.
+    const redmi = deviceUsername(band, 'p-admin', 'redmi')
+    await deleteUser(config, redmi)
+    expect(await verifyUser(config, redmi, 'long-random-device-password-1')).toBeNull()
+
+    expect(await importHostAccounts(config, db)).toBeGreaterThanOrEqual(1)
+    expect(await verifyUser(config, redmi, 'long-random-device-password-1')).toEqual({ name: redmi, roles: ['member', 'admin'] })
+  })
+
+  it('changes nothing when the accounts are already here, and a second run writes nothing', async () => {
+    await importHostAccounts(config, db)
+    expect(await importHostAccounts(config, db)).toBe(0)
+  })
+
+  it('takes the primary\'s password for an account that exists here with another one', async () => {
+    const fire = deviceUsername(band, 'p-drums', 'fire')
+    await publishHostAccounts(config, db)
+    await deleteUser(config, fire)
+    await createUser(config, fire, 'a-different-password-made-here', ['member'])
+    expect(await verifyUser(config, fire, 'long-random-device-password-2')).toBeNull()
+    await importHostAccounts(config, db)
+    expect(await verifyUser(config, fire, 'long-random-device-password-2')).not.toBeNull()
+    expect(await verifyUser(config, fire, 'a-different-password-made-here')).toBeNull()
+  })
+
+  it('is 0 for a band with no list', async () => {
+    expect(await importHostAccounts(config, workspaceDbName(other))).toBe(0)
+  })
+
+  it('watchHostAccounts publishes nothing while disabled (a passive backup must not overwrite the primary\'s list)', async () => {
+    const before = JSON.stringify((await getDoc<HostAccountsDoc>(config, db, HOST_ACCOUNTS_DOC_ID))?.accounts)
+    await createUser(config, deviceUsername(band, 'p-drums', 'tablet-new'), 'long-random-device-password-9', ['member'])
+    const watcher = watchHostAccounts(config, { info: () => undefined, error: () => undefined }, { pollMs: 50, retryMs: 50, enabled: () => false })
+    await new Promise((r) => setTimeout(r, 400))
+    watcher.stop()
+    expect(JSON.stringify((await getDoc<HostAccountsDoc>(config, db, HOST_ACCOUNTS_DOC_ID))?.accounts)).toBe(before)
   })
 })

@@ -57,6 +57,38 @@ export async function publishHostAccounts(config: CouchConfig, bandDb: string): 
   return true
 }
 
+/**
+ * The other direction, on a backup (host backup, #919): the band's `host-accounts` list came across
+ * with the replicated database, but this host's own `_users` has none of those logins - so no device
+ * could sign in here after a takeover. Writes every listed account into `_users` (CouchDB's own hash
+ * fields, so the passwords stay what the primary issued) where it is missing or differs; the
+ * primary's list wins over an account made here. Returns how many were written.
+ */
+export async function importHostAccounts(config: CouchConfig, bandDb: string): Promise<number> {
+  const list = await getDoc<HostAccountsDoc>(config, bandDb, HOST_ACCOUNTS_DOC_ID)
+  let written = 0
+  for (const account of list?.accounts ?? []) {
+    const id = `${USER_PREFIX}${account.name}`
+    const current = await getDoc<UserDoc>(config, '_users', id)
+    const same = current && current.derived_key === account.derived_key && current.salt === account.salt && current.iterations === account.iterations && JSON.stringify(current.roles ?? []) === JSON.stringify(account.roles)
+    if (same) continue
+    await putDocWithRetry<UserDoc>(config, '_users', id, (existing) => ({
+      ...(existing?._rev ? { _rev: existing._rev } : {}),
+      _id: id,
+      name: account.name,
+      type: 'user',
+      roles: account.roles,
+      password_scheme: account.password_scheme,
+      ...(account.pbkdf2_prf ? { pbkdf2_prf: account.pbkdf2_prf } : {}),
+      iterations: account.iterations,
+      salt: account.salt,
+      derived_key: account.derived_key,
+    }))
+    written += 1
+  }
+  return written
+}
+
 /** The band databases whose accounts a set of `_users` ids touches. */
 export function bandsOfUserIds(bandDbs: string[], userIds: string[]): string[] {
   const names = userIds.filter((id) => id.startsWith(USER_PREFIX)).map((id) => id.slice(USER_PREFIX.length))
@@ -74,13 +106,15 @@ async function bandDbs(config: CouchConfig): Promise<string[]> {
 export function watchHostAccounts(
   config: CouchConfig,
   log: { info: (obj: object, msg: string) => void; error: (obj: object, msg: string) => void },
-  options: { pollMs?: number; retryMs?: number } = {},
+  // `enabled`: a passive backup must not publish - the primary's list comes to it by replication.
+  options: { pollMs?: number; retryMs?: number; enabled?: () => boolean } = {},
 ): { stop: () => void } {
   let stopped = false
   const pollMs = options.pollMs ?? 60_000
   const retryMs = options.retryMs ?? 30_000
 
   const publish = async (dbs: string[]) => {
+    if (options.enabled && !options.enabled()) return
     const changed: string[] = []
     for (const db of dbs) {
       // One band failing must not keep the others on old accounts.

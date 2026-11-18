@@ -18,9 +18,12 @@ import { startBuiltinCouch } from './builtinCouch.js'
 import { hostCapabilities } from './hostCapabilities.js'
 import { createHostLeaseService, getFromHost, postJsonToHost } from './hostLeaseService.js'
 import { createHostRoleStore } from './hostRoleStore.js'
+import { makeLocalBandDb, makeRemoteBandDb } from './bandPouch.js'
+import { createReplicationAccountIssuer } from './replicationAccount.js'
+import { createReplicationRunner } from './replicationRunner.js'
 import { corsOriginAllowed } from './corsOrigin.js'
 import { configuredHostEpoch } from './hostEpochConfig.js'
-import { watchHostAccounts } from './hostAccounts.js'
+import { importHostAccounts, watchHostAccounts } from './hostAccounts.js'
 import fastifyStatic from '@fastify/static'
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify'
 import {
@@ -996,6 +999,8 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
   const workspaceHardware = createWorkspaceHardwareController({ couch, registry, log: pluginLog })
   app.addHook('onClose', async () => workspaceHardware.deactivate())
 
+  const readBandHosts = async (workspaceId: string) => (await getDoc<CouchDoc & { hosts?: BandHostEntry[] }>(couch, workspaceDbName(workspaceId), 'band-settings:band'))?.hosts ?? null
+
   // Host backup, #918 (docs/25 §6e): the primary tells the backup every second that it is alive,
   // signed with the band code. The sender is started in main(), not here, so tests stay quiet.
   const hostLease = createHostLeaseService({
@@ -1003,7 +1008,7 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
     baseEpoch: hostEpoch,
     roleStore: createHostRoleStore(process.env.STAGEBOARD_STATE_DIR ?? './data'),
     workspaceId: () => workspaceHardware.getActiveWorkspaceId(),
-    readHosts: async (workspaceId) => (await getDoc<CouchDoc & { hosts?: BandHostEntry[] }>(couch, workspaceDbName(workspaceId), 'band-settings:band'))?.hosts ?? null,
+    readHosts: (workspaceId) => readBandHosts(workspaceId),
     readAccessCode: async (workspaceId) => (await getAccessCode(couch, workspaceId))?.code ?? null,
     post: (url, body, fingerprint) => postJsonToHost(url, body, fingerprint),
     // 1 s: on a local network a live host answers in milliseconds; a frozen one must not delay the takeover.
@@ -1011,8 +1016,33 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
     now: () => Date.now(),
   })
   listedHostOrigins = hostLease.listedOrigins
+  // The primary hands the backup a login to copy the band database with, on a request signed with the
+  // band code (#919). Anything that is not a good request gets an empty 403.
+  const replicationAccounts = createReplicationAccountIssuer({
+    selfHostId: hostId,
+    workspaceId: () => workspaceHardware.getActiveWorkspaceId(),
+    readHosts: (workspaceId) => readBandHosts(workspaceId),
+    readAccessCode: async (workspaceId) => (await getAccessCode(couch, workspaceId))?.code ?? null,
+    mint: (workspaceId, backupHostId) => provisionDevice(couch, workspaceId, 'host', backupHostId, false),
+  })
+  app.post('/host/replication-account', async (request, reply) => {
+    const account = await replicationAccounts.issue(request.body)
+    return account ?? reply.status(403).send({})
+  })
+  // The backup keeps its copy of the primary's database going; started in main() (#919).
+  const replication = createReplicationRunner({
+    selfHostId: hostId,
+    workspaceId: () => workspaceHardware.getActiveWorkspaceId(),
+    readHosts: (workspaceId) => readBandHosts(workspaceId),
+    readAccessCode: async (workspaceId) => (await getAccessCode(couch, workspaceId))?.code ?? null,
+    requestAccount: (url, body, fingerprint) => postJsonToHost(url, body, fingerprint),
+    makeRemote: makeRemoteBandDb,
+    makeLocal: (workspaceId) => makeLocalBandDb(couch, workspaceId),
+    now: () => Date.now(),
+  })
+  app.addHook('onClose', async () => replication.stop())
   app.post('/host/lease', async (request) => ({ accepted: (await hostLease.receive(request.body)) === 'accepted', epoch: hostLease.epoch(), active: hostLease.isActive() }))
-  app.get('/server/host-lease', async () => ({ lease: hostLease.status(), clockOffsetMs: hostLease.clockOffsetMs(), active: hostLease.isActive(), epoch: hostLease.epoch(), outdated: hostLease.outdated() }))
+  app.get('/server/host-lease', async () => ({ lease: hostLease.status(), clockOffsetMs: hostLease.clockOffsetMs(), replication: replication.status(), active: hostLease.isActive(), epoch: hostLease.epoch(), outdated: hostLease.outdated() }))
 
   // OSC devices (#484): host and port are the device's transport config for the Stage-Server
   // (Bühnentechnik), in the band whose hardware this server serves.
@@ -1943,7 +1973,7 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
     await app.register(fastifyStatic, { root: pwaDist })
   }
 
-  return { app, registry, lookupRegistry, couch, workspaceHardware, pluginLog, backups, hostLease }
+  return { app, registry, lookupRegistry, couch, workspaceHardware, pluginLog, backups, hostLease, replication }
 }
 
 const port = Number(process.env.PORT ?? 3001)
@@ -1979,7 +2009,7 @@ async function main() {
         })
       : null
   if (builtinDb) process.env.COUCHDB_URL = builtinDb.url
-  const { app, lookupRegistry, workspaceHardware, pluginLog, couch, backups, hostLease } = await buildApp()
+  const { app, lookupRegistry, workspaceHardware, pluginLog, couch, backups, hostLease, replication } = await buildApp()
   if (builtinDb) app.log.info({ url: builtinDb.url }, 'Built-in database host (no CouchDB)')
   // Scheduled backups (daily time, USB medium plugged in) - checked every 30 s.
   backups.start()
@@ -1994,7 +2024,8 @@ async function main() {
       app.log.error({ err }, 'Could not update roster validators')
     }
     // Device logins in every band's data, so any device can be the host (docs/25 §6b, "C").
-    watchHostAccounts(couch, app.log)
+    // A passive backup does not publish: the primary's list reaches it by replication (#919).
+    watchHostAccounts(couch, app.log, { enabled: () => !hostLease.passiveBackup() })
 
     // Which plugins run is not configured here: the band installs them in the PWA, and the
     // installation documents replicate to this server over CouchDB (docs/01, mesh).
@@ -2031,11 +2062,20 @@ async function main() {
     // The backup follows the primary's clock like any device (#919), every 2 s.
     const clockTimer = setInterval(() => void hostLease.sampleOnce(), 2_000)
     // ... and takes over when the primary is gone (#920); one check a second.
+    // The backup's copy of the primary's database (#919), checked every 5 s until it runs.
+    const replicationTimer = setInterval(() => void replication.tick(), 5_000)
+    // ... and signs the primary's device logins in, so a tablet can use this host after a takeover (#919).
+    const accountsTimer = setInterval(() => {
+      const workspaceId = workspaceHardware.getActiveWorkspaceId()
+      if (workspaceId && hostLease.passiveBackup()) void importHostAccounts(couch, workspaceDbName(workspaceId)).catch((err) => app.log.error({ err }, 'Could not import the host accounts'))
+    }, 10_000)
     const takeoverTimer = setInterval(() => void hostLease.takeoverCheck().then((r) => r === 'taken' && pluginLog.info('host takeover: this host is the band host now', { epoch: hostLease.epoch() })), 1_000)
     app.addHook('onClose', async () => {
       clearInterval(leaseTimer)
       clearInterval(clockTimer)
       clearInterval(takeoverTimer)
+      clearInterval(replicationTimer)
+      clearInterval(accountsTimer)
     })
 
     // OSC in (#484): one UDP port for the whole box; what arrives goes to the band whose hardware

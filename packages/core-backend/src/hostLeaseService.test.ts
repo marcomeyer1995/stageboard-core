@@ -149,6 +149,33 @@ describe('fingerprintMatches (#918)', () => {
   })
 })
 
+describe('passive backup (#919)', () => {
+  it('is true for the backup until it takes over, false for the primary and for a host with no list', async () => {
+    const backupHost = service('stage-pc', [primary, backup])
+    expect(backupHost.s.passiveBackup()).toBe(false) // nothing read yet
+    await backupHost.s.sampleOnce()
+    expect(backupHost.s.passiveBackup()).toBe(true)
+
+    const primaryHost = service('laptop', [primary, backup])
+    await primaryHost.s.sendOnce()
+    expect(primaryHost.s.passiveBackup()).toBe(false)
+
+    const alone = service('stage-pc', null)
+    await alone.s.sampleOnce()
+    expect(alone.s.passiveBackup()).toBe(false)
+  })
+
+  it('stops being passive once it has taken over', async () => {
+    const h = service('stage-pc', [primary, backup])
+    h.get.mockResolvedValue(null)
+    await h.s.receive(signLease({ hostId: 'laptop', epoch: 1, leaseMs: 4000, sentAt: 1 }, KEY))
+    expect(h.s.passiveBackup()).toBe(true)
+    h.advance(6_000)
+    await h.s.takeoverCheck()
+    expect(h.s.passiveBackup()).toBe(false)
+  })
+})
+
 describe('takeover (#920)', () => {
   /** A backup that has heard the primary's lease once, 6.5 s ago. `primaryAnswers`: whether a direct request still reaches it. */
   async function silentBackup(primaryAnswers: boolean, silentMs = 5_500) {
