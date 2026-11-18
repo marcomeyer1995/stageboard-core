@@ -286,3 +286,151 @@ describe('takeover (#920)', () => {
     expect(verifyLease(h.post.mock.calls[0]![1], KEY)!.epoch).toBe(3)
   })
 })
+
+describe('handback (#935)', () => {
+  const caught = { state: 'caught-up' as const, docsCopied: 5, lastChangeAt: 0 }
+
+  /** The returned primary: it has seen the backup's higher epoch and the backup answers `/time` with it. */
+  async function returnedPrimary(over: Record<string, unknown> = {}, peerEpoch = 2) {
+    const h = service('laptop', [primary, backup], { catchUp: () => caught, songRunning: async () => false, ...over })
+    h.get.mockImplementation(async () => ({ serverTime: 1, hostId: 'stage-pc', epoch: peerEpoch }))
+    h.post.mockResolvedValue({ accepted: false, epoch: peerEpoch, active: true })
+    await h.s.sendOnce() // the lease answer tells it: out of date
+    expect(h.s.outdated()).toBe(true)
+    return h
+  }
+  /** Lets `seconds` pass with the backup answering every second. */
+  async function steady(h: Awaited<ReturnType<typeof returnedPrimary>>, seconds: number) {
+    for (let i = 0; i < seconds; i++) {
+      h.advance(1_000)
+      await h.s.sendOnce()
+    }
+  }
+
+  it('hands back after 30 s of steady answers, a caught-up copy and no song: epoch = the backup\'s + 1', async () => {
+    const h = await returnedPrimary()
+    await steady(h, 31)
+    expect(await h.s.handbackCheck()).toBe('handed-back')
+    expect(h.s.outdated()).toBe(false)
+    expect(h.s.epoch()).toBe(3)
+    expect(h.store.load()).toEqual({ epoch: 3, active: false })
+  })
+
+  it('does not hand back before the answers have been steady for 30 s', async () => {
+    const h = await returnedPrimary()
+    await steady(h, 10)
+    expect(await h.s.handbackCheck()).toBe('no')
+    expect(h.s.outdated()).toBe(true)
+  })
+
+  it('an unanswered probe starts the 30 s again', async () => {
+    const h = await returnedPrimary()
+    await steady(h, 20)
+    h.get.mockResolvedValueOnce(null)
+    await steady(h, 1)
+    h.get.mockImplementation(async () => ({ serverTime: 1, hostId: 'stage-pc', epoch: 2 }))
+    await steady(h, 15)
+    expect(await h.s.handbackCheck()).toBe('no')
+    await steady(h, 20)
+    expect(await h.s.handbackCheck()).toBe('handed-back')
+  })
+
+  it('never while a song is playing - and as soon as it has stopped', async () => {
+    let playing = true
+    const h = await returnedPrimary({ songRunning: async () => playing })
+    await steady(h, 40)
+    expect(await h.s.handbackCheck()).toBe('no')
+    expect(h.s.outdated()).toBe(true)
+    playing = false
+    expect(await h.s.handbackCheck()).toBe('handed-back')
+  })
+
+  it('not while the copy of the backup\'s data is behind, not started, or changed in the last 2 s', async () => {
+    for (const status of [{ ...caught, state: 'behind' as const }, { ...caught, state: 'active' as const }, null]) {
+      const h = await returnedPrimary({ catchUp: () => status })
+      await steady(h, 35)
+      expect(await h.s.handbackCheck()).toBe('no')
+    }
+    const recent = await returnedPrimary({ catchUp: () => ({ ...caught, lastChangeAt: 10_000 + 36_000 - 500 }) })
+    await steady(recent, 36)
+    expect(await recent.s.handbackCheck()).toBe('no')
+  })
+
+  it('does not hand back when the song state cannot be read (it must not guess)', async () => {
+    const h = await returnedPrimary({ songRunning: async () => { throw new Error('db down') } })
+    await steady(h, 40)
+    expect(await h.s.handbackCheck()).toBe('no')
+  })
+
+  it('a primary that is not out of date, and a backup, never hand back', async () => {
+    const fine = service('laptop', [primary, backup], { catchUp: () => caught, songRunning: async () => false })
+    fine.advance(60_000)
+    expect(await fine.s.handbackCheck()).toBe('no')
+    const backupHost = service('stage-pc', [primary, backup], { catchUp: () => caught, songRunning: async () => false })
+    backupHost.advance(60_000)
+    expect(await backupHost.s.handbackCheck()).toBe('no')
+  })
+
+  it('after the handback the lease goes out again under the new epoch', async () => {
+    const h = await returnedPrimary()
+    await steady(h, 31)
+    await h.s.handbackCheck()
+    h.post.mockClear()
+    h.post.mockResolvedValue({ accepted: true, epoch: 2, active: true })
+    await h.s.sendOnce()
+    expect(verifyLease(h.post.mock.calls[0]![1], KEY)!.epoch).toBe(3)
+  })
+
+  it('checks one at a time: two overlapping checks hand back once', async () => {
+    const h = await returnedPrimary({ songRunning: () => new Promise((r) => setTimeout(() => r(false), 20)) })
+    await steady(h, 31)
+    const results = await Promise.all([h.s.handbackCheck(), h.s.handbackCheck()])
+    expect(results.filter((r) => r === 'handed-back')).toHaveLength(1)
+    expect(h.s.epoch()).toBe(3)
+  })
+
+  describe('the backup steps down', () => {
+    async function activeBackup() {
+      const h = service('stage-pc', [primary, backup])
+      h.get.mockResolvedValue(null)
+      await h.s.receive(signLease({ hostId: 'laptop', epoch: 1, leaseMs: 4000, sentAt: 1 }, KEY))
+      h.advance(6_000)
+      expect(await h.s.takeoverCheck()).toBe('taken')
+      return h
+    }
+
+    it('on a signed lease from the primary with a higher epoch: passive again, the epoch kept', async () => {
+      const h = await activeBackup()
+      expect(h.s.isActive()).toBe(true)
+      expect(await h.s.receive(signLease({ hostId: 'laptop', epoch: 3, leaseMs: 4000, sentAt: 100 }, KEY))).toBe('accepted')
+      expect(h.s.isActive()).toBe(false)
+      expect(h.s.passiveBackup()).toBe(true)
+      expect(h.s.epoch()).toBe(3)
+      expect(h.store.load()).toEqual({ epoch: 3, active: false })
+    })
+
+    it('not on a lease with the same or a lower epoch (the old primary waking up must not take the host back)', async () => {
+      const h = await activeBackup()
+      await h.s.receive(signLease({ hostId: 'laptop', epoch: 2, leaseMs: 4000, sentAt: 100 }, KEY))
+      await h.s.receive(signLease({ hostId: 'laptop', epoch: 1, leaseMs: 4000, sentAt: 200 }, KEY))
+      expect(h.s.isActive()).toBe(true)
+      expect(h.s.epoch()).toBe(2)
+    })
+
+    it('not on an unsigned or wrongly signed lease', async () => {
+      const h = await activeBackup()
+      await h.s.receive({ lease: { hostId: 'laptop', epoch: 9, leaseMs: 4000, sentAt: 300 }, sig: 'a'.repeat(64) })
+      await h.s.receive(signLease({ hostId: 'laptop', epoch: 9, leaseMs: 4000, sentAt: 301 }, leaseKey('00000000', 'band-a')))
+      expect(h.s.isActive()).toBe(true)
+    })
+
+    it('follows the primary\'s clock again once passive', async () => {
+      const h = await activeBackup()
+      await h.s.receive(signLease({ hostId: 'laptop', epoch: 3, leaseMs: 4000, sentAt: 100 }, KEY))
+      h.get.mockImplementation(async () => ({ serverTime: 10_000_000, hostId: 'laptop', epoch: 3 }))
+      h.get.mockClear()
+      await h.s.sampleOnce()
+      expect(h.get).toHaveBeenCalled()
+    })
+  })
+})

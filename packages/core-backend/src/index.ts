@@ -1027,6 +1027,14 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
     // 1 s: on a local network a live host answers in milliseconds; a frozen one must not delay the takeover.
     get: (url, fingerprint) => getFromHost(url, fingerprint, 1_000),
     now: () => Date.now(),
+    // The handback (#935): the returned primary copies the backup's data first, and never hands back during a song.
+    catchUp: () => catchUp.status(),
+    songRunning: async () => {
+      const workspaceId = workspaceHardware.getActiveWorkspaceId()
+      if (!workspaceId) throw new Error('no band')
+      // A band that never played has no show-state yet: not running. A database that cannot be read throws: cannot tell.
+      return (await getDoc<CouchDoc & { playbackStatus?: string }>(couch, workspaceDbName(workspaceId), 'show-state'))?.playbackStatus === 'playing'
+    },
   })
   listedHostOrigins = hostLease.listedOrigins
   // The primary hands the backup a login to copy the band database with, on a request signed with the
@@ -1075,6 +1083,20 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
     now: () => Date.now(),
   })
   app.addHook('onClose', async () => replication.stop())
+  // The returned primary's copy of the backup's data (#935): while it is out of date it copies from the other host,
+  // so what was written during the takeover is not lost when it hands back.
+  const catchUp = createReplicationRunner({
+    selfHostId: hostId,
+    workspaceId: () => workspaceHardware.getActiveWorkspaceId(),
+    readHosts: (workspaceId) => readBandHosts(workspaceId),
+    readAccessCode: (workspaceId) => readBandCode(workspaceId),
+    requestAccount: (url, body, fingerprint) => postJsonToHost(url, body, fingerprint),
+    makeRemote: makeRemoteBandDb,
+    makeLocal: (workspaceId) => makeLocalBandDb(couch, workspaceId),
+    now: () => Date.now(),
+    copyFrom: (hosts, selfId) => (hostLease.outdated() ? (hosts.find((h) => h.hostId !== selfId) ?? null) : null),
+  })
+  app.addHook('onClose', async () => catchUp.stop())
   // The backup's audio: it fetches the tracks the replicated song variants list that it does not have
   // yet, from the primary (#919). One file at a time, only while it is the passive backup.
   const audioMirror = createAudioMirror({
@@ -1091,7 +1113,7 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
     saveFile: saveMirrorFile,
   })
   app.post('/host/lease', async (request) => ({ accepted: (await hostLease.receive(request.body)) === 'accepted', epoch: hostLease.epoch(), active: hostLease.isActive() }))
-  app.get('/server/host-lease', async () => ({ lease: hostLease.status(), clockOffsetMs: hostLease.clockOffsetMs(), replication: replication.status(), audio: audioMirror.status(), active: hostLease.isActive(), epoch: hostLease.epoch(), outdated: hostLease.outdated() }))
+  app.get('/server/host-lease', async () => ({ lease: hostLease.status(), clockOffsetMs: hostLease.clockOffsetMs(), replication: replication.status(), catchUp: catchUp.status(), audio: audioMirror.status(), active: hostLease.isActive(), epoch: hostLease.epoch(), outdated: hostLease.outdated() }))
 
   // OSC devices (#484): host and port are the device's transport config for the Stage-Server
   // (Bühnentechnik), in the band whose hardware this server serves.
@@ -2022,7 +2044,7 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
     await app.register(fastifyStatic, { root: pwaDist })
   }
 
-  return { app, registry, lookupRegistry, couch, workspaceHardware, pluginLog, backups, hostLease, replication, audioMirror }
+  return { app, registry, lookupRegistry, couch, workspaceHardware, pluginLog, backups, hostLease, replication, audioMirror, catchUp }
 }
 
 const port = Number(process.env.PORT ?? 3001)
@@ -2058,7 +2080,7 @@ async function main() {
         })
       : null
   if (builtinDb) process.env.COUCHDB_URL = builtinDb.url
-  const { app, lookupRegistry, workspaceHardware, pluginLog, couch, backups, hostLease, replication, audioMirror } = await buildApp()
+  const { app, lookupRegistry, workspaceHardware, pluginLog, couch, backups, hostLease, replication, audioMirror, catchUp } = await buildApp()
   if (builtinDb) app.log.info({ url: builtinDb.url }, 'Built-in database host (no CouchDB)')
   // Scheduled backups (daily time, USB medium plugged in) - checked every 30 s.
   backups.start()
@@ -2120,11 +2142,16 @@ async function main() {
       const workspaceId = workspaceHardware.getActiveWorkspaceId()
       if (workspaceId && hostLease.passiveBackup()) void importHostAccounts(couch, workspaceDbName(workspaceId)).catch((err) => app.log.error({ err }, 'Could not import the host accounts'))
     }, 10_000)
+    // A returned primary copies the backup's data and, when it is safe, takes the host role back (#935).
+    const catchUpTimer = setInterval(() => void catchUp.tick(), 5_000)
+    const handbackTimer = setInterval(() => void hostLease.handbackCheck().then((r) => r === 'handed-back' && pluginLog.info('host handback: this host is the band host again', { epoch: hostLease.epoch() })), 1_000)
     const takeoverTimer = setInterval(() => void hostLease.takeoverCheck().then((r) => r === 'taken' && pluginLog.info('host takeover: this host is the band host now', { epoch: hostLease.epoch() })), 1_000)
     app.addHook('onClose', async () => {
       clearInterval(leaseTimer)
       clearInterval(clockTimer)
       clearInterval(takeoverTimer)
+      clearInterval(catchUpTimer)
+      clearInterval(handbackTimer)
       clearInterval(replicationTimer)
       clearInterval(accountsTimer)
       clearInterval(audioTimer)

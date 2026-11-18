@@ -122,10 +122,17 @@ export interface HostLeaseService {
   outdated(): boolean
   /** This host is the band's backup and has not taken over: its database is a copy, its accounts come from the primary (#919). */
   passiveBackup(): boolean
+  /** The returned primary hands the host role back (call every second): 'handed-back' once, else 'no'. #935 */
+  handbackCheck(): Promise<'handed-back' | 'no'>
 }
 
 /** Without a lease for this long, and with the primary not answering directly either, the backup takes over (docs/25 §6e: 5-8 s, with the up to 1 s check interval and the direct request of 1 s on top). Above the 1-3 s Wi-Fi hiccups. */
 export const TAKEOVER_AFTER_MS = 5_000
+
+/** The returned primary waits until the backup has answered without a gap for this long (#935). */
+export const HANDBACK_STEADY_MS = 30_000
+/** ... and until its copy of the backup's data has been quiet for this long. */
+export const HANDBACK_SETTLE_MS = 2_000
 
 /**
  * Both ends of the alive signal on one host (host backup, #918, docs/25 §6e): the primary (priority
@@ -144,6 +151,10 @@ export function createHostLeaseService(deps: {
   post: (url: string, body: SignedHostLease, fingerprint: string | undefined) => Promise<unknown>
   get: (url: string, fingerprint: string | undefined) => Promise<unknown>
   now: () => number
+  /** The returned primary's copy of the backup's data (#935). Without it no handback. */
+  catchUp?: () => { state: string; lastChangeAt: number | null } | null
+  /** Whether a song is playing right now (`show-state`); a throw means "cannot tell". */
+  songRunning?: () => Promise<boolean>
 }): HostLeaseService {
   let listed: string[] = []
   let keys: Buffer[] = []
@@ -155,6 +166,10 @@ export function createHostLeaseService(deps: {
   let outdated = false
   let selfPriority: 1 | 2 | null = null
   let checking = false
+  let handingBack = false
+  /** While out of date: since when the backup has answered without a gap, and the epoch it announced. */
+  let steadySince: number | null = null
+  let peerEpoch = 0
   const epochNow = () => Math.max(deps.baseEpoch, role.epoch)
 
   async function load(workspaceId: string) {
@@ -178,9 +193,16 @@ export function createHostLeaseService(deps: {
         if (hosts.length < 2 || self?.priority !== 1 || !other || keys.length === 0) return
         const otherUrl = other.url.replace(/\/+$/, '')
         if (outdated) {
-          // Quiet until the other host no longer announces a higher epoch (a handback, #later).
+          // Quiet while the other host announces a higher epoch. Every answer counts towards the handback (#935):
+          // it needs the other host to have answered steadily, not just once.
           const answer = HostTimeAnswerSchema.safeParse(await deps.get(`${otherUrl}/time`, other.certFingerprint))
-          if (answer.success && (answer.data.epoch ?? 0) <= epochNow()) outdated = false
+          if (!answer.success) {
+            steadySince = null
+            return
+          }
+          steadySince ??= deps.now()
+          peerEpoch = answer.data.epoch ?? 0
+          if (peerEpoch <= epochNow()) outdated = false
           return
         }
         // Strictly rising even when two sends fall in the same millisecond.
@@ -201,7 +223,37 @@ export function createHostLeaseService(deps: {
       } catch {
         return 'ignored'
       }
-      return keeper.accept(raw)
+      const result = keeper.accept(raw)
+      // A signed lease from the primary under a higher epoch than this host serves: the primary is back
+      // and has taken the host role (#935). Step down to passive; the epoch is kept.
+      const lease = keeper.status()
+      if (result === 'accepted' && role.active && lease && lease.epoch > epochNow()) {
+        role = { epoch: lease.epoch, active: false }
+        deps.roleStore.save(role)
+      }
+      return result
+    },
+    async handbackCheck() {
+      if (!outdated || handingBack || steadySince === null) return 'no'
+      handingBack = true
+      try {
+        // The primary is healthy again only after the backup has answered for a while, not once.
+        if (deps.now() - steadySince < HANDBACK_STEADY_MS) return 'no'
+        // Its copy of what was written while the backup was host must be current, and quiet.
+        const copy = deps.catchUp?.() ?? null
+        if (!copy || copy.state !== 'caught-up' || (copy.lastChangeAt !== null && deps.now() - copy.lastChangeAt < HANDBACK_SETTLE_MS)) return 'no'
+        // Never during a song. If it cannot be told, it must not guess.
+        if (!deps.songRunning || (await deps.songRunning())) return 'no'
+        role = { epoch: Math.max(epochNow(), peerEpoch) + 1, active: false }
+        deps.roleStore.save(role)
+        outdated = false
+        steadySince = null
+        return 'handed-back'
+      } catch {
+        return 'no'
+      } finally {
+        handingBack = false
+      }
     },
     status: () => keeper.status(),
     clockOffsetMs: () => clock.offsetMs(),
