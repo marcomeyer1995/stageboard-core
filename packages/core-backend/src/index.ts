@@ -1,6 +1,6 @@
 import { createSocket } from 'node:dgram'
 import { AddonError, addonFilePath, addonRoot, installAddonVersion, previewAddon, pruneAddonVersions } from './addons/addonStore.js'
-import { AddonInstallRequestSchema, AddonPreviewRequestSchema, LEASE_INTERVAL_MS, type BandHostEntry } from 'shared-types'
+import { AddonInstallRequestSchema, AddonPreviewRequestSchema, HostTimeAnswerSchema, LEASE_INTERVAL_MS, type BandHostEntry } from 'shared-types'
 import { existsSync, readFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { CalibrationRuns } from './calibration/calibrationRuns.js'
@@ -22,6 +22,7 @@ import { makeLocalBandDb, makeRemoteBandDb } from './bandPouch.js'
 import { createReplicationAccountIssuer } from './replicationAccount.js'
 import { createReplicationRunner } from './replicationRunner.js'
 import { createAudioMirror } from './audioMirror.js'
+import { createBandBootstrapStore, effectiveHosts, joinBand } from './bandJoin.js'
 import { mirrorTracksOf, readLocalRevision, saveMirrorFile } from './audioMirrorFiles.js'
 import { createPinnedFetch } from './pinnedFetch.js'
 import { corsOriginAllowed } from './corsOrigin.js'
@@ -1002,7 +1003,16 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
   const workspaceHardware = createWorkspaceHardwareController({ couch, registry, log: pluginLog })
   app.addHook('onClose', async () => workspaceHardware.deactivate())
 
-  const readBandHosts = async (workspaceId: string) => (await getDoc<CouchDoc & { hosts?: BandHostEntry[] }>(couch, workspaceDbName(workspaceId), 'band-settings:band'))?.hosts ?? null
+  // A fresh backup has neither the band's host list nor its code in its own database yet: until the
+  // copy brings them, the join file (#933) stands in; the database wins once it has two hosts.
+  const bootstrapStore = createBandBootstrapStore(process.env.STAGEBOARD_STATE_DIR ?? './data')
+  const readBandHosts = async (workspaceId: string) =>
+    effectiveHosts(workspaceId, (await getDoc<CouchDoc & { hosts?: BandHostEntry[] }>(couch, workspaceDbName(workspaceId), 'band-settings:band'))?.hosts ?? null, bootstrapStore.load())
+  const readBandCode = async (workspaceId: string) => {
+    const own = (await getAccessCode(couch, workspaceId))?.code
+    const boot = bootstrapStore.load()
+    return own ?? (boot && boot.workspaceId === workspaceId ? boot.accessCode : null)
+  }
 
   // Host backup, #918 (docs/25 §6e): the primary tells the backup every second that it is alive,
   // signed with the band code. The sender is started in main(), not here, so tests stay quiet.
@@ -1012,7 +1022,7 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
     roleStore: createHostRoleStore(process.env.STAGEBOARD_STATE_DIR ?? './data'),
     workspaceId: () => workspaceHardware.getActiveWorkspaceId(),
     readHosts: (workspaceId) => readBandHosts(workspaceId),
-    readAccessCode: async (workspaceId) => (await getAccessCode(couch, workspaceId))?.code ?? null,
+    readAccessCode: (workspaceId) => readBandCode(workspaceId),
     post: (url, body, fingerprint) => postJsonToHost(url, body, fingerprint),
     // 1 s: on a local network a live host answers in milliseconds; a frozen one must not delay the takeover.
     get: (url, fingerprint) => getFromHost(url, fingerprint, 1_000),
@@ -1025,8 +1035,29 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
     selfHostId: hostId,
     workspaceId: () => workspaceHardware.getActiveWorkspaceId(),
     readHosts: (workspaceId) => readBandHosts(workspaceId),
-    readAccessCode: async (workspaceId) => (await getAccessCode(couch, workspaceId))?.code ?? null,
+    readAccessCode: (workspaceId) => readBandCode(workspaceId),
     mint: (workspaceId, backupHostId) => provisionDevice(couch, workspaceId, 'host', backupHostId, false),
+  })
+  // A fresh backup is told once which band it backs up and where the primary is (#933). Only from the
+  // host machine itself, like the other provisioning routes: the admin on a tablet has no way here.
+  app.post('/host/join-band', async (request, reply) => {
+    if (!isLoopback(request.ip)) return reply.status(403).send({ status: 'error', message: 'Only from the host machine itself' })
+    const result = await joinBand(
+      {
+        selfHostId: hostId,
+        selfUrl: `https://${process.env.LAN_IP ?? detectLanIp() ?? '127.0.0.1'}:${Number(process.env.PORT ?? 3001)}`,
+        activeWorkspaceId: () => workspaceHardware.getActiveWorkspaceId(),
+        fetchPrimaryId: async (url, fingerprint) => {
+          const answer = HostTimeAnswerSchema.safeParse(await getFromHost(`${url}/time`, fingerprint, 3_000))
+          return answer.success ? (answer.data.hostId ?? null) : null
+        },
+        ensureLocalDb: async (workspaceId) => void (await makeLocalBandDb(couch, workspaceId)),
+        activate: (workspaceId) => workspaceHardware.activate(workspaceId),
+        store: bootstrapStore,
+      },
+      request.body,
+    )
+    return result.ok ? { status: 'ok' } : reply.status(result.status).send({ status: 'error', message: result.message })
   })
   app.post('/host/replication-account', async (request, reply) => {
     const account = await replicationAccounts.issue(request.body)
@@ -1037,7 +1068,7 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
     selfHostId: hostId,
     workspaceId: () => workspaceHardware.getActiveWorkspaceId(),
     readHosts: (workspaceId) => readBandHosts(workspaceId),
-    readAccessCode: async (workspaceId) => (await getAccessCode(couch, workspaceId))?.code ?? null,
+    readAccessCode: (workspaceId) => readBandCode(workspaceId),
     requestAccount: (url, body, fingerprint) => postJsonToHost(url, body, fingerprint),
     makeRemote: makeRemoteBandDb,
     makeLocal: (workspaceId) => makeLocalBandDb(couch, workspaceId),

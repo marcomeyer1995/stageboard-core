@@ -155,6 +155,23 @@ describe('Fastify routes', () => {
     })
   })
 
+  describe('POST /host/join-band (#933)', () => {
+    it('is for the host machine itself: a request from another machine is refused and does nothing', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/host/join-band',
+        remoteAddress: '203.0.113.7',
+        payload: { workspaceId: 'band-a', accessCode: '12345678', primaryUrl: 'https://10.0.0.1:8443' },
+      })
+      expect(response.statusCode).toBe(403)
+    })
+
+    it('answers 400 to a request that is not a good one, from the host machine', async () => {
+      const response = await app.inject({ method: 'POST', url: '/host/join-band', payload: { workspaceId: 'band-a' } })
+      expect(response.statusCode).toBe(400)
+    })
+  })
+
   describe('POST /host/replication-account (#919)', () => {
     it('gives nothing to what is not a good signed request - an empty 403, no account', async () => {
       for (const payload of [{}, { request: { hostId: 'x', sentAt: 1 }, sig: 'zz' }, 'nonsense']) {
