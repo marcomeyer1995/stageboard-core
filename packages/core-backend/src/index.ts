@@ -16,6 +16,7 @@ import cors from '@fastify/cors'
 import httpProxy from '@fastify/http-proxy'
 import { startBuiltinCouch } from './builtinCouch.js'
 import { hostCapabilities } from './hostCapabilities.js'
+import { configuredHostEpoch } from './hostEpochConfig.js'
 import { createHostLeaseService, postToHost } from './hostLeaseService.js'
 import { watchHostAccounts } from './hostAccounts.js'
 import fastifyStatic from '@fastify/static'
@@ -440,9 +441,10 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
   // The NTP-style "burst handshake" target (docs/00 §4, #31): clients hit this repeatedly and
   // keep the lowest-RTT sample's offset (see stage-pwa's clockSync.ts) - a single Date.now()
   // read is all a client needs, no session/state on this end.
-  // The epoch is 1 until a backup takeover exists (host backup, #910); hostId tells devices which host answers.
+  // The epoch is 1 until a backup takeover exists (host backup, #910; STAGEBOARD_HOST_EPOCH for tests, #924); hostId tells devices which host answers.
   const hostId = process.env.STAGEBOARD_HOST_ID || hostname()
-  app.get('/time', async () => ({ serverTime: Date.now(), hostId, epoch: 1 }))
+  const hostEpoch = configuredHostEpoch()
+  app.get('/time', async () => ({ serverTime: Date.now(), hostId, epoch: hostEpoch }))
 
   // Lets InviteBandView.tsx embed a *reachable* address in its QR code (see #21 seventh
   // follow-up, at Marco's explicit request) rather than baking one host in forever - detected
@@ -992,7 +994,7 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
   // signed with the band code. The sender is started in main(), not here, so tests stay quiet.
   const hostLease = createHostLeaseService({
     selfHostId: hostId,
-    epoch: () => 1,
+    epoch: () => hostEpoch,
     workspaceId: () => workspaceHardware.getActiveWorkspaceId(),
     readHosts: async (workspaceId) => (await getDoc<CouchDoc & { hosts?: BandHostEntry[] }>(couch, workspaceDbName(workspaceId), 'band-settings:band'))?.hosts ?? null,
     readAccessCode: async (workspaceId) => (await getAccessCode(couch, workspaceId))?.code ?? null,
