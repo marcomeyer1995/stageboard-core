@@ -12,6 +12,13 @@ const KEY = leaseKey('12345678', 'band-a')
 function service(self: string, hosts: BandHostEntry[] | null, over: Partial<Parameters<typeof createHostLeaseService>[0]> = {}) {
   let t = 10_000
   const post = vi.fn().mockResolvedValue(true)
+  // The primary's clock runs 250 ms ahead of ours; an answer takes 4 ms.
+  const get = vi.fn(async () => {
+    t += 2
+    const serverTime = t + 250
+    t += 2
+    return { serverTime, hostId: 'laptop', epoch: 1 }
+  })
   const s = createHostLeaseService({
     selfHostId: self,
     epoch: () => 1,
@@ -19,10 +26,11 @@ function service(self: string, hosts: BandHostEntry[] | null, over: Partial<Para
     readHosts: async () => hosts,
     readAccessCode: async () => '12345678',
     post,
+    get,
     now: () => t,
     ...over,
   })
-  return { s, post, advance: (ms: number) => (t += ms) }
+  return { s, post, get, advance: (ms: number) => (t += ms) }
 }
 
 describe('host lease service (#918)', () => {
@@ -56,6 +64,34 @@ describe('host lease service (#918)', () => {
       await s.sendOnce()
       expect(post).not.toHaveBeenCalled()
     }
+  })
+
+  it('the backup samples the primary\'s clock, pinned to the listed fingerprint, and learns its offset', async () => {
+    const { s, get } = service('stage-pc', [primary, backup])
+    expect(s.clockOffsetMs()).toBeNull()
+    await s.sampleOnce()
+    expect(get).toHaveBeenCalledWith('https://10.0.0.1:8443/time', FP1)
+    expect(s.clockOffsetMs()).toBeCloseTo(250, 5)
+  })
+
+  it('only the backup samples: not the primary, not without two hosts or a band', async () => {
+    for (const { s, get } of [
+      service('laptop', [primary, backup]),
+      service('stage-pc', [backup]),
+      service('stage-pc', null),
+      service('stage-pc', [primary, backup], { workspaceId: () => null }),
+    ]) {
+      await s.sampleOnce()
+      expect(get).not.toHaveBeenCalled()
+    }
+  })
+
+  it('a sample that fails, or answers without a time, changes nothing and does not throw', async () => {
+    const { s } = service('stage-pc', [primary, backup], { get: vi.fn().mockRejectedValue(new Error('down')) })
+    await expect(s.sampleOnce()).resolves.toBeUndefined()
+    const none = service('stage-pc', [primary, backup], { get: vi.fn().mockResolvedValue({ nonsense: true }) })
+    await none.s.sampleOnce()
+    expect(none.s.clockOffsetMs()).toBeNull()
   })
 
   it('knows the origins of the listed hosts after it has read the list', async () => {

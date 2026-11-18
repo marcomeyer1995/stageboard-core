@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { certFingerprint } from './certFingerprint.js'
-import { postToHost } from './hostLeaseService.js'
+import { getFromHost, postToHost } from './hostLeaseService.js'
 
 // A real https server with a self-signed certificate: postToHost must pin to the listed fingerprint (#918).
 let server: Server
@@ -27,7 +27,7 @@ beforeAll(async () => {
     req.on('end', () => {
       received.push(body)
       res.statusCode = 200
-      res.end('{}')
+      res.end(req.method === 'GET' ? '{"serverTime":42}' : '{}')
     })
   })
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
@@ -60,5 +60,16 @@ describe('postToHost (#918)', () => {
 
   it('is false, not an error, for a host that is not there', async () => {
     expect(await postToHost('https://127.0.0.1:9/host/lease', {}, undefined, 500)).toBe(false)
+  })
+})
+
+describe('getFromHost (#919)', () => {
+  it('reads the JSON answer of a host with the listed fingerprint', async () => {
+    expect(await getFromHost(url, fingerprint)).toEqual({ serverTime: 42 })
+  })
+
+  it('is null for another fingerprint, a host that is not there, or an answer that is not JSON', async () => {
+    expect(await getFromHost(url, 'f'.repeat(64))).toBeNull()
+    expect(await getFromHost('https://127.0.0.1:9/time', undefined, 500)).toBeNull()
   })
 })
