@@ -138,6 +138,15 @@ describe('importing the host accounts on a backup (#919)', () => {
     expect(await importHostAccounts(config, workspaceDbName(other))).toBe(0)
   })
 
+  it('a stopped watcher publishes nothing, also for a change that arrives while it is still waiting (#937)', async () => {
+    const watcher = watchHostAccounts(config, { info: () => undefined, error: () => undefined }, { pollMs: 1_000, retryMs: 50 })
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    watcher.stop()
+    await createUser(config, deviceUsername(band, 'p-drums', 'after-stop'), 'long-random-device-password-7', ['member'])
+    await new Promise((resolve) => setTimeout(resolve, 1_500))
+    expect(await accountsOf()).not.toContain(deviceUsername(band, 'p-drums', 'after-stop'))
+  })
+
   it('watchHostAccounts publishes nothing while disabled (a passive backup must not overwrite the primary\'s list)', async () => {
     const before = JSON.stringify((await getDoc<HostAccountsDoc>(config, db, HOST_ACCOUNTS_DOC_ID))?.accounts)
     await createUser(config, deviceUsername(band, 'p-drums', 'tablet-new'), 'long-random-device-password-9', ['member'])
