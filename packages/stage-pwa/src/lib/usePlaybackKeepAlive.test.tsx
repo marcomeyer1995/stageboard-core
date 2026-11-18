@@ -17,6 +17,7 @@ vi.mock('../store/useWorkspaceStore', async () => {
 
 const { useAppModeStore } = await import('../store/useAppModeStore')
 const { usePracticeStateStore } = await import('../store/usePracticeStateStore')
+const { useAndroidHostStore } = await import('../store/useAndroidHostStore')
 const { useWorkspaceStore } = await import('../store/useWorkspaceStore')
 const { usePlaybackKeepAlive } = await import('./usePlaybackKeepAlive')
 
@@ -28,6 +29,7 @@ beforeEach(() => {
   native.on = true
   useAppModeStore.setState({ mode: 'practice' })
   usePracticeStateStore.setState({ byWorkspace: {} })
+  useAndroidHostStore.getState().reset()
 })
 
 describe('usePlaybackKeepAlive (N1, 2026-11-10)', () => {
@@ -49,6 +51,16 @@ describe('usePlaybackKeepAlive (N1, 2026-11-10)', () => {
     act(() => usePracticeStateStore.getState().patch(ws(), { playbackStatus: 'paused' }))
     expect(plugin.stop).toHaveBeenCalled()
     expect(plugin.start).toHaveBeenCalledTimes(1)
+  })
+
+  it('runs while this tablet is a host, in any mode - a host must not be throttled with the screen locked (#947)', () => {
+    renderHook(() => usePlaybackKeepAlive())
+    expect(plugin.start).not.toHaveBeenCalled()
+    act(() => useAndroidHostStore.getState().set({ running: true }))
+    expect(plugin.start).toHaveBeenCalledTimes(1)
+    plugin.stop.mockClear()
+    act(() => useAndroidHostStore.getState().set({ running: false }))
+    expect(plugin.stop).toHaveBeenCalled()
   })
 
   it('does nothing in the browser', () => {
