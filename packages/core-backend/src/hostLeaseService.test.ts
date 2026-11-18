@@ -11,9 +11,11 @@ const KEY = leaseKey('12345678', 'band-a')
 
 function service(self: string, hosts: BandHostEntry[] | null, over: Partial<Parameters<typeof createHostLeaseService>[0]> = {}) {
   let t = 10_000
-  const post = vi.fn().mockResolvedValue(true)
+  let saved = { epoch: 0, active: false }
+  const store = { load: () => saved, save: (r: { epoch: number; active: boolean }) => void (saved = r) }
+  const post = vi.fn().mockResolvedValue({ accepted: true, epoch: 1, active: false })
   // The primary's clock runs 250 ms ahead of ours; an answer takes 4 ms.
-  const get = vi.fn(async () => {
+  const get = vi.fn(async (): Promise<unknown> => {
     t += 2
     const serverTime = t + 250
     t += 2
@@ -21,7 +23,8 @@ function service(self: string, hosts: BandHostEntry[] | null, over: Partial<Para
   })
   const s = createHostLeaseService({
     selfHostId: self,
-    epoch: () => 1,
+    baseEpoch: 1,
+    roleStore: store,
     workspaceId: () => 'band-a',
     readHosts: async () => hosts,
     readAccessCode: async () => '12345678',
@@ -30,7 +33,7 @@ function service(self: string, hosts: BandHostEntry[] | null, over: Partial<Para
     now: () => t,
     ...over,
   })
-  return { s, post, get, advance: (ms: number) => (t += ms) }
+  return { s, post, get, store, advance: (ms: number) => (t += ms) }
 }
 
 describe('host lease service (#918)', () => {
@@ -143,5 +146,116 @@ describe('fingerprintMatches (#918)', () => {
 
   it('without a listed fingerprint nothing can be pinned, so it does not match', () => {
     expect(fingerprintMatches('AA:BB', undefined)).toBe(false)
+  })
+})
+
+describe('takeover (#920)', () => {
+  /** A backup that has heard the primary's lease once, 6.5 s ago. `primaryAnswers`: whether a direct request still reaches it. */
+  async function silentBackup(primaryAnswers: boolean, silentMs = 5_500) {
+    const h = service('stage-pc', [primary, backup], {})
+    // Answering: the helper's default (a clock 250 ms ahead). Gone: nothing answers.
+    if (!primaryAnswers) h.get.mockResolvedValue(null)
+    await h.s.receive(signLease({ hostId: 'laptop', epoch: 1, leaseMs: 4000, sentAt: 1 }, KEY))
+    h.advance(silentMs)
+    return h
+  }
+
+  it('takes over when the lease has been silent for 5 s and the primary does not answer a direct request', async () => {
+    const { s, store } = await silentBackup(false)
+    expect(await s.takeoverCheck()).toBe('taken')
+    expect(s.isActive()).toBe(true)
+    expect(s.epoch()).toBe(2)
+    expect(store.load()).toEqual({ epoch: 2, active: true })
+  })
+
+  it('overlapping checks (the direct request is slow) take over once and raise the epoch once', async () => {
+    const { s, get } = await silentBackup(false)
+    get.mockImplementation(() => new Promise((resolve) => setTimeout(() => resolve(null), 30)))
+    const results = await Promise.all([s.takeoverCheck(), s.takeoverCheck(), s.takeoverCheck()])
+    expect(results.filter((r) => r === 'taken')).toHaveLength(1)
+    expect(s.epoch()).toBe(2)
+  })
+
+  it('does not take over while the primary still answers directly - only the lease path is broken', async () => {
+    const { s } = await silentBackup(true)
+    expect(await s.takeoverCheck()).toBe('no')
+    expect(s.isActive()).toBe(false)
+  })
+
+  it('does not take over after a short silence (a Wi-Fi hiccup of 1-3 s)', async () => {
+    const { s } = await silentBackup(false, 3_000)
+    expect(await s.takeoverCheck()).toBe('no')
+  })
+
+  it('does not take over when it never heard a lease - a backup started alone must not make itself host', async () => {
+    const { s, advance } = service('stage-pc', [primary, backup])
+    advance(60_000)
+    expect(await s.takeoverCheck()).toBe('no')
+  })
+
+  it('the primary never takes over, and nobody takes over without two hosts', async () => {
+    for (const { s, advance } of [service('laptop', [primary, backup]), service('stage-pc', [backup])]) {
+      advance(60_000)
+      expect(await s.takeoverCheck()).toBe('no')
+    }
+  })
+
+  it('takes over once: the next check does nothing and the epoch stays', async () => {
+    const { s } = await silentBackup(false)
+    await s.takeoverCheck()
+    expect(await s.takeoverCheck()).toBe('no')
+    expect(s.epoch()).toBe(2)
+  })
+
+  it('after a restart the backup is still active, under the same epoch', async () => {
+    const { s, store } = await silentBackup(false)
+    await s.takeoverCheck()
+    const again = service('stage-pc', [primary, backup], { roleStore: store })
+    expect(again.s.isActive()).toBe(true)
+    expect(again.s.epoch()).toBe(2)
+  })
+
+  it('serves band time as its own clock before the takeover, and its own clock plus the primary\'s offset after', async () => {
+    // The primary answers while the backup learns its clock (250 ms ahead), then it is gone.
+    const { s, get, advance } = await silentBackup(true, 0)
+    await s.sampleOnce()
+    const before = s.bandTime()
+    advance(7_000)
+    expect(s.bandTime()).toBe(before + 7_000)
+    get.mockResolvedValue(null)
+    expect(await s.takeoverCheck()).toBe('taken')
+    const now = s.bandTime()
+    expect(now - (before + 7_000)).toBeGreaterThan(240)
+    expect(now - (before + 7_000)).toBeLessThan(260)
+  })
+
+  it('stops following the primary\'s clock once active: the offset is frozen', async () => {
+    const { s, get, advance } = await silentBackup(true, 0)
+    await s.sampleOnce()
+    const offset = s.clockOffsetMs()
+    advance(7_000)
+    get.mockResolvedValue(null)
+    await s.takeoverCheck()
+    get.mockClear()
+    await s.sampleOnce()
+    expect(get).not.toHaveBeenCalled()
+    expect(s.clockOffsetMs()).toBe(offset)
+  })
+
+  it('a returning primary sees a higher epoch in the backup\'s answer and stops sending leases', async () => {
+    const h = service('laptop', [primary, backup])
+    h.post.mockResolvedValue({ accepted: false, epoch: 2, active: true })
+    h.get.mockResolvedValue({ serverTime: 1, hostId: 'stage-pc', epoch: 2 })
+    await h.s.sendOnce()
+    h.post.mockClear()
+    await h.s.sendOnce()
+    expect(h.post).not.toHaveBeenCalled()
+    expect(h.s.outdated()).toBe(true)
+  })
+
+  it('the lease carries the host\'s current epoch', async () => {
+    const h = service('laptop', [primary, backup], { baseEpoch: 3 })
+    await h.s.sendOnce()
+    expect(verifyLease(h.post.mock.calls[0]![1], KEY)!.epoch).toBe(3)
   })
 })

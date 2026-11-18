@@ -143,14 +143,14 @@ describe('Fastify routes', () => {
     it('GET /server/host-lease is null while no lease has arrived', async () => {
       const response = await app.inject({ method: 'GET', url: '/server/host-lease' })
       expect(response.statusCode).toBe(200)
-      expect(response.json()).toEqual({ lease: null, clockOffsetMs: null })
+      expect(response.json()).toMatchObject({ lease: null, clockOffsetMs: null, active: false, epoch: 1 })
     })
 
     it('POST /host/lease ignores what is not a signed lease, without an error', async () => {
       for (const payload of [{}, { lease: { hostId: 'x' }, sig: 'zz' }, 'nonsense']) {
         const response = await app.inject({ method: 'POST', url: '/host/lease', payload: payload as object })
         expect(response.statusCode).toBe(200)
-        expect(response.json()).toEqual({ accepted: false })
+        expect(response.json()).toEqual({ accepted: false, epoch: 1, active: false })
       }
     })
   })

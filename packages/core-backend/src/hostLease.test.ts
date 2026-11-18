@@ -26,6 +26,13 @@ describe('createLeaseKeeper (#918)', () => {
     expect(k.status()).toMatchObject({ alive: false })
   })
 
+  it('says how long it has been since the last lease arrived', () => {
+    const { k, advance } = keeper()
+    k.accept(signed())
+    advance(6_500)
+    expect(k.status()?.silentForMs).toBe(6_500)
+  })
+
   it('a fresh lease extends it', () => {
     const { k, advance } = keeper()
     k.accept(signed())
