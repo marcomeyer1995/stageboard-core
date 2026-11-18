@@ -237,7 +237,23 @@ After **5 s without a lease** and a **failed direct `/time`** to the primary, th
 - E was named backup on the map: the tablet invited it, E joined the band and copied 24 docs (`caught-up`) with no code typed; it heard the tablet's lease (clock offset -103 ms).
 - Tablet app stopped: E took over after **~5.3 s** (epoch 20). Tablet back: it came back passive (never two hosts), copied from E and took the role back after ~40 s (epoch 21), E passive again.
 - Second round: a document written on E while the tablet was away was on the tablet after the handback (epoch 23).
-- Not covered: audio (the tablet has no `/audio` route, so E's audio mirror shows 2 tracks missing - #781), devices following during a song, battery.
+- Not covered above: audio (the tablet has no `/audio` route, so E's audio mirror shows 2 tracks missing - #781), battery.
+
+**Gig-like test (2026-11-18, #947): two followers, a playing song, the primary dies.** Tablet (Redmi) primary, laptop host E backup, Fire and Phone as ordinary devices on the tablet, Fire master, test band `leasetest`, home Wi-Fi, apps kept in front (a backgrounded WebView is throttled: the Phone's requests timed out until it was brought forward):
+- Tablet app stopped **in the middle of a song**: E took over after **5.6 s** (epoch 28). **Phone followed at +5.0 s, Fire at +5.4 s** (within the poll step of the takeover). The song ran on without a gap - Fire 0:09 → 0:18 → 0:28, Phone 0:17 → 0:31, each matching the elapsed time; no restart, no stop. Clock after the switch: Fire ±1.3-1.7 ms, Phone ±1.0 ms uncertainty (rtt 18 / 10 ms). The Phone showed "no master / 0:00" for ~0.2 s while its show store re-initialised.
+- Tablet back **during** the song: it came back passive and out of date and did **not** take the role back for as long as the song played (checked over 90 s).
+- Song stopped by the master (now on E): the tablet took the role back **3.1 s** later (epoch 27; 30 s steady, copy current), E passive after 4.2 s, **Phone +5.0 s and Fire +5.3 s** back on the tablet. Second round: restart → handback after ~35 s, all three devices on the tablet at epoch 29.
+- Not measured: audio output of a real track (the test songs have none), sample-accurate drift between devices (the screen shows whole seconds), battery.
+
+**Found with real devices and fixed** (none showed in curl or in unit tests):
+1. **CORS.** The app's WebView (origin `https://localhost`) needs `Access-Control-Allow-*` on every answer and the preflight; PouchDB fetches with `credentials: 'include'`, so `Allow-Credentials` too. The tablet answers the app and the band's other hosts, nobody else.
+2. **Live-channel login.** `EventSource` cannot send a login; the Stage-Server's `show-state/stream` is open and only the `push` is checked. The tablet did it the other way round (copied from the spike) - no device ever received the Play.
+3. **Master confirmation.** A device is master only if the host's presence stream shows its heartbeat (`master-heartbeat`, `presence/report`, `presence/stream`). Without it nobody can press Play on a tablet host. Ported (`host/presence.ts`), the native server keeps the latest snapshot for new streams.
+4. **Live streams did not follow a host switch** (not tablet-specific): sync and clock follow (#900), but presence, show-state push, switches, plugin health, device triggers and discovery open an `EventSource` once per band and kept retrying the dead host - after a takeover the master was never confirmed again. They now restart when the server address changes (`useWorkspaceResource(..., restartKey)`). `useOscInput` still binds once.
+5. **Replication login for the returned primary** and **band code check** (earlier in this section) were missing routes, too.
+
+**Still open:** the other routes the app calls on its host answer 404 on the tablet (`device-info/report`, flash, ready check, audio, plugins) - #781. The tablet's own app talks to its own server (works, but is a loop); #932.
+
 
 **Limits.** Not the other ~70 routes (audio, presence, plugins, join) - #781. No foreground service, so the screen must stay on / the app in front; no hotspot. The switch is off by default and only in the native app.
 

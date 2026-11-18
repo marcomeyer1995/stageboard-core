@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { SyncRequest } from 'sync-host'
-import { answerHostRequest, bandOfPath, type AppHostDeps } from './hostHttp'
+import { answerHostRequest, bandOfPath, loginCheckOf, type AppHostDeps } from './hostHttp'
 
 const baseDeps = () => {
   const seen: SyncRequest[] = []
@@ -14,6 +14,7 @@ const baseDeps = () => {
     activeWorkspaceId: () => null,
     lease: () => ({ hostId: 'laptop', epoch: 1, alive: true, silentForMs: 200 }),
     acceptLease: vi.fn(async () => 'accepted' as const),
+    presence: { workspaceId: 'leasetest', report: vi.fn(() => true), heartbeat: vi.fn(() => true) },
     verifyBandCode: vi.fn(async (workspaceId: string, code: string) => workspaceId === 'leasetest' && code === '57832943'),
     issueAccount: vi.fn(async () => ({ username: 'u', password: 'p' })),
     acceptInvite: vi.fn(async () => ({ ok: true as const })),
@@ -92,6 +93,20 @@ describe('what a passive backup answers (#947)', () => {
     expect((await answerHostRequest({ method: 'POST', path: '/workspaces/leasetest/roster', query: {} }, deps)).status).toBe(403)
   })
 
+  it('takes presence reports and the master\'s heartbeat only while it is the host, and only for its band', async () => {
+    const { deps } = baseDeps()
+    const beat = (path = '/workspaces/leasetest/master-heartbeat') => answerHostRequest({ method: 'POST', path, query: {}, body: { deviceId: 'fire' } }, deps)
+    expect((await beat()).status).toBe(503) // passive backup
+    deps.state = () => ({ epoch: 2, active: true, outdated: false, priority: 1 })
+    expect(await beat()).toEqual({ status: 204, body: null })
+    expect(deps.presence.heartbeat).toHaveBeenCalledWith({ deviceId: 'fire' })
+    expect((await beat('/workspaces/leasetest/presence/report')).status).toBe(204)
+    expect(deps.presence.report).toHaveBeenCalledTimes(1)
+    expect((await beat('/workspaces/other/master-heartbeat')).status).toBe(404)
+    deps.presence.heartbeat = vi.fn(() => false)
+    expect((await beat()).status).toBe(400)
+  })
+
   it('answers unknown routes with 404', async () => {
     const { deps } = baseDeps()
     expect((await answerHostRequest({ method: 'GET', path: '/plugins/whatever', query: {} }, deps)).status).toBe(404)
@@ -126,5 +141,17 @@ describe('bandOfPath', () => {
   it('refuses a database name the app does not hold', () => {
     expect(bandOfPath('/db/other/_all_docs')).toBeNull()
     expect(bandOfPath('/')).toBeNull()
+  })
+})
+
+describe('loginCheckOf', () => {
+  it('names the band database the native server asks about before it relays a live channel', () => {
+    expect(loginCheckOf('/_host-login/stageboard-leasetest')).toBe('stageboard-leasetest')
+    expect(loginCheckOf('/_host-login/stageboard-a%20b')).toBe('stageboard-a b')
+  })
+  it('refuses anything that is not a band database', () => {
+    expect(loginCheckOf('/_host-login/other')).toBeNull()
+    expect(loginCheckOf('/_host-login/stageboard-x/extra')).toBeNull()
+    expect(loginCheckOf('/db/stageboard-x')).toBeNull()
   })
 })

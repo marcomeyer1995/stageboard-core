@@ -59,6 +59,12 @@ public class LocalHostPlugin extends Plugin {
     private volatile int epoch = 1;
     private volatile boolean active = false;
     private volatile long clockOffsetMs = 0;
+    /** Pages that may talk to this host from a browser or the app's WebView: the app itself (Capacitor's
+     * origin) and the other hosts of the band, whose pages open the band (the app pushes them). A page of
+     * any other origin gets no CORS headers, so the WebView refuses its answer. */
+    private volatile java.util.Set<String> allowedOrigins = new java.util.HashSet<>(java.util.Collections.singletonList("https://localhost"));
+    /** The CORS headers of the request this thread is answering (empty for no or a foreign origin). */
+    private final ThreadLocal<String> corsHeaders = ThreadLocal.withInitial(() -> "");
     /** Wi-Fi power saving delayed a push after a pause by up to 125 ms (spike, 2026-11-07) - while
      * this device is the host, its Wi-Fi stays in low-latency mode (an app lock, no setting). */
     private android.net.wifi.WifiManager.WifiLock wifiLock;
@@ -69,8 +75,10 @@ public class LocalHostPlugin extends Plugin {
     private final Map<Long, Pending> pending = new ConcurrentHashMap<>();
     /** Live channels (Play, switches): per "<band>/<topic>" the open streams - relayed natively,
      * without the WebView, like the Stage-Server's push hubs (show-state, switch-state). */
+    /** The latest snapshot of a channel that sends its whole state (presence): a stream gets it on connecting. */
+    private final Map<String, String> snapshots = new ConcurrentHashMap<>();
     private final Map<String, java.util.Set<OutputStream>> streams = new ConcurrentHashMap<>();
-    private static final java.util.regex.Pattern LIVE = java.util.regex.Pattern.compile("^/workspaces/([^/]+)/(show-state|switch-state)/(stream|push)$");
+    private static final java.util.regex.Pattern LIVE = java.util.regex.Pattern.compile("^/workspaces/([^/]+)/(show-state|switch-state|presence)/(stream|push)$");
 
     private static class Pending {
         final CountDownLatch done = new CountDownLatch(1);
@@ -132,7 +140,26 @@ public class LocalHostPlugin extends Plugin {
         epoch = call.getInt("epoch", 1);
         active = Boolean.TRUE.equals(call.getBoolean("active", false));
         clockOffsetMs = call.getLong("offsetMs", 0L);
+        java.util.Set<String> origins = new java.util.HashSet<>(java.util.Collections.singletonList("https://localhost"));
+        com.getcapacitor.JSArray listed = call.getArray("origins");
+        if (listed != null) {
+            for (int i = 0; i < listed.length(); i++) {
+                String o = listed.optString(i, "");
+                if (!o.isEmpty()) origins.add(o);
+            }
+        }
+        allowedOrigins = origins;
         if (!active) allowed.clear();
+        call.resolve();
+    }
+
+    /** The app's latest snapshot of a channel (presence): kept for new streams and sent to every open one. */
+    @PluginMethod
+    public void publish(PluginCall call) {
+        String channel = call.getString("channel", "");
+        String text = call.getString("text", "");
+        snapshots.put(channel, text);
+        broadcast(channel, ("data: " + text + "\n\n").getBytes(StandardCharsets.UTF_8));
         call.resolve();
     }
 
@@ -213,6 +240,22 @@ public class LocalHostPlugin extends Plugin {
             read += n;
         }
         boolean keepAlive = !"close".equalsIgnoreCase(headers.get("connection"));
+        String origin = headers.get("origin");
+        if (origin != null && allowedOrigins.contains(origin)) {
+            String asked = headers.get("access-control-request-headers");
+            // PouchDB fetches with `credentials: 'include'`: the browser then needs the explicit allowance as well.
+            corsHeaders.set("Access-Control-Allow-Origin: " + origin + "\r\nAccess-Control-Allow-Credentials: true\r\nVary: Origin\r\n"
+                    + "Access-Control-Allow-Methods: GET, HEAD, PUT, POST, DELETE, PATCH, OPTIONS\r\n"
+                    + "Access-Control-Allow-Headers: " + (asked != null ? asked : "Authorization, Content-Type") + "\r\n"
+                    + "Access-Control-Max-Age: 600\r\n");
+        } else {
+            corsHeaders.set("");
+        }
+        // The browser's preflight: answered at once, with no body and no login.
+        if (method.equals("OPTIONS")) {
+            write(out, 204, "text/plain", new byte[0], keepAlive);
+            return keepAlive;
+        }
         String path = target.contains("?") ? target.substring(0, target.indexOf('?')) : target;
         String query = target.contains("?") ? target.substring(target.indexOf('?') + 1) : "";
 
@@ -246,11 +289,12 @@ public class LocalHostPlugin extends Plugin {
                 write(out, 503, "application/json", "{\"error\":\"passive\",\"reason\":\"This host is the backup and is not serving the band.\"}".getBytes(StandardCharsets.UTF_8), keepAlive);
                 return keepAlive;
             }
-            // The app checks the login once, then the channel runs natively.
+            // The app checks the login once, then the channel runs natively. Only a push needs it: a page opens
+            // the stream with EventSource, which cannot send a login - the Stage-Server's stream is open too.
             String band = "stageboard-" + live.group(1);
             String key = band + "\n" + authorization;
             Long until = allowed.get(key);
-            if (until == null || until < System.currentTimeMillis()) {
+            if (live.group(3).equals("push") && (until == null || until < System.currentTimeMillis())) {
                 Pending check = ask("GET", "/_host-login/" + band, "", "", authorization, new byte[0]);
                 if (check.status != 200) {
                     write(out, 401, "application/json", "{\"error\":\"unauthorized\"}".getBytes(StandardCharsets.UTF_8), keepAlive);
@@ -287,30 +331,41 @@ public class LocalHostPlugin extends Plugin {
         return p;
     }
 
+    /** One event to every open stream of the channel; a stream that cannot be written to is dropped. */
+    private void broadcast(String channel, byte[] event) {
+        for (OutputStream sub : streams.getOrDefault(channel, java.util.Collections.emptySet())) {
+            try {
+                synchronized (sub) {
+                    sub.write(event);
+                    sub.flush();
+                }
+            } catch (IOException e) {
+                streams.get(channel).remove(sub);
+            }
+        }
+    }
+
     /** A live channel: GET …/stream stays open and gets every push as an SSE event; POST …/push
      * goes to all of them at once. */
     private boolean relay(String channel, String kind, String method, byte[] body, OutputStream out, boolean keepAlive) throws IOException, InterruptedException {
-        if (kind.equals("push") && method.equals("POST")) {
-            byte[] event = ("data: " + new String(body, StandardCharsets.UTF_8) + "\n\n").getBytes(StandardCharsets.UTF_8);
-            int sent = 0;
-            for (OutputStream sub : streams.getOrDefault(channel, java.util.Collections.emptySet())) {
-                try {
-                    synchronized (sub) {
-                        sub.write(event);
-                        sub.flush();
-                    }
-                    sent++;
-                } catch (IOException e) {
-                    streams.get(channel).remove(sub);
-                }
-            }
+        // Presence is only read: the app publishes it, no device pushes to it.
+        if (kind.equals("push") && method.equals("POST") && !channel.endsWith("/presence")) {
+            broadcast(channel, ("data: " + new String(body, StandardCharsets.UTF_8) + "\n\n").getBytes(StandardCharsets.UTF_8));
             write(out, 204, "application/json", new byte[0], keepAlive);
             return keepAlive;
         }
         if (kind.equals("stream") && method.equals("GET")) {
-            out.write(("HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nCache-Control: no-cache\r\nConnection: keep-alive\r\n\r\n: open\n\n").getBytes(StandardCharsets.UTF_8));
+            out.write(("HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nCache-Control: no-cache\r\nConnection: keep-alive\r\n" + corsHeaders.get() + "\r\n: open\n\n").getBytes(StandardCharsets.UTF_8));
             out.flush();
             streams.computeIfAbsent(channel, k -> ConcurrentHashMap.newKeySet()).add(out);
+            // A channel that sends its whole state hands a new stream that state at once.
+            String snapshot = snapshots.get(channel);
+            if (snapshot != null) {
+                synchronized (out) {
+                    out.write(("data: " + snapshot + "\n\n").getBytes(StandardCharsets.UTF_8));
+                    out.flush();
+                }
+            }
             // Hold the connection; a comment every 15 s keeps it alive and notices when it is gone.
             try {
                 while (true) {
@@ -341,10 +396,11 @@ public class LocalHostPlugin extends Plugin {
         return out.toString();
     }
 
-    private static void write(OutputStream out, int status, String contentType, byte[] body, boolean keepAlive) throws IOException {
+    private void write(OutputStream out, int status, String contentType, byte[] body, boolean keepAlive) throws IOException {
         String head = "HTTP/1.1 " + status + " " + (status < 400 ? "OK" : "Error") + "\r\n"
                 + "Content-Type: " + contentType + "\r\n"
                 + "Content-Length: " + body.length + "\r\n"
+                + corsHeaders.get()
                 + "Connection: " + (keepAlive ? "keep-alive" : "close") + "\r\n\r\n";
         out.write(head.getBytes(StandardCharsets.UTF_8));
         out.write(body);

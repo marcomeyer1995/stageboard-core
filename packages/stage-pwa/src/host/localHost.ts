@@ -5,13 +5,14 @@ import { useBandSettingsStore } from '../store/useBandSettingsStore'
 import { useAndroidHostStore } from '../store/useAndroidHostStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { getDeviceId } from '../lib/deviceId'
-import { bandOfPath, answerHostRequest } from '../host/hostHttp'
+import { answerHostRequest, loginCheckOf } from '../host/hostHttp'
 import { createHostClock } from '../host/hostClock'
 import { createHostStateMachine, type HostRole } from '../host/hostState'
 import { leaseKey, signAccountRequest } from '../host/leaseAuth'
 import { startCatchUp, type CatchUp } from '../host/catchUp'
 import PouchDB from 'pouchdb-browser'
 import { createAccountIssuer } from '../host/replicationAccount'
+import { createHostPresence } from '../host/presence'
 import { isNativeApp, pinListedHosts } from '../lib/native'
 import { getWorkspaceDb, localDbName } from '../lib/workspaceDb'
 
@@ -49,7 +50,9 @@ interface LocalHostPlugin {
   stop: () => Promise<void>
   /** The clock answer and the live channels are answered natively - they need the epoch and whether
    * this host serves the band, never the WebView. */
-  setState: (options: { hostId: string; epoch: number; active: boolean; offsetMs: number }) => Promise<void>
+  setState: (options: { hostId: string; epoch: number; active: boolean; offsetMs: number; origins: string[] }) => Promise<void>
+  /** Hands the native server the latest snapshot of a live channel; every open stream gets it, a new one gets it on connecting. */
+  publish: (options: { channel: string; text: string }) => Promise<void>
   respond: (options: { id: string; status: number; contentType: string; text?: string; body?: string }) => Promise<void>
   addListener: (event: 'request', handler: (req: HostRequest) => void) => Promise<PluginListenerHandle>
 }
@@ -112,14 +115,23 @@ let tick: ReturnType<typeof setInterval> | null = null
 let sample: ReturnType<typeof setInterval> | null = null
 let lastPushed = ''
 let catchUp: CatchUp | null = null
+let unsubscribePresence: (() => void) | null = null
 let catchingUp = false
 
 function pushState(machine: { state: () => { hostId: string; epoch: number; active: boolean } }, clock: { offsetMs: () => number | null }) {
   const state = machine.state()
-  const key = `${state.hostId}|${state.epoch}|${state.active}|${Math.round(clock.offsetMs() ?? 0)}`
+  // Pages of the band's hosts may read this host from a browser (CORS) - the app itself always may.
+  const origins = (hostsNow() ?? []).flatMap((h) => {
+    try {
+      return [new URL(h.url).origin]
+    } catch {
+      return []
+    }
+  })
+  const key = `${state.hostId}|${state.epoch}|${state.active}|${Math.round(clock.offsetMs() ?? 0)}|${origins.join(',')}`
   if (key === lastPushed) return
   lastPushed = key
-  void LocalHost.setState({ hostId: state.hostId, epoch: state.epoch, active: state.active, offsetMs: clock.offsetMs() ?? 0 }).catch(() => undefined)
+  void LocalHost.setState({ hostId: state.hostId, epoch: state.epoch, active: state.active, offsetMs: clock.offsetMs() ?? 0, origins }).catch(() => undefined)
 }
 
 function publish(machine: ReturnType<typeof createHostStateMachine>, url: string | null, error: string | null = null) {
@@ -193,6 +205,12 @@ export async function startAndroidHost(): Promise<void> {
     now: () => Date.now(),
   })
 
+  // Who is online and who is master - what a device needs to be confirmed as master; the native server relays it.
+  const presence = createHostPresence({ now: () => clock.bandTime() })
+  unsubscribePresence?.()
+  unsubscribePresence = presence.subscribe((snapshot) => {
+    void LocalHost.publish({ channel: `${workspaceId}/presence`, text: JSON.stringify(snapshot) }).catch(() => undefined)
+  })
   const open = (name: string) => (name === dbName ? (getWorkspaceDb(workspaceId) as unknown as SyncDatabase) : null)
   const syncHost = createSyncHost({ open })
   const guard = createWriteGuard({ open, security: async () => ({ admins: { roles: ['admin'] }, members: { roles: ['member', 'admin'] } }) })
@@ -252,10 +270,10 @@ export async function startAndroidHost(): Promise<void> {
   listener = await LocalHost.addListener('request', (req) => {
     void (async () => {
       const body = req.text !== undefined ? (req.text === '' ? undefined : JSON.parse(req.text)) : { data: fromBase64(req.body ?? ''), contentType: req.contentType }
-      const band = bandOfPath(req.path)
       // The native server asks this before it relays a live channel: a device of this band, or nothing.
-      if (req.path.startsWith('/_host-login/') && band) {
-        const ctx = await login(req.authorization, band.db)
+      const checkDb = loginCheckOf(req.path)
+      if (checkDb !== null) {
+        const ctx = checkDb === dbName ? await login(req.authorization, checkDb) : null
         await LocalHost.respond({ id: req.id, status: ctx ? 200 : 401, contentType: 'application/json', text: JSON.stringify(ctx ? { ok: true } : { error: 'unauthorized' }) })
         return
       }
@@ -277,6 +295,7 @@ export async function startAndroidHost(): Promise<void> {
             return result
           },
           acceptInvite,
+          presence: { workspaceId, report: (raw) => presence.report(raw), heartbeat: (raw) => presence.heartbeat(raw) },
           verifyBandCode: async (band, code) => band === workspaceId && code === (await accessCodeNow()),
           // Only the host serves the band: a passive backup hands out no login to its data.
           issueAccount: async (raw) => (machine.state().active ? issuer.issue(raw) : null),
@@ -285,7 +304,7 @@ export async function startAndroidHost(): Promise<void> {
         },
       )
       if (answer.binary) await LocalHost.respond({ id: req.id, status: answer.status, contentType: answer.binary.contentType, body: toBase64(answer.binary.data) })
-      else await LocalHost.respond({ id: req.id, status: answer.status, contentType: 'application/json', text: JSON.stringify(answer.body ?? null) })
+      else await LocalHost.respond({ id: req.id, status: answer.status, contentType: 'application/json', text: answer.status === 204 ? '' : JSON.stringify(answer.body ?? null) })
     })().catch((err: unknown) => {
       void LocalHost.respond({ id: req.id, status: 500, contentType: 'application/json', text: JSON.stringify({ error: String(err) }) })
     })
@@ -364,6 +383,8 @@ export async function stopAndroidHost(): Promise<void> {
   listener = null
   catchUp?.stop()
   catchUp = null
+  unsubscribePresence?.()
+  unsubscribePresence = null
   if (isNativeApp()) await LocalHost.stop().catch(() => undefined)
   useAndroidHostStore.getState().reset()
 }

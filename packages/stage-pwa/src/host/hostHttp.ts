@@ -30,6 +30,8 @@ export interface AppHostDeps {
   acceptLease: (raw: unknown) => Promise<'accepted' | 'ignored'>
   /** The primary teaching this tablet its band (#945): verified with the primary, never trusted blindly. */
   acceptInvite: (raw: unknown) => Promise<{ ok: true } | { ok: false; status: number; message: string }>
+  /** Presence and the master's heartbeat for the band this tablet serves; a device's confirmation as master depends on it. */
+  presence: { workspaceId: string; report: (raw: unknown) => boolean; heartbeat: (raw: unknown) => boolean }
   /** Is `code` this band's standing code? A fresh backup checks the invite's code with the primary this way (#945). */
   verifyBandCode: (workspaceId: string, code: string) => Promise<boolean>
   /** The returned primary asking for a login to copy the tablet's data (#947): only while the tablet is the host. */
@@ -51,6 +53,13 @@ export function bandOfPath(path: string): { db: string; inner: string } | null {
   const db = decodeURIComponent(parts[0]!)
   if (!db.startsWith('stageboard-')) return null
   return { db, inner: '/' + parts.join('/') }
+}
+
+/** The native server asks `/_host-login/<db>` before it relays a live channel: which band database that is, or null. */
+export function loginCheckOf(path: string): string | null {
+  const match = /^\/_host-login\/([^/]+)$/.exec(path)
+  const db = match ? decodeURIComponent(match[1]!) : null
+  return db !== null && db.startsWith('stageboard-') ? db : null
 }
 
 /**
@@ -81,7 +90,15 @@ export async function answerHostRequest(request: AppHostRequest, deps: AppHostDe
   }
   if (path === '/server/host-lease' && method === 'GET') {
     const now = deps.state()
-    return json(200, { lease: deps.lease(), clockOffsetMs: null, active: now.active, epoch: now.epoch, outdated: false })
+    return json(200, { lease: deps.lease(), clockOffsetMs: null, active: now.active, epoch: now.epoch, outdated: now.outdated })
+  }
+  const presenceRoute = /^\/workspaces\/([^/]+)\/(presence\/report|master-heartbeat)$/.exec(path)
+  if (presenceRoute && method === 'POST') {
+    // Only the host keeps the band's presence, and only for its own band - a passive backup answers 503 so a device follows the host.
+    if (!state.active) return json(503, { error: 'passive', reason: 'This host is the backup and is not serving the band.' })
+    if (decodeURIComponent(presenceRoute[1]!) !== deps.presence.workspaceId) return json(404, { error: 'not_found', reason: 'Not the band of this host.' })
+    const ok = presenceRoute[2] === 'master-heartbeat' ? deps.presence.heartbeat(request.body) : deps.presence.report(request.body)
+    return ok ? { status: 204, body: null } : json(400, { status: 'error', message: 'Invalid report' })
   }
   const roster = /^\/workspaces\/([^/]+)\/roster$/.exec(path)
   if (roster && method === 'POST') {
