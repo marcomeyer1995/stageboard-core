@@ -140,6 +140,8 @@ export function watchHostAccounts(
         }
         const next = await waitForChange(config, '_users', since, pollMs)
         since = next.lastSeq
+        // Stopped while waiting: the change must not be published any more (#937).
+        if (stopped) return
         if (next.changed) await publish(bandsOfUserIds(await bandDbs(config), next.ids))
       } catch (err) {
         if (stopped) return
