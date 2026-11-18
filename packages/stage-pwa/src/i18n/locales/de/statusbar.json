@@ -23,7 +23,8 @@
     "idle": "Synchron",
     "syncing": "Synchronisiere…",
     "offline": "Offline",
-    "error": "Sync-Fehler"
+    "error": "Sync-Fehler",
+    "onBackup": "Backup {{name}}"
   },
   "master": {
     "holds": "Dieses Gerät hat das Master-Token",

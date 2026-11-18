@@ -434,5 +434,26 @@
     "check": "Check and save",
     "notReached": "The host does not answer, or it is too old to be named. Is it running and reachable? Nothing was saved.",
     "locked": "Not changeable while a song plays."
+  },
+  "hostOverview": {
+    "title": "Hosts",
+    "role": {
+      "primary": "Primary",
+      "backup": "Backup"
+    },
+    "state": {
+      "host": "is the host",
+      "standby": "standing by",
+      "outdated": "out of date, waiting for the handback",
+      "unreachable": "does not answer",
+      "unknown": "state unknown"
+    },
+    "epoch": "epoch {{n}}",
+    "current": "this device",
+    "problem": {
+      "none-reachable": "No host answers.",
+      "no-host": "None of the hosts is the host right now.",
+      "two-hosts": "Two hosts think they are the host."
+    }
   }
 }

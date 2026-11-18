@@ -23,7 +23,8 @@
     "idle": "In sync",
     "syncing": "Syncing…",
     "offline": "Offline",
-    "error": "Sync error"
+    "error": "Sync error",
+    "onBackup": "Backup {{name}}"
   },
   "master": {
     "holds": "This device holds the master token",

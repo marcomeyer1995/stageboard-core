@@ -434,5 +434,26 @@
     "check": "Prüfen und speichern",
     "notReached": "Der Host antwortet nicht, oder er ist zu alt, um benannt zu werden. Läuft er und ist er erreichbar? Es wurde nichts gespeichert.",
     "locked": "Während ein Song läuft, nicht änderbar."
+  },
+  "hostOverview": {
+    "title": "Hosts",
+    "role": {
+      "primary": "Primary",
+      "backup": "Backup"
+    },
+    "state": {
+      "host": "ist der Host",
+      "standby": "bereit",
+      "outdated": "veraltet, wartet auf die Rückgabe",
+      "unreachable": "antwortet nicht",
+      "unknown": "Zustand unbekannt"
+    },
+    "epoch": "Epoch {{n}}",
+    "current": "dieses Gerät",
+    "problem": {
+      "none-reachable": "Kein Host antwortet.",
+      "no-host": "Keiner der Hosts ist gerade der Host.",
+      "two-hosts": "Zwei Hosts halten sich für den Host."
+    }
   }
 }

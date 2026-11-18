@@ -65,15 +65,23 @@ export async function followHostOnce(args: {
 
 const PROBE_TIMEOUT_MS = 3_000
 
-/** What a host announces on `/time`, or null when it does not answer or announces no epoch. */
-export async function probeHostEpoch(url: string): Promise<HostSeen | null> {
+/** What a host announces on `/time` - its epoch, whether it is the band's host, and who it is - or null when it
+ * does not answer or announces no epoch. The map's host overview shows all of it (#941). */
+export async function probeHost(url: string): Promise<(HostSeen & { hostId?: string }) | null> {
   try {
     const response = await fetch(`${url}/time`, { signal: AbortSignal.timeout(PROBE_TIMEOUT_MS) })
     if (!response.ok) return null
     const answer = HostTimeAnswerSchema.safeParse(await response.json())
     if (!answer.success || answer.data.epoch === undefined) return null
-    return { epoch: answer.data.epoch, ...(answer.data.active === undefined ? {} : { active: answer.data.active }) }
+    return {
+      epoch: answer.data.epoch,
+      ...(answer.data.active === undefined ? {} : { active: answer.data.active }),
+      ...(answer.data.hostId === undefined ? {} : { hostId: answer.data.hostId }),
+    }
   } catch {
     return null
   }
 }
+
+/** The follower only needs the epoch and who is active. */
+export const probeHostEpoch = probeHost
