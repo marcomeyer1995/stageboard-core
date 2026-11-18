@@ -1,7 +1,6 @@
 import { ActiveWorkspaceStatusSchema, HostTimeAnswerSchema, LEASE_LENGTH_MS, type BandHostEntry } from 'shared-types'
 import { z } from 'zod'
-import { createLeaseKeeper, type LeaseStatus } from './leaseKeeper'
-import { signLease } from './leaseAuth'
+import { createLeaseKeeper, signLease, type LeaseStatus } from 'sync-host'
 
 /** The role this host serves under: what `/time` announces. The epoch only ever rises. */
 export interface HostRole {

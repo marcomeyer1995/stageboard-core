@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { EventEmitter } from 'node:events'
-import { startCatchUp } from './catchUp'
+import { startCatchUp } from './catchUp.js'
 
 function fakeLocal() {
   const emitter = new EventEmitter() as EventEmitter & { cancel: () => void; cancelled: boolean }

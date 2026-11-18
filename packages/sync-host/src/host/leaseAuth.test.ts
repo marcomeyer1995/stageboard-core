@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createHmac } from 'node:crypto'
-import { leaseKey, signLease, verifyLease } from './leaseAuth'
+import { leaseKey, signLease, verifyLease } from './leaseAuth.js'
 
 const CODE = '57832943'
 const WORKSPACE = 'leasetest'

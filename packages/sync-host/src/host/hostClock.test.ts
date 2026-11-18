@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createHostClock } from './hostClock'
+import { createHostClock } from './hostClock.js'
 
 describe('band time after a takeover (#947)', () => {
   it('keeps the primary\'s offset from the sample with the smallest round trip', () => {

@@ -1,6 +1,6 @@
 import type { HostAccount } from 'sync-host'
 import { BandHostsSchema, type BandHostEntry } from 'shared-types'
-import { verifyAccountRequest } from './leaseAuth'
+import { verifyAccountRequest } from 'sync-host'
 
 /**
  * The tablet's side of the returned primary's catch-up (host backup, #947, docs/25 §6e/§6g): once the

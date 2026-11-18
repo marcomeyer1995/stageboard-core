@@ -1,6 +1,6 @@
 import type { SyncRequest, SyncResponse } from 'sync-host'
 import type { HostRole } from './hostState'
-import type { LeaseStatus } from './leaseKeeper'
+import type { LeaseStatus } from 'sync-host'
 
 /** A request as the native server hands it to the app (LocalHostPlugin.java). */
 export interface AppHostRequest {

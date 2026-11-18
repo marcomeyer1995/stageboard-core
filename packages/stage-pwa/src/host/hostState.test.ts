@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BandHostEntry } from 'shared-types'
 import { createHostStateMachine, TAKEOVER_AFTER_MS, type HostRole } from './hostState'
-import { leaseKey, signLease } from './leaseAuth'
+import { leaseKey, signLease, verifyLease } from 'sync-host'
 
 const CODE = '57832943'
 const WORKSPACE = 'leasetest'
@@ -165,7 +165,7 @@ describe('the tablet as the primary (#947)', () => {
     await m.sendOnce()
     const lease = posts.find((p) => p.url === 'https://10.0.0.1:8443/host/lease')!
     const key = await leaseKey(CODE, WORKSPACE)
-    expect(await (await import('./leaseAuth')).verifyLease(lease.body, key)).toMatchObject({ hostId: SELF, epoch: 1, leaseMs: 4_000 })
+    expect(await verifyLease(lease.body, key)).toMatchObject({ hostId: SELF, epoch: 1, leaseMs: 4_000 })
   })
 
   it('lets sentAt rise even within one millisecond', async () => {

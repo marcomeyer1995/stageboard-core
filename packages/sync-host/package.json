@@ -29,5 +29,8 @@
       "types": "./dist/couchHost.d.ts",
       "default": "./dist/couchHost.js"
     }
+  },
+  "dependencies": {
+    "shared-types": "^0.0.1"
   }
 }

@@ -1,4 +1,4 @@
-import { verifyLease } from './leaseAuth'
+import { verifyLease } from './leaseAuth.js'
 
 export interface LeaseStatus {
   hostId: string

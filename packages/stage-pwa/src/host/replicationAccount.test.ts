@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { BandHostEntry } from 'shared-types'
 import { createHostLogin } from 'sync-host'
 import { createAccountIssuer } from './replicationAccount'
-import { leaseKey, signAccountRequest } from './leaseAuth'
+import { leaseKey, signAccountRequest } from 'sync-host'
 
 const primary: BandHostEntry = { hostId: 'laptop', url: 'https://10.0.0.1:8443', priority: 1 }
 const backup: BandHostEntry = { hostId: 'tablet', url: 'https://10.0.0.2:8443', priority: 2 }

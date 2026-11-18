@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { LeaseStatus } from '../host/leaseKeeper'
+import type { LeaseStatus } from 'sync-host'
 
 /**
  * The tablet's host module as the UI sees it (host backup, #947, docs/25 §6g): whether the native
