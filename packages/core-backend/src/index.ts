@@ -21,6 +21,9 @@ import { createHostRoleStore } from './hostRoleStore.js'
 import { makeLocalBandDb, makeRemoteBandDb } from './bandPouch.js'
 import { createReplicationAccountIssuer } from './replicationAccount.js'
 import { createReplicationRunner } from './replicationRunner.js'
+import { createAudioMirror } from './audioMirror.js'
+import { mirrorTracksOf, readLocalRevision, saveMirrorFile } from './audioMirrorFiles.js'
+import { createPinnedFetch } from './pinnedFetch.js'
 import { corsOriginAllowed } from './corsOrigin.js'
 import { configuredHostEpoch } from './hostEpochConfig.js'
 import { importHostAccounts, watchHostAccounts } from './hostAccounts.js'
@@ -1041,8 +1044,23 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
     now: () => Date.now(),
   })
   app.addHook('onClose', async () => replication.stop())
+  // The backup's audio: it fetches the tracks the replicated song variants list that it does not have
+  // yet, from the primary (#919). One file at a time, only while it is the passive backup.
+  const audioMirror = createAudioMirror({
+    selfHostId: hostId,
+    workspaceId: () => workspaceHardware.getActiveWorkspaceId(),
+    readHosts: (workspaceId) => readBandHosts(workspaceId),
+    passive: () => hostLease.passiveBackup(),
+    listTracks: async (workspaceId) => mirrorTracksOf(await allDocs<CouchDoc & Record<string, unknown>>(couch, workspaceDbName(workspaceId), { startkey: 'song-variants:', endkey: 'song-variants:\ufff0'})),
+    localRevision: readLocalRevision,
+    fetchFile: async (baseUrl, fingerprint, variantId, trackId) => {
+      const response = await createPinnedFetch(fingerprint)(`${baseUrl}/audio/${variantId}/${trackId}`)
+      return response.ok ? Buffer.from(await response.arrayBuffer()) : null
+    },
+    saveFile: saveMirrorFile,
+  })
   app.post('/host/lease', async (request) => ({ accepted: (await hostLease.receive(request.body)) === 'accepted', epoch: hostLease.epoch(), active: hostLease.isActive() }))
-  app.get('/server/host-lease', async () => ({ lease: hostLease.status(), clockOffsetMs: hostLease.clockOffsetMs(), replication: replication.status(), active: hostLease.isActive(), epoch: hostLease.epoch(), outdated: hostLease.outdated() }))
+  app.get('/server/host-lease', async () => ({ lease: hostLease.status(), clockOffsetMs: hostLease.clockOffsetMs(), replication: replication.status(), audio: audioMirror.status(), active: hostLease.isActive(), epoch: hostLease.epoch(), outdated: hostLease.outdated() }))
 
   // OSC devices (#484): host and port are the device's transport config for the Stage-Server
   // (Bühnentechnik), in the band whose hardware this server serves.
@@ -1973,7 +1991,7 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
     await app.register(fastifyStatic, { root: pwaDist })
   }
 
-  return { app, registry, lookupRegistry, couch, workspaceHardware, pluginLog, backups, hostLease, replication }
+  return { app, registry, lookupRegistry, couch, workspaceHardware, pluginLog, backups, hostLease, replication, audioMirror }
 }
 
 const port = Number(process.env.PORT ?? 3001)
@@ -2009,7 +2027,7 @@ async function main() {
         })
       : null
   if (builtinDb) process.env.COUCHDB_URL = builtinDb.url
-  const { app, lookupRegistry, workspaceHardware, pluginLog, couch, backups, hostLease, replication } = await buildApp()
+  const { app, lookupRegistry, workspaceHardware, pluginLog, couch, backups, hostLease, replication, audioMirror } = await buildApp()
   if (builtinDb) app.log.info({ url: builtinDb.url }, 'Built-in database host (no CouchDB)')
   // Scheduled backups (daily time, USB medium plugged in) - checked every 30 s.
   backups.start()
@@ -2065,6 +2083,8 @@ async function main() {
     // The backup's copy of the primary's database (#919), checked every 5 s until it runs.
     const replicationTimer = setInterval(() => void replication.tick(), 5_000)
     // ... and signs the primary's device logins in, so a tablet can use this host after a takeover (#919).
+    // ... and its audio (#919), every 15 s: a track fetch can take a while, the mirror runs one at a time.
+    const audioTimer = setInterval(() => void audioMirror.tick(), 15_000)
     const accountsTimer = setInterval(() => {
       const workspaceId = workspaceHardware.getActiveWorkspaceId()
       if (workspaceId && hostLease.passiveBackup()) void importHostAccounts(couch, workspaceDbName(workspaceId)).catch((err) => app.log.error({ err }, 'Could not import the host accounts'))
@@ -2076,6 +2096,7 @@ async function main() {
       clearInterval(takeoverTimer)
       clearInterval(replicationTimer)
       clearInterval(accountsTimer)
+      clearInterval(audioTimer)
     })
 
     // OSC in (#484): one UDP port for the whole box; what arrives goes to the band whose hardware

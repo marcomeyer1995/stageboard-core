@@ -15,7 +15,7 @@ import { dirname, join } from 'node:path'
  */
 /** Read fresh on every call, not cached at module scope - tests point this at a fresh temp
  * dir per run by setting the env var before calling into this module. */
-function audioStorageDir(): string {
+export function audioStorageDir(): string {
   return process.env.AUDIO_STORAGE_DIR ?? './data/audio'
 }
 
