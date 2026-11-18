@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useHostStatus } from '../lib/hostContact'
+import { useBackupHostName } from '../lib/useBackupHostName'
 import { useTranslation } from 'react-i18next'
 import { ScrollOnceText } from './ScrollOnceText'
 import { fitStatusBarItems, STATUS_BAR_ITEMS, type StatusBarItem } from '../lib/statusBarItems'
@@ -219,7 +220,9 @@ export function StatusBar({
     : currentVariant && !currentVariant.isDefault
       ? stageVariantLabel(currentVariant.label)
       : null
-  const sync = { icon: SYNC_ICON[syncStatus], label: t(`sync.${syncStatus}`) }
+  // On the backup host the sync entry says so (#941); on the primary - the normal state - it has nothing to add.
+  const backupName = useBackupHostName()
+  const sync = { icon: SYNC_ICON[syncStatus], label: backupName ? `${t(`sync.${syncStatus}`)} · ${t('sync.onBackup', { name: backupName })}` : t(`sync.${syncStatus}`) }
   const stateLabel =
     state.kind === 'loop' && loop ? `${t('state.loop')} · ${loop.pass + 1} · ${Math.round(loop.rate * 100)} %` : t(`state.${state.label}`)
 

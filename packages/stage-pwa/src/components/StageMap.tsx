@@ -64,6 +64,7 @@ import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { samePoint, stereoBadge } from '../lib/matrixPoint'
 import { RoutingMatrix, type MatrixLine } from './RoutingMatrix'
 import { PortListDialog } from './PortListDialog'
+import { HostOverview } from './HostOverview'
 import { HostPlugins } from './HostPlugins'
 import { HostRole } from './HostRole'
 import { wheelZoomFactor } from '../lib/wheelZoom'
@@ -907,6 +908,7 @@ export function StageMap() {
       </svg>
 
       <div className={`mt-2 flex flex-col gap-3 ${full ? 'max-h-[40%] overflow-y-auto' : ''}`}>
+        {checking && <HostOverview />}
         {checking && <StageLiveList live={live} links={setup.links} nameOf={(id) => { const e = byId.get(id); return e ? title(e) : id }} linkName={(l) => `${listenerName(l.from.equipmentId)} → ${listenerName(l.to.equipmentId)}`} />}
         {selectedNode && (
           <div className="flex flex-col gap-2 rounded-container border border-line p-3">

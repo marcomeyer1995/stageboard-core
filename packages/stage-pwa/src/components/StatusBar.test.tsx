@@ -22,6 +22,8 @@ vi.mock('../store/useLocalAudioOutputStore', () => ({
 }))
 const loop = vi.hoisted(() => ({ state: null as { pass: number; rate: number } | null, stop: vi.fn() }))
 vi.mock('../lib/loopTrainer', () => ({ stopLoopTrainer: loop.stop, useTrainerLoop: () => loop.state }))
+const backup = vi.hoisted(() => ({ name: null as string | null }))
+vi.mock('../lib/useBackupHostName', () => ({ useBackupHostName: () => backup.name }))
 vi.mock('../store/useSyncStore', () => ({
   useSyncStore: (select: (s: { streams: object; browserOffline: boolean }) => unknown) => select({ streams: {}, browserOffline: false }),
   deriveSyncStatus: () => 'idle',
@@ -59,11 +61,37 @@ function mockShow(playbackStatus: 'playing' | 'paused' | 'stopped', elapsedMs: n
 const bar = () => screen.getByRole('banner')
 
 beforeEach(() => {
+  backup.name = null
   stores.masterHolderId = 'tablet'
   stores.audioError = null
   loop.state = null
   loop.stop.mockClear()
   useEditingTitleStore.setState({ editing: null })
+})
+
+describe('StatusBar on the backup host (#941)', () => {
+  it('says nothing about the hosts while the device is on the primary', () => {
+    mockShow('stopped', null)
+    render(<StatusBar screen="boards" onOpenMenu={vi.fn()} />)
+    expect(screen.getByLabelText('Synchron')).toBeInTheDocument()
+    expect(screen.queryByText(/Backup/)).not.toBeInTheDocument()
+  })
+
+  it('names the backup in the sync entry, on its text and on its icon, when the device is on it', () => {
+    backup.name = 'stage-pc'
+    mockShow('stopped', null)
+    render(<StatusBar screen="boards" onOpenMenu={vi.fn()} />)
+    expect(screen.getByLabelText('Synchron · Backup stage-pc')).toBeInTheDocument()
+    expect(screen.getByText('Synchron · Backup stage-pc')).toBeInTheDocument()
+  })
+
+  it('does not replace the song state: a song that plays still reads "Spielt" on the backup', () => {
+    backup.name = 'stage-pc'
+    mockShow('playing', 5_000)
+    render(<StatusBar screen="boards" onOpenMenu={vi.fn()} />)
+    expect(bar().textContent).toContain('Spielt')
+    expect(bar().className).toContain('bg-state-playing')
+  })
 })
 
 describe('StatusBar (PR F2)', () => {
