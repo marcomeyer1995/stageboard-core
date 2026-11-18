@@ -46,8 +46,6 @@ import {
   HealthReportSchema,
   GetAccessCodeRequestSchema,
   JoinAsMemberRequestSchema,
-  MasterHeartbeatReportSchema,
-  PresenceReportSchema,
   ReadyReportSchema,
   RemoveMemberRequestSchema,
   RenameWorkspaceRequestSchema,
@@ -68,7 +66,7 @@ import {
 import { messageFieldsOf, serverMessage, type ServerMessage } from 'shared-types'
 import { BackupAdminRequestSchema, BackupSaveRequestSchema, MeasureInputsSaveRequestSchema, MeasureLevelRequestSchema, type MeasureInputsOverview, BackupTargetRequestSchema, FlashReportSchema, ShowStatePushAckSchema, ShowStatePushSchema, SwitchStateEventSchema, SpeechSpeedSchema, SpeechVoiceKeySchema, YOUTUBE_VIDEO_ID_RE } from 'shared-types'
 import { createBackupService, realBackupDeps, type BackupService } from './backup.js'
-import { deleteAudioFile, isSafeAudioId, readAudioFile, writeAudioFile } from './audioStore.js'
+import { deleteAudioFile, readAudioFile, writeAudioFile } from './audioStore.js'
 import { readPersistedActiveWorkspace } from './activeWorkspaceStateStore.js'
 import { isSafePluginId, readPluginBundle } from './plugins/pluginBundleStore.js'
 import { allDocs, deleteDocUnless, getDoc, putDoc, putDocWithRetry, userExists, verifyUser, type CouchConfig, type CouchDoc } from './couch.js'
@@ -87,6 +85,8 @@ import { runYtDlpSearch } from './ytDlp.js'
 import { LookupRegistry } from './plugins/lookupRegistry.js'
 import { lookupErrorBody } from './plugins/lookupError.js'
 import * as presenceStore from './presenceStore.js'
+import { registerHostRoutes } from './hostRoutes.js'
+import { createHostRoutes } from 'sync-host'
 import * as showStatePushHub from './showStatePushHub.js'
 import * as switchStateHub from './switchStateHub.js'
 import { PluginRegistry } from './plugins/registry.js'
@@ -458,7 +458,6 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
   const hostId = process.env.STAGEBOARD_HOST_ID || hostname()
   const hostEpoch = configuredHostEpoch()
   // Once a backup has taken over it serves band time (its clock + the primary's offset) under its own, higher epoch (#920).
-  app.get('/time', async () => ({ serverTime: hostLease.bandTime(), hostId, epoch: hostLease.epoch(), active: hostLease.isBandHost() }))
 
   // Lets InviteBandView.tsx embed a *reachable* address in its QR code (see #21 seventh
   // follow-up, at Marco's explicit request) rather than baking one host in forever - detected
@@ -514,38 +513,6 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
     done(null, payload)
   })
 
-  app.put('/audio/:variantId/:trackId', async (request, reply) => {
-    const { variantId, trackId } = request.params as { variantId: string; trackId: string }
-    if (!isSafeAudioId(variantId) || !isSafeAudioId(trackId)) {
-      return reply.status(400).send({ status: 'error', message: 'Invalid variantId or trackId' })
-    }
-    await writeAudioFile(variantId, trackId, request.body as Buffer)
-    return reply.status(204).send()
-  })
-
-  app.get('/audio/:variantId/:trackId', async (request, reply) => {
-    const { variantId, trackId } = request.params as { variantId: string; trackId: string }
-    if (!isSafeAudioId(variantId) || !isSafeAudioId(trackId)) {
-      return reply.status(400).send({ status: 'error', message: 'Invalid variantId or trackId' })
-    }
-    const data = await readAudioFile(variantId, trackId)
-    if (data === null) {
-      return reply.status(404).send({ status: 'error', message: 'Track not found' })
-    }
-    // The client already carries the real mime type in TrackMeta (synced as plain JSON)
-    // and builds its own Blob with it - this response doesn't need to track or guess it.
-    return reply.type('application/octet-stream').send(data)
-  })
-
-  app.delete('/audio/:variantId/:trackId', async (request, reply) => {
-    const { variantId, trackId } = request.params as { variantId: string; trackId: string }
-    if (!isSafeAudioId(variantId) || !isSafeAudioId(trackId)) {
-      return reply.status(400).send({ status: 'error', message: 'Invalid variantId or trackId' })
-    }
-    await deleteAudioFile(variantId, trackId)
-    return reply.status(204).send()
-  })
-
   // Named '/plugin-health', not '/health', to avoid colliding with the plain server-liveness
   // route above - this is a different concept (per-plugin reachability, not "is this
   // process up"). SSE, not WebSocket: the traffic is one-directional broadcast plus
@@ -589,33 +556,6 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
       reply.raw.write(`data: ${JSON.stringify(snapshot)}\n\n`)
     })
     request.raw.on('close', unsubscribe)
-  })
-
-  app.post('/workspaces/:workspaceId/presence/report', async (request, reply) => {
-    const { workspaceId } = request.params as { workspaceId: string }
-    const parsed = PresenceReportSchema.safeParse(request.body)
-    if (!parsed.success) {
-      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
-    }
-
-    presenceStore.setEntry(workspaceId, parsed.data.deviceId, {
-      profileId: parsed.data.profileId,
-      lastSeenAt: Date.now(),
-    })
-    return reply.status(204).send()
-  })
-
-  // Master-Token heartbeat (#32): the current master beats every 5 s, readers treat it as gone
-  // after 15 s. Broadcast on the presence stream above instead of a stream of its own.
-  app.post('/workspaces/:workspaceId/master-heartbeat', async (request, reply) => {
-    const { workspaceId } = request.params as { workspaceId: string }
-    const parsed = MasterHeartbeatReportSchema.safeParse(request.body)
-    if (!parsed.success) {
-      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
-    }
-
-    presenceStore.setMasterHeartbeat(workspaceId, parsed.data.deviceId)
-    return reply.status(204).send()
   })
 
   // Stage-Messenger (#26): a flash message for every tablet of the band, pushed on the presence
@@ -1115,10 +1055,6 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
     store: bootstrapStore,
     now: () => Date.now(),
   })
-  app.post('/host/join-band-invite', async (request, reply) => {
-    const result = await acceptJoinInvite(request.body)
-    return result.ok ? { status: 'ok' } : reply.status(result.status).send({ status: 'error', message: result.message })
-  })
   // Who a host is (host backup, #914): the stage app asks its *own* host to look up the address the admin
   // typed, so the page never has to trust a certificate it does not know yet - in the browser that would be
   // CORS, in the app a missing pin (#945).
@@ -1128,10 +1064,6 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
     // A host the admin named, not yet trusted: no fingerprint to check it against.
     const host = await lookUpHost(parsed.data.address, (url) => getFromHost(url, undefined, 3_000))
     return host ?? reply.status(502).send({ status: 'error', message: 'That address does not answer as a Stage-Server' })
-  })
-  app.post('/host/replication-account', async (request, reply) => {
-    const account = await replicationAccounts.issue(request.body)
-    return account ?? reply.status(403).send({})
   })
   // The backup keeps its copy of the primary's database going; started in main() (#919).
   const replication = createReplicationRunner({
@@ -1174,8 +1106,29 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
     },
     saveFile: saveMirrorFile,
   })
-  app.post('/host/lease', async (request) => ({ accepted: (await hostLease.receive(request.body)) === 'accepted', epoch: hostLease.epoch(), active: hostLease.isActive() }))
-  app.get('/server/host-lease', async () => ({ lease: hostLease.status(), clockOffsetMs: hostLease.clockOffsetMs(), replication: replication.status(), catchUp: catchUp.status(), audio: audioMirror.status(), active: hostLease.isActive(), epoch: hostLease.epoch(), outdated: hostLease.outdated() }))
+  // The routes every host answers the same way - one table in sync-host, shared with the tablet's app (#949).
+  registerHostRoutes(
+    app,
+    createHostRoutes({
+      hostId,
+      lease: hostLease,
+      activeWorkspaceId: () => workspaceHardware.getActiveWorkspaceId(),
+      hostLeaseExtra: () => ({ replication: replication.status(), catchUp: catchUp.status(), audio: audioMirror.status() }),
+      acceptInvite: acceptJoinInvite,
+      issueAccount: (body) => replicationAccounts.issue(body),
+      audio: { get: readAudioFile, put: (variantId, trackId, data) => writeAudioFile(variantId, trackId, Buffer.from(data)), remove: deleteAudioFile },
+      presence: {
+        report: (workspaceId, report) => {
+          presenceStore.setEntry(workspaceId, report.deviceId, { profileId: report.profileId, lastSeenAt: Date.now() })
+          return true
+        },
+        heartbeat: (workspaceId, deviceId) => {
+          presenceStore.setMasterHeartbeat(workspaceId, deviceId)
+          return true
+        },
+      },
+    }),
+  )
 
   // OSC devices (#484): host and port are the device's transport config for the Stage-Server
   // (Bühnentechnik), in the band whose hardware this server serves.
@@ -2017,9 +1970,6 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
   // What this host can run - the map offers server plugins by it (docs/25 §6, 2026-11-07).
   app.get('/server/capabilities', async () => hostCapabilities())
 
-  app.get('/server/active-workspace', async (_request, reply) =>
-    reply.status(200).send({ activeWorkspaceId: workspaceHardware.getActiveWorkspaceId() }),
-  )
 
   // The admins of the band this box is currently serving - so the hardware-switch wizard can show
   // whose PIN closes it without asking for that band's code (it's already registered here; the
