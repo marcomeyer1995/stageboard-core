@@ -119,6 +119,18 @@ describe('Fastify routes', () => {
       expect(serverTime).toBeLessThanOrEqual(after)
     })
 
+    it('announces the epoch it was started with, from STAGEBOARD_HOST_EPOCH', async () => {
+      process.env.STAGEBOARD_HOST_EPOCH = '3'
+      const { app: other } = await buildApp()
+      try {
+        const { epoch } = (await other.inject({ method: 'GET', url: '/time' })).json() as { epoch: number }
+        expect(epoch).toBe(3)
+      } finally {
+        delete process.env.STAGEBOARD_HOST_EPOCH
+        await other.close()
+      }
+    })
+
     it('also announces which host answers and its epoch (#910)', async () => {
       const response = await app.inject({ method: 'GET', url: '/time' })
       const { hostId, epoch } = response.json() as { hostId: string; epoch: number }
