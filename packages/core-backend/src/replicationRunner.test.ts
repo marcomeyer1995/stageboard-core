@@ -3,7 +3,7 @@ import MemoryAdapter from 'pouchdb-adapter-memory'
 import ReplicationPlugin from 'pouchdb-replication'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { BandHostEntry } from 'shared-types'
-import { leaseKey, verifyAccountRequest } from './hostLeaseAuth.js'
+import { leaseKey, verifyAccountRequest } from 'sync-host'
 import { createReplicationRunner, type ReplicationRunner } from './replicationRunner.js'
 
 PouchDB.plugin(MemoryAdapter)
@@ -54,7 +54,7 @@ describe('replication runner (#919)', () => {
     const [url, body, fingerprint] = requestAccount.mock.calls[0]!
     expect(url).toBe('https://10.0.0.1:8443/host/replication-account')
     expect(fingerprint).toBe(FP)
-    expect(verifyAccountRequest(body, leaseKey('12345678', 'band-a'))).toMatchObject({ hostId: 'stage-pc' })
+    expect(await verifyAccountRequest(body, await leaseKey('12345678', 'band-a'))).toMatchObject({ hostId: 'stage-pc' })
     expect(makeRemote).toHaveBeenCalledWith({ baseUrl: 'https://10.0.0.1:8443', workspaceId: 'band-a', fingerprint: FP, auth: { username: 'stageboard-band-a-host~stage-pc', password: 'pw' } })
     expect(await until(async () => (await local.get('profiles:a').catch(() => null)) !== null)).toBe(true)
   })
