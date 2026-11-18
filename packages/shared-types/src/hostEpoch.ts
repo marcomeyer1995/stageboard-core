@@ -9,6 +9,9 @@ export const HostTimeSchema = z.object({
   serverTime: z.number(),
   hostId: z.string().min(1),
   epoch: z.number().int().min(1),
+  /** This host is the band's host now - false for a passive backup, and for a primary that is out of date
+   * (#938). Optional: a host built before it existed says nothing. */
+  active: z.boolean().optional(),
 })
 export type HostTime = z.infer<typeof HostTimeSchema>
 

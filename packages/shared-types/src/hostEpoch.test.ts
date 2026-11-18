@@ -15,6 +15,14 @@ describe('HostTimeSchema (#910)', () => {
   })
 })
 
+describe('HostTime active flag (#938)', () => {
+  it('says whether the host is the band host now; optional, boolean only', () => {
+    expect(HostTimeAnswerSchema.parse({ serverTime: 1, hostId: 'a', epoch: 2, active: false })).toMatchObject({ active: false })
+    expect(HostTimeAnswerSchema.parse({ serverTime: 1 })).toEqual({ serverTime: 1 })
+    expect(HostTimeAnswerSchema.safeParse({ serverTime: 1, active: 'yes' }).success).toBe(false)
+  })
+})
+
 describe('HostTimeAnswerSchema (#910)', () => {
   it('still accepts the answer of an older host that only sends serverTime', () => {
     expect(HostTimeAnswerSchema.parse({ serverTime: 5 })).toEqual({ serverTime: 5 })

@@ -131,6 +131,11 @@ describe('Fastify routes', () => {
       }
     })
 
+    it('says it is the band host now - a host with no host list is (#938)', async () => {
+      const { active } = (await app.inject({ method: 'GET', url: '/time' })).json() as { active: boolean }
+      expect(active).toBe(true)
+    })
+
     it('also announces which host answers and its epoch (#910)', async () => {
       const response = await app.inject({ method: 'GET', url: '/time' })
       const { hostId, epoch } = response.json() as { hostId: string; epoch: number }

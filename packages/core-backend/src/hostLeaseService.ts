@@ -122,6 +122,9 @@ export interface HostLeaseService {
   outdated(): boolean
   /** This host is the band's backup and has not taken over: its database is a copy, its accounts come from the primary (#919). */
   passiveBackup(): boolean
+  /** This host is the band's host right now - what `/time` announces so a device can tell the host from a passive backup
+   * after a handback, when both are on the same epoch (#938). A host with no host list is the host. */
+  isBandHost(): boolean
   /** The returned primary hands the host role back (call every second): 'handed-back' once, else 'no'. #935 */
   handbackCheck(): Promise<'handed-back' | 'no'>
 }
@@ -278,6 +281,7 @@ export function createHostLeaseService(deps: {
     epoch: epochNow,
     outdated: () => outdated,
     passiveBackup: () => selfPriority === 2 && !role.active,
+    isBandHost: () => role.active || (selfPriority !== 2 && !outdated),
     bandTime: () => (role.active ? clock.bandTime() : deps.now()),
     async takeoverCheck() {
       // The direct request can take a second or more; the timer fires every second. One check at a

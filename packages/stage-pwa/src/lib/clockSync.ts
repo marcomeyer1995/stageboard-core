@@ -161,8 +161,8 @@ async function takeSample(base: string, intoWindow: boolean): Promise<ClockSampl
     if (!response.ok) return null
     const parsed = HostTimeAnswerSchema.safeParse(await response.json())
     if (!parsed.success) return null
-    const { serverTime, epoch } = parsed.data
-    useHostEpochStore.getState().observe(epoch)
+    const { serverTime, epoch, active } = parsed.data
+    useHostEpochStore.getState().observe(epoch, active)
     const t1 = Date.now()
     useHostContactStore.getState().markContact()
     const sample = { rtt: t1 - t0, offset: serverTime - (t0 + t1) / 2 }

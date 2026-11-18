@@ -457,7 +457,7 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
   const hostId = process.env.STAGEBOARD_HOST_ID || hostname()
   const hostEpoch = configuredHostEpoch()
   // Once a backup has taken over it serves band time (its clock + the primary's offset) under its own, higher epoch (#920).
-  app.get('/time', async () => ({ serverTime: hostLease.bandTime(), hostId, epoch: hostLease.epoch() }))
+  app.get('/time', async () => ({ serverTime: hostLease.bandTime(), hostId, epoch: hostLease.epoch(), active: hostLease.isBandHost() }))
 
   // Lets InviteBandView.tsx embed a *reachable* address in its QR code (see #21 seventh
   // follow-up, at Marco's explicit request) rather than baking one host in forever - detected

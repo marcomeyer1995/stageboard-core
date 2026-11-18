@@ -11,7 +11,13 @@ vi.mock('../store/useBandSettingsStore', async () => {
 })
 
 const native = vi.hoisted(() => ({ value: false }))
-vi.mock('./native', async (importOriginal) => ({ ...(await importOriginal<typeof import('./native')>()), isNativeApp: () => native.value }))
+const shell = vi.hoisted(() => ({ pinListedHosts: vi.fn(async () => ({ pin: [], conflicts: [] as string[] })), pairWithServer: vi.fn(async () => {}) }))
+vi.mock('./native', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./native')>()),
+  isNativeApp: () => native.value,
+  pinListedHosts: shell.pinListedHosts,
+  pairWithServer: shell.pairWithServer,
+}))
 
 const { useHostFollower } = await import('./useHostFollower')
 
@@ -53,12 +59,45 @@ describe('useHostFollower (#916)', () => {
     expect(useStageServerStore.getState().url).toBe(primary.url)
   })
 
-  it('does nothing in the native app (certificate pinning is not taught the list yet)', async () => {
-    native.value = true
-    stubEpochs({ [backup.url]: 2 })
-    renderHook(() => useHostFollower())
-    await vi.advanceTimersByTimeAsync(11_000)
-    expect(useStageServerStore.getState().url).toBe(primary.url)
+  describe('in the native app (#916)', () => {
+    const FP = 'c'.repeat(64)
+    const backupPinned: BandHostEntry = { ...backup, certFingerprint: FP }
+
+    beforeEach(() => {
+      native.value = true
+      shell.pinListedHosts.mockClear()
+      shell.pairWithServer.mockClear()
+      useBandSettingsStore.setState({ settings: { id: 'band', hosts: [primary, backupPinned] } })
+    })
+
+    it('pins the listed hosts so the other one can be asked, and does so before asking', async () => {
+      stubEpochs({ [backup.url]: 1 })
+      renderHook(() => useHostFollower())
+      await vi.advanceTimersByTimeAsync(5_100)
+      expect(shell.pinListedHosts).toHaveBeenCalledWith([primary, backupPinned])
+    })
+
+    it('moves to the other host through the shell (pins and pairs) once it announces a higher epoch', async () => {
+      stubEpochs({ [backup.url]: 2 })
+      renderHook(() => useHostFollower())
+      await vi.advanceTimersByTimeAsync(5_100)
+      expect(shell.pairWithServer).toHaveBeenCalledWith('10.0.0.2:8443', FP)
+    })
+
+    it('does not move to a host it has no fingerprint for - it could not trust it', async () => {
+      useBandSettingsStore.setState({ settings: { id: 'band', hosts: [primary, backup] } })
+      stubEpochs({ [backup.url]: 2 })
+      renderHook(() => useHostFollower())
+      await vi.advanceTimersByTimeAsync(11_000)
+      expect(shell.pairWithServer).not.toHaveBeenCalled()
+    })
+
+    it('stays on equal epochs, as in the browser', async () => {
+      stubEpochs({ [backup.url]: 1 })
+      renderHook(() => useHostFollower())
+      await vi.advanceTimersByTimeAsync(11_000)
+      expect(shell.pairWithServer).not.toHaveBeenCalled()
+    })
   })
 
   it('stops asking when it is unmounted', async () => {

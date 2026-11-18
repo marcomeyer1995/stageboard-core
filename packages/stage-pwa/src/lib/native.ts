@@ -79,6 +79,51 @@ export async function followServerIfMoved(): Promise<'reachable' | 'moved' | 'no
   return 'moved'
 }
 
+/** The address the app stores and pins for a host URL: the host, with the port only when it is not 443. */
+export function hostOfUrl(url: string): string {
+  const parsed = new URL(url)
+  return parsed.port && parsed.port !== '443' ? `${parsed.hostname}:${parsed.port}` : parsed.hostname
+}
+
+/**
+ * Which of the band's listed hosts the app should pin (host backup, #916): those with a fingerprint that
+ * are not pinned yet. The admin entered the fingerprint once on the stage map, and a fingerprint from the
+ * band settings counts as trusted (Marco, 2026-11-17) - so every device can move to the backup without
+ * having confirmed its certificate itself. A host already pinned to a *different* fingerprint is never
+ * overwritten: a changed certificate is a conflict to report, not something to trust silently.
+ */
+export function hostsToPin(
+  hosts: readonly { url: string; certFingerprint?: string }[],
+  pinned: Readonly<Record<string, string | null>>,
+): { pin: { host: string; fingerprint: string }[]; conflicts: string[] } {
+  const pin: { host: string; fingerprint: string }[] = []
+  const conflicts: string[] = []
+  for (const entry of hosts) {
+    if (!entry.certFingerprint) continue
+    const host = hostOfUrl(entry.url)
+    const have = pinned[host] ?? null
+    if (have === null) pin.push({ host, fingerprint: entry.certFingerprint })
+    else if (have !== entry.certFingerprint) conflicts.push(host)
+  }
+  return { pin, conflicts }
+}
+
+/** Pins the listed hosts the shell does not know yet. Never throws: without a shell nothing is pinned. */
+export async function pinListedHosts(hosts: readonly { url: string; certFingerprint?: string }[]): Promise<{ pin: { host: string; fingerprint: string }[]; conflicts: string[] }> {
+  try {
+    const pinned: Record<string, string | null> = {}
+    for (const entry of hosts) {
+      const host = hostOfUrl(entry.url)
+      pinned[host] = (await ServerTrust.pinned({ host })).fingerprint
+    }
+    const result = hostsToPin(hosts, pinned)
+    for (const { host, fingerprint } of result.pin) await ServerTrust.pin({ host, fingerprint })
+    return result
+  } catch {
+    return { pin: [], conflicts: [] }
+  }
+}
+
 /** "aa bb cc …": the first bytes of a fingerprint, readable enough to compare by eye. */
 export function shortFingerprint(fingerprint: string): string {
   return (fingerprint.match(/../g) ?? []).slice(0, 8).join(' ').toUpperCase()
