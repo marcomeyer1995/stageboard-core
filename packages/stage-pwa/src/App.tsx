@@ -35,6 +35,7 @@ import { useClockSync } from './lib/useClockSync'
 import { useFullscreenOnLaunch } from './lib/useFullscreen'
 import { useDeviceInfoReporter } from './lib/useDeviceInfoReporter'
 import { useHostFollower } from './lib/useHostFollower'
+import { resumeAndroidHost } from './host/localHost'
 import { useDiscoveryTrigger } from './lib/useDiscoveryTrigger'
 import { useHardwareDetection } from './lib/useHardwareDetection'
 import { useReadyCheckResponder } from './lib/useReadyCheckResponder'
@@ -204,8 +205,8 @@ function App() {
   useWorkspaceResource(useSongsStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(useSongVariantsStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(useSetlistsStore((state) => state.init), noopStart, activeWorkspaceId)
-  useWorkspaceResource(useShowStateStore((state) => state.init), noopStart, activeWorkspaceId)
-  useWorkspaceResource(usePluginsStore((state) => state.init), noopStart, activeWorkspaceId)
+  useWorkspaceResource(useShowStateStore((state) => state.init), noopStart, activeWorkspaceId, stageServerUrl)
+  useWorkspaceResource(usePluginsStore((state) => state.init), noopStart, activeWorkspaceId, stageServerUrl)
   useWorkspaceResource(useDevicesStore((state) => state.init), noopStart, activeWorkspaceId)
   const myDeviceRevoked = useDevicesStore((state) => state.devices.find((d) => d.id === getDeviceId())?.revoked ?? false)
   useWorkspaceResource(useLogicalDevicesStore((state) => state.init), noopStart, activeWorkspaceId)
@@ -215,7 +216,7 @@ function App() {
   useWorkspaceResource(useAlignmentStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(useMidiControllerRulesStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(useOscInputRulesStore((state) => state.init), noopStart, activeWorkspaceId)
-  useWorkspaceResource(useSwitchesStore((state) => state.init), noopStart, activeWorkspaceId)
+  useWorkspaceResource(useSwitchesStore((state) => state.init), noopStart, activeWorkspaceId, stageServerUrl)
   useWorkspaceResource(useSavedLoopsStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(useDashboardsStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(useProfilesStore((state) => state.init), noopStart, activeWorkspaceId)
@@ -224,14 +225,14 @@ function App() {
   useWorkspaceResource(usePracticeLogStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(useBandSettingsStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(useAsyncJobsStore((state) => state.init), noopStart, activeWorkspaceId)
-  useWorkspaceResource(usePresenceStore((state) => state.init), noopStart, activeWorkspaceId)
+  useWorkspaceResource(usePresenceStore((state) => state.init), noopStart, activeWorkspaceId, stageServerUrl)
   // Device Ledger's live diagnostic *subscription* is deliberately NOT wired here - unlike
   // usePresenceStore just above, it's opened only while DeviceLedgerView.tsx is actually
   // mounted (see useDeviceInfoStore.ts's own doc comment: this app already sits near Chrome's
   // 6-connections-per-origin cap with its existing always-on SSE streams, found live when a 6th
   // one starved useDeviceInfoReporter.ts's own report POSTs of a connection entirely).
-  useWorkspaceResource(useDeviceTriggerListenerStore((state) => state.init), noopStart, activeWorkspaceId)
-  useWorkspaceResource(useDiscoverySessionStore((state) => state.init), noopStart, activeWorkspaceId)
+  useWorkspaceResource(useDeviceTriggerListenerStore((state) => state.init), noopStart, activeWorkspaceId, stageServerUrl)
+  useWorkspaceResource(useDiscoverySessionStore((state) => state.init), noopStart, activeWorkspaceId, stageServerUrl)
   useAudioSyncReconciler(activeWorkspaceId)
   useClockSync()
   // Which output this device's audio goes to - the key of its audio latency profile (#491).
@@ -260,6 +261,10 @@ function App() {
   useDeviceInfoReporter(activeWorkspaceId)
   // The host with the highest epoch is the one to follow (host backup, #916).
   useHostFollower()
+  // This tablet as the band's host (#947): the switch survived the restart - bring it back up.
+  useEffect(() => {
+    void resumeAndroidHost()
+  }, [])
 
   // Three full-screen gates before the normal mode tabs (see #21, and the #21 follow-up that
   // added needsRosterSetup): join/found the band first (no band at all yet), then - only for a

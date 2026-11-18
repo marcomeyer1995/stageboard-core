@@ -10,6 +10,7 @@ import { TextSizeSettings } from './TextSizeSettings'
 import { StatusBarSettingsEntry } from './StatusBarSettings'
 import { ThemeSwitcher } from './ThemeSwitcher'
 import { WorkspaceHardwareSettings } from './WorkspaceHardwareSettings'
+import { AndroidHostSettings } from './AndroidHostSettings'
 import { BackupManager } from './BackupManager'
 import { KeybindingSettings } from './KeybindingSettings'
 import { LanguageSettings } from './LanguageSettings'
@@ -171,6 +172,15 @@ export function StageServerPage() {
           <WorkspaceHardwareSettings />
         </Section>
       </Group>
+
+      {/* Host backup (#947): only a device can be the tablet host, not a browser tab. */}
+      {isNativeApp() && (
+        <Group title={t('server.hostGroup')} info={t('server.hostGroupInfo')}>
+          <Section title={t('server.hostThisTablet')}>
+            <AndroidHostSettings />
+          </Section>
+        </Group>
+      )}
 
       {/* A card like every other topic of the page (2026-10-20: it sat bare below the cards). */}
       <Group title={t('server.backup')} info={t('server.backupInfo')}>
