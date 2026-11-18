@@ -16,7 +16,8 @@ import cors from '@fastify/cors'
 import httpProxy from '@fastify/http-proxy'
 import { startBuiltinCouch } from './builtinCouch.js'
 import { hostCapabilities } from './hostCapabilities.js'
-import { createHostLeaseService, getFromHost, postToHost } from './hostLeaseService.js'
+import { createHostLeaseService, getFromHost, postJsonToHost } from './hostLeaseService.js'
+import { createHostRoleStore } from './hostRoleStore.js'
 import { corsOriginAllowed } from './corsOrigin.js'
 import { configuredHostEpoch } from './hostEpochConfig.js'
 import { watchHostAccounts } from './hostAccounts.js'
@@ -448,7 +449,8 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
   // The epoch is 1 until a backup takeover exists (host backup, #910; STAGEBOARD_HOST_EPOCH for tests, #924); hostId tells devices which host answers.
   const hostId = process.env.STAGEBOARD_HOST_ID || hostname()
   const hostEpoch = configuredHostEpoch()
-  app.get('/time', async () => ({ serverTime: Date.now(), hostId, epoch: hostEpoch }))
+  // Once a backup has taken over it serves band time (its clock + the primary's offset) under its own, higher epoch (#920).
+  app.get('/time', async () => ({ serverTime: hostLease.bandTime(), hostId, epoch: hostLease.epoch() }))
 
   // Lets InviteBandView.tsx embed a *reachable* address in its QR code (see #21 seventh
   // follow-up, at Marco's explicit request) rather than baking one host in forever - detected
@@ -998,17 +1000,19 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
   // signed with the band code. The sender is started in main(), not here, so tests stay quiet.
   const hostLease = createHostLeaseService({
     selfHostId: hostId,
-    epoch: () => hostEpoch,
+    baseEpoch: hostEpoch,
+    roleStore: createHostRoleStore(process.env.STAGEBOARD_STATE_DIR ?? './data'),
     workspaceId: () => workspaceHardware.getActiveWorkspaceId(),
     readHosts: async (workspaceId) => (await getDoc<CouchDoc & { hosts?: BandHostEntry[] }>(couch, workspaceDbName(workspaceId), 'band-settings:band'))?.hosts ?? null,
     readAccessCode: async (workspaceId) => (await getAccessCode(couch, workspaceId))?.code ?? null,
-    post: (url, body, fingerprint) => postToHost(url, body, fingerprint),
-    get: (url, fingerprint) => getFromHost(url, fingerprint),
+    post: (url, body, fingerprint) => postJsonToHost(url, body, fingerprint),
+    // 1 s: on a local network a live host answers in milliseconds; a frozen one must not delay the takeover.
+    get: (url, fingerprint) => getFromHost(url, fingerprint, 1_000),
     now: () => Date.now(),
   })
   listedHostOrigins = hostLease.listedOrigins
-  app.post('/host/lease', async (request) => ({ accepted: (await hostLease.receive(request.body)) === 'accepted' }))
-  app.get('/server/host-lease', async () => ({ lease: hostLease.status(), clockOffsetMs: hostLease.clockOffsetMs() }))
+  app.post('/host/lease', async (request) => ({ accepted: (await hostLease.receive(request.body)) === 'accepted', epoch: hostLease.epoch(), active: hostLease.isActive() }))
+  app.get('/server/host-lease', async () => ({ lease: hostLease.status(), clockOffsetMs: hostLease.clockOffsetMs(), active: hostLease.isActive(), epoch: hostLease.epoch(), outdated: hostLease.outdated() }))
 
   // OSC devices (#484): host and port are the device's transport config for the Stage-Server
   // (Bühnentechnik), in the band whose hardware this server serves.
@@ -2026,9 +2030,12 @@ async function main() {
     const leaseTimer = setInterval(() => void hostLease.sendOnce(), LEASE_INTERVAL_MS)
     // The backup follows the primary's clock like any device (#919), every 2 s.
     const clockTimer = setInterval(() => void hostLease.sampleOnce(), 2_000)
+    // ... and takes over when the primary is gone (#920); one check a second.
+    const takeoverTimer = setInterval(() => void hostLease.takeoverCheck().then((r) => r === 'taken' && pluginLog.info('host takeover: this host is the band host now', { epoch: hostLease.epoch() })), 1_000)
     app.addHook('onClose', async () => {
       clearInterval(leaseTimer)
       clearInterval(clockTimer)
+      clearInterval(takeoverTimer)
     })
 
     // OSC in (#484): one UDP port for the whole box; what arrives goes to the band whose hardware
