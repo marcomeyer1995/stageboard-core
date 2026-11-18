@@ -12,7 +12,8 @@ import { Badge, Button } from './ui'
  * runs the Stage-Server. The admin names the host's address once; the app reads who it is and its
  * certificate fingerprint from the host itself, and saves the entry with this box in the band
  * settings, so every device has the same list. Not changeable while a song plays - a role changing
- * mid-song is what the epoch is there to prevent.
+ * mid-song is what the epoch is there to prevent. A backup needs nothing else from the admin: the
+ * primary sees the new entry in the list, notices the host serves no band yet and teaches it (#945).
  */
 export function HostRole({ boxId, canEdit }: { boxId: string; canEdit: boolean }) {
   const { t } = useTranslation('hardware')

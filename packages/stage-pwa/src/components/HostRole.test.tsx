@@ -14,7 +14,7 @@ const playing = vi.hoisted(() => ({ value: false }))
 vi.mock('../store/useShowStateStore', () => ({
   useShowStateStore: (select: (s: unknown) => unknown) => select({ state: { playbackStatus: playing.value ? 'playing' : 'stopped' } }),
 }))
-const promptText = vi.fn()
+const promptText = vi.fn<(_title: string, _opts?: Record<string, unknown>) => Promise<string | null>>()
 const alert = vi.fn().mockResolvedValue(undefined)
 vi.mock('../store/useDialogStore', () => ({
   useDialogStore: (select: (s: unknown) => unknown) => select({ promptText, alert }),
@@ -22,7 +22,6 @@ vi.mock('../store/useDialogStore', () => ({
 const fetchBandHost = vi.fn()
 vi.mock('../lib/fetchBandHost', () => ({ fetchBandHost: (input: string) => fetchBandHost(input) }))
 vi.mock('../lib/stageServer', () => ({ getStageServerUrl: () => 'https://paired.local' }))
-
 const { HostRole } = await import('./HostRole')
 
 const BOX = 'box-laptop'
@@ -90,5 +89,16 @@ describe('HostRole (#914)', () => {
     playing.value = true
     render(<HostRole boxId={BOX} canEdit />)
     for (const button of screen.getAllByRole('button')) expect((button as HTMLButtonElement).disabled).toBe(true)
+  })
+
+  it('asks nothing beyond the address for a backup - the primary teaches the fresh host its band (#945)', async () => {
+    promptText.mockResolvedValue('https://10.0.0.2:8443')
+    fetchBandHost.mockResolvedValue({ hostId: 'stage-pc', url: 'https://10.0.0.2:8443', certFingerprint: 'b'.repeat(64) })
+    render(<HostRole boxId={BOX} canEdit />)
+    fireEvent.click(screen.getByRole('button', { name: /Backup/ }))
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1))
+    // No band code, no second dialog: the host list entry is all the admin does.
+    expect(promptText).toHaveBeenCalledTimes(1)
+    expect(save.mock.calls[0]![0].hosts).toEqual([{ hostId: 'stage-pc', url: 'https://10.0.0.2:8443', certFingerprint: 'b'.repeat(64), equipmentId: BOX, priority: 2 }])
   })
 })

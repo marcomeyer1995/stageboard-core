@@ -160,6 +160,30 @@ describe('Fastify routes', () => {
     })
   })
 
+  describe('POST /host/join-band-invite (#945)', () => {
+    it('refuses an invite that is not for this host, or that is not an invite at all', async () => {
+      const bad = await app.inject({
+        method: 'POST', url: '/host/join-band-invite',
+        payload: { workspaceId: 'band-a', accessCode: '12345678', primaryUrl: 'https://10.0.0.1:8443', targetHostId: 'another', sentAt: 1 },
+      })
+      expect([400, 502]).toContain(bad.statusCode)
+      expect((await app.inject({ method: 'POST', url: '/host/join-band-invite', payload: {} })).statusCode).toBe(400)
+    })
+  })
+
+  describe('GET /host/look-up (#945)', () => {
+    it('needs an https address to ask', async () => {
+      expect((await app.inject({ method: 'GET', url: '/host/look-up' })).statusCode).toBe(400)
+      expect((await app.inject({ method: 'GET', url: '/host/look-up?address=http://10.0.0.2' })).statusCode).toBe(400)
+    })
+
+    it('answers 502 for an address that is not a Stage-Server', async () => {
+      // Nothing listens there: the lookup must end, not hang (it answers on connection refusal).
+      const response = await app.inject({ method: 'GET', url: '/host/look-up?address=https://127.0.0.1:1' })
+      expect(response.statusCode).toBe(502)
+    })
+  })
+
   describe('POST /host/join-band (#933)', () => {
     it('is for the host machine itself: a request from another machine is refused and does nothing', async () => {
       const response = await app.inject({

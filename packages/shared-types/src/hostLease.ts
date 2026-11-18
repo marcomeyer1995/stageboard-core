@@ -39,3 +39,17 @@ export type SignedAccountRequest = z.infer<typeof SignedAccountRequestSchema>
  * The admin proves who they are with their device login of the band, as on the other admin routes. */
 export const HostAdminActionSchema = z.object({ adminUsername: z.string().min(1), adminPassword: z.string().min(1) })
 export type HostAdminAction = z.infer<typeof HostAdminActionSchema>
+
+/** A host of the band asking a listed, still fresh backup to join it (#945): the band's code is the proof,
+ * checked with the primary, and the invite names the host that must be this one. `sentAt` must rise so a
+ * recorded invite cannot be replayed. */
+export const HostJoinInviteSchema = z.object({
+  workspaceId: z.string().min(1),
+  accessCode: z.string().min(1),
+  primaryUrl: z.string().url().startsWith('https://'),
+  targetHostId: z.string().min(1),
+  /** SHA-256 of the primary's certificate: what the backup pins to reach it. */
+  fingerprint: z.string().regex(/^[0-9a-f]{64}$/).optional(),
+  sentAt: z.number().int().nonnegative(),
+})
+export type HostJoinInvite = z.infer<typeof HostJoinInviteSchema>
