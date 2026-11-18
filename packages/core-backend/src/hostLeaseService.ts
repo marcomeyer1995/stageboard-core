@@ -120,6 +120,8 @@ export interface HostLeaseService {
   bandTime(): number
   /** A primary that has seen a higher epoch than its own: it is out of date and stays quiet. */
   outdated(): boolean
+  /** This host is the band's backup and has not taken over: its database is a copy, its accounts come from the primary (#919). */
+  passiveBackup(): boolean
 }
 
 /** Without a lease for this long, and with the primary not answering directly either, the backup takes over (docs/25 §6e: 5-8 s, with the up to 1 s check interval and the direct request of 1 s on top). Above the 1-3 s Wi-Fi hiccups. */
@@ -151,6 +153,7 @@ export function createHostLeaseService(deps: {
   let origins: string[] = []
   let role = deps.roleStore.load()
   let outdated = false
+  let selfPriority: 1 | 2 | null = null
   let checking = false
   const epochNow = () => Math.max(deps.baseEpoch, role.epoch)
 
@@ -160,6 +163,7 @@ export function createHostLeaseService(deps: {
     listed = hosts.success ? hosts.data.map((h) => h.hostId) : []
     origins = hosts.success ? hosts.data.map((h) => new URL(h.url).origin) : []
     keys = code ? [leaseKey(code, workspaceId)] : []
+    selfPriority = hosts.success && hosts.data.length >= 2 ? (hosts.data.find((h) => h.hostId === deps.selfHostId)?.priority ?? null) : null
     return hosts.success ? hosts.data : []
   }
 
@@ -221,6 +225,7 @@ export function createHostLeaseService(deps: {
     isActive: () => role.active,
     epoch: epochNow,
     outdated: () => outdated,
+    passiveBackup: () => selfPriority === 2 && !role.active,
     bandTime: () => (role.active ? clock.bandTime() : deps.now()),
     async takeoverCheck() {
       // The direct request can take a second or more; the timer fires every second. One check at a

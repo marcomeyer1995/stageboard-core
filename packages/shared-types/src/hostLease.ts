@@ -24,3 +24,13 @@ export const LEASE_LENGTH_MS = 4_000
 /** What goes over the wire: the lease and its HMAC (hex), keyed from the band code (core-backend/hostLeaseAuth.ts). */
 export const SignedHostLeaseSchema = z.object({ lease: HostLeaseSchema, sig: z.string().regex(/^[0-9a-f]{64}$/) })
 export type SignedHostLease = z.infer<typeof SignedHostLeaseSchema>
+
+/**
+ * The backup asking the primary for a login to copy the band database with (host backup, #919):
+ * who asks and when (its own clock; only ever compared with its earlier requests, so a recorded one
+ * cannot be replayed). Signed like the lease (core-backend/hostLeaseAuth.ts).
+ */
+export const AccountRequestSchema = z.object({ hostId: z.string().min(1), sentAt: z.number().int().nonnegative() })
+export type AccountRequest = z.infer<typeof AccountRequestSchema>
+export const SignedAccountRequestSchema = z.object({ request: AccountRequestSchema, sig: z.string().regex(/^[0-9a-f]{64}$/) })
+export type SignedAccountRequest = z.infer<typeof SignedAccountRequestSchema>

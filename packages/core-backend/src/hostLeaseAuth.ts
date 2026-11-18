@@ -1,5 +1,14 @@
 import { createHmac, timingSafeEqual } from 'node:crypto'
-import { HostLeaseSchema, SignedHostLeaseSchema, type HostLease, type SignedHostLease } from 'shared-types'
+import {
+  AccountRequestSchema,
+  HostLeaseSchema,
+  SignedAccountRequestSchema,
+  SignedHostLeaseSchema,
+  type AccountRequest,
+  type HostLease,
+  type SignedAccountRequest,
+  type SignedHostLease,
+} from 'shared-types'
 
 /**
  * Signing the alive signal with the band code (host backup, #918, Marco 2026-11-18). Both hosts
@@ -25,4 +34,20 @@ export function verifyLease(raw: unknown, key: Buffer): HostLease | null {
   const expected = createHmac('sha256', key).update(payload(HostLeaseSchema.parse(parsed.data.lease))).digest()
   const given = Buffer.from(parsed.data.sig, 'hex')
   return given.length === expected.length && timingSafeEqual(given, expected) ? parsed.data.lease : null
+}
+
+// The prefix keeps the two signatures apart: a signed lease can never pass as an account request.
+const accountPayload = (request: AccountRequest) => JSON.stringify(['replication-account', request.hostId, request.sentAt])
+
+export function signAccountRequest(request: AccountRequest, key: Buffer): SignedAccountRequest {
+  return { request, sig: createHmac('sha256', key).update(accountPayload(request)).digest('hex') }
+}
+
+/** The request when the signature matches, else null - never throws. */
+export function verifyAccountRequest(raw: unknown, key: Buffer): AccountRequest | null {
+  const parsed = SignedAccountRequestSchema.safeParse(raw)
+  if (!parsed.success) return null
+  const expected = createHmac('sha256', key).update(accountPayload(AccountRequestSchema.parse(parsed.data.request))).digest()
+  const given = Buffer.from(parsed.data.sig, 'hex')
+  return given.length === expected.length && timingSafeEqual(given, expected) ? parsed.data.request : null
 }

@@ -155,6 +155,16 @@ describe('Fastify routes', () => {
     })
   })
 
+  describe('POST /host/replication-account (#919)', () => {
+    it('gives nothing to what is not a good signed request - an empty 403, no account', async () => {
+      for (const payload of [{}, { request: { hostId: 'x', sentAt: 1 }, sig: 'zz' }, 'nonsense']) {
+        const response = await app.inject({ method: 'POST', url: '/host/replication-account', payload: payload as object })
+        expect(response.statusCode).toBe(403)
+        expect(response.json()).toEqual({})
+      }
+    })
+  })
+
   describe('GET /server/backup-status (#363)', () => {
     let stateDir: string
 
