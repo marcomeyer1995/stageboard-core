@@ -433,15 +433,7 @@
     "address": "Address",
     "check": "Check and save",
     "notReached": "The host does not answer, or it is too old to be named. Is it running and reachable? Nothing was saved.",
-    "locked": "Not changeable while a song plays.",
-    "askCode": "The primary band code, for the backup",
-    "codeLabel": "Band code",
-    "join": {
-      "done": "The backup is now copying the band.",
-      "code-refused": "The backup did not accept the band code.",
-      "refused": "The backup cannot join - check the address and role.",
-      "unreachable": "The backup does not answer."
-    }
+    "locked": "Not changeable while a song plays."
   },
   "hostOverview": {
     "title": "Hosts",

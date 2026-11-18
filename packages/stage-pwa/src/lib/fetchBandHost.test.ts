@@ -1,16 +1,16 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { fetchBandHost, hostUrlFromInput } from './fetchBandHost'
 
+const stageServer = vi.hoisted(() => ({ url: 'https://paired.local:8443' as string | undefined }))
+vi.mock('./stageServer', () => ({ getStageServerUrl: () => stageServer.url }))
+
 afterEach(() => vi.unstubAllGlobals())
 
 const FP = 'c'.repeat(64)
-/** A fake host: `/time` and `/server-info` answers by path. */
-function stubHost(answers: Record<string, unknown | null>) {
-  const fetchMock = vi.fn(async (url: string) => {
-    const path = new URL(url).pathname
-    const body = answers[path]
-    return body === null || body === undefined ? { ok: false, json: async () => ({}) } : { ok: true, json: async () => body }
-  })
+
+/** The own Stage-Server's answer to the lookup. */
+function stubLookup(answer: unknown, ok = true) {
+  const fetchMock = vi.fn(async () => ({ ok, status: ok ? 200 : 502, json: async () => answer }))
   vi.stubGlobal('fetch', fetchMock)
   return fetchMock
 }
@@ -27,30 +27,30 @@ describe('hostUrlFromInput (#914)', () => {
   })
 })
 
-describe('fetchBandHost (#914)', () => {
-  it('reads the host id from /time and the fingerprint from /server-info', async () => {
-    stubHost({ '/time': { serverTime: 1, hostId: 'stage-pc', epoch: 1 }, '/server-info': { lanIp: '10.0.0.2', certFingerprint: FP } })
+describe('fetchBandHost (#914, #945)', () => {
+  it('asks its own Stage-Server to look the address up - the page itself must not call a host it does not trust', async () => {
+    const fetchMock = stubLookup({ hostId: 'stage-pc', url: 'https://10.0.0.2:8443', certFingerprint: FP })
     expect(await fetchBandHost('10.0.0.2:8443')).toEqual({ hostId: 'stage-pc', url: 'https://10.0.0.2:8443', certFingerprint: FP })
+    expect(fetchMock).toHaveBeenCalledWith('https://paired.local:8443/host/look-up?address=https%3A%2F%2F10.0.0.2%3A8443', expect.anything())
   })
 
   it('leaves the fingerprint out when the host has none (no pinning)', async () => {
-    stubHost({ '/time': { serverTime: 1, hostId: 'stage-pc', epoch: 1 }, '/server-info': { lanIp: '10.0.0.2', certFingerprint: null } })
+    stubLookup({ hostId: 'stage-pc', url: 'https://10.0.0.2' })
     expect(await fetchBandHost('https://10.0.0.2')).toEqual({ hostId: 'stage-pc', url: 'https://10.0.0.2' })
   })
 
-  it('is null for a host that does not answer, or one built before host ids existed', async () => {
-    stubHost({})
+  it('is null when its own server says the address is not a Stage-Server, or answers nonsense', async () => {
+    stubLookup({ status: 'error' }, false)
     expect(await fetchBandHost('https://10.0.0.2')).toBeNull()
-    stubHost({ '/time': { serverTime: 1 }, '/server-info': { lanIp: '10.0.0.2', certFingerprint: FP } })
-    expect(await fetchBandHost('https://10.0.0.2')).toBeNull()
-  })
-
-  it('is null for a fingerprint in the wrong form, instead of storing it', async () => {
-    stubHost({ '/time': { serverTime: 1, hostId: 'x', epoch: 1 }, '/server-info': { certFingerprint: 'AA:BB' } })
+    stubLookup({ hostId: 'stage-pc' })
     expect(await fetchBandHost('https://10.0.0.2')).toBeNull()
   })
 
-  it('is null when the request throws', async () => {
+  it('is null without a Stage-Server of its own, without an address, or when the request throws', async () => {
+    stageServer.url = undefined
+    expect(await fetchBandHost('https://10.0.0.2')).toBeNull()
+    stageServer.url = 'https://paired.local:8443'
+    expect(await fetchBandHost('http://10.0.0.2')).toBeNull()
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network down')))
     expect(await fetchBandHost('https://10.0.0.2')).toBeNull()
   })
