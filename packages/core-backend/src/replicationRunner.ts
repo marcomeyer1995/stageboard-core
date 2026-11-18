@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { BandHostsSchema } from 'shared-types'
+import { BandHostsSchema, type BandHostEntry } from 'shared-types'
 import { startBandReplication, type BandReplication, type ReplicationStatus } from './bandReplication.js'
 import { leaseKey, signAccountRequest } from './hostLeaseAuth.js'
 
@@ -19,6 +19,10 @@ export interface ReplicationRunner {
   stop(): void
 }
 
+/** The default (#919): the backup (priority 2) copies from the primary (priority 1); anyone else copies nothing. */
+const backupCopiesFromPrimary = (hosts: readonly BandHostEntry[], selfHostId: string): BandHostEntry | null =>
+  hosts.find((h) => h.hostId === selfHostId)?.priority === 2 ? (hosts.find((h) => h.priority === 1) ?? null) : null
+
 const AccountSchema = z.object({ username: z.string().min(1), password: z.string().min(1) })
 
 /**
@@ -36,10 +40,14 @@ export function createReplicationRunner(deps: {
   requestAccount: (url: string, body: unknown, fingerprint: string | undefined) => Promise<unknown>
   makeRemote: (target: RemoteTarget) => PouchDB.Database
   makeLocal: (workspaceId: string) => Promise<PouchDB.Database>
+  /** Which host to copy from, or null for none. Default: the backup copies from the primary. A returned primary copies
+   * from the backup until it has handed back (#935). */
+  copyFrom?: (hosts: readonly BandHostEntry[], selfHostId: string) => BandHostEntry | null
   now: () => number
 }): ReplicationRunner {
   let replication: BandReplication | null = null
   let startedFor: string | null = null
+  let startedFrom: string | null = null
   let lastSentAt = 0
   let busy = false
 
@@ -54,13 +62,19 @@ export function createReplicationRunner(deps: {
           replication.stop()
           replication = null
         }
-        if (replication || !workspaceId) return
+        if (!workspaceId) return
         const hosts = BandHostsSchema.safeParse(await deps.readHosts(workspaceId))
         const code = await deps.readAccessCode(workspaceId)
         if (!hosts.success || hosts.data.length < 2 || !code) return
-        const self = hosts.data.find((h) => h.hostId === deps.selfHostId)
-        const primary = hosts.data.find((h) => h.priority === 1)
-        if (self?.priority !== 2 || !primary) return
+        const copyFrom = deps.copyFrom ?? backupCopiesFromPrimary
+        const primary = copyFrom(hosts.data, deps.selfHostId)
+        // Running: keep going while it is still wanted from the same host, else stop (a returned primary has handed back).
+        if (replication) {
+          if (primary && primary.url === startedFrom) return
+          replication.stop()
+          replication = null
+        }
+        if (!primary) return
 
         lastSentAt = Math.max(deps.now(), lastSentAt + 1)
         const baseUrl = primary.url.replace(/\/+$/, '')
@@ -73,6 +87,7 @@ export function createReplicationRunner(deps: {
           local: await deps.makeLocal(workspaceId),
         })
         startedFor = workspaceId
+        startedFrom = primary.url
       } catch {
         // The primary not being reachable is the normal case this exists for; the next tick tries again.
       } finally {

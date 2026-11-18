@@ -101,3 +101,44 @@ describe('replication runner (#919)', () => {
     expect(await until(() => runner.status()?.state === 'caught-up')).toBe(true)
   })
 })
+
+describe('replication runner, copying from the other host (#935)', () => {
+  const asReturnedPrimary = (wanted: () => boolean) => ({
+    copyFrom: (hosts: readonly BandHostEntry[], self: string) => (wanted() ? (hosts.find((h) => h.hostId !== self) ?? null) : null),
+  })
+
+  it('the returned primary asks the BACKUP for an account and copies its database', async () => {
+    const { runner, remote, local, requestAccount, makeRemote } = setup('laptop', [primary, backup], asReturnedPrimary(() => true))
+    await remote.put({ _id: 'written-during-takeover', x: 1 })
+    await runner.tick()
+    expect(requestAccount.mock.calls[0]![0]).toBe('https://10.0.0.2:8443/host/replication-account')
+    expect(makeRemote).toHaveBeenCalledWith(expect.objectContaining({ baseUrl: 'https://10.0.0.2:8443' }))
+    expect(await until(async () => (await local.get('written-during-takeover').catch(() => null)) !== null)).toBe(true)
+  })
+
+  it('does nothing while it is not wanted, and starts once it is', async () => {
+    let wanted = false
+    const { runner, requestAccount } = setup('laptop', [primary, backup], asReturnedPrimary(() => wanted))
+    await runner.tick()
+    expect(requestAccount).not.toHaveBeenCalled()
+    wanted = true
+    await runner.tick()
+    expect(requestAccount).toHaveBeenCalledTimes(1)
+  })
+
+  it('stops the copy when it is not wanted any more (the handback is done), so the old backup is not pulled from for good', async () => {
+    let wanted = true
+    const { runner } = setup('laptop', [primary, backup], asReturnedPrimary(() => wanted))
+    await runner.tick()
+    expect(runner.status()).not.toBeNull()
+    wanted = false
+    await runner.tick()
+    expect(runner.status()).toBeNull()
+  })
+
+  it('the default stays what it was: only the backup copies, from the primary', async () => {
+    const { runner, requestAccount } = setup('laptop')
+    await runner.tick()
+    expect(requestAccount).not.toHaveBeenCalled()
+  })
+})
