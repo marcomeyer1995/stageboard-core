@@ -94,6 +94,22 @@ describe('host lease service (#918)', () => {
     expect(none.s.clockOffsetMs()).toBeNull()
   })
 
+  it('knows the origins of the listed hosts after it has read the list', async () => {
+    const { s } = service('laptop', [primary, backup])
+    expect(s.listedOrigins()).toEqual([])
+    await s.sendOnce()
+    expect(s.listedOrigins()).toEqual(['https://10.0.0.1:8443', 'https://10.0.0.2:8443'])
+  })
+
+  it('keeps the last list when the band database cannot be read any more', async () => {
+    let fail = false
+    const { s } = service('laptop', [primary, backup], { readHosts: async () => { if (fail) throw new Error('db down'); return [primary, backup] } })
+    await s.sendOnce()
+    fail = true
+    await s.sendOnce()
+    expect(s.listedOrigins()).toHaveLength(2)
+  })
+
   it('a failing post does not throw', async () => {
     const { s } = service('laptop', [primary, backup], { post: vi.fn().mockRejectedValue(new Error('down')) })
     await expect(s.sendOnce()).resolves.toBeUndefined()
