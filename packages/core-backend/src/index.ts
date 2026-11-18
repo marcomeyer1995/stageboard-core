@@ -16,6 +16,7 @@ import cors from '@fastify/cors'
 import httpProxy from '@fastify/http-proxy'
 import { startBuiltinCouch } from './builtinCouch.js'
 import { hostCapabilities } from './hostCapabilities.js'
+import { corsOriginAllowed } from './corsOrigin.js'
 import { createHostLeaseService, postToHost } from './hostLeaseService.js'
 import { watchHostAccounts } from './hostAccounts.js'
 import fastifyStatic from '@fastify/static'
@@ -423,8 +424,11 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
   // preflight step, before the request even reaches a route handler. Found live, 2026-08-30:
   // DELETE /workspaces/:id's own test suite never caught this because fastify.inject() doesn't
   // go through real CORS at all.
+  // The origins of the band's listed hosts are allowed too (#926); set once the lease service exists.
+  let listedHostOrigins: () => string[] = () => []
+  const configuredOrigins = (process.env.FRONTEND_ORIGIN ?? DEFAULT_FRONTEND_ORIGINS).split(',')
   await app.register(cors, {
-    origin: (process.env.FRONTEND_ORIGIN ?? DEFAULT_FRONTEND_ORIGINS).split(','),
+    origin: (origin, callback) => callback(null, corsOriginAllowed(origin, configuredOrigins, listedHostOrigins())),
     methods: ['GET', 'HEAD', 'PUT', 'POST', 'DELETE', 'PATCH'],
     // Every PouchDB request through the /db proxy below sends `credentials: 'include'` (it
     // needs that for its own Basic Auth header) - without this, @fastify/cors never sends
@@ -999,6 +1003,7 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
     post: (url, body, fingerprint) => postToHost(url, body, fingerprint),
     now: () => Date.now(),
   })
+  listedHostOrigins = hostLease.listedOrigins
   app.post('/host/lease', async (request) => ({ accepted: (await hostLease.receive(request.body)) === 'accepted' }))
   app.get('/server/host-lease', async () => ({ lease: hostLease.status() }))
 

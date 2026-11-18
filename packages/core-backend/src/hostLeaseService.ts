@@ -37,7 +37,7 @@ export function postToHost(url: string, body: unknown, fingerprint: string | und
     socket.on('secureConnect', () => {
       if (fingerprint !== undefined && !fingerprintMatches(socket.getPeerCertificate().fingerprint256 ?? '', fingerprint)) return fail()
       const req = request(
-        { host: target.hostname, path: `${target.pathname}${target.search}`, method: 'POST', headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) }, createConnection: () => socket, timeout: timeoutMs },
+        { host: target.hostname, port: Number(target.port) || 443, path: `${target.pathname}${target.search}`, method: 'POST', headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) }, createConnection: () => socket, timeout: timeoutMs },
         (res) => {
           res.resume()
           socket.destroy()
@@ -57,6 +57,8 @@ export interface HostLeaseService {
   /** The backup takes a lease from the network. */
   receive(raw: unknown): Promise<'accepted' | 'ignored'>
   status(): LeaseStatus | null
+  /** Origins (scheme, host, port) of the hosts in the band's list, as last read - for CORS (#926). */
+  listedOrigins(): string[]
 }
 
 /**
@@ -77,11 +79,13 @@ export function createHostLeaseService(deps: {
   let keys: Buffer[] = []
   const keeper = createLeaseKeeper({ selfHostId: deps.selfHostId, listedHostIds: () => listed, keys: () => keys, now: deps.now })
   let lastSentAt = 0
+  let origins: string[] = []
 
   async function load(workspaceId: string) {
     const hosts = BandHostsSchema.safeParse(await deps.readHosts(workspaceId))
     const code = await deps.readAccessCode(workspaceId)
     listed = hosts.success ? hosts.data.map((h) => h.hostId) : []
+    origins = hosts.success ? hosts.data.map((h) => new URL(h.url).origin) : []
     keys = code ? [leaseKey(code, workspaceId)] : []
     return hosts.success ? hosts.data : []
   }
@@ -106,9 +110,14 @@ export function createHostLeaseService(deps: {
     async receive(raw) {
       const workspaceId = deps.workspaceId()
       if (!workspaceId) return 'ignored'
-      await load(workspaceId)
+      try {
+        await load(workspaceId)
+      } catch {
+        return 'ignored'
+      }
       return keeper.accept(raw)
     },
     status: () => keeper.status(),
+    listedOrigins: () => origins,
   }
 }
