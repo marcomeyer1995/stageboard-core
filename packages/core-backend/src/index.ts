@@ -1,6 +1,6 @@
 import { createSocket } from 'node:dgram'
 import { AddonError, addonFilePath, addonRoot, installAddonVersion, previewAddon, pruneAddonVersions } from './addons/addonStore.js'
-import { AddonInstallRequestSchema, AddonPreviewRequestSchema } from 'shared-types'
+import { AddonInstallRequestSchema, AddonPreviewRequestSchema, LEASE_INTERVAL_MS, type BandHostEntry } from 'shared-types'
 import { existsSync, readFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { CalibrationRuns } from './calibration/calibrationRuns.js'
@@ -16,6 +16,7 @@ import cors from '@fastify/cors'
 import httpProxy from '@fastify/http-proxy'
 import { startBuiltinCouch } from './builtinCouch.js'
 import { hostCapabilities } from './hostCapabilities.js'
+import { createHostLeaseService, postToHost } from './hostLeaseService.js'
 import { watchHostAccounts } from './hostAccounts.js'
 import fastifyStatic from '@fastify/static'
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify'
@@ -101,6 +102,7 @@ import {
   resetAdminPin,
   rotateAccessCode,
   setMemberAdmin,
+  getAccessCode,
   setMemberPassword,
   workspaceDbName,
   WorkspaceAlreadyProvisionedError,
@@ -985,6 +987,20 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
   // shutdown and every test's afterEach(() => app.close()).
   const workspaceHardware = createWorkspaceHardwareController({ couch, registry, log: pluginLog })
   app.addHook('onClose', async () => workspaceHardware.deactivate())
+
+  // Host backup, #918 (docs/25 §6e): the primary tells the backup every second that it is alive,
+  // signed with the band code. The sender is started in main(), not here, so tests stay quiet.
+  const hostLease = createHostLeaseService({
+    selfHostId: hostId,
+    epoch: () => 1,
+    workspaceId: () => workspaceHardware.getActiveWorkspaceId(),
+    readHosts: async (workspaceId) => (await getDoc<CouchDoc & { hosts?: BandHostEntry[] }>(couch, workspaceDbName(workspaceId), 'band-settings:band'))?.hosts ?? null,
+    readAccessCode: async (workspaceId) => (await getAccessCode(couch, workspaceId))?.code ?? null,
+    post: (url, body, fingerprint) => postToHost(url, body, fingerprint),
+    now: () => Date.now(),
+  })
+  app.post('/host/lease', async (request) => ({ accepted: (await hostLease.receive(request.body)) === 'accepted' }))
+  app.get('/server/host-lease', async () => ({ lease: hostLease.status() }))
 
   // OSC devices (#484): host and port are the device's transport config for the Stage-Server
   // (Bühnentechnik), in the band whose hardware this server serves.
@@ -1915,7 +1931,7 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
     await app.register(fastifyStatic, { root: pwaDist })
   }
 
-  return { app, registry, lookupRegistry, couch, workspaceHardware, pluginLog, backups }
+  return { app, registry, lookupRegistry, couch, workspaceHardware, pluginLog, backups, hostLease }
 }
 
 const port = Number(process.env.PORT ?? 3001)
@@ -1951,7 +1967,7 @@ async function main() {
         })
       : null
   if (builtinDb) process.env.COUCHDB_URL = builtinDb.url
-  const { app, lookupRegistry, workspaceHardware, pluginLog, couch, backups } = await buildApp()
+  const { app, lookupRegistry, workspaceHardware, pluginLog, couch, backups, hostLease } = await buildApp()
   if (builtinDb) app.log.info({ url: builtinDb.url }, 'Built-in database host (no CouchDB)')
   // Scheduled backups (daily time, USB medium plugged in) - checked every 30 s.
   backups.start()
@@ -1996,6 +2012,11 @@ async function main() {
     // pluginSync/midiWatcher above it needs no configured STAGEBOARD_WORKSPACE and just runs
     // unconditionally for whichever workspaces happen to have reported devices.
     const pingLoop = startPingLoop()
+
+    // The alive signal to the backup (#918), every second; does nothing unless this host is the
+    // band's listed primary.
+    const leaseTimer = setInterval(() => void hostLease.sendOnce(), LEASE_INTERVAL_MS)
+    app.addHook('onClose', async () => clearInterval(leaseTimer))
 
     // OSC in (#484): one UDP port for the whole box; what arrives goes to the band whose hardware
     // it serves (like the MIDI watcher). 0 switches it off.
