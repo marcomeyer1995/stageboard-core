@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { BandHostsSchema, type BandHostEntry } from 'shared-types'
-import { startBandReplication, type BandReplication, type ReplicationStatus } from './bandReplication.js'
-import { leaseKey, signAccountRequest } from './hostLeaseAuth.js'
+import { startCatchUp as startBandReplication, type CatchUp as BandReplication, type CatchUpStatus as ReplicationStatus } from 'sync-host'
+import { leaseKey, signAccountRequest } from 'sync-host'
 
 export interface RemoteTarget {
   baseUrl: string
@@ -79,7 +79,7 @@ export function createReplicationRunner(deps: {
         lastSentAt = Math.max(deps.now(), lastSentAt + 1)
         const baseUrl = primary.url.replace(/\/+$/, '')
         const answer = AccountSchema.safeParse(
-          await deps.requestAccount(`${baseUrl}/host/replication-account`, signAccountRequest({ hostId: deps.selfHostId, sentAt: lastSentAt }, leaseKey(code, workspaceId)), primary.certFingerprint),
+          await deps.requestAccount(`${baseUrl}/host/replication-account`, await signAccountRequest({ hostId: deps.selfHostId, sentAt: lastSentAt }, await leaseKey(code, workspaceId)), primary.certFingerprint),
         )
         if (!answer.success) return
         replication = startBandReplication({

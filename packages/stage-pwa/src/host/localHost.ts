@@ -1,12 +1,12 @@
 import { registerPlugin, type PluginListenerHandle } from '@capacitor/core'
 import { AccessCodeSchema, HostJoinInviteSchema } from 'shared-types'
-import { createHostClock, createHostLogin, createHostPresence, leaseKey, signAccountRequest, startCatchUp, type CatchUp, createSyncHost, createWriteGuard, HOST_ACCOUNTS_DOC_ID, type HostAccount, type SyncDatabase, type SyncRequest } from 'sync-host'
+import { createHostLogin, createHostPresence, leaseKey, signAccountRequest, startCatchUp, type CatchUp, createSyncHost, createWriteGuard, HOST_ACCOUNTS_DOC_ID, type HostAccount, type SyncDatabase, type SyncRequest } from 'sync-host'
 import { useBandSettingsStore } from '../store/useBandSettingsStore'
 import { useAndroidHostStore } from '../store/useAndroidHostStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { getDeviceId } from '../lib/deviceId'
 import { answerHostRequest, loginCheckOf } from '../host/hostHttp'
-import { createHostStateMachine, type HostRole } from '../host/hostState'
+import { createTabletHost, type TabletHost } from '../host/tabletHost'
 import PouchDB from 'pouchdb-browser'
 import { createAccountIssuer } from '../host/replicationAccount'
 import { cacheKey, getCached, listCachedKeys, parseCacheKey, removeCached, setCached } from '../lib/audioCache'
@@ -71,9 +71,9 @@ function readJson<T>(key: string): T | null {
   }
 }
 
-const storedRole = () => {
-  const role = readJson<HostRole>(ROLE_KEY)
-  return role && Number.isInteger(role.epoch) && role.epoch >= 1 && typeof role.active === 'boolean' ? role : null
+const storedRole = (): { epoch: number; active: boolean } => {
+  const role = readJson<{ epoch: number; active: boolean }>(ROLE_KEY)
+  return role && Number.isInteger(role.epoch) && role.epoch >= 0 && typeof role.active === 'boolean' ? role : { epoch: 0, active: false }
 }
 
 interface StoredCode {
@@ -139,7 +139,7 @@ let catchUp: CatchUp | null = null
 let unsubscribePresence: (() => void) | null = null
 let catchingUp = false
 
-function pushState(machine: { state: () => { hostId: string; epoch: number; active: boolean } }, clock: { offsetMs: () => number | null }) {
+function pushState(machine: TabletHost) {
   const state = machine.state()
   // Pages of the band's hosts may read this host from a browser (CORS) - the app itself always may.
   const origins = (hostsNow() ?? []).flatMap((h) => {
@@ -149,13 +149,13 @@ function pushState(machine: { state: () => { hostId: string; epoch: number; acti
       return []
     }
   })
-  const key = `${state.hostId}|${state.epoch}|${state.active}|${Math.round(clock.offsetMs() ?? 0)}|${origins.join(',')}`
+  const key = `${state.hostId}|${state.epoch}|${state.active}|${Math.round(machine.clockOffsetMs())}|${origins.join(',')}`
   if (key === lastPushed) return
   lastPushed = key
-  void LocalHost.setState({ hostId: state.hostId, epoch: state.epoch, active: state.active, offsetMs: clock.offsetMs() ?? 0, origins }).catch(() => undefined)
+  void LocalHost.setState({ hostId: state.hostId, epoch: state.epoch, active: state.active, offsetMs: machine.clockOffsetMs(), origins }).catch(() => undefined)
 }
 
-function publish(machine: ReturnType<typeof createHostStateMachine>, url: string | null, error: string | null = null) {
+function publish(machine: TabletHost, url: string | null, error: string | null = null) {
   const state = machine.state()
   useAndroidHostStore.getState().set({ running: true, url, hostId: state.hostId, epoch: state.epoch, active: state.active, outdated: state.outdated, priority: state.priority, lease: machine.lease(), error })
 }
@@ -181,7 +181,6 @@ export async function startAndroidHost(): Promise<void> {
   localStorage.removeItem(INVITE_KEY)
   await pinHosts()
   const hostId = getDeviceId()
-  const clock = createHostClock({ now: () => Date.now() })
   let keysFor = storedCode(workspaceId)
   const keys = async () => {
     // The band's code lives in its own database (`workspace:access`), which a host holds - the same
@@ -202,18 +201,17 @@ export async function startAndroidHost(): Promise<void> {
   }
   // The band database as this app already holds it - never another band's, and none made up by a request.
   const dbName = localDbName(workspaceId)
-  const machine = createHostStateMachine({
+  const machine = createTabletHost({
     selfHostId: hostId,
-    workspaceId,
     baseEpoch: 1,
-    loadRole: storedRole,
-    saveRole: (role) => localStorage.setItem(ROLE_KEY, JSON.stringify(role)),
-    hosts: hostsNow,
-    keys,
-    get: (url) => getJson(url),
-    post: (url, body) => postJson(url, body),
-    self: () => (urlNow && startedFingerprint ? { url: urlNow, fingerprint: startedFingerprint } : null),
-    accessCode: accessCodeNow,
+    roleStore: { load: storedRole, save: (role) => localStorage.setItem(ROLE_KEY, JSON.stringify(role)) },
+    workspaceId: () => workspaceId,
+    readHosts: async () => hostsNow() ?? null,
+    readAccessCode: accessCodeNow,
+    get: (url) => getJson(url).catch(() => null),
+    post: (url, body) => postJson(url, body).catch(() => null),
+    selfUrl: () => urlNow ?? undefined,
+    selfFingerprint: () => startedFingerprint || null,
     catchUp: () => catchUp?.status() ?? null,
     songRunning: async () => {
       // A band that never played has no show-state yet: not running. A database that cannot be read throws: cannot tell.
@@ -227,7 +225,7 @@ export async function startAndroidHost(): Promise<void> {
   })
 
   // Who is online and who is master - what a device needs to be confirmed as master; the native server relays it.
-  const presence = createHostPresence({ now: () => clock.bandTime() })
+  const presence = createHostPresence({ now: () => machine.bandTime() })
   unsubscribePresence?.()
   unsubscribePresence = presence.subscribe((snapshot) => {
     void LocalHost.publish({ channel: `${workspaceId}/presence`, text: JSON.stringify(snapshot) }).catch(() => undefined)
@@ -305,14 +303,14 @@ export async function startAndroidHost(): Promise<void> {
           port: PORT,
           address: startedAddress,
           certFingerprint: startedFingerprint,
-          bandTime: () => clock.bandTime(),
+          bandTime: () => machine.bandTime(),
           state: () => machine.state(),
           activeWorkspaceId: () => (machine.state().active ? workspaceId : null),
           lease: () => machine.lease(),
           acceptLease: async (raw) => {
-            const result = await machine.acceptLease(raw)
+            const result = await machine.service.receive(raw)
             publish(machine, urlNow, null)
-            pushState(machine, clock)
+            pushState(machine)
             return result
           },
           acceptInvite,
@@ -339,7 +337,7 @@ export async function startAndroidHost(): Promise<void> {
   running = true
   const refresh = () => {
     publish(machine, urlNow, null)
-    pushState(machine, clock)
+    pushState(machine)
   }
   refresh()
 
@@ -369,26 +367,18 @@ export async function startAndroidHost(): Promise<void> {
   tick = setInterval(() => {
     void (async () => {
       await pinHosts()
-      await machine.takeoverCheck()
-      void machine.sendOnce()
-      await machine.handbackCheck()
+      await machine.service.takeoverCheck()
+      void machine.service.sendOnce()
+      await machine.service.handbackCheck()
       void syncCatchUp().catch(() => undefined)
       publish(machine, urlNow, null)
-      pushState(machine, clock)
+      pushState(machine)
     })().catch(() => undefined)
   }, TICK_MS)
 
+  // Only the backup keeps the primary's clock, to serve its band time after a takeover - the shared service knows when.
   sample = setInterval(() => {
-    void (async () => {
-      // Only the backup keeps the primary's clock, to serve its band time after a takeover.
-      if (machine.state().active || machine.state().priority !== 2) return
-      const primary = (hostsNow() ?? []).find((h) => h.priority === 1)
-      if (!primary) return
-      const t0 = Date.now()
-      const answer = (await getJson(`${primary.url.replace(/\/+$/, '')}/time`).catch(() => null)) as { serverTime?: unknown } | null
-      const t1 = Date.now()
-      if (answer && typeof answer.serverTime === 'number') clock.add({ t0, t1, serverTime: answer.serverTime })
-    })().catch(() => undefined)
+    void machine.service.sampleOnce().catch(() => undefined)
   }, SAMPLE_MS)
 }
 

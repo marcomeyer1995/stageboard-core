@@ -1,5 +1,5 @@
 import { BandHostsSchema, type BandHostEntry } from 'shared-types'
-import { leaseKey, verifyAccountRequest } from './hostLeaseAuth.js'
+import { leaseKey, verifyAccountRequest } from 'sync-host'
 
 export interface ReplicationAccountIssuer {
   /** A login for the other listed host to read this band with, or null if the request is not good. */
@@ -29,7 +29,7 @@ export function createReplicationAccountIssuer(deps: {
         const hosts = BandHostsSchema.safeParse(await deps.readHosts(workspaceId))
         const code = await deps.readAccessCode(workspaceId)
         if (!hosts.success || hosts.data.length < 2 || !code) return null
-        const request = verifyAccountRequest(raw, leaseKey(code, workspaceId))
+        const request = await verifyAccountRequest(raw, await leaseKey(code, workspaceId))
         if (!request || request.hostId === deps.selfHostId || !hosts.data.some((h) => h.hostId === request.hostId)) return null
         if (request.sentAt <= (lastSentAt.get(request.hostId) ?? -1)) return null
         lastSentAt.set(request.hostId, request.sentAt)

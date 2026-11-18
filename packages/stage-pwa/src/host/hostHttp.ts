@@ -1,5 +1,4 @@
 import type { SyncRequest, SyncResponse } from 'sync-host'
-import type { HostRole } from './hostState'
 import type { LeaseStatus } from 'sync-host'
 
 /** A request as the native server hands it to the app (LocalHostPlugin.java). */
@@ -34,7 +33,7 @@ export interface AppHostDeps {
   certFingerprint: string
   /** Band time: own clock plus the primary's offset once there was a sample. */
   bandTime: () => number
-  state: () => HostRole & { outdated: boolean; priority: 1 | 2 | null }
+  state: () => { epoch: number; active: boolean; outdated: boolean; priority: 1 | 2 | null }
   /** The band this tablet serves while it is the host - null while it is a passive backup. */
   activeWorkspaceId: () => string | null
   lease: () => LeaseStatus | null
