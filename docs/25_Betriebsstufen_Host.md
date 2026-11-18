@@ -219,6 +219,29 @@ The followers show Play within about ±15 ms of the master's own screen - the pu
 
 **Findings** (issues): the invite QR code drops the port (#896); after a server switch the sync status still shows ✓ for the old band (#897); the admin PIN is shown in clear in "Band wechseln" (#898); a band move by replication must copy `_security` too (#779); on Windows the execution policy blocks `npm.ps1` and a "Public" network needs the firewall rule for all profiles (#780); the Android host reads request bodies without a length (chunked) as empty, so Play/switch events arrive empty (#781).
 
+## 6g. Android host as the backup - the tablet steps in (#947, 2026-11-18)
+
+First real test case for the host backup (#782 Teil B), and the cheapest way there: the laptop stays the primary, the tablet is the backup. The tablet already holds the band as a device - data, audio, logins - so nothing has to be provisioned for it.
+
+**What the app starts.** A switch (System → Stage-Server → "Tablet als Host") starts `LocalHostPlugin.java`: a small HTTPS server inside the app, certificate in the Android keystore, fingerprint stable across restarts. It answers `/time` (time, `hostId`, `epoch`, `active`), `/server-info` and the live channels (`show-state`, `switch-state`) itself; everything else goes to the app, which answers over its own PouchDB through `sync-host` - the same code the laptop host uses.
+
+**Passive first.** Until it has taken over, the tablet answers only `/time` (`active:false`), `/server-info`, `/server/active-workspace` (`null` - it serves no band), `/host/lease` and `/server/host-lease`. No `/db`, no live channel; a device that asks is refused. So "the band is served by exactly one host" is true on the wire, not just in the app.
+
+**How it becomes host.** The band's host list names the tablet as priority 2 and the laptop as priority 1. The laptop sends its signed lease every second (`hostLeaseAuth.ts`); the tablet verifies it with WebCrypto against the band's key - `HMAC(sha256, 'stageboard-host-lease', workspaceId \n accessCode)`. The code reaches the tablet from the primary itself: because the tablet serves no band, the primary's invite (#945) keeps arriving, the tablet checks the target id and the `sentAt` guard, has the primary confirm the code (`POST /workspaces/:id/roster`) and stores it. Nothing is typed.
+
+After **5 s without a lease** and a **failed direct `/time`** to the primary, the tablet raises the epoch above the last lease and serves the band: `/db` with the write rules (`_design/roster`), live channels, band time = own clock plus the offset it sampled while passive (so no device's clock jumps). A returned primary raises the epoch again (#935); the tablet sees an accepted lease with a higher epoch and steps back to passive. The lease/takeover rules are, for now, a second implementation of core-backend's (`host/hostState.ts`, `host/leaseKeeper.ts`); folding both into one host module is #932.
+
+**Limits.** Not the other ~70 routes (audio, presence, plugins, join) - #781. No foreground service, so the screen must stay on / the app in front; no hotspot. The switch is off by default and only in the native app.
+
+**Target model.** This is the first step toward #932: a host is the app plus a host module, not a different program. Once the backup works on real devices, the state machine and the band access move into the shared module.
+
+**Measured (2026-11-18, Redmi as the backup, laptop host as the primary, home Wi-Fi, test band, no song playing):**
+- The tablet verified the laptop's signed lease (WebCrypto) and showed it alive.
+- Primary killed: the tablet took over after **~5.0 s** (epoch 17 → 18), `/server/active-workspace` named the band, `/db` served a band login.
+- Primary started again: it came back out of date (`active:false`, epoch 17) - never two hosts. Its catch-up copy from the tablet needed a login on the tablet (`POST /host/replication-account`, issued only while the tablet is host); then the laptop took the host role back (epoch 19) and the tablet went passive.
+- Found on the device: a throwing probe of the primary counted as "primary still there" - no takeover. Fixed (#947).
+- **Not yet measured:** devices following the tablet during a running song (follow time, drift), a song written during the takeover, battery. Needs a gig-like run with two more devices.
+
 ## 7. Proposed order
 
 Issues since 2026-11-10: tracking issue **#777**, under it #778 (real run of `sync-host`), #779 (move from CouchDB), #780 (installer Windows/Mac), #781 (spike Android as host), #782 (host fails during the gig, §6e).

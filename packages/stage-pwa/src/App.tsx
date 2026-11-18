@@ -35,6 +35,7 @@ import { useClockSync } from './lib/useClockSync'
 import { useFullscreenOnLaunch } from './lib/useFullscreen'
 import { useDeviceInfoReporter } from './lib/useDeviceInfoReporter'
 import { useHostFollower } from './lib/useHostFollower'
+import { resumeAndroidHost } from './host/localHost'
 import { useDiscoveryTrigger } from './lib/useDiscoveryTrigger'
 import { useHardwareDetection } from './lib/useHardwareDetection'
 import { useReadyCheckResponder } from './lib/useReadyCheckResponder'
@@ -260,6 +261,10 @@ function App() {
   useDeviceInfoReporter(activeWorkspaceId)
   // The host with the highest epoch is the one to follow (host backup, #916).
   useHostFollower()
+  // This tablet as the band's host (#947): the switch survived the restart - bring it back up.
+  useEffect(() => {
+    void resumeAndroidHost()
+  }, [])
 
   // Three full-screen gates before the normal mode tabs (see #21, and the #21 follow-up that
   // added needsRosterSetup): join/found the band first (no band at all yet), then - only for a
