@@ -15,6 +15,17 @@ export interface AppHostRequest {
 
 export type AppHostAnswer = SyncResponse
 
+/** The audio tracks the tablet holds, by variant and track (its audio cache). Bytes in, bytes out. */
+export interface HostAudio {
+  get: (variantId: string, trackId: string) => Promise<Uint8Array | null>
+  put: (variantId: string, trackId: string, data: Uint8Array) => Promise<void>
+  remove: (variantId: string, trackId: string) => Promise<void>
+}
+
+/** Same rule as the Stage-Server's `isSafeAudioId`: an id becomes part of a storage key, so no separators or control characters. */
+const SAFE_AUDIO_ID = /^[a-zA-Z0-9-]+$/
+export const isSafeAudioId = (id: string): boolean => SAFE_AUDIO_ID.test(id)
+
 export interface AppHostDeps {
   hostId: string
   port: number
@@ -30,6 +41,8 @@ export interface AppHostDeps {
   acceptLease: (raw: unknown) => Promise<'accepted' | 'ignored'>
   /** The primary teaching this tablet its band (#945): verified with the primary, never trusted blindly. */
   acceptInvite: (raw: unknown) => Promise<{ ok: true } | { ok: false; status: number; message: string }>
+  /** The tracks this host serves and takes (#781): a device fetches its audio from the host it follows. */
+  audio: HostAudio
   /** Presence and the master's heartbeat for the band this tablet serves; a device's confirmation as master depends on it. */
   presence: { workspaceId: string; report: (raw: unknown) => boolean; heartbeat: (raw: unknown) => boolean }
   /** Is `code` this band's standing code? A fresh backup checks the invite's code with the primary this way (#945). */
@@ -40,6 +53,15 @@ export interface AppHostDeps {
   sync: (ctx: { name: string; roles: string[] }, request: SyncRequest) => Promise<SyncResponse>
   /** The band's device logins (`host-accounts`); null when the login is not one of the band. */
   login: (authorization: string | undefined, db: string) => Promise<{ name: string; roles: string[] } | null>
+}
+
+/** `decodeURIComponent` that gives "" instead of throwing - an undecodable id is simply not a safe one. */
+const safeDecode = (part: string): string => {
+  try {
+    return decodeURIComponent(part)
+  } catch {
+    return ''
+  }
 }
 
 const json = (status: number, body: unknown): AppHostAnswer => ({ status, body })
@@ -91,6 +113,27 @@ export async function answerHostRequest(request: AppHostRequest, deps: AppHostDe
   if (path === '/server/host-lease' && method === 'GET') {
     const now = deps.state()
     return json(200, { lease: deps.lease(), clockOffsetMs: null, active: now.active, epoch: now.epoch, outdated: now.outdated })
+  }
+  const audioRoute = /^\/audio\/([^/]+)\/([^/]+)$/.exec(path)
+  if (audioRoute) {
+    if (!state.active) return json(503, { error: 'passive', reason: 'This host is the backup and is not serving the band.' })
+    const variantId = safeDecode(audioRoute[1]!)
+    const trackId = safeDecode(audioRoute[2]!)
+    if (!isSafeAudioId(variantId) || !isSafeAudioId(trackId)) return json(400, { status: 'error', message: 'Invalid variantId or trackId' })
+    if (method === 'GET') {
+      const data = await deps.audio.get(variantId, trackId)
+      return data === null ? json(404, { status: 'error', message: 'Track not found' }) : { status: 200, body: null, binary: { data, contentType: 'application/octet-stream' } }
+    }
+    if (method === 'PUT') {
+      const body = request.body as { data?: unknown } | undefined
+      if (!(body?.data instanceof Uint8Array)) return json(400, { status: 'error', message: 'A track is sent as bytes' })
+      await deps.audio.put(variantId, trackId, body.data)
+      return { status: 204, body: null }
+    }
+    if (method === 'DELETE') {
+      await deps.audio.remove(variantId, trackId)
+      return { status: 204, body: null }
+    }
   }
   const presenceRoute = /^\/workspaces\/([^/]+)\/(presence\/report|master-heartbeat)$/.exec(path)
   if (presenceRoute && method === 'POST') {

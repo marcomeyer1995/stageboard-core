@@ -13,6 +13,7 @@ import { startCatchUp, type CatchUp } from '../host/catchUp'
 import PouchDB from 'pouchdb-browser'
 import { createAccountIssuer } from '../host/replicationAccount'
 import { createHostPresence } from '../host/presence'
+import { cacheKey, getCached, listCachedKeys, parseCacheKey, removeCached, setCached } from '../lib/audioCache'
 import { isNativeApp, pinListedHosts } from '../lib/native'
 import { getWorkspaceDb, localDbName } from '../lib/workspaceDb'
 
@@ -108,6 +109,30 @@ async function postJson(url: string, body: unknown): Promise<unknown> {
   const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(5_000) })
   return response.ok ? response.json() : null
 }
+
+/** The tracks this tablet holds, as the host serves them (#781): its audio cache. A file the app stores under a
+ * file revision (`variant:track@3`) is found by variant and track - the newest revision wins; an upload arrives
+ * without one and is kept under the plain key until the band's track list names a revision. */
+const hostAudio = {
+  async get(variantId: string, trackId: string): Promise<Uint8Array | null> {
+    const wanted = (await listCachedKeys())
+      .filter((key) => {
+        const parsed = parseCacheKey(key)
+        return parsed.variantId === variantId && parsed.trackId === trackId
+      })
+      .sort((a, b) => revisionOf(b) - revisionOf(a))[0]
+    const blob = wanted ? await getCached(wanted) : null
+    return blob ? new Uint8Array(await blob.arrayBuffer()) : null
+  },
+  put: (variantId: string, trackId: string, data: Uint8Array) => setCached(cacheKey(variantId, trackId), new Blob([data as BlobPart])),
+  async remove(variantId: string, trackId: string): Promise<void> {
+    for (const key of await listCachedKeys()) {
+      const parsed = parseCacheKey(key)
+      if (parsed.variantId === variantId && parsed.trackId === trackId) await removeCached(key)
+    }
+  },
+}
+const revisionOf = (key: string): number => Number(key.split('@')[1] ?? 0) || 0
 
 let running = false
 let listener: PluginListenerHandle | null = null
@@ -295,6 +320,7 @@ export async function startAndroidHost(): Promise<void> {
             return result
           },
           acceptInvite,
+          audio: hostAudio,
           presence: { workspaceId, report: (raw) => presence.report(raw), heartbeat: (raw) => presence.heartbeat(raw) },
           verifyBandCode: async (band, code) => band === workspaceId && code === (await accessCodeNow()),
           // Only the host serves the band: a passive backup hands out no login to its data.

@@ -237,7 +237,7 @@ After **5 s without a lease** and a **failed direct `/time`** to the primary, th
 - E was named backup on the map: the tablet invited it, E joined the band and copied 24 docs (`caught-up`) with no code typed; it heard the tablet's lease (clock offset -103 ms).
 - Tablet app stopped: E took over after **~5.3 s** (epoch 20). Tablet back: it came back passive (never two hosts), copied from E and took the role back after ~40 s (epoch 21), E passive again.
 - Second round: a document written on E while the tablet was away was on the tablet after the handback (epoch 23).
-- Not covered above: audio (the tablet has no `/audio` route, so E's audio mirror shows 2 tracks missing - #781), battery.
+- Not covered above: audio (done next, see below), battery.
 
 **Gig-like test (2026-11-18, #947): two followers, a playing song, the primary dies.** Tablet (Redmi) primary, laptop host E backup, Fire and Phone as ordinary devices on the tablet, Fire master, test band `leasetest`, home Wi-Fi, apps kept in front (a backgrounded WebView is throttled: the Phone's requests timed out until it was brought forward):
 - Tablet app stopped **in the middle of a song**: E took over after **5.6 s** (epoch 28). **Phone followed at +5.0 s, Fire at +5.4 s** (within the poll step of the takeover). The song ran on without a gap - Fire 0:09 → 0:18 → 0:28, Phone 0:17 → 0:31, each matching the elapsed time; no restart, no stop. Clock after the switch: Fire ±1.3-1.7 ms, Phone ±1.0 ms uncertainty (rtt 18 / 10 ms). The Phone showed "no master / 0:00" for ~0.2 s while its show store re-initialised.
@@ -252,7 +252,9 @@ After **5 s without a lease** and a **failed direct `/time`** to the primary, th
 4. **Live streams did not follow a host switch** (not tablet-specific): sync and clock follow (#900), but presence, show-state push, switches, plugin health, device triggers and discovery open an `EventSource` once per band and kept retrying the dead host - after a takeover the master was never confirmed again. They now restart when the server address changes (`useWorkspaceResource(..., restartKey)`). `useOscInput` still binds once.
 5. **Replication login for the returned primary** and **band code check** (earlier in this section) were missing routes, too.
 
-**Still open:** the other routes the app calls on its host answer 404 on the tablet (`device-info/report`, flash, ready check, audio, plugins) - #781. The tablet's own app talks to its own server (works, but is a loop); #932.
+**Audio on the tablet host (#781, 2026-11-18).** `GET/PUT/DELETE /audio/:variantId/:trackId` over the app's own audio cache (`host/localHost.ts` `hostAudio`; a file stored under a revision is found by variant and track, the newest wins; an upload is kept under the plain key until the band's track list names a revision). Same id rule and same trust (open on the LAN) as the Stage-Server; a passive backup answers 503. Measured with a 20 s stereo WAV (3.5 MB): PUT 3.0 s, GET 1.4 s from the laptop, 1.8 s Fire, 1.5 s Phone, byte-identical (SHA-256); the backup host E **mirrored the track from the tablet on its own** (audio 1 of 2 present - the second was not uploaded), so it has the audio when it takes over. Bytes cross the bridge as Base64 (~2.4 MB/s) - fine for syncing before a gig, slow for a 50 MB track (~20 s); a native file store would be the next step if that matters. Not measured: playing a real track from the tablet host, the tablet's own audio sync mode (#932: forced "full" on a host).
+
+**Still open:** the other routes the app calls on its host answer 404 on the tablet (`device-info/report`, flash, ready check, plugins) - #781. The tablet's own app talks to its own server (works, but is a loop); #932.
 
 
 **Limits.** Not the other ~70 routes (audio, presence, plugins, join) - #781. No foreground service, so the screen must stay on / the app in front; no hotspot. The switch is off by default and only in the native app.
