@@ -1,10 +1,12 @@
 import { useTranslation } from 'react-i18next'
 import { assignHostRole, removeHostRole } from '../lib/bandHosts'
 import { fetchBandHost } from '../lib/fetchBandHost'
+import { askBackupToJoin } from '../lib/joinFromMap'
 import { getStageServerUrl } from '../lib/stageServer'
 import { useBandSettingsStore } from '../store/useBandSettingsStore'
 import { useDialogStore } from '../store/useDialogStore'
 import { useShowStateStore } from '../store/useShowStateStore'
+import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { Badge, Button } from './ui'
 
 /**
@@ -21,6 +23,9 @@ export function HostRole({ boxId, canEdit }: { boxId: string; canEdit: boolean }
   const promptText = useDialogStore((state) => state.promptText)
   const alert = useDialogStore((state) => state.alert)
   const playing = useShowStateStore((state) => state.state.playbackStatus === 'playing')
+  const workspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
+  const primaryUrl = getStageServerUrl()
+  const primaryUrlParsed = primaryUrl ? new URL(primaryUrl) : null
 
   const mine = settings.hosts?.find((host) => host.equipmentId === boxId)
 
@@ -38,6 +43,23 @@ export function HostRole({ boxId, canEdit }: { boxId: string; canEdit: boolean }
       return
     }
     await save({ ...settings, hosts: assignHostRole(settings.hosts, { ...host, equipmentId: boxId }, role) })
+
+    // A backup needs to know which band and where the primary is (#945). The admin types the band code once;
+    // the role above alone only lists the host in the band's settings - it does not tell the host anything.
+    if (role !== 'backup' || !workspaceId) return
+    const code = await promptText(t('hostRole.askCode'), { label: t('hostRole.codeLabel') })
+    if (code === null || code.trim() === '') return
+    const result = await askBackupToJoin({
+      workspaceId,
+      accessCode: code.trim(),
+      primaryUrl: primaryUrl ?? '',
+      primaryHostId: primaryUrlParsed?.host ?? '',
+      targetHostId: host.hostId,
+      targetUrl: host.url,
+      fingerprint: host.certFingerprint,
+      sentAt: Date.now(),
+    })
+    if (result !== 'done') await alert(t(`hostRole.join.${result}`), { title: t('hostRole.title') })
   }
 
   async function removeRole() {

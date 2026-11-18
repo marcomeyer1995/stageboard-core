@@ -22,7 +22,7 @@ import { makeLocalBandDb, makeRemoteBandDb } from './bandPouch.js'
 import { createReplicationAccountIssuer } from './replicationAccount.js'
 import { createReplicationRunner } from './replicationRunner.js'
 import { createAudioMirror } from './audioMirror.js'
-import { createBandBootstrapStore, effectiveHosts, joinBand } from './bandJoin.js'
+import { createBandBootstrapStore, joinFromMap, effectiveHosts, joinBand } from './bandJoin.js'
 import { mirrorTracksOf, readLocalRevision, saveMirrorFile } from './audioMirrorFiles.js'
 import { createPinnedFetch } from './pinnedFetch.js'
 import { corsOriginAllowed } from './corsOrigin.js'
@@ -1085,6 +1085,35 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
       return result === ok ? { status: 'ok', result } : reply.status(409).send({ status: 'error', result })
     })
   }
+  // The map asks a fresh backup host to join the band (#945): the band code is the proof, checked with the
+  // primary (its roster route is code-gated), and the invite names the host that must be us. Not loopback-only:
+  // the admin sends it from the tablet on the stage map.
+  const acceptJoinFromMap = joinFromMap({
+    selfHostId: hostId,
+    selfUrl: `https://${process.env.LAN_IP ?? detectLanIp() ?? '127.0.0.1'}:${Number(process.env.PORT ?? 3001)}`,
+    activeWorkspaceId: () => workspaceHardware.getActiveWorkspaceId(),
+    verifyWithPrimary: async (primaryUrl, workspaceId, code, fingerprint) => {
+      // Roster is gated by the standing band code; /time tells us who the primary is.
+      // The roster route is a POST with the band code in the body (#364); a 200 means the code is right.
+      const confirmed = await postJsonToHost(
+        `${primaryUrl.replace(/\/+$/, '')}/workspaces/${encodeURIComponent(workspaceId)}/roster`,
+        { code },
+        fingerprint,
+        3_000,
+      )
+      if (!confirmed) return null
+      const time = await getFromHost(`${primaryUrl.replace(/\/+$/, '')}/time`, fingerprint, 3_000)
+      return HostTimeAnswerSchema.safeParse(time).data?.hostId ?? null
+    },
+    ensureLocalDb: async (workspaceId) => void (await makeLocalBandDb(couch, workspaceId)),
+    activate: (workspaceId) => workspaceHardware.activate(workspaceId),
+    store: bootstrapStore,
+    now: () => Date.now(),
+  })
+  app.post('/host/join-band-from-map', async (request, reply) => {
+    const result = await acceptJoinFromMap(request.body)
+    return result.ok ? { status: 'ok' } : reply.status(result.status).send({ status: 'error', message: result.message })
+  })
   app.post('/host/replication-account', async (request, reply) => {
     const account = await replicationAccounts.issue(request.body)
     return account ?? reply.status(403).send({})

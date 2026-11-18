@@ -433,7 +433,15 @@
     "address": "Adresse",
     "check": "Prüfen und speichern",
     "notReached": "Der Host antwortet nicht, oder er ist zu alt, um benannt zu werden. Läuft er und ist er erreichbar? Es wurde nichts gespeichert.",
-    "locked": "Während ein Song läuft, nicht änderbar."
+    "locked": "Während ein Song läuft, nicht änderbar.",
+    "askCode": "Band-Code des Primary für das Backup",
+    "codeLabel": "Band-Code",
+    "join": {
+      "done": "Das Backup holt jetzt die Banddaten.",
+      "code-refused": "Der Backup hat den Band-Code nicht angenommen.",
+      "refused": "Der Backup kann nicht beitreten - prüfe Adresse und Rolle.",
+      "unreachable": "Der Backup antwortet nicht."
+    }
   },
   "hostOverview": {
     "title": "Hosts",

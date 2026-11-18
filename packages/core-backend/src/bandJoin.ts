@@ -1,7 +1,7 @@
 import { chmodSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { z } from 'zod'
-import { BandHostEntrySchema, BandHostsSchema, type BandHostEntry } from 'shared-types'
+import { BandHostEntrySchema, BandHostsSchema, HostJoinInviteSchema, type BandHostEntry, type HostJoinInvite } from 'shared-types'
 
 /**
  * A fresh backup joins a band (host backup, #933, docs/25 §6e). It reads the host list and the band
@@ -14,6 +14,8 @@ export const BootstrapSchema = z.object({
   workspaceId: z.string().min(1),
   accessCode: z.string().min(1),
   hosts: BandHostsSchema,
+  /** The largest `sentAt` of an invite this host accepted - a recorded invite cannot be replayed (#945). */
+  lastInviteAt: z.number().int().nonnegative().optional(),
 })
 export type Bootstrap = z.infer<typeof BootstrapSchema>
 
@@ -56,7 +58,7 @@ const JoinInputSchema = z.object({
   certFingerprint: BandHostEntrySchema.shape.certFingerprint,
 })
 
-export type JoinResult = { ok: true } | { ok: false; status: 400 | 409 | 500 | 502; message: string }
+export type JoinResult = { ok: true } | { ok: false; status: 400 | 403 | 409 | 500 | 502; message: string }
 
 export async function joinBand(
   deps: {
@@ -99,5 +101,67 @@ export async function joinBand(
     return { ok: true }
   } catch {
     return { ok: false, status: 500, message: 'Could not set this host up for the band' }
+  }
+}
+
+/**
+ * A fresh backup joins the band because the admin named it on the stage map (#945): the map sends the band's
+ * code as proof, with the primary's address and fingerprint, and the host id that must be ours. The code is
+ * checked with the primary (its `/workspaces/:id/roster` is code-gated), so a stranger who heard the address
+ * cannot name this host for their band. The invite's `sentAt` must rise, so a recorded request is worth nothing.
+ */
+/** Alias kept local for the service's type; the wire schema lives in shared-types. */
+const InviteSchema = HostJoinInviteSchema
+export type JoinInvite = z.infer<typeof InviteSchema>
+
+export function joinFromMap(deps: {
+  selfHostId: string
+  selfUrl: string
+  activeWorkspaceId: () => string | null
+  /** True only if the primary confirms the band's code (and the fingerprint it presents). */
+  verifyWithPrimary: (primaryUrl: string, workspaceId: string, accessCode: string, fingerprint: string | undefined) => Promise<string | null>
+  ensureLocalDb: (workspaceId: string) => Promise<void>
+  activate: (workspaceId: string) => Promise<void>
+  store: BandBootstrapStore
+  now: () => number
+}): (raw: unknown) => Promise<JoinResult> {
+  return async (raw) => {
+    const invite = InviteSchema.safeParse(raw)
+    if (!invite.success) return { ok: false, status: 400, message: invite.error.issues[0]?.message ?? 'Invalid invite' }
+    const { workspaceId, accessCode, targetHostId, fingerprint } = invite.data
+    if (targetHostId !== deps.selfHostId) return { ok: false, status: 400, message: 'This invite is for another host' }
+    if (invite.data.sentAt > deps.now() + 60_000 || invite.data.sentAt < (deps.store.load()?.lastInviteAt ?? -1) + 1) {
+      return { ok: false, status: 409, message: 'This invite is old or was already used' }
+    }
+    const active = deps.activeWorkspaceId()
+    if (active !== null && active !== workspaceId) return { ok: false, status: 409, message: 'This host already serves another band' }
+
+    const primaryUrl = invite.data.primaryUrl.replace(/\/+$/, '')
+    let primaryId: string | null = null
+    try {
+      primaryId = await deps.verifyWithPrimary(primaryUrl, workspaceId, accessCode, fingerprint)
+    } catch {
+      return { ok: false, status: 502, message: 'The primary does not confirm the band' }
+    }
+    if (!primaryId) return { ok: false, status: 403, message: 'The primary did not accept the band code' }
+
+    try {
+      await deps.ensureLocalDb(workspaceId)
+      const previous = deps.store.load()
+      const hosts: BandHostEntry[] = [
+        { hostId: primaryId ?? 'primary', url: primaryUrl, ...(fingerprint ? { certFingerprint: fingerprint } : {}), priority: 1 },
+        { hostId: deps.selfHostId, url: deps.selfUrl, priority: 2 },
+      ]
+      // Keep a previous host list if it already knows the primary's real id (#914 writes it into the band).
+      if (previous?.workspaceId === workspaceId && previous.hosts.length >= 2) {
+        hosts[0]!.hostId = previous.hosts.find((h) => h.priority === 1)?.hostId ?? primaryId ?? 'primary'
+        hosts[1] = { ...hosts[1]!, url: previous.hosts.find((h) => h.hostId === deps.selfHostId)?.url ?? deps.selfUrl }
+      }
+      deps.store.save({ workspaceId, accessCode, hosts, lastInviteAt: invite.data.sentAt })
+      await deps.activate(workspaceId)
+      return { ok: true }
+    } catch {
+      return { ok: false, status: 500, message: 'Could not set this host up for the band' }
+    }
   }
 }

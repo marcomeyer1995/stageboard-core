@@ -160,6 +160,17 @@ describe('Fastify routes', () => {
     })
   })
 
+  describe('POST /host/join-band-from-map (#945)', () => {
+    it('refuses an invite that is not for this host, or without the admin code', async () => {
+      const bad = await app.inject({
+        method: 'POST', url: '/host/join-band-from-map',
+        payload: { workspaceId: 'band-a', accessCode: '12345678', primaryUrl: 'https://10.0.0.1:8443', targetHostId: 'another', primaryHostId: 'laptop', sentAt: 1 },
+      })
+      expect([400, 502]).toContain(bad.statusCode)
+      expect((await app.inject({ method: 'POST', url: '/host/join-band-from-map', payload: {} })).statusCode).toBe(400)
+    })
+  })
+
   describe('POST /host/join-band (#933)', () => {
     it('is for the host machine itself: a request from another machine is refused and does nothing', async () => {
       const response = await app.inject({
