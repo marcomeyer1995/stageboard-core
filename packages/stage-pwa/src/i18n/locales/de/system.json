@@ -58,7 +58,7 @@
     "hostGroup": "Tablet als Host",
     "hostGroupInfo": "Ob dieses Tablet als Host der Band einspringt, wenn der Laptop ausfällt.",
     "hostThisTablet": "Dieses Tablet",
-    "hostInfo": "Startet den Host im Hintergrund. Das Tablet ist zuerst nur der Backup und übernimmt erst, wenn der Primary 5 s nicht mehr antwortet. Auf der Bühnenplan-Karte als Backup eintragen.",
+    "hostInfo": "Startet den Host im Hintergrund. Auf der Bühnenplan-Karte als Primary oder Backup eintragen. Als Backup übernimmt es erst, wenn der Primary 5 s nicht mehr antwortet.",
     "hostStart": "Host starten",
     "hostStop": "Host stoppen",
     "hostNoBand": "Keine aktive Band auf diesem Gerät.",
@@ -71,7 +71,9 @@
     "hostLease": "Lease",
     "hostNoLease": "noch keine vom Primary gehört",
     "hostLeaseAlive": "von {{host}}, Epoche {{epoch}}",
-    "hostLeaseSilent": "seit {{seconds}} s still"
+    "hostLeaseSilent": "seit {{seconds}} s still",
+    "hostPrimary": "Primary (Host der Band)",
+    "hostOutdated": "Primary, veraltet (kopiert vom Backup)"
   },
   "save": "Speichern",
   "deviceName": {

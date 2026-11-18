@@ -8,7 +8,9 @@ import { getDeviceId } from '../lib/deviceId'
 import { bandOfPath, answerHostRequest } from '../host/hostHttp'
 import { createHostClock } from '../host/hostClock'
 import { createHostStateMachine, type HostRole } from '../host/hostState'
-import { leaseKey } from '../host/leaseAuth'
+import { leaseKey, signAccountRequest } from '../host/leaseAuth'
+import { startCatchUp, type CatchUp } from '../host/catchUp'
+import PouchDB from 'pouchdb-browser'
 import { createAccountIssuer } from '../host/replicationAccount'
 import { isNativeApp, pinListedHosts } from '../lib/native'
 import { getWorkspaceDb, localDbName } from '../lib/workspaceDb'
@@ -92,10 +94,16 @@ async function pinHosts() {
   if (hosts) await pinListedHosts(hosts)
 }
 
-async function getFromPrimary(url: string): Promise<unknown> {
-  const response = await fetch(`${url.replace(/\/+$/, '')}/time`, { signal: AbortSignal.timeout(3_000) })
-  if (!response.ok) return null
-  return response.json()
+/** GET JSON from another host; the shell only talks to a host whose certificate it pinned (`pinHosts`). */
+async function getJson(url: string): Promise<unknown> {
+  const response = await fetch(url, { signal: AbortSignal.timeout(3_000) })
+  return response.ok ? response.json() : null
+}
+
+/** POST JSON to another host: its answer, or null when it answered with an error. */
+async function postJson(url: string, body: unknown): Promise<unknown> {
+  const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(5_000) })
+  return response.ok ? response.json() : null
 }
 
 let running = false
@@ -103,6 +111,8 @@ let listener: PluginListenerHandle | null = null
 let tick: ReturnType<typeof setInterval> | null = null
 let sample: ReturnType<typeof setInterval> | null = null
 let lastPushed = ''
+let catchUp: CatchUp | null = null
+let catchingUp = false
 
 function pushState(machine: { state: () => { hostId: string; epoch: number; active: boolean } }, clock: { offsetMs: () => number | null }) {
   const state = machine.state()
@@ -114,7 +124,7 @@ function pushState(machine: { state: () => { hostId: string; epoch: number; acti
 
 function publish(machine: ReturnType<typeof createHostStateMachine>, url: string | null, error: string | null = null) {
   const state = machine.state()
-  useAndroidHostStore.getState().set({ running: true, url, hostId: state.hostId, epoch: state.epoch, active: state.active, priority: state.priority, lease: machine.lease(), error })
+  useAndroidHostStore.getState().set({ running: true, url, hostId: state.hostId, epoch: state.epoch, active: state.active, outdated: state.outdated, priority: state.priority, lease: machine.lease(), error })
 }
 
 /** Is the switch on (and is this the native app)? Read by the UI and at app start. */
@@ -153,19 +163,36 @@ export async function startAndroidHost(): Promise<void> {
     }
     return keysFor ? [await leaseKey(keysFor, workspaceId)] : []
   }
+  const accessCodeNow = async () => {
+    await keys()
+    return keysFor
+  }
+  // The band database as this app already holds it - never another band's, and none made up by a request.
+  const dbName = localDbName(workspaceId)
   const machine = createHostStateMachine({
     selfHostId: hostId,
+    workspaceId,
     baseEpoch: 1,
     loadRole: storedRole,
     saveRole: (role) => localStorage.setItem(ROLE_KEY, JSON.stringify(role)),
     hosts: hostsNow,
     keys,
-    probePrimary: getFromPrimary,
+    get: (url) => getJson(url),
+    post: (url, body) => postJson(url, body),
+    self: () => (urlNow && startedFingerprint ? { url: urlNow, fingerprint: startedFingerprint } : null),
+    accessCode: accessCodeNow,
+    catchUp: () => catchUp?.status() ?? null,
+    songRunning: async () => {
+      // A band that never played has no show-state yet: not running. A database that cannot be read throws: cannot tell.
+      const doc = (await getWorkspaceDb(workspaceId).get('show-state').catch((err: { status?: number }) => {
+        if (err.status === 404) return null
+        throw err
+      })) as { playbackStatus?: string } | null
+      return doc?.playbackStatus === 'playing'
+    },
     now: () => Date.now(),
   })
 
-  // The band as this app already holds it - never another band's database, and none made up by a request.
-  const dbName = localDbName(workspaceId)
   const open = (name: string) => (name === dbName ? (getWorkspaceDb(workspaceId) as unknown as SyncDatabase) : null)
   const syncHost = createSyncHost({ open })
   const guard = createWriteGuard({ open, security: async () => ({ admins: { roles: ['admin'] }, members: { roles: ['member', 'admin'] } }) })
@@ -250,6 +277,7 @@ export async function startAndroidHost(): Promise<void> {
             return result
           },
           acceptInvite,
+          verifyBandCode: async (band, code) => band === workspaceId && code === (await accessCodeNow()),
           // Only the host serves the band: a passive backup hands out no login to its data.
           issueAccount: async (raw) => (machine.state().active ? issuer.issue(raw) : null),
           sync: (ctx, request) => guard(ctx, request as SyncRequest, (r) => syncHost(r)),
@@ -274,23 +302,49 @@ export async function startAndroidHost(): Promise<void> {
   }
   refresh()
 
+  /** While out of date, the tablet pulls the backup's data into its own database (#947); once handed back it stops. */
+  const syncCatchUp = async () => {
+    if (!machine.state().outdated) {
+      catchUp?.stop()
+      catchUp = null
+      return
+    }
+    if (catchUp || catchingUp) return
+    catchingUp = true
+    try {
+      const other = (hostsNow() ?? []).find((h) => h.hostId !== hostId)
+      const key = (await keys())[0]
+      if (!other || !key) return
+      const base = other.url.replace(/\/+$/, '')
+      const account = (await postJson(`${base}/host/replication-account`, await signAccountRequest({ hostId, sentAt: Date.now() }, key)).catch(() => null)) as { username?: string; password?: string } | null
+      if (!account?.username || !account.password) return
+      const remote = new PouchDB(`${base}/db/${dbName}`, { auth: { username: account.username, password: account.password } }) as unknown as PouchDB.Database
+      catchUp = startCatchUp({ remote, local: getWorkspaceDb(workspaceId) as unknown as PouchDB.Database })
+    } finally {
+      catchingUp = false
+    }
+  }
+
   tick = setInterval(() => {
     void (async () => {
       await pinHosts()
-      const before = machine.state().active
-      if (await machine.takeoverCheck() === 'taken' || machine.state().active !== before) refresh()
-      else publish(machine, urlNow, null)
+      await machine.takeoverCheck()
+      void machine.sendOnce()
+      await machine.handbackCheck()
+      void syncCatchUp().catch(() => undefined)
+      publish(machine, urlNow, null)
       pushState(machine, clock)
     })().catch(() => undefined)
   }, TICK_MS)
 
   sample = setInterval(() => {
     void (async () => {
-      if (machine.state().active) return
+      // Only the backup keeps the primary's clock, to serve its band time after a takeover.
+      if (machine.state().active || machine.state().priority !== 2) return
       const primary = (hostsNow() ?? []).find((h) => h.priority === 1)
       if (!primary) return
       const t0 = Date.now()
-      const answer = (await getFromPrimary(primary.url).catch(() => null)) as { serverTime?: unknown } | null
+      const answer = (await getJson(`${primary.url.replace(/\/+$/, '')}/time`).catch(() => null)) as { serverTime?: unknown } | null
       const t1 = Date.now()
       if (answer && typeof answer.serverTime === 'number') clock.add({ t0, t1, serverTime: answer.serverTime })
     })().catch(() => undefined)
@@ -308,6 +362,8 @@ export async function stopAndroidHost(): Promise<void> {
   lastPushed = ''
   await listener?.remove().catch(() => undefined)
   listener = null
+  catchUp?.stop()
+  catchUp = null
   if (isNativeApp()) await LocalHost.stop().catch(() => undefined)
   useAndroidHostStore.getState().reset()
 }

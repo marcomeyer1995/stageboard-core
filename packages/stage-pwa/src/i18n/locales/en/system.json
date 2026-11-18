@@ -58,7 +58,7 @@
     "hostGroup": "Tablet as host",
     "hostGroupInfo": "Whether this tablet steps in as the band's host when the laptop fails.",
     "hostThisTablet": "This tablet",
-    "hostInfo": "Starts the host in the background. At first the tablet is only the backup and takes over once the primary has not answered for 5 s. Name it as the backup on the stage map.",
+    "hostInfo": "Starts the host in the background. Name it as the primary or the backup on the stage map. As the backup it takes over once the primary has not answered for 5 s.",
     "hostStart": "Start host",
     "hostStop": "Stop host",
     "hostNoBand": "No active band on this device.",
@@ -71,7 +71,9 @@
     "hostLease": "Lease",
     "hostNoLease": "none heard from the primary yet",
     "hostLeaseAlive": "from {{host}}, epoch {{epoch}}",
-    "hostLeaseSilent": "silent for {{seconds}} s"
+    "hostLeaseSilent": "silent for {{seconds}} s",
+    "hostPrimary": "Primary (the band's host)",
+    "hostOutdated": "Primary, out of date (copying from the backup)"
   },
   "save": "Save",
   "deviceName": {

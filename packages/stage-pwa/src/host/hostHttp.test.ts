@@ -10,10 +10,11 @@ const baseDeps = () => {
     address: '10.0.0.2',
     certFingerprint: 'b'.repeat(64),
     bandTime: () => 1_700_000_000_123,
-    state: () => ({ epoch: 2, active: false, priority: 2 }),
+    state: () => ({ epoch: 2, active: false, outdated: false, priority: 2 }),
     activeWorkspaceId: () => null,
     lease: () => ({ hostId: 'laptop', epoch: 1, alive: true, silentForMs: 200 }),
     acceptLease: vi.fn(async () => 'accepted' as const),
+    verifyBandCode: vi.fn(async (workspaceId: string, code: string) => workspaceId === 'leasetest' && code === '57832943'),
     issueAccount: vi.fn(async () => ({ username: 'u', password: 'p' })),
     acceptInvite: vi.fn(async () => ({ ok: true as const })),
     sync: vi.fn(async (_ctx, request) => {
@@ -81,6 +82,16 @@ describe('what a passive backup answers (#947)', () => {
     expect((await answerHostRequest({ method: 'POST', path: '/host/replication-account', query: {}, body: {} }, deps)).status).toBe(403)
   })
 
+  it('confirms the band code only while it is the host', async () => {
+    const { deps } = baseDeps()
+    const ask = (code: string) => answerHostRequest({ method: 'POST', path: '/workspaces/leasetest/roster', query: {}, body: { code } }, deps)
+    expect((await ask('57832943')).status).toBe(403) // passive backup
+    deps.state = () => ({ epoch: 2, active: true, priority: 1, outdated: false })
+    expect((await ask('57832943')).status).toBe(200)
+    expect((await ask('00000000')).status).toBe(403)
+    expect((await answerHostRequest({ method: 'POST', path: '/workspaces/leasetest/roster', query: {} }, deps)).status).toBe(403)
+  })
+
   it('answers unknown routes with 404', async () => {
     const { deps } = baseDeps()
     expect((await answerHostRequest({ method: 'GET', path: '/plugins/whatever', query: {} }, deps)).status).toBe(404)
@@ -90,7 +101,7 @@ describe('what a passive backup answers (#947)', () => {
 describe('when it has taken over (#947)', () => {
   it('serves the band to a logged-in device, with the write rules in front', async () => {
     const { deps, seen } = baseDeps()
-    deps.state = () => ({ epoch: 3, active: true, priority: 2 })
+    deps.state = () => ({ epoch: 3, active: true, outdated: false, priority: 2 })
     deps.activeWorkspaceId = () => 'leasetest'
     expect((await answerHostRequest({ method: 'GET', path: '/server/active-workspace', query: {} }, deps)).body).toEqual({ activeWorkspaceId: 'leasetest' })
     const answer = await answerHostRequest({ method: 'GET', path: '/db/stageboard-leasetest/_changes', query: { since: '4' }, authorization: 'Basic good' }, deps)
@@ -101,7 +112,7 @@ describe('when it has taken over (#947)', () => {
 
   it('refuses a device that is not of this band', async () => {
     const { deps } = baseDeps()
-    deps.state = () => ({ epoch: 3, active: true, priority: 2 })
+    deps.state = () => ({ epoch: 3, active: true, outdated: false, priority: 2 })
     expect((await answerHostRequest({ method: 'GET', path: '/db/stageboard-leasetest/_changes', query: {}, authorization: 'Basic bad' }, deps)).status).toBe(401)
     expect(deps.sync).not.toHaveBeenCalled()
   })

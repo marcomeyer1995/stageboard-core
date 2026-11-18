@@ -23,13 +23,15 @@ export interface AppHostDeps {
   certFingerprint: string
   /** Band time: own clock plus the primary's offset once there was a sample. */
   bandTime: () => number
-  state: () => HostRole & { priority: 1 | 2 | null }
+  state: () => HostRole & { outdated: boolean; priority: 1 | 2 | null }
   /** The band this tablet serves while it is the host - null while it is a passive backup. */
   activeWorkspaceId: () => string | null
   lease: () => LeaseStatus | null
   acceptLease: (raw: unknown) => Promise<'accepted' | 'ignored'>
   /** The primary teaching this tablet its band (#945): verified with the primary, never trusted blindly. */
   acceptInvite: (raw: unknown) => Promise<{ ok: true } | { ok: false; status: number; message: string }>
+  /** Is `code` this band's standing code? A fresh backup checks the invite's code with the primary this way (#945). */
+  verifyBandCode: (workspaceId: string, code: string) => Promise<boolean>
   /** The returned primary asking for a login to copy the tablet's data (#947): only while the tablet is the host. */
   issueAccount: (raw: unknown) => Promise<{ username: string; password: string } | null>
   /** A band database request, already past login: sync-host plus the write rules. */
@@ -80,6 +82,13 @@ export async function answerHostRequest(request: AppHostRequest, deps: AppHostDe
   if (path === '/server/host-lease' && method === 'GET') {
     const now = deps.state()
     return json(200, { lease: deps.lease(), clockOffsetMs: null, active: now.active, epoch: now.epoch, outdated: false })
+  }
+  const roster = /^\/workspaces\/([^/]+)\/roster$/.exec(path)
+  if (roster && method === 'POST') {
+    // Only the host answers for its band: a passive backup confirms no code.
+    const code = (request.body as { code?: unknown } | undefined)?.code
+    const ok = state.active && typeof code === 'string' && (await deps.verifyBandCode(decodeURIComponent(roster[1]!), code))
+    return ok ? json(200, { workspaceId: decodeURIComponent(roster[1]!), members: [] }) : json(403, { status: 'error' })
   }
   if (path === '/host/replication-account' && method === 'POST') {
     const account = await deps.issueAccount(request.body)

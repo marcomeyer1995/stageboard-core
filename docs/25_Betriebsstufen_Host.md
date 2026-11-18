@@ -221,7 +221,7 @@ The followers show Play within about ±15 ms of the master's own screen - the pu
 
 ## 6g. Android host as the backup - the tablet steps in (#947, 2026-11-18)
 
-First real test case for the host backup (#782 Teil B), and the cheapest way there: the laptop stays the primary, the tablet is the backup. The tablet already holds the band as a device - data, audio, logins - so nothing has to be provisioned for it.
+The tablet is a full band host, as the **backup** (#947 step 1) and as the **primary** (step 2). First step was the cheapest real test of the host backup (#782 Teil B): the laptop stays the primary, the tablet is the backup. The tablet already holds the band as a device - data, audio, logins - so nothing has to be provisioned for it.
 
 **What the app starts.** A switch (System → Stage-Server → "Tablet als Host") starts `LocalHostPlugin.java`: a small HTTPS server inside the app, certificate in the Android keystore, fingerprint stable across restarts. It answers `/time` (time, `hostId`, `epoch`, `active`), `/server-info` and the live channels (`show-state`, `switch-state`) itself; everything else goes to the app, which answers over its own PouchDB through `sync-host` - the same code the laptop host uses.
 
@@ -230,6 +230,14 @@ First real test case for the host backup (#782 Teil B), and the cheapest way the
 **How it becomes host.** The band's host list names the tablet as priority 2 and the laptop as priority 1. The laptop sends its signed lease every second (`hostLeaseAuth.ts`); the tablet verifies it with WebCrypto against the band's key - `HMAC(sha256, 'stageboard-host-lease', workspaceId \n accessCode)`. The code reaches the tablet from the primary itself: because the tablet serves no band, the primary's invite (#945) keeps arriving, the tablet checks the target id and the `sentAt` guard, has the primary confirm the code (`POST /workspaces/:id/roster`) and stores it. Nothing is typed.
 
 After **5 s without a lease** and a **failed direct `/time`** to the primary, the tablet raises the epoch above the last lease and serves the band: `/db` with the write rules (`_design/roster`), live channels, band time = own clock plus the offset it sampled while passive (so no device's clock jumps). A returned primary raises the epoch again (#935); the tablet sees an accepted lease with a higher epoch and steps back to passive. The lease/takeover rules are, for now, a second implementation of core-backend's (`host/hostState.ts`, `host/leaseKeeper.ts`); folding both into one host module is #932.
+
+**The tablet as the primary (#947 step 2).** Listed with priority 1 it serves the band at once (`active:true`, `/db`, live channels) and does what the Stage-Server primary does, from the same state machine (`host/hostState.ts`): it sends its signed lease every second; hands a login to the backup that copies its database (`POST /host/replication-account`, only while it is host); confirms the band code (`POST /workspaces/:id/roster`); and invites a listed backup that serves no band yet (`/host/join-band-invite`, every 5 s - the admin only names the hosts on the stage map). If the backup took over while the tablet was away, the lease reply carries a higher epoch: the tablet is **out of date**, stops serving, copies the backup's data (`host/catchUp.ts`, live PouchDB pull with a login the backup issues) and takes the host role back - above the backup's epoch - after 30 s of steady answers, a current and quiet copy and **no song running** (`show-state`); if that cannot be read it does not guess.
+
+**Measured as primary (2026-11-18, Redmi primary, a fresh laptop host E as backup, home Wi-Fi, no song):**
+- E was named backup on the map: the tablet invited it, E joined the band and copied 24 docs (`caught-up`) with no code typed; it heard the tablet's lease (clock offset -103 ms).
+- Tablet app stopped: E took over after **~5.3 s** (epoch 20). Tablet back: it came back passive (never two hosts), copied from E and took the role back after ~40 s (epoch 21), E passive again.
+- Second round: a document written on E while the tablet was away was on the tablet after the handback (epoch 23).
+- Not covered: audio (the tablet has no `/audio` route, so E's audio mirror shows 2 tracks missing - #781), devices following during a song, battery.
 
 **Limits.** Not the other ~70 routes (audio, presence, plugins, join) - #781. No foreground service, so the screen must stay on / the app in front; no hotspot. The switch is off by default and only in the native app.
 

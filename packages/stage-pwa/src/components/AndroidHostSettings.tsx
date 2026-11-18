@@ -40,7 +40,7 @@ export function AndroidHostSettings() {
           <dd className="text-ink">{status.epoch}</dd>
           <dt className="text-ink-muted">{t('server.hostRole')}</dt>
           <dd className="text-ink">
-            {status.priority === null ? t('server.hostNotListed') : status.active ? t('server.hostActive') : t('server.hostBackup')}
+            {status.priority === null ? t('server.hostNotListed') : status.outdated ? t('server.hostOutdated') : status.priority === 1 ? t('server.hostPrimary') : status.active ? t('server.hostActive') : t('server.hostBackup')}
           </dd>
           <dt className="text-ink-muted">{t('server.hostLease')}</dt>
           <dd className="text-ink">
