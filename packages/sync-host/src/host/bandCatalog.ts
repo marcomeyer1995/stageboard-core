@@ -57,6 +57,10 @@ export interface BandCreateRequest {
   adminPassword?: string
 }
 
+/** Letters, digits, dash and underscore: what a UUID or a typed name is made of - nothing that is a path or a query. */
+const BAND_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,99}$/
+const RESERVED_BAND_IDS = new Set(['default'])
+
 const error = (status: number, message: string, code?: string): BandAnswer => ({ status, body: { status: 'error', ...(code ? { code } : {}), message } })
 const ok = (body?: unknown, status = 200): BandAnswer => (body === undefined ? { status } : { status, body })
 
@@ -77,6 +81,11 @@ export function createBandCatalog(options: BandCatalogOptions) {
   return {
     async create(request: BandCreateRequest, remoteAddress?: string): Promise<BandAnswer> {
       const { workspaceId, founderId, workspaceName, deviceId } = request
+      // An id becomes a database name and a path part; a device finds its bands again from the names of its databases, so
+      // the names the app keeps for itself (`default`, copies of deleted bands) cannot be band ids.
+      if (!BAND_ID.test(workspaceId) || RESERVED_BAND_IDS.has(workspaceId) || workspaceId.startsWith('deleted-')) {
+        return error(400, 'Invalid band id')
+      }
       if (store.isDeleted(workspaceId)) {
         return error(409, 'This band was deleted - restore it via docs/03 §0b', 'deleted')
       }

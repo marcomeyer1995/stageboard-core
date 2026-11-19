@@ -125,4 +125,11 @@ describe('the tablet as a host of bands (#962)', () => {
     ).toBe(201)
     expect((await catalog.accessCode('band-a', { adminUsername: credentials.username, adminPassword: credentials.password })).status).toBe(200)
   })
+
+  it('answers a unicode name or password as a wrong login, not as a crash (#962)', async () => {
+    const { store } = setup()
+    await store.create('band-u', 'U', { founderId: 'f', deviceId: 'd' })
+    await expect(store.checkAdmin('band-u', 'Zoë', 'pässwörd €')).resolves.toBe(false)
+    await expect(store.login('band-u', '日本語', 'x')).resolves.toBeNull()
+  })
 })

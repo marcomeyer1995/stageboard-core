@@ -43,6 +43,15 @@ interface AccessDoc extends Record<string, unknown> {
   masterMode?: 'device' | 'account'
 }
 
+/** A Basic header from a name and password, as UTF-8 like the laptop's - `btoa` alone throws on a character beyond Latin-1, and a
+ * wrong login must be answered as one, not crash into a 500. */
+function basicHeader(username: string, password: string): string {
+  const bytes = new TextEncoder().encode(`${username}:${password}`)
+  let binary = ''
+  for (const byte of bytes) binary += String.fromCharCode(byte)
+  return `Basic ${btoa(binary)}`
+}
+
 /** 8 digits, zero-padded - the "WiFi password" a band writes down once (the laptop's rule, in the browser). */
 function generateAccessCode(): string {
   const value = new Uint32Array(1)
@@ -126,14 +135,14 @@ export function createTabletBandStore(deps: TabletBandStoreDeps): BandStore {
     async setMasterMode(workspaceId, masterMode) {
       await write(workspaceId, ACCESS_DOC_ID, (existing) => accessDoc(existing, (existing as AccessDoc | null)?.code ?? generateAccessCode(), (existing as AccessDoc | null)?.name ?? workspaceId, masterMode))
     },
-    login: (workspaceId, username, password) => accountsFor(workspaceId).login(`Basic ${btoa(`${username}:${password}`)}`),
+    login: (workspaceId, username, password) => accountsFor(workspaceId).login(basicHeader(username, password)),
     checkAdmin: async (workspaceId, username, password) => {
-      const login = await accountsFor(workspaceId).login(`Basic ${btoa(`${username}:${password}`)}`)
+      const login = await accountsFor(workspaceId).login(basicHeader(username, password))
       return login?.roles.includes('admin') ?? false
     },
     async isAdminOfAnyBand(username, password) {
       for (const workspaceId of await deps.bandIds()) {
-        const login = await accountsFor(workspaceId).login(`Basic ${btoa(`${username}:${password}`)}`)
+        const login = await accountsFor(workspaceId).login(basicHeader(username, password))
         if (login?.roles.includes('admin')) return true
       }
       return false

@@ -76,6 +76,16 @@ function fakeStore(overrides: Partial<BandStore> = {}) {
 const proof = { adminUsername: 'stageboard-band-a-p1~tablet', adminPassword: 'pw' }
 
 describe('the band life cycle', () => {
+  it('refuses a band id that is no safe name or that the app keeps for itself (#962)', async () => {
+    const { store } = fakeStore()
+    const catalog = createBandCatalog({ store })
+    for (const workspaceId of ['', 'a/b', 'a b', '../x', 'x?y', 'default', 'deleted-leasetest-2026', '-lead', 'a'.repeat(101)]) {
+      const refused = await catalog.create({ workspaceId, founderId: 'f', workspaceName: 'X', deviceId: 'd' })
+      expect(refused.status, workspaceId).toBe(400)
+    }
+    expect((await catalog.create({ workspaceId: '665e69d9-c603-4c44-8f8f-2a034d3656ea', founderId: 'f', workspaceName: 'X', deviceId: 'd' })).status).toBe(201)
+  })
+
   it('founds the first band on a host that holds none - no proof needed - and hands back the founder login', async () => {
     const { store } = fakeStore()
     const catalog = createBandCatalog({ store })
