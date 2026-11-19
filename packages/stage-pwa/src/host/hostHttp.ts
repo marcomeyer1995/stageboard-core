@@ -1,4 +1,4 @@
-import { createHostRoutes, matchHostRoute, type HostRoute, type HostRoutesDeps, type SyncRequest, type SyncResponse } from 'sync-host'
+import { createHostRoutes, matchChannelStream, matchHostRoute, type HostRoute, type HostRoutesDeps, type SyncRequest, type SyncResponse } from 'sync-host'
 
 /** A request as the native server hands it to the app (LocalHostPlugin.java). */
 export interface AppHostRequest {
@@ -86,6 +86,12 @@ export async function answerHostRequest(request: AppHostRequest, deps: AppHostDe
 
   if (path === '/server-info' && method === 'GET') {
     return json(200, { lanIp: deps.address, port: deps.port, hostname: 'stageboard.local', certFingerprint: deps.certFingerprint })
+  }
+  // A live stream the native server does not relay yet (it carries show state, switches and presence): the device
+  // lacks the capability - never a plain 404 (#962).
+  const stream = method === 'GET' ? matchChannelStream(path) : null
+  if (stream) {
+    return json(501, { error: 'capability_missing', capability: `live-stream:${stream.topic}`, reason: `This host does not relay the ${stream.topic} stream yet.` })
   }
   const band = bandOfPath(path)
   if (!band) return json(404, { error: 'not_found', reason: 'Not a route of this host.' })

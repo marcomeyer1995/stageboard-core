@@ -1,6 +1,7 @@
 import { pbkdf2Sync } from 'node:crypto'
 import { mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
-import * as showStatePushHub from './showStatePushHub.js'
+import { channelResets, discoverySessions, pluginHealth } from 'sync-host'
+import { createHostChannels } from 'sync-host'
 import { request as httpRequest } from 'node:http'
 import { request as httpsRequest, Server as HttpsServer } from 'node:https'
 import { tmpdir } from 'node:os'
@@ -23,13 +24,12 @@ import {
   getSnapshot as getDeviceInfoSnapshot,
   setEntry as setDeviceInfoEntry,
 } from './deviceInfoStore.js'
-import {
-  __resetDiscoverySessionStoreForTests,
-  getSnapshot as getDiscoverySnapshot,
-} from './discoverySessionStore.js'
 import { bandDbProxyRefusal, buildApp } from './index.js'
 import { LookupError } from './plugins/lookupError.js'
-import { __resetHealthStoreForTests, getSnapshot, setEntry } from './plugins/healthStore.js'
+const { __resetHealthStoreForTests, __resetDiscoverySessionStoreForTests } = channelResets
+const getDiscoverySnapshot = discoverySessions.getSnapshot
+const showStatePush = { subscribe: (band: string, fn: (event: unknown) => void) => createHostChannels({ presence: presence(), readBandDocs: async () => [] }).subscribe('show-state', band, fn as never) }
+const { getSnapshot, setEntry } = pluginHealth
 import { __resetPresenceStoreForTests, presence } from './presenceStore.js'
 
 const getPresenceSnapshot = (workspaceId: string) => presence().snapshot(workspaceId)
@@ -1433,8 +1433,8 @@ describe('Fastify routes', () => {
       vi.stubGlobal('fetch', fetchMock)
       const received: unknown[] = []
       const other: unknown[] = []
-      const off = showStatePushHub.subscribe('band-a', (event) => received.push(event))
-      const offOther = showStatePushHub.subscribe('band-b', (event) => other.push(event))
+      const off = showStatePush.subscribe('band-a', (event) => received.push(event))
+      const offOther = showStatePush.subscribe('band-b', (event) => other.push(event))
       const headers = basic('stageboard-band-a-p7~d7', 'pw')
       expect((await app.inject({ method: 'POST', url: '/workspaces/band-a/show-state/push', payload: push, headers })).statusCode).toBe(204)
       expect((await app.inject({ method: 'POST', url: '/workspaces/band-a/show-state/push', payload: push, headers })).statusCode).toBe(204)

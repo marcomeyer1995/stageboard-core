@@ -10,7 +10,7 @@ import {
   type LogicalDevice,
 } from 'shared-types'
 import { putDoc, putDocWithRetry, type DatabaseConfig } from './database.js'
-import * as discoverySessionStore from './discoverySessionStore.js'
+import { discoverySessions as discoverySessionStore } from 'sync-host'
 import { workspaceDbName } from './workspaceProvisioning.js'
 
 /** Same cadence discoverySessionStore.ts's own candidate-settle debounce uses - this is just

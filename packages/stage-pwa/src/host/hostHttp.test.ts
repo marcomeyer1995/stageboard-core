@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createBandAccounts, createBandJoin, createBandMembers, createPinThrottle, createHostDeviceInfo, createHostPresence, type AccountDoc, type SyncRequest } from 'sync-host'
+import { createBandAccounts, createBandJoin, createHostChannels, createBandMembers, createPinThrottle, createHostDeviceInfo, createHostPresence, type AccountDoc, type SyncRequest } from 'sync-host'
 import { answerHostRequest, bandOfPath, loginCheckOf, type AppHostDeps } from './hostHttp'
 
 /** The routes every host shares are tested once, in sync-host (routes.test.ts); here: the tablet's own, and its wiring of the shared ones. */
@@ -237,5 +237,22 @@ describe('loginCheckOf', () => {
     expect(add.status).toBe(201)
     const removed = await answerHostRequest({ method: 'DELETE', path: '/workspaces/leasetest/members/p2', query: {}, body: { adminUsername: made.username, adminPassword: made.password } }, deps)
     expect(removed.status).toBe(204)
+  })
+})
+
+describe('live channels on the tablet (#962)', () => {
+  it('feeds a channel through the shared routes, and answers a stream it does not relay with 501 and the missing capability - never 404', async () => {
+    const { deps } = baseDeps()
+    deps.channels = createHostChannels({ presence: deps.presence, readBandDocs: async () => [] })
+    deps.servesBand = () => true
+    deps.serving = () => true
+    deps.isBandDevice = async () => true
+    const seen: unknown[] = []
+    deps.channels.subscribe('plugin-health', 'leasetest', (snapshot) => seen.push(snapshot))
+    expect((await answerHostRequest({ method: 'POST', path: '/plugin-health/leasetest/report', query: {}, body: { pluginName: 'midi', status: 'online' } }, deps)).status).toBe(204)
+    expect(seen).toHaveLength(2)
+    const stream = await answerHostRequest({ method: 'GET', path: '/workspaces/leasetest/discovery/stream', query: {} }, deps)
+    expect(stream.status).toBe(501)
+    expect(stream.body).toMatchObject({ error: 'capability_missing', capability: 'live-stream:discovery' })
   })
 })

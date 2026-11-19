@@ -1,7 +1,7 @@
 import { API_VERSION_MISMATCH_CODE, apiVersionFits, HEALTH_TIMEOUT_MS, PluginInstallationSchema, type PluginInstallation } from 'shared-types'
 import { allDocs, ensureDb, waitForChange, type DatabaseConfig } from '../database.js'
 import { PLUGIN_CATALOG } from './catalog.js'
-import * as healthStore from './healthStore.js'
+import { pluginHealth as healthStore } from 'sync-host'
 import { hasPluginBundle, writePluginBundle } from './pluginBundleStore.js'
 import type { PluginRegistry } from './registry.js'
 

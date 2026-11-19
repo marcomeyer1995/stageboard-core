@@ -1,6 +1,6 @@
 import { registerPlugin, type PluginListenerHandle } from '@capacitor/core'
 import { AccessCodeSchema, HostJoinInviteSchema } from 'shared-types'
-import { BAND_SETTINGS_DOC_ID, createBandAccounts, createBandAccountStore, createBandCatalog, createHostDeviceInfo, createHostPresence, listedHostIds, createBandJoin, createBandMembers, createPinThrottle, createReplicationAccountIssuer, leaseKey, signAccountRequest, startCatchUp, type BandAccounts, type BandJoin, type BandMembers, type CatchUp, createSyncHost, createWriteGuard, type SyncDatabase, type SyncRequest } from 'sync-host'
+import { BAND_SETTINGS_DOC_ID, createBandAccounts, createBandAccountStore, createBandCatalog, createHostChannels, createHostDeviceInfo, createHostPresence, listedHostIds, createBandJoin, createBandMembers, createPinThrottle, createReplicationAccountIssuer, leaseKey, signAccountRequest, startCatchUp, type BandAccounts, type BandJoin, type BandMembers, type CatchUp, createSyncHost, createWriteGuard, type SyncDatabase, type SyncRequest } from 'sync-host'
 import { useBandSettingsStore } from '../store/useBandSettingsStore'
 import { useAndroidHostStore } from '../store/useAndroidHostStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
@@ -395,6 +395,16 @@ export async function startAndroidHost(): Promise<void> {
     isSelfRequest: (address) => address === '127.0.0.1' || address === '::1' || address === '::ffff:127.0.0.1',
   })
 
+  // The live channels, the same module the laptop runs (#962): what a device sends into one is answered by the shared
+  // routes; Discovery reads the band's plugins and logical devices from the tablet's own database.
+  const channels = createHostChannels({
+    presence,
+    readBandDocs: async (band, prefix) => {
+      const rows = await dbFor(band).allDocs({ startkey: prefix, endkey: `${prefix}\uffff`, include_docs: true })
+      return rows.rows.flatMap((row) => (row.doc ? [row.doc as unknown] : []))
+    },
+  })
+
   const syncHost = createSyncHost({ open })
   const guard = createWriteGuard({ open, security: async () => ({ admins: { roles: ['admin'] }, members: { roles: ['member', 'admin'] } }) })
   // The login the returned primary copies what was written while the tablet was host with (#947): the same issuer the
@@ -483,6 +493,7 @@ export async function startAndroidHost(): Promise<void> {
     members: (band) => (servesBand(band) ? membersFor(band) : null),
     presence,
     deviceInfo,
+    channels,
     serving,
     // The tablet serves every band it founded, and the band the lease makes it host of; a flash message needs a
     // device of it (the same login as the database).

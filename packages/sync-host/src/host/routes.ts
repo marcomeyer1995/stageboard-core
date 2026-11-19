@@ -17,6 +17,8 @@ import {
 import type { z } from 'zod'
 import type { BandCatalog } from './bandCatalog.js'
 import { createBandRoutes } from './bandRoutes.js'
+import { createChannelRoutes } from './channelRoutes.js'
+import type { HostChannels } from './channels/index.js'
 import type { BandJoin } from './bandJoin.js'
 import type { BandMembers } from './bandMembers.js'
 import type { LeaseStatus } from './leaseKeeper.js'
@@ -115,6 +117,10 @@ export interface HostRoutesDeps {
   /** Founding, listing, deleting, renaming, the access code, the master mode and the Device Ledger's block/remove
    * (#962). Absent: the host answers none of these itself. */
   bands?: BandCatalog
+  /** The live channels (#962): when given, the routes that feed them join the table. */
+  channels?: HostChannels
+  /** A line for the host's log. */
+  log?: (message: string, meta: Record<string, unknown>) => void
   /** What the host knows about each device (the Device Ledger). */
   deviceInfo: HostDeviceInfo
   /** The band as a joining device sees it, read from the band's own data. */
@@ -353,6 +359,7 @@ export function createHostRoutes(deps: HostRoutesDeps): HostRoute[] {
     ] satisfies HostRoute[]) : []),
     ...(membersOf ? memberRoutes(membersOf, refuseBand) : []),
     ...(deps.bands ? createBandRoutes(deps.bands) : []),
+    ...(deps.channels ? createChannelRoutes({ channels: deps.channels, refuseBand, isBandDevice: deps.isBandDevice, log: deps.log }) : []),
   ]
 }
 

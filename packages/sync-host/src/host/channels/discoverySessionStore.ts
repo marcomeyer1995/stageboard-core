@@ -9,8 +9,8 @@ import {
   type LogicalDevice,
   type PluginInstallation,
 } from 'shared-types'
-import { allDocs, type DatabaseConfig } from './database.js'
-import { workspaceDbName } from './workspaceProvisioning.js'
+/** Where a host reads a band's documents of one kind (`plugins:`, `logical-devices:`): the laptop's database, the tablet's PouchDB. */
+export type ReadBandDocs = (workspaceId: string, prefix: string) => Promise<unknown[]>
 
 type Subscriber = (snapshot: DiscoverySession) => void
 
@@ -67,13 +67,13 @@ export function subscribe(workspaceId: string, subscriber: Subscriber): () => vo
   return () => subscribers.delete(subscriber)
 }
 
-async function readLogicalDevices(database: DatabaseConfig, db: string): Promise<LogicalDevice[]> {
-  const docs = await allDocs<unknown>(database, db, { startkey: LOGICAL_DEVICE_PREFIX, endkey: `${LOGICAL_DEVICE_PREFIX}￰` })
+async function readLogicalDevices(read: ReadBandDocs, workspaceId: string): Promise<LogicalDevice[]> {
+  const docs = await read(workspaceId, LOGICAL_DEVICE_PREFIX)
   return docs.map((doc) => LogicalDeviceSchema.safeParse(doc)).filter((r) => r.success).map((r) => r.data)
 }
 
-async function readPlugins(database: DatabaseConfig, db: string): Promise<PluginInstallation[]> {
-  const docs = await allDocs<unknown>(database, db, { startkey: PLUGIN_PREFIX, endkey: `${PLUGIN_PREFIX}￰` })
+async function readPlugins(read: ReadBandDocs, workspaceId: string): Promise<PluginInstallation[]> {
+  const docs = await read(workspaceId, PLUGIN_PREFIX)
   return docs.map((doc) => PluginInstallationSchema.safeParse(doc)).filter((r) => r.success).map((r) => r.data)
 }
 
@@ -83,9 +83,8 @@ async function readPlugins(database: DatabaseConfig, db: string): Promise<Plugin
  * already uses for its own reconcile pass. A session started mid-gig doesn't need to react to
  * someone editing Logical Devices while it's running; stop and start again for that.
  */
-export async function start(database: DatabaseConfig, workspaceId: string, startedBy: string | null): Promise<void> {
-  const db = workspaceDbName(workspaceId)
-  const [plugins, logicalDevices] = await Promise.all([readPlugins(database, db), readLogicalDevices(database, db)])
+export async function start(read: ReadBandDocs, workspaceId: string, startedBy: string | null): Promise<void> {
+  const [plugins, logicalDevices] = await Promise.all([readPlugins(read, workspaceId), readLogicalDevices(read, workspaceId)])
   contextByWorkspace.set(workspaceId, { plugins: plugins.filter((p) => p.enabled), logicalDevices })
   stateByWorkspace.set(workspaceId, { active: true, startedAt: Date.now(), startedBy, candidates: [], identifying: null })
   clearPendingTimeout(workspaceId)

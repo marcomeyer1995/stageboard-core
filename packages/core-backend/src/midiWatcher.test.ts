@@ -61,7 +61,7 @@ const reportTriggered = vi.hoisted(() => vi.fn())
 const getSnapshot = vi.hoisted(() => vi.fn())
 const getPlugin = vi.hoisted(() => vi.fn())
 const subscribe = vi.hoisted(() => vi.fn(() => vi.fn()))
-vi.mock('./discoverySessionStore.js', () => ({ reportCandidate, reportTriggered, getSnapshot, getPlugin, subscribe }))
+vi.mock('sync-host', async (importOriginal) => ({ ...(await importOriginal<typeof import('sync-host')>()), discoverySessions: { reportCandidate, reportTriggered, getSnapshot, getPlugin, subscribe } }))
 
 const putDoc = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
 const putDocWithRetry = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))

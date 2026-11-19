@@ -53,14 +53,11 @@ import { readPersistedActiveWorkspace } from './activeWorkspaceStateStore.js'
 import { isSafePluginId, readPluginBundle } from './plugins/pluginBundleStore.js'
 import { allDocs, deleteDocUnless, getDoc, putDoc, putDocWithRetry, type DatabaseConfig, type DatabaseDoc } from './database.js'
 import * as deviceInfoStore from './deviceInfoStore.js'
-import * as deviceRelay from './deviceRelay.js'
-import * as discoverySessionStore from './discoverySessionStore.js'
 import { installShutdownHandlers, trackConnections } from './gracefulShutdown.js'
 import { registerAppRoutes } from './appDownload.js'
 import { certFingerprint } from './certFingerprint.js'
 import { startMdnsResponder } from './mdnsResponder.js'
 import { startPingLoop } from './pingLoop.js'
-import * as healthStore from './plugins/healthStore.js'
 import { LOOKUP_CATALOG } from './plugins/lookupCatalog.js'
 import { bandHasAddon, ULTIMATE_GUITAR_PLUGIN_ID, ULTIMATE_GUITAR_PROVIDER, YOUTUBE_DOWNLOAD_PLUGIN_ID } from './plugins/importAddons.js'
 import { runYtDlpSearch } from './ytDlp.js'
@@ -68,17 +65,14 @@ import { LookupRegistry } from './plugins/lookupRegistry.js'
 import { lookupErrorBody } from './plugins/lookupError.js'
 import { presence as presenceStore } from './presenceStore.js'
 import { registerHostRoutes } from './hostRoutes.js'
-import { createBandCatalog } from 'sync-host'
+import { createBandCatalog, createHostChannels } from 'sync-host'
 import { createLaptopBandStore } from './bandStore.js'
 import { createBandJoin, createBandMembers, createHostRoutes, createReplicationAccountIssuer, type BandJoin } from 'sync-host'
-import * as showStatePushHub from './showStatePushHub.js'
-import * as switchStateHub from './switchStateHub.js'
 import { PluginRegistry } from './plugins/registry.js'
 import { createPinThrottle } from 'sync-host'
 import { isLoopback, readDeletedWorkspaces } from './provisioningAuth.js'
 import { listDbs } from './database.js'
 import { decodeOscPacket, oscTargetFromConfig, setOscTargetResolver } from './plugins/oscPlugin.js'
-import * as oscInHub from './oscInHub.js'
 import { createWorkspaceHardwareController } from './workspaceHardwareController.js'
 import {
   deprovisionWorkspace,
@@ -244,6 +238,12 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
     user: process.env.STAGEBOARD_DB_USER ?? 'admin',
     password: process.env.STAGEBOARD_DB_PASSWORD ?? 'admin',
   }
+  // The live channels every host has (#962): one port over this process's stores; Discovery reads the band's plugins and
+  // logical devices from the database host.
+  const channels = createHostChannels({
+    presence: presenceStore(),
+    readBandDocs: (workspaceId, prefix) => allDocs<unknown>(database, workspaceDbName(workspaceId), { startkey: prefix, endkey: `${prefix}\uffff` }),
+  })
   // The accounts of every band: documents of the band's own database, the same ones the built-in database host signs
   // devices in with and the tablet writes (#960). One instance per band, with its own remembered logins.
   // The devices a band lists as its hosts have the role `host`, which lets them write the band's accounts with their own
@@ -404,220 +404,32 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
     done(null, payload)
   })
 
-  // Named '/plugin-health', not '/health', to avoid colliding with the plain server-liveness
-  // route above - this is a different concept (per-plugin reachability, not "is this
-  // process up"). SSE, not WebSocket: the traffic is one-directional broadcast plus
-  // occasional one-shot reports, which fits a kept-open Fastify reply and a plain POST with
-  // no new dependency (see #49 follow-up - this replaces the old the database `plugin-health` doc).
+  // The live channels (#962, step 2) are sync-host's: what a device sends into one (show state, switches, plugin health,
+  // device triggers, Discovery) is answered by the shared route table, and what it listens to is one transport here -
+  // each snapshot as a server-sent event. A named '/plugin-health', not '/health': per-plugin reachability, not liveness.
+  // No login on a stream: a page opens it with EventSource, which cannot send one (presence reveals only which
+  // already-visible roster member is active).
+  const openStream = (request: FastifyRequest, reply: FastifyReply, subscribe: (send: (payload: unknown) => void) => () => void) => {
+    beginSseStream(request, reply)
+    const unsubscribe = subscribe((payload) => reply.raw.write(`data: ${JSON.stringify(payload)}\n\n`))
+    request.raw.on('close', unsubscribe)
+  }
+  for (const topic of ['show-state', 'switch-state', 'presence', 'osc-in', 'discovery'] as const) {
+    app.get(`/workspaces/:workspaceId/${topic}/stream`, (request, reply) => {
+      const { workspaceId } = request.params as { workspaceId: string }
+      openStream(request, reply, (send) => channels.subscribe(topic, workspaceId, send))
+    })
+  }
   app.get('/plugin-health/:workspaceId/stream', (request, reply) => {
     const { workspaceId } = request.params as { workspaceId: string }
-    beginSseStream(request, reply)
-
-    const unsubscribe = healthStore.subscribe(workspaceId, (snapshot) => {
-      reply.raw.write(`data: ${JSON.stringify(snapshot)}\n\n`)
-    })
-    request.raw.on('close', unsubscribe)
+    openStream(request, reply, (send) => channels.subscribe('plugin-health', workspaceId, send))
   })
-
-  app.post('/plugin-health/:workspaceId/report', async (request, reply) => {
-    const { workspaceId } = request.params as { workspaceId: string }
-    const parsed = HealthReportSchema.safeParse(request.body)
-    if (!parsed.success) {
-      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
-    }
-
-    healthStore.setEntry(workspaceId, parsed.data.pluginName, {
-      status: parsed.data.status,
-      lastSeenAt: Date.now(),
-      message: parsed.data.message,
-    })
-    return reply.status(204).send()
-  })
-
-  // "Who's currently logged in, from how many devices" (see #21 ninth follow-up, at Marco's
-  // explicit request) - same SSE push pattern as plugin-health above, just keyed by deviceId
-  // instead of plugin name (presenceStore.ts). No auth on either route: presence only reveals
-  // which already-visible roster member is active right now, nothing a workspace's own access
-  // code doesn't already gate getting this far to see.
-  app.get('/workspaces/:workspaceId/presence/stream', (request, reply) => {
-    const { workspaceId } = request.params as { workspaceId: string }
-    beginSseStream(request, reply)
-
-    const unsubscribe = presenceStore().subscribe(workspaceId, (snapshot) => {
-      reply.raw.write(`data: ${JSON.stringify(snapshot)}\n\n`)
-    })
-    request.raw.on('close', unsubscribe)
-  })
-
-  // Fast lane for the master's show-state changes (#468): Play, Pause, Stop, Weiter reach every
-  // device at once instead of through database replication (up to 1 s from the Fire). The database
-  // write still happens on the master; devices keep whichever copy is newer (stateIssuedAt).
-  app.get('/workspaces/:workspaceId/show-state/stream', (request, reply) => {
-    const { workspaceId } = request.params as { workspaceId: string }
-    beginSseStream(request, reply)
-    const unsubscribe = showStatePushHub.subscribe(workspaceId, (push) => {
-      reply.raw.write(`data: ${JSON.stringify(push)}\n\n`)
-    })
-    request.raw.on('close', unsubscribe)
-  })
-
-  app.post('/workspaces/:workspaceId/show-state/push', async (request, reply) => {
-    const { workspaceId } = request.params as { workspaceId: string }
-    const parsed = ShowStatePushSchema.safeParse(request.body)
-    if (!parsed.success) {
-      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
-    }
-    // Only a device of this band may change what every tablet plays - its own database login, as for
-    // flash messages. Checked logins are remembered for a while: this is on the Play path.
-    if (!(await isBandDevice(workspaceId, request.headers.authorization))) {
-      app.log.warn({ workspaceId, remoteAddress: request.ip }, 'Show-state push refused - not signed in to this band')
-      return reply.status(401).send({ status: 'error', message: 'Only a device of this band can push the show state' })
-    }
-    const devices = showStatePushHub.broadcast(workspaceId, parsed.data)
-    app.log.info({ workspaceId, deviceId: parsed.data.deviceId, issuedAt: parsed.data.issuedAt, receivedMs: Date.now() - parsed.data.issuedAt, keys: Object.keys(parsed.data.patch), devices }, 'Show state pushed')
-    return reply.status(204).send()
-  })
-
-  // Switch states (docs/23 §11.5): a held blinder lights its button on every tablet at once. Any
-  // device of the band may - device commands need no show control (§5a).
-  // OSC as a trigger (#484): what the Stage-Server receives on its OSC port, to the devices that
-  // listen - the master running the rules and a device learning a button.
-  app.get('/workspaces/:workspaceId/osc-in/stream', (request, reply) => {
-    const { workspaceId } = request.params as { workspaceId: string }
-    beginSseStream(request, reply)
-    const unsubscribe = oscInHub.subscribe(workspaceId, (message) => {
-      reply.raw.write(`data: ${JSON.stringify(message)}\n\n`)
-    })
-    request.raw.on('close', unsubscribe)
-  })
-
-  app.get('/osc-in/info', async () => ({ port: OSC_IN_PORT }))
-
-  app.get('/workspaces/:workspaceId/switch-state/stream', (request, reply) => {
-    const { workspaceId } = request.params as { workspaceId: string }
-    beginSseStream(request, reply)
-    const unsubscribe = switchStateHub.subscribe(workspaceId, (event) => {
-      reply.raw.write(`data: ${JSON.stringify(event)}\n\n`)
-    })
-    request.raw.on('close', unsubscribe)
-  })
-
-  app.post('/workspaces/:workspaceId/switch-state/push', async (request, reply) => {
-    const { workspaceId } = request.params as { workspaceId: string }
-    const parsed = SwitchStateEventSchema.safeParse(request.body)
-    if (!parsed.success) {
-      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
-    }
-    if (!(await isBandDevice(workspaceId, request.headers.authorization))) {
-      app.log.warn({ workspaceId, remoteAddress: request.ip }, 'Switch state refused - not signed in to this band')
-      return reply.status(401).send({ status: 'error', message: 'Only a device of this band can switch' })
-    }
-    const devices = switchStateHub.broadcast(workspaceId, parsed.data)
-    if (parsed.data.kind !== 'held') app.log.info({ workspaceId, ...parsed.data, devices }, 'Switch state pushed')
-    return reply.status(204).send()
-  })
-
-  // Each device reports when a change reached it - the measurement behind PLAY_LEAD_MS.
-  app.post('/workspaces/:workspaceId/show-state/ack', async (request, reply) => {
-    const { workspaceId } = request.params as { workspaceId: string }
-    const parsed = ShowStatePushAckSchema.safeParse(request.body)
-    if (!parsed.success) {
-      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
-    }
-    const { deviceId, deviceName, issuedAt, receivedAt, via } = parsed.data
-    app.log.info({ workspaceId, deviceId, deviceName, issuedAt, via, delayMs: Math.round(receivedAt - issuedAt), remoteAddress: request.ip }, 'Show state reached device')
-    return reply.status(204).send()
-  })
-
-  // #10's HardwareSetup routing: a lighting/mixer cue fired from one tablet, relayed to
-  // whichever tablet the active HardwareSetup binds that capability to, since - unlike
-  // audio's continuous synced playbackStatus, which every tablet already watches on its own -
-  // a cue is a one-shot event with nothing to piggyback on. Same SSE push pattern as
-  // plugin-health/presence above, just keyed by (workspaceId, deviceId) via deviceRelay.ts
-  // instead of workspaceId alone, since this must reach exactly the one claimed device.
   app.get('/workspaces/:workspaceId/devices/:deviceId/trigger-stream', (request, reply) => {
     const { workspaceId, deviceId } = request.params as { workspaceId: string; deviceId: string }
-    beginSseStream(request, reply)
-
-    const unsubscribe = deviceRelay.subscribe(workspaceId, deviceId, (trigger) => {
-      reply.raw.write(`data: ${JSON.stringify(trigger)}\n\n`)
-    })
-    request.raw.on('close', unsubscribe)
+    openStream(request, reply, (send) => channels.subscribeDevice(workspaceId, deviceId, send))
   })
-
-  app.post('/workspaces/:workspaceId/devices/:deviceId/trigger', async (request, reply) => {
-    const { workspaceId, deviceId } = request.params as { workspaceId: string; deviceId: string }
-    const parsed = DeviceTriggerSchema.safeParse(request.body)
-    if (!parsed.success) {
-      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
-    }
-
-    const delivered = deviceRelay.relay(workspaceId, deviceId, parsed.data)
-    if (!delivered) {
-      return reply.status(200).send({ status: 'error', ...serverMessage('device.notConnected') })
-    }
-    return { status: 'ok' }
-  })
-
-  // Discovery Mode: bandwide, admin-initiated hardware detection (discoverySessionStore.ts) -
-  // same SSE broadcast pattern as presence/plugin-health above, keyed by workspaceId. Every
-  // connected tablet (and core-backend's own future native-MIDI watcher) reports what it sees
-  // and gets the same live session snapshot back; the store owns all resolution logic.
-  app.get('/workspaces/:workspaceId/discovery/stream', (request, reply) => {
-    const { workspaceId } = request.params as { workspaceId: string }
-    beginSseStream(request, reply)
-
-    const unsubscribe = discoverySessionStore.subscribe(workspaceId, (snapshot) => {
-      reply.raw.write(`data: ${JSON.stringify(snapshot)}\n\n`)
-    })
-    request.raw.on('close', unsubscribe)
-  })
-
-  app.post('/workspaces/:workspaceId/discovery/start', async (request, reply) => {
-    const { workspaceId } = request.params as { workspaceId: string }
-    const parsed = DiscoveryStartRequestSchema.safeParse(request.body ?? {})
-    if (!parsed.success) {
-      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
-    }
-    await discoverySessionStore.start(database, workspaceId, parsed.data.startedBy)
-    return { status: 'ok' }
-  })
-
-  app.post('/workspaces/:workspaceId/discovery/stop', async (request) => {
-    const { workspaceId } = request.params as { workspaceId: string }
-    discoverySessionStore.stop(workspaceId)
-    return { status: 'ok' }
-  })
-
-  app.post('/workspaces/:workspaceId/discovery/candidates', async (request, reply) => {
-    const { workspaceId } = request.params as { workspaceId: string }
-    const parsed = DiscoveryReportCandidateRequestSchema.safeParse(request.body)
-    if (!parsed.success) {
-      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
-    }
-    discoverySessionStore.reportCandidate(workspaceId, parsed.data.reporterId, parsed.data.detected)
-    return { status: 'ok' }
-  })
-
-  app.post('/workspaces/:workspaceId/discovery/triggered', async (request, reply) => {
-    const { workspaceId } = request.params as { workspaceId: string }
-    const parsed = DiscoveryTriggeredRequestSchema.safeParse(request.body)
-    if (!parsed.success) {
-      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
-    }
-    discoverySessionStore.reportTriggered(workspaceId, parsed.data.reporterId, parsed.data.hardwareKey)
-    return { status: 'ok' }
-  })
-
-  app.post('/workspaces/:workspaceId/discovery/assign', async (request, reply) => {
-    const { workspaceId } = request.params as { workspaceId: string }
-    const parsed = DiscoveryAssignRequestSchema.safeParse(request.body)
-    if (!parsed.success) {
-      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
-    }
-    discoverySessionStore.assign(workspaceId, parsed.data.reporterId, parsed.data.hardwareKey, parsed.data.logicalDeviceId)
-    return { status: 'ok' }
-  })
+  // OSC as a trigger (#484): the UDP port is a capability of this box; what arrives goes to the band's listeners.
+  app.get('/osc-in/info', async () => ({ port: OSC_IN_PORT }))
 
   const registry = new PluginRegistry()
 
@@ -885,6 +697,8 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
       },
       isBandDevice,
       bands,
+      channels,
+      log: (message, meta) => app.log.info(meta, message),
     }),
   )
 
@@ -1394,7 +1208,7 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
     await app.register(fastifyStatic, { root: pwaDist })
   }
 
-  return { app, registry, lookupRegistry, database, workspaceHardware, pluginLog, backups, hostLease, replication, audioMirror, catchUp }
+  return { app, registry, lookupRegistry, database, workspaceHardware, pluginLog, backups, hostLease, replication, audioMirror, catchUp, channels }
 }
 
 const port = Number(process.env.PORT ?? 3001)
@@ -1427,7 +1241,7 @@ async function main() {
     port: Number(process.env.STAGEBOARD_DB_PORT ?? 5984),
   })
   process.env.STAGEBOARD_DB_URL = builtinDb.url
-  const { app, lookupRegistry, workspaceHardware, pluginLog, database, backups, hostLease, replication, audioMirror, catchUp } = await buildApp()
+  const { app, lookupRegistry, workspaceHardware, pluginLog, database, backups, hostLease, replication, audioMirror, catchUp, channels } = await buildApp()
   app.log.info({ url: builtinDb.url }, 'Built-in database host')
   // Scheduled backups (daily time, USB medium plugged in) - checked every 30 s.
   backups.start()
@@ -1504,7 +1318,7 @@ async function main() {
         const messages = decodeOscPacket(packet)
         if (!workspaceId || messages.length === 0) return
         for (const message of messages) {
-          const devices = oscInHub.broadcast(workspaceId, { ...message, at: Date.now() })
+          const devices = channels.pushOscIn(workspaceId, { ...message, at: Date.now() })
           pluginLog.info('osc in', { address: message.address, args: message.args.length, from: remote.address, devices })
         }
       })
