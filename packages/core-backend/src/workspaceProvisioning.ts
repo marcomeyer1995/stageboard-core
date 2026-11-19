@@ -70,6 +70,9 @@ export const ROSTER_VALIDATOR_SOURCE = `function(newDoc, oldDoc, userCtx) {
   if (newDoc._id === 'host-accounts' && userCtx.roles.indexOf('_admin') === -1) {
     throw({forbidden: 'Only the Stage-Server writes the host accounts.'});
   }
+  if ((newDoc._id.indexOf('account:') === 0 || newDoc._id.indexOf('anchor:') === 0) && userCtx.roles.indexOf('_admin') === -1 && userCtx.roles.indexOf('host') === -1) {
+    throw({forbidden: 'Only a host writes the band accounts.'});
+  }
   if (newDoc._id.indexOf('hosts:') === 0 && userCtx.roles.indexOf('_admin') === -1) {
     var device = newDoc._id.slice(6);
     var own = typeof userCtx.name === 'string' && userCtx.name.slice(-(device.length + 1)) === '~' + device;

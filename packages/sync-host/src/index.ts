@@ -260,3 +260,5 @@ export { createHostLeaseService, TAKEOVER_AFTER_MS, INVITE_INTERVAL_MS, HANDBACK
 export { createHostRoutes, matchHostRoute, isSafeAudioId, type HostRoute, type HostRouteRequest, type HostRouteResponse, type HostRoutesDeps, type HostRoutesLease, type HostAudio } from './host/routes.js'
 export { trackKey, parseTrackKey, tracksOfVariantDocs, planTrackSync, type TrackRef, type TrackSyncPlan } from './host/trackSync.js'
 export { createBandAccounts, deviceUsername, memberUsername, workspaceDbName, type AccountDoc, type AccountStore, type BandAccounts, type BandAccountsOptions } from './host/bandAccounts.js'
+export { createPinThrottle, type PinThrottle, type PinThrottleOptions } from './host/pinThrottle.js'
+export { createBandJoin, type BandJoin, type BandJoinDeps, type BandJoinResponse } from './host/bandJoin.js'

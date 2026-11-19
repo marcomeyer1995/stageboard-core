@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { SyncRequest } from 'sync-host'
+import { createBandAccounts, createBandJoin, createPinThrottle, type AccountDoc, type SyncRequest } from 'sync-host'
 import { answerHostRequest, bandOfPath, loginCheckOf, type AppHostDeps } from './hostHttp'
 
 /** The routes every host shares are tested once, in sync-host (routes.test.ts); here: the tablet's own, and its wiring of the shared ones. */
@@ -149,5 +149,20 @@ describe('loginCheckOf', () => {
     expect(loginCheckOf('/_host-login/other')).toBeNull()
     expect(loginCheckOf('/_host-login/stageboard-x/extra')).toBeNull()
     expect(loginCheckOf('/db/stageboard-x')).toBeNull()
+  })
+
+  it('lets a device join the band through the tablet - the same answers as the Stage-Server - once it is the host', async () => {
+    const { deps } = baseDeps()
+    const docs = new Map<string, AccountDoc>()
+    const accounts = createBandAccounts({ workspaceId: 'leasetest', iterations: 1000, store: { get: async (id) => docs.get(id) ?? null, put: async (d) => void docs.set(d._id, d), list: async (p) => [...docs.values()].filter((d) => d._id.startsWith(p)) } })
+    const joinBand = createBandJoin({ accounts, throttle: createPinThrottle(), workspaceId: 'leasetest', accessCode: async () => '57832943', profile: async (id) => (id === 'p1' ? { stageRoles: ['admin'] } : null) })
+    deps.joinBand = (band) => (band === 'leasetest' ? joinBand : null)
+    const join = (code: string) => answerHostRequest({ method: 'POST', path: '/workspaces/leasetest/join/p1', query: {}, body: { code, password: '4711', deviceId: 'fire' } }, deps)
+    expect((await join('57832943')).status).toBe(503)
+    active(deps)
+    expect((await join('00000000')).status).toBe(403)
+    const joined = await join('57832943')
+    expect(joined.status).toBe(201)
+    expect(joined.body).toMatchObject({ username: 'stageboard-leasetest-p1~fire', isAdmin: true })
   })
 })

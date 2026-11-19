@@ -54,6 +54,24 @@ describe('roster validator - band settings', () => {
   })
 })
 
+describe('roster validator - band accounts (#960)', () => {
+  const validate = new Function(`return ${ROSTER_VALIDATOR_SOURCE}`)() as (doc: { _id: string; _deleted?: boolean }, old: unknown, ctx: { name?: string; roles: string[] }) => void
+
+  it('only a host (or the server admin) writes logins and PIN verifiers - not a member, not even a band admin\'s device', () => {
+    for (const id of ['account:stageboard-band-p1~d1', 'anchor:p1']) {
+      expect(() => validate({ _id: id }, null, { roles: ['member'] })).toThrow()
+      expect(() => validate({ _id: id }, null, { roles: ['member', 'admin'] })).toThrow()
+      expect(() => validate({ _id: id, _deleted: true }, null, { roles: ['member'] })).toThrow()
+      expect(() => validate({ _id: id }, null, { roles: ['member', 'host'] })).not.toThrow()
+      expect(() => validate({ _id: id }, null, { roles: ['_admin'] })).not.toThrow()
+    }
+  })
+
+  it('leaves every other document alone', () => {
+    expect(() => validate({ _id: 'accounts-note' }, null, { roles: ['member'] })).not.toThrow()
+  })
+})
+
 describe('roster validator - server tablets (docs/25 §6c)', () => {
   const validate = new Function(`return ${ROSTER_VALIDATOR_SOURCE}`)() as (doc: { _id: string; _deleted?: boolean }, old: unknown, ctx: { name?: string; roles: string[] }) => void
   const redmi = { name: 'stageboard-band-p1~dev-redmi', roles: ['member'] }

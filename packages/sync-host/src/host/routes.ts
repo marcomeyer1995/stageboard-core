@@ -1,4 +1,5 @@
-import { MasterHeartbeatReportSchema, PresenceReportSchema, type PresenceReport } from 'shared-types'
+import { JoinAsMemberRequestSchema, MasterHeartbeatReportSchema, PresenceReportSchema, VerifyAdminPinRequestSchema, type PresenceReport } from 'shared-types'
+import type { BandJoin } from './bandJoin.js'
 import type { LeaseStatus } from './leaseKeeper.js'
 
 /**
@@ -27,6 +28,8 @@ export interface HostRouteResponse {
   /** JSON body; absent for 204 and for bytes. */
   body?: unknown
   binary?: { data: Uint8Array; contentType: string }
+  /** Extra response headers (`Retry-After`). */
+  headers?: Record<string, string>
 }
 
 export interface HostRoute {
@@ -76,6 +79,9 @@ export interface HostRoutesDeps {
   /** The returned primary asking for a login to copy this host's data (#919). */
   issueAccount: (raw: unknown) => Promise<{ username: string; password: string } | null>
   audio: HostAudio
+  /** How a device becomes a member and an admin PIN is checked, for a band this host holds (null: not this host's band).
+   * Absent: the host does not answer these routes (the Stage-Server until its accounts move into the band, #960). */
+  joinBand?: (workspaceId: string) => BandJoin | null
   /** false: not the band of this host. */
   presence: {
     report: (workspaceId: string, report: PresenceReport) => boolean
@@ -84,6 +90,7 @@ export interface HostRoutesDeps {
 }
 
 const json = (status: number, body: unknown): HostRouteResponse => ({ status, body })
+const fromJoin = (r: { status: number; body: unknown; headers?: Record<string, string> }): HostRouteResponse => ({ status: r.status, body: r.body, ...(r.headers ? { headers: r.headers } : {}) })
 const passive = (): HostRouteResponse => json(503, { error: 'passive', reason: 'This host is the backup and is not serving the band.' })
 
 /** `decodeURIComponent` that gives "" instead of throwing - an undecodable id is simply not a safe one. */
@@ -97,6 +104,7 @@ const safeDecode = (part: string): string => {
 
 export function createHostRoutes(deps: HostRoutesDeps): HostRoute[] {
   const serving = () => deps.serving?.() ?? true
+  const joinBand = deps.joinBand
   const audioIds = (params: HostRouteRequest['params']) => ({ variantId: safeDecode(params.variantId ?? ''), trackId: safeDecode(params.trackId ?? '') })
 
   return [
@@ -187,6 +195,33 @@ export function createHostRoutes(deps: HostRoutesDeps): HostRoute[] {
         return deps.presence.heartbeat(safeDecode(request.params.workspaceId ?? ''), beat.data.deviceId) ? { status: 204 } : json(404, { error: 'not_found', reason: 'Not the band of this host.' })
       },
     },
+    ...(joinBand ? ([
+    {
+      method: 'POST',
+      pattern: '/workspaces/:workspaceId/join/:profileId',
+      handle: async (request) => {
+        const asked = JoinAsMemberRequestSchema.safeParse(request.body)
+        if (!asked.success) return json(400, { status: 'error', message: asked.error.issues[0]?.message })
+        if (!serving()) return passive()
+        // A band this host does not hold answers like a wrong code: it must not tell which bands exist.
+        const band = joinBand(safeDecode(request.params.workspaceId ?? ''))
+        if (!band) return json(403, { status: 'error', message: 'Wrong code' })
+        return fromJoin(await band.join(safeDecode(request.params.profileId ?? ''), asked.data))
+      },
+    },
+    {
+      method: 'POST',
+      pattern: '/workspaces/:workspaceId/verify-admin-pin',
+      handle: async (request) => {
+        const asked = VerifyAdminPinRequestSchema.safeParse(request.body)
+        if (!asked.success) return json(400, { status: 'error', message: asked.error.issues[0]?.message })
+        if (!serving()) return passive()
+        const band = joinBand(safeDecode(request.params.workspaceId ?? ''))
+        if (!band) return json(403, { status: 'error', message: 'Wrong admin or PIN' })
+        return fromJoin(await band.verifyPin(asked.data))
+      },
+    },
+    ] satisfies HostRoute[]) : []),
   ]
 }
 

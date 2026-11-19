@@ -54,6 +54,10 @@ export interface BandAccounts {
   login(authorization: string | undefined): Promise<{ name: string; roles: string[] } | null>
   setPin(profileId: string, pin: string): Promise<void>
   checkPin(profileId: string, pin: string): Promise<boolean>
+  /** Whether this person has a PIN (a revoked one counts as none). */
+  hasPin(profileId: string): Promise<boolean>
+  /** Whether this person has any login or PIN that is not revoked - i.e. was let in before. */
+  knownMember(profileId: string): Promise<boolean>
   /** Revokes every device login and the PIN of a person. */
   removeMember(profileId: string): Promise<void>
   /** Gives every device login of a person the admin role, or takes it away. */
@@ -123,6 +127,16 @@ export function createBandAccounts(options: BandAccountsOptions): BandAccounts {
 
     async checkPin(profileId, pin) {
       return matches(await store.get(`${ANCHOR}${profileId}`), pin)
+    },
+
+    async hasPin(profileId) {
+      const doc = await store.get(`${ANCHOR}${profileId}`)
+      return !!doc && !doc.revoked && !!doc.derived_key
+    },
+
+    async knownMember(profileId) {
+      if (await this.hasPin(profileId)) return true
+      return (await devicesOf(profileId)).some((d) => !d.revoked)
     },
 
     async removeMember(profileId) {

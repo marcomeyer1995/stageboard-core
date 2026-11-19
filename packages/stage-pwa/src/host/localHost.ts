@@ -1,6 +1,6 @@
 import { registerPlugin, type PluginListenerHandle } from '@capacitor/core'
 import { AccessCodeSchema, HostJoinInviteSchema } from 'shared-types'
-import { createHostLogin, createHostPresence, leaseKey, signAccountRequest, startCatchUp, type CatchUp, createSyncHost, createWriteGuard, HOST_ACCOUNTS_DOC_ID, type HostAccount, type SyncDatabase, type SyncRequest } from 'sync-host'
+import { createBandAccounts, createBandJoin, createPinThrottle, createHostLogin, createHostPresence, leaseKey, signAccountRequest, startCatchUp, type CatchUp, createSyncHost, createWriteGuard, HOST_ACCOUNTS_DOC_ID, type HostAccount, type SyncDatabase, type SyncRequest } from 'sync-host'
 import { useBandSettingsStore } from '../store/useBandSettingsStore'
 import { useAndroidHostStore } from '../store/useAndroidHostStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
@@ -13,6 +13,7 @@ import { getAudioStorageBackend } from '../lib/audioStorageBackend'
 import { createHostAudio } from './hostAudio'
 import { isNativeApp, pinListedHosts } from '../lib/native'
 import { getWorkspaceDb, localDbName } from '../lib/workspaceDb'
+import { createBandAccountStore } from './bandAccountStore'
 
 /**
  * The tablet as the band's host (host backup, #947, docs/25 §6g): a switch starts a small native
@@ -231,7 +232,17 @@ export async function startAndroidHost(): Promise<void> {
     load: () => readJson(ACCOUNTS_KEY),
     save: (state) => localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(state)),
   })
-  const login = createHostLogin({
+  // The band's own accounts (#960): logins and PIN verifiers as documents of the band database, the same code the
+  // Stage-Server runs. The older logins (`host-accounts`, written by a Stage-Server on CouchDB) still work next to them.
+  const accounts = createBandAccounts({ store: createBandAccountStore(getWorkspaceDb(workspaceId) as never), workspaceId })
+  const joinBand = createBandJoin({
+    accounts,
+    throttle: createPinThrottle(),
+    workspaceId,
+    accessCode: accessCodeNow,
+    profile: async (profileId) => (await getWorkspaceDb(workspaceId).get(`profiles:${profileId}`).catch(() => null)) as { stageRoles?: string[] } | null,
+  })
+  const listedLogin = createHostLogin({
     accounts: async (db) => {
       const store = db === dbName ? open(db) : null
       if (!store) return []
@@ -239,6 +250,7 @@ export async function startAndroidHost(): Promise<void> {
       return [...(doc?.accounts ?? []), ...issuer.accounts()]
     },
   })
+  const login: typeof listedLogin = async (authorization, db) => (db === dbName ? await accounts.login(authorization) : null) ?? listedLogin(authorization, db)
 
   const acceptInvite = async (raw: unknown) => {
     const invite = HostJoinInviteSchema.safeParse(raw)
@@ -305,6 +317,7 @@ export async function startAndroidHost(): Promise<void> {
     activeWorkspaceId: () => workspaceId,
     acceptInvite,
     audio: hostAudio,
+    joinBand: (band) => (band === workspaceId ? joinBand : null),
     presence: {
       report: (band, report) => band === workspaceId && presence.report(report),
       heartbeat: (band, deviceId) => band === workspaceId && presence.heartbeat({ deviceId }),

@@ -76,4 +76,11 @@ describe('the shared host routes on Fastify (#949)', () => {
     expect(bad.statusCode).toBe(400)
     expect(bad.json().status).toBe('error')
   })
+
+  it('passes the headers of an answer on (Retry-After of a locked PIN)', async () => {
+    const { app } = build({ joinBand: () => ({ join: async () => ({ status: 429, body: { status: 'error' }, headers: { 'Retry-After': '42' } }), verifyPin: async () => ({ status: 200, body: {} }) }) })
+    const response = await app.inject({ method: 'POST', url: '/workspaces/band-a/join/p1', payload: { code: 'x', deviceId: 'd' } })
+    expect(response.statusCode).toBe(429)
+    expect(response.headers['retry-after']).toBe('42')
+  })
 })

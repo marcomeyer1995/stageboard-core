@@ -1,4 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
+import { createBandAccounts } from './bandAccounts.js'
+import { createBandJoin } from './bandJoin.js'
+import { createPinThrottle } from './pinThrottle.js'
 import { createHostRoutes, matchHostRoute, type HostAudio, type HostRoutesDeps, type HostRouteResponse } from './routes.js'
 
 function audioStub(): HostAudio & { files: Map<string, Uint8Array> } {
@@ -159,5 +162,44 @@ describe('presence and the master\'s heartbeat', () => {
   it('answers 404 for a band that is not the host\'s', async () => {
     const d = deps({ presence: { report: vi.fn(() => false), heartbeat: vi.fn(() => false) } })
     expect((await call(d, 'POST', '/workspaces/other/master-heartbeat', { deviceId: 'fire' }))?.status).toBe(404)
+  })
+})
+
+describe('joining and the admin PIN', () => {
+  const memberDeps = (over: Partial<HostRoutesDeps> = {}) => {
+    const docs = new Map<string, Record<string, unknown> & { _id: string }>()
+    const accounts = createBandAccounts({
+      workspaceId: 'leasetest',
+      iterations: 1000,
+      store: { get: async (id) => docs.get(id) ?? null, put: async (d) => void docs.set(d._id, d), list: async (p) => [...docs.values()].filter((d) => d._id.startsWith(p)) },
+    })
+    const join = createBandJoin({ accounts, throttle: createPinThrottle(), workspaceId: 'leasetest', accessCode: async () => '57832943', profile: async (id) => (id === 'p1' ? { stageRoles: ['admin'] } : id === 'p2' ? {} : null) })
+    return deps({ joinBand: (ws) => (ws === 'leasetest' ? join : null), ...over })
+  }
+
+  it('lets a device join with the band code and answers with its own login', async () => {
+    const r = await call(memberDeps(), 'POST', '/workspaces/leasetest/join/p2', { code: '57832943', deviceId: 'fire' })
+    expect(r?.status).toBe(201)
+    expect(r?.body).toMatchObject({ username: 'stageboard-leasetest-p2~fire', isAdmin: false })
+  })
+
+  it('answers 400 for a body that does not fit, and 403 (not 404) for a band it does not hold', async () => {
+    expect((await call(memberDeps(), 'POST', '/workspaces/leasetest/join/p2', { deviceId: 'fire' }))?.status).toBe(400)
+    expect((await call(memberDeps(), 'POST', '/workspaces/other/join/p2', { code: '57832943', deviceId: 'fire' }))?.status).toBe(403)
+  })
+
+  it('checks an admin PIN: the first join chooses it, the check answers 200 or 403, 429 with the header after too many', async () => {
+    const d = memberDeps()
+    await call(d, 'POST', '/workspaces/leasetest/join/p1', { code: '57832943', password: '4711', deviceId: 'fire' })
+    expect((await call(d, 'POST', '/workspaces/leasetest/verify-admin-pin', { profileId: 'p1', pin: '4711' }))?.status).toBe(200)
+    for (let i = 0; i < 5; i++) await call(d, 'POST', '/workspaces/leasetest/verify-admin-pin', { profileId: 'p1', pin: '0000' })
+    const locked = await call(d, 'POST', '/workspaces/leasetest/verify-admin-pin', { profileId: 'p1', pin: '4711' })
+    expect(locked?.status).toBe(429)
+    expect(locked?.headers).toEqual({ 'Retry-After': '300' })
+  })
+
+  it('is refused with 503 while passive, and not there at all on a host without members', async () => {
+    expect((await call(memberDeps({ serving: () => false }), 'POST', '/workspaces/leasetest/join/p2', { code: '57832943', deviceId: 'x' }))?.status).toBe(503)
+    expect(await call(deps(), 'POST', '/workspaces/leasetest/join/p2', { code: '57832943', deviceId: 'x' })).toBeNull()
   })
 })
