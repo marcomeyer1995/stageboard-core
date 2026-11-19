@@ -23,7 +23,8 @@ import { createReplicationAccountIssuer } from './replicationAccount.js'
 import { createReplicationRunner } from './replicationRunner.js'
 import { createAudioMirror } from './audioMirror.js'
 import { createBandBootstrapStore, joinBandInvite, effectiveHosts, joinBand } from './bandJoin.js'
-import { mirrorTracksOf, readLocalRevision, saveMirrorFile } from './audioMirrorFiles.js'
+import { listHeldKeys, saveMirrorFile } from './audioMirrorFiles.js'
+import { tracksOfVariantDocs } from 'sync-host'
 import { createPinnedFetch } from './pinnedFetch.js'
 import { corsOriginAllowed } from './corsOrigin.js'
 import { HostLookupQuerySchema, lookUpHost } from './hostLookup.js'
@@ -1098,8 +1099,8 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
     workspaceId: () => workspaceHardware.getActiveWorkspaceId(),
     readHosts: (workspaceId) => readBandHosts(workspaceId),
     passive: () => hostLease.passiveBackup(),
-    listTracks: async (workspaceId) => mirrorTracksOf(await allDocs<CouchDoc & Record<string, unknown>>(couch, workspaceDbName(workspaceId), { startkey: 'song-variants:', endkey: 'song-variants:\ufff0'})),
-    localRevision: readLocalRevision,
+    listTracks: async (workspaceId) => tracksOfVariantDocs(await allDocs<CouchDoc & Record<string, unknown>>(couch, workspaceDbName(workspaceId), { startkey: 'song-variants:', endkey: 'song-variants:\ufff0'})),
+    heldKeys: listHeldKeys,
     fetchFile: async (baseUrl, fingerprint, variantId, trackId) => {
       const response = await createPinnedFetch(fingerprint)(`${baseUrl}/audio/${variantId}/${trackId}`)
       return response.ok ? Buffer.from(await response.arrayBuffer()) : null

@@ -1,11 +1,5 @@
 import { BandHostsSchema, type BandHostEntry } from 'shared-types'
-
-export interface MirrorTrack {
-  variantId: string
-  trackId: string
-  /** TrackMeta.fileRev: bumped when the stored file is replaced under the same id. Absent = the first file. */
-  fileRev?: number
-}
+import { parseTrackKey, planTrackSync, trackKey, type TrackRef } from 'sync-host'
 
 export interface MirrorStatus {
   /** Tracks the replicated song variants list. */
@@ -36,23 +30,15 @@ export function createAudioMirror(deps: {
   readHosts: (workspaceId: string) => Promise<readonly BandHostEntry[] | null>
   /** True while this host is the band's backup and has not taken over. */
   passive: () => boolean
-  listTracks: (workspaceId: string) => Promise<MirrorTrack[]>
-  /** What this host holds of the track: null = no file, else the revision it was saved with (null = none recorded). */
-  localRevision: (variantId: string, trackId: string) => Promise<{ rev: number | null } | null>
+  listTracks: (workspaceId: string) => Promise<TrackRef[]>
+  /** What this host holds, as track keys (`trackKey`): the revision a file was saved with is part of its key. */
+  heldKeys: () => Promise<string[]>
   /** The file from the primary, or null if it does not have it. */
   fetchFile: (baseUrl: string, fingerprint: string | undefined, variantId: string, trackId: string) => Promise<Buffer | null>
   saveFile: (variantId: string, trackId: string, rev: number | null, data: Buffer) => Promise<void>
 }): AudioMirror {
   let status: MirrorStatus | null = null
   let busy = false
-
-  /** Present when a file is here and, if the track names a revision, it was saved with that one. A file with
-   * no recorded revision is taken as current for a track that names none. */
-  const current = async (track: MirrorTrack): Promise<boolean> => {
-    const have = await deps.localRevision(track.variantId, track.trackId)
-    if (have === null) return false
-    return track.fileRev === undefined ? true : have.rev === track.fileRev
-  }
 
   return {
     async tick() {
@@ -68,14 +54,14 @@ export function createAudioMirror(deps: {
 
         const tracks = await deps.listTracks(workspaceId)
         const baseUrl = primary.url.replace(/\/+$/, '')
-        let present = 0
+        // The rule of what is current is the one every store of tracks uses (sync-host's trackSync): held in the revision the
+        // track names, or missing. Nothing is ever removed here - a mirror only adds.
+        const plan = planTrackSync(tracks.map((t) => trackKey(t.variantId, t.trackId, t.fileRev)), await deps.heldKeys())
+        let present = plan.present
         let missing = 0
-        for (const track of tracks) {
-          if (await current(track)) {
-            present += 1
-            continue
-          }
+        for (const key of plan.fetch) {
           if (!deps.passive()) break
+          const track = parseTrackKey(key)
           try {
             const data = await deps.fetchFile(baseUrl, primary.certFingerprint, track.variantId, track.trackId)
             if (data === null) {
