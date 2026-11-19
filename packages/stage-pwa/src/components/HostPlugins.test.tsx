@@ -23,13 +23,15 @@ describe('HostPlugins (docs/25 §6, 2026-11-07)', () => {
       arch: 'x64',
       database: 'builtin',
       plugins: [
-        { id: 'stem-separation', available: false, needs: 'demucs' },
+        { id: 'stem-separation', available: false, needs: 'demucs', note: 'Läuft über Nacht, wenn du es auf einem Laptop startest.' },
         { id: 'osc', available: true, needs: null },
         { id: 'youtube-download', available: true, needs: null },
       ],
     }
     render(<HostPlugins canInstall />)
     expect(await screen.findByText('läuft auf diesem Host nicht - braucht demucs')).toBeInTheDocument()
+    // Why it is missing or slow and how to improve it - in the person's words, from the host (#962).
+    expect(screen.getByText('Läuft über Nacht, wenn du es auf einem Laptop startest.')).toBeInTheDocument()
     expect(screen.getByText('installiert')).toBeInTheDocument()
     const buttons = screen.getAllByRole('button', { name: 'Installieren' })
     expect(buttons).toHaveLength(1)

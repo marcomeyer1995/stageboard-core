@@ -1,16 +1,31 @@
-import { JOB_IDS, unavailableJobs } from 'sync-host'
+import { JOB_IDS } from 'sync-host'
 import type { HostCapabilities } from 'shared-types'
 
 /**
- * What a tablet host can do (#962, step 3): its power alone decides. It holds bands, syncs, relays and serves audio -
- * everything of the shared host module - but runs no Node: every job that needs one is refused with the reason, and a
- * phone sends it to a host that can. The heavy plugins of the build are listed with what they need, so the app shows
- * them as "not on this device" instead of hiding them.
+ * What a tablet host can do (#962, step 3/4). Only the power of the device decides, and **everything that is technically
+ * feasible is allowed** (Marco, 2026-11-19): a tablet is not refused for being a tablet. What it does today is everything of
+ * the shared host module - bands, sync, live channels, audio, accounts. What it does not do *yet* is said as that
+ * ("not built for Android yet", feasible), never as "impossible", and each entry says in plain words why it would be slow and
+ * how to improve it - so the person can decide to wait (overnight, charging) or to send the job to a stronger device.
  */
-const DESKTOP_ONLY = 'a desktop machine (Windows, macOS or Linux)'
+const NOT_BUILT = 'an Android version of it (not built yet)'
+
+const SLOW_HEAVY =
+  'A tablet works on this with a much weaker processor and far less memory than a laptop, so it takes much longer and the tablet gets hot and drains its battery. It can run overnight while charging. To make it faster: do it on a laptop (more cores, or a graphics card) or a newer, stronger tablet.'
+
+const NOTES: Record<string, string> = {
+  'stem-separation': SLOW_HEAVY,
+  speech: SLOW_HEAVY,
+  'piper-speech': SLOW_HEAVY,
+  'youtube-download': 'A tablet downloads YouTube itself with the add-on\'s Android helper (a separate app the band installs once); it does not yet do it for other devices. That works today on the tablet you hold.',
+  'osc-in': 'Needs a network port the app can listen on; Android allows it, it is not built yet. Until then, send OSC to a laptop host.',
+  backup: 'Copying the band to a drive needs the folder access Android asks for; feasible, not built yet. Until then, back up on a laptop host.',
+}
+
 const HEAVY_PLUGINS = ['stem-separation', 'piper-speech', 'ultimate-guitar-import', 'youtube-download']
 
 export function createTabletCapabilities(device: { platform: string; arch?: string; cpuCores?: number; memoryMb?: number }): HostCapabilities {
+  const entry = (id: string) => ({ id, available: false, needs: NOT_BUILT, ...(NOTES[id] ? { note: NOTES[id] } : {}) })
   return {
     kind: 'android',
     platform: device.platform,
@@ -18,8 +33,8 @@ export function createTabletCapabilities(device: { platform: string; arch?: stri
     database: 'builtin',
     ...(device.cpuCores && device.cpuCores > 0 ? { cpuCores: Math.floor(device.cpuCores) } : {}),
     ...(device.memoryMb && device.memoryMb > 0 ? { memoryMb: Math.floor(device.memoryMb) } : {}),
-    jobs: unavailableJobs(DESKTOP_ONLY, JOB_IDS),
-    plugins: HEAVY_PLUGINS.map((id) => ({ id, available: false, needs: DESKTOP_ONLY })),
+    jobs: JOB_IDS.map(entry),
+    plugins: HEAVY_PLUGINS.map(entry),
   }
 }
 

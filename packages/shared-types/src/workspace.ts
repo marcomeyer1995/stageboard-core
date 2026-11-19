@@ -356,7 +356,13 @@ export type SetOwnPinResult = z.infer<typeof SetOwnPinResultSchema>
  * refused with 501 and that reason, never with 404. `plugins` are the same for the plugins of this build that run on
  * the host (a Linux PC the download tool and stem separation, an Android host none of the heavy ones).
  */
-const CapabilityEntrySchema = z.object({ id: z.string(), available: z.boolean(), needs: z.string().nullable() })
+const CapabilityEntrySchema = z.object({
+  id: z.string(),
+  available: z.boolean(),
+  needs: z.string().nullable(),
+  /** Plain words for the person: why it is slow or missing here and how to improve it (a stronger device, charging, waiting). */
+  note: z.string().optional(),
+})
 export const HostCapabilitiesSchema = z.object({
   kind: z.enum(['desktop', 'android']),
   platform: z.string(),
