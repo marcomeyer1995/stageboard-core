@@ -1,3 +1,4 @@
+import { getDeviceId } from '../lib/deviceId'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // This store now imports workspaceDb.ts (removeWorkspaceLocally's destroyLocalWorkspaceDb),
@@ -136,7 +137,8 @@ describe('connectWorkspace', () => {
 
     const [url, init] = fetchMock.mock.calls[0]
     expect(url).toBe('https://stage-server:3001/workspaces')
-    expect(JSON.parse(init.body)).toEqual({ workspaceId: 'band-a', founderId: 'founder-id', workspaceName: 'Band A' })
+    // The founding device gets its own login, like every device (#960).
+    expect(JSON.parse(init.body)).toEqual({ workspaceId: 'band-a', founderId: 'founder-id', workspaceName: 'Band A', deviceId: getDeviceId() })
   })
 
   it('alerts and returns false, leaving the workspace local-only, when the server call fails', async () => {

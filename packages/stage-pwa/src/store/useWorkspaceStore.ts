@@ -256,7 +256,7 @@ function noServerMessage(): string {
  */
 async function provisionWithProof(
   base: string,
-  body: { workspaceId: string; founderId: string; workspaceName: string },
+  body: { workspaceId: string; founderId: string; workspaceName: string; deviceId: string },
   known: Workspace[],
 ): Promise<{ username: string; password: string } | null> {
   const dialogs = useDialogStore.getState()
@@ -316,7 +316,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
 
         let credentials: { username: string; password: string }
         try {
-          const provisioned = await provisionWithProof(base, { workspaceId: id, founderId, workspaceName: name }, get().workspaces)
+          const provisioned = await provisionWithProof(base, { workspaceId: id, founderId, workspaceName: name, deviceId: getDeviceId() }, get().workspaces)
           if (!provisioned) return null
           credentials = provisioned
         } catch (err) {
@@ -346,7 +346,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
         try {
           const credentials = await provisionWithProof(
             serverUrl,
-            { workspaceId, founderId: workspace.ownProfileId, workspaceName: workspace.name },
+            { workspaceId, founderId: workspace.ownProfileId, workspaceName: workspace.name, deviceId: getDeviceId() },
             get().workspaces,
           )
           if (!credentials) return false

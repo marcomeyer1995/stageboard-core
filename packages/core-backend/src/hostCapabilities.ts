@@ -39,7 +39,7 @@ export function hostCapabilities(checks: Record<string, PluginCheck> = PLUGIN_CH
     kind: 'stage-server',
     platform: process.platform,
     arch: process.arch,
-    database: process.env.STAGEBOARD_DB === 'builtin' ? 'builtin' : 'couchdb',
+    database: 'builtin',
     plugins: catalog
       .filter((id) => !id.startsWith('mock-'))
       .map((id) => {

@@ -1,6 +1,6 @@
 import { registerPlugin, type PluginListenerHandle } from '@capacitor/core'
 import { AccessCodeSchema, HostJoinInviteSchema } from 'shared-types'
-import { createBandAccounts, createBandAccountStore, createBandJoin, createBandMembers, createPinThrottle, createHostLogin, createHostPresence, leaseKey, signAccountRequest, startCatchUp, type CatchUp, createSyncHost, createWriteGuard, HOST_ACCOUNTS_DOC_ID, type HostAccount, type SyncDatabase, type SyncRequest } from 'sync-host'
+import { createBandAccounts, createBandAccountStore, createBandJoin, createBandMembers, createPinThrottle, createHostLogin, createHostPresence, leaseKey, signAccountRequest, startCatchUp, type CatchUp, createSyncHost, createWriteGuard, type SyncDatabase, type SyncRequest } from 'sync-host'
 import { useBandSettingsStore } from '../store/useBandSettingsStore'
 import { useAndroidHostStore } from '../store/useAndroidHostStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
@@ -232,7 +232,7 @@ export async function startAndroidHost(): Promise<void> {
     save: (state) => localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(state)),
   })
   // The band's own accounts (#960): logins and PIN verifiers as documents of the band database, the same code the
-  // Stage-Server runs. The older logins (`host-accounts`, written by a Stage-Server on CouchDB) still work next to them.
+  // Stage-Server runs.
   const accounts = createBandAccounts({ store: createBandAccountStore(getWorkspaceDb(workspaceId) as never), workspaceId })
   const joinBand = createBandJoin({
     accounts,
@@ -255,15 +255,9 @@ export async function startAndroidHost(): Promise<void> {
       })
     },
   })
-  const listedLogin = createHostLogin({
-    accounts: async (db) => {
-      const store = db === dbName ? open(db) : null
-      if (!store) return []
-      const doc = (await store.get(HOST_ACCOUNTS_DOC_ID).catch(() => null)) as { accounts?: HostAccount[] } | null
-      return [...(doc?.accounts ?? []), ...issuer.accounts()]
-    },
-  })
-  const login: typeof listedLogin = async (authorization, db) => (db === dbName ? await accounts.login(authorization) : null) ?? listedLogin(authorization, db)
+  // The logins handed to the returned primary (above) live only here, not in the band; every other login is the band's own.
+  const issuedLogin = createHostLogin({ accounts: async (db) => (db === dbName ? issuer.accounts() : []) })
+  const login: typeof issuedLogin = async (authorization, db) => (db === dbName ? await accounts.login(authorization) : null) ?? issuedLogin(authorization, db)
 
   const acceptInvite = async (raw: unknown) => {
     const invite = HostJoinInviteSchema.safeParse(raw)

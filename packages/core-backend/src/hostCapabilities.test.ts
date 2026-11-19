@@ -14,12 +14,7 @@ describe('hostCapabilities (docs/25 §6, 2026-11-07)', () => {
     ])
   })
 
-  it('reports the database the host runs on', () => {
-    const before = process.env.STAGEBOARD_DB
-    process.env.STAGEBOARD_DB = 'builtin'
+  it('reports the database the host runs on: the built-in one, there is no other (#960)', () => {
     expect(hostCapabilities({}, []).database).toBe('builtin')
-    delete process.env.STAGEBOARD_DB
-    expect(hostCapabilities({}, []).database).toBe('couchdb')
-    if (before !== undefined) process.env.STAGEBOARD_DB = before
   })
 })

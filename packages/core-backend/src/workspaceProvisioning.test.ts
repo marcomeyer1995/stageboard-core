@@ -1,21 +1,17 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { createBandAccountsFor } from './bandAccounts.js'
 import type { CouchConfig } from './couch.js'
 import {
-  deprovisionMember,
   deprovisionWorkspace,
   deviceUsername,
-  generateMemberPassword,
   getAccessCode,
   getOrCreateAccessCode,
   listWorkspaces,
   memberUsername,
-  provisionDevice,
-  provisionMember,
   provisionWorkspace,
   renameWorkspace,
   setMasterMode,
   rotateAccessCode,
-  setMemberAdmin,
   WorkspaceAlreadyProvisionedError,
   workspaceDbName,
 } from './workspaceProvisioning.js'
@@ -45,52 +41,57 @@ describe('workspaceDbName / memberUsername / deviceUsername', () => {
 })
 
 describe('provisionWorkspace', () => {
-  it('creates the founder\'s account (member+admin roles), the database, a role-based security doc, a static roster validator, and the standing access-code doc', async () => {
+  const founder = (workspaceId: string) => ({ accounts: createBandAccountsFor(config, { iterations: 1000 })(workspaceId), deviceId: 'dev-1' })
+
+  it('creates the database, a role-based security doc, a static roster validator, the standing access-code doc, and the founder\'s own admin login as a document of the band', async () => {
     const fetchMock = stubFetch([
-      { ok: false, status: 404 }, // userExists
-      { ok: true, status: 201 }, // createUser (founder)
+      { ok: true, status: 200, json: async () => ['stageboard-band-a'] }, // _all_dbs: the id is free
       { ok: true, status: 201 }, // ensureDb
       { ok: true, status: 200 }, // putSecurity
       { ok: true, status: 201 }, // putDoc (_design/roster)
       { ok: false, status: 404 }, // getDoc (workspace:access) - doesn't exist yet
       { ok: true, status: 201 }, // putDoc (workspace:access)
+      { ok: false, status: 404 }, // getDoc (the founder's login) - doesn't exist yet
+      { ok: true, status: 201 }, // putDoc (the founder's login)
     ])
 
-    const result = await provisionWorkspace(config, 'band-c', 'p1', 'Band C')
+    const result = await provisionWorkspace(config, 'band-c', 'p1', 'Band C', founder('band-c'))
 
-    expect(result.username).toBe('stageboard-band-c-p1')
+    expect(result.username).toBe('stageboard-band-c-p1~dev-1')
     expect(result.password.length).toBeGreaterThan(10)
 
-    const createUserCall = fetchMock.mock.calls[1]
-    expect(JSON.parse(createUserCall[1].body)).toMatchObject({ roles: ['member', 'admin'] })
-
-    const securityCall = fetchMock.mock.calls[3]
+    const securityCall = fetchMock.mock.calls[2]
     expect(securityCall[0]).toBe('http://localhost:5984/stageboard-band-c/_security')
     expect(JSON.parse(securityCall[1].body)).toEqual({
       admins: { names: [], roles: ['admin'] },
       members: { names: [], roles: ['member', 'admin'] },
     })
 
-    const designDocCall = fetchMock.mock.calls[4]
+    const designDocCall = fetchMock.mock.calls[3]
     expect(designDocCall[0]).toBe('http://localhost:5984/stageboard-band-c/_design%2Froster')
     const designDocBody = JSON.parse(designDocCall[1].body)
     expect(designDocBody._id).toBe('_design/roster')
     expect(designDocBody.validate_doc_update).toContain('profiles:')
-    // Role-based now, not one hardcoded username - never needs to change as members are
-    // added/removed/promoted.
+    // Role-based, not one hardcoded username - never needs to change as members are added/removed/promoted.
     expect(designDocBody.validate_doc_update).toContain('userCtx.roles')
     expect(designDocBody.validate_doc_update).toContain("indexOf('admin')")
 
-    const accessCodeCall = fetchMock.mock.calls[6]
+    const accessCodeCall = fetchMock.mock.calls[5]
     expect(accessCodeCall[0]).toBe('http://localhost:5984/stageboard-band-c/workspace%3Aaccess')
-    const accessCodeBody = JSON.parse(accessCodeCall[1].body)
-    expect(accessCodeBody).toEqual({ _id: 'workspace:access', code: expect.stringMatching(/^\d{8}$/), name: 'Band C' })
+    expect(JSON.parse(accessCodeCall[1].body)).toEqual({ _id: 'workspace:access', code: expect.stringMatching(/^\d{8}$/), name: 'Band C' })
+
+    // The founder's login is a document of the band: a verifier and the admin role, never the password.
+    const loginCall = fetchMock.mock.calls[7]
+    expect(loginCall[0]).toBe('http://localhost:5984/stageboard-band-c/account%3Astageboard-band-c-p1~dev-1')
+    const login = JSON.parse(loginCall[1].body)
+    expect(login).toMatchObject({ roles: ['member', 'admin'], pbkdf2_prf: 'sha256' })
+    expect(JSON.stringify(login)).not.toContain(result.password)
   })
 
-  it('throws WorkspaceAlreadyProvisionedError without touching the db, security doc, or access code', async () => {
-    const fetchMock = stubFetch([{ ok: true, status: 200, json: async () => ({ name: 'stageboard-band-a-p1' }) }])
+  it('throws WorkspaceAlreadyProvisionedError for a band that already has its database - without touching anything', async () => {
+    const fetchMock = stubFetch([{ ok: true, status: 200, json: async () => ['stageboard-band-a'] }])
 
-    await expect(provisionWorkspace(config, 'band-a', 'p1', 'Band A')).rejects.toThrow(WorkspaceAlreadyProvisionedError)
+    await expect(provisionWorkspace(config, 'band-a', 'p1', 'Band A', founder('band-a'))).rejects.toThrow(WorkspaceAlreadyProvisionedError)
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 })
@@ -225,188 +226,19 @@ describe('access code (2026-09-01 WiFi-style redesign)', () => {
   })
 })
 
-describe('provisionMember / setMemberAdmin / deprovisionMember', () => {
-  it('provisionMember creates a user with just the member role by default', async () => {
-    const fetchMock = stubFetch([{ ok: true, status: 201 }])
-
-    const result = await provisionMember(config, 'band-c', 'p2', 'a-password', false)
-
-    expect(result).toEqual({ username: 'stageboard-band-c-p2', password: 'a-password' })
-    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toMatchObject({ roles: ['member'] })
-  })
-
-  it('provisionMember creates a user with member+admin roles when isAdmin is true', async () => {
-    const fetchMock = stubFetch([{ ok: true, status: 201 }])
-
-    await provisionMember(config, 'band-c', 'p2', 'a-password', true)
-
-    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toMatchObject({ roles: ['member', 'admin'] })
-  })
-
-  it('generateMemberPassword returns a long random string', () => {
-    expect(generateMemberPassword().length).toBeGreaterThan(10)
-    expect(generateMemberPassword()).not.toBe(generateMemberPassword())
-  })
-
-  it('setMemberAdmin fetches the anchor doc then PUTs it back with updated roles, preserving everything else, when the profile has no device accounts yet', async () => {
-    const fetchMock = stubFetch([
-      { ok: true, status: 200, json: async () => ({ _id: 'org.couchdb.user:x', _rev: '1-abc', name: 'x', type: 'user', roles: ['member'] }) },
-      { ok: true, status: 200 },
-      { ok: true, status: 200, json: async () => ({ rows: [] }) }, // listDeviceUsernames -> none
-    ])
-
-    await setMemberAdmin(config, 'band-c', 'p2', true)
-
-    const putCall = fetchMock.mock.calls[1]
-    expect(JSON.parse(putCall[1].body)).toEqual({
-      _id: 'org.couchdb.user:x',
-      _rev: '1-abc',
-      name: 'x',
-      type: 'user',
-      roles: ['member', 'admin'],
-    })
-    expect(fetchMock.mock.calls[2][0]).toContain('/_users/_all_docs')
-    expect(fetchMock).toHaveBeenCalledTimes(3)
-  })
-
-  it('setMemberAdmin also updates every device account already minted for that profile - a promotion/demotion must take effect on every already-logged-in tablet', async () => {
-    const fetchMock = stubFetch([
-      { ok: true, status: 200, json: async () => ({ _id: 'org.couchdb.user:stageboard-band-c-p2', _rev: '1-abc', name: 'stageboard-band-c-p2', type: 'user', roles: ['member', 'admin'] }) }, // anchor GET
-      { ok: true, status: 200 }, // anchor PUT
-      {
-        ok: true,
-        status: 200,
-        json: async () => ({ rows: [{ doc: { _id: 'org.couchdb.user:stageboard-band-c-p2~device-1', name: 'stageboard-band-c-p2~device-1' } }] }),
-      }, // listDeviceUsernames
-      {
-        ok: true,
-        status: 200,
-        json: async () => ({ _id: 'org.couchdb.user:stageboard-band-c-p2~device-1', _rev: '1-dev', name: 'stageboard-band-c-p2~device-1', type: 'user', roles: ['member', 'admin'] }),
-      }, // device GET
-      { ok: true, status: 200 }, // device PUT
-    ])
-
-    await setMemberAdmin(config, 'band-c', 'p2', false)
-
-    const devicePut = fetchMock.mock.calls[4]
-    expect(devicePut[0]).toBe('http://localhost:5984/_users/org.couchdb.user:stageboard-band-c-p2~device-1')
-    expect(JSON.parse(devicePut[1].body)).toMatchObject({ roles: ['member'] })
-  })
-
-  it('deprovisionMember deletes the anchor and every device account it ever minted', async () => {
-    const fetchMock = stubFetch([
-      {
-        ok: true,
-        status: 200,
-        json: async () => ({ rows: [{ doc: { _id: 'org.couchdb.user:stageboard-band-c-p2~device-1', name: 'stageboard-band-c-p2~device-1' } }] }),
-      }, // listDeviceUsernames
-      { ok: true, status: 200, json: async () => ({ _rev: '1-p2' }) }, // anchor GET
-      { ok: true, status: 200 }, // anchor DELETE
-      { ok: true, status: 200, json: async () => ({ _rev: '1-dev' }) }, // device GET
-      { ok: true, status: 200 }, // device DELETE
-    ])
-
-    await deprovisionMember(config, 'band-c', 'p2')
-
-    expect(fetchMock.mock.calls[0][0]).toContain('/_users/_all_docs')
-    expect(fetchMock.mock.calls[1][0]).toBe('http://localhost:5984/_users/org.couchdb.user:stageboard-band-c-p2')
-    expect(fetchMock.mock.calls[3][0]).toBe('http://localhost:5984/_users/org.couchdb.user:stageboard-band-c-p2~device-1')
-  })
-
-  it('deprovisionMember tolerates a profile with no device accounts at all', async () => {
-    const fetchMock = stubFetch([
-      { ok: true, status: 200, json: async () => ({ rows: [] }) }, // listDeviceUsernames -> none
-      { ok: true, status: 200, json: async () => ({ _rev: '1-p2' }) }, // anchor GET
-      { ok: true, status: 200 }, // anchor DELETE
-    ])
-
-    await deprovisionMember(config, 'band-c', 'p2')
-
-    expect(fetchMock).toHaveBeenCalledTimes(3)
-  })
-})
-
-describe('provisionDevice', () => {
-  it('creates a fresh device account (member role) when this device has none yet', async () => {
-    const fetchMock = stubFetch([
-      { ok: false, status: 404 }, // userExists -> no
-      { ok: true, status: 201 }, // createUser
-    ])
-
-    const result = await provisionDevice(config, 'band-c', 'p2', 'device-1', false)
-
-    expect(result.username).toBe('stageboard-band-c-p2~device-1')
-    expect(result.password.length).toBeGreaterThan(10)
-    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toMatchObject({ roles: ['member'] })
-  })
-
-  it('creates an admin-rostered device account with member+admin roles', async () => {
-    const fetchMock = stubFetch([
-      { ok: false, status: 404 }, // userExists -> no
-      { ok: true, status: 201 }, // createUser
-    ])
-
-    await provisionDevice(config, 'band-c', 'p2', 'device-1', true)
-
-    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toMatchObject({ roles: ['member', 'admin'] })
-  })
-
-  it('reissues just this device\'s own account when it already exists, never creating a duplicate', async () => {
-    const fetchMock = stubFetch([
-      { ok: true, status: 200 }, // userExists -> yes
-      {
-        ok: true,
-        status: 200,
-        json: async () => ({ _id: 'org.couchdb.user:stageboard-band-c-p2~device-1', _rev: '1-abc', name: 'stageboard-band-c-p2~device-1', type: 'user', roles: ['member'] }),
-      }, // resetUserPassword's GET
-      { ok: true, status: 200 }, // resetUserPassword's PUT
-    ])
-
-    const result = await provisionDevice(config, 'band-c', 'p2', 'device-1', false)
-
-    expect(result.username).toBe('stageboard-band-c-p2~device-1')
-    expect(fetchMock.mock.calls[2][0]).toBe('http://localhost:5984/_users/org.couchdb.user:stageboard-band-c-p2~device-1')
-  })
-})
-
 describe('deprovisionWorkspace', () => {
-  it('reads the roster first, deletes the database, then every member\'s account (anchor + any device accounts)', async () => {
-    const fetchMock = stubFetch([
-      {
-        ok: true,
-        status: 200,
-        json: async () => ({
-          rows: [
-            { doc: { _id: 'profiles:p1', id: 'p1' } },
-            { doc: { _id: 'profiles:p2', id: 'p2' } },
-          ],
-        }),
-      }, // allDocs (roster)
-      { ok: true, status: 200 }, // deleteDb
-      { ok: true, status: 200, json: async () => ({ rows: [] }) }, // listDeviceUsernames(p1) -> none
-      { ok: true, status: 200, json: async () => ({ _rev: '1-p1' }) }, // deleteUser(p1) GET
-      { ok: true, status: 200 }, // deleteUser(p1) DELETE
-      { ok: true, status: 200, json: async () => ({ rows: [] }) }, // listDeviceUsernames(p2) -> none
-      { ok: true, status: 200, json: async () => ({ _rev: '1-p2' }) }, // deleteUser(p2) GET
-      { ok: true, status: 200 }, // deleteUser(p2) DELETE
-    ])
+  it('deletes the database - the logins and PIN verifiers are documents of it, so they go with it - and never lets the id be founded again', async () => {
+    const fetchMock = stubFetch([{ ok: true, status: 200 }]) // deleteDb
 
     await deprovisionWorkspace(config, 'band-c')
 
-    expect(fetchMock.mock.calls[0][0]).toContain('/stageboard-band-c/_all_docs')
-    expect(fetchMock.mock.calls[1][0]).toBe('http://localhost:5984/stageboard-band-c')
-    expect(fetchMock.mock.calls[1][1].method).toBe('DELETE')
-    expect(fetchMock.mock.calls[3][0]).toBe('http://localhost:5984/_users/org.couchdb.user:stageboard-band-c-p1')
-    expect(fetchMock.mock.calls[6][0]).toBe('http://localhost:5984/_users/org.couchdb.user:stageboard-band-c-p2')
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(fetchMock.mock.calls[0][0]).toBe('http://localhost:5984/stageboard-band-c')
+    expect(fetchMock.mock.calls[0][1].method).toBe('DELETE')
   })
 
-  it('tolerates an already-gone database/roster and no members left to delete', async () => {
-    const fetchMock = stubFetch([
-      { ok: false, status: 404 }, // allDocs fails - caught, treated as empty roster
-      { ok: false, status: 404 }, // deleteDb
-    ])
-
+  it('tolerates an already-gone database', async () => {
+    stubFetch([{ ok: false, status: 404 }])
     await expect(deprovisionWorkspace(config, 'band-c')).resolves.toBeUndefined()
-    expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 })

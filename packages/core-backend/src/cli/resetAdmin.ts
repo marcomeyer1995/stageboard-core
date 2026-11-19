@@ -1,7 +1,7 @@
 /**
  * Server-local admin recovery (#70 break-glass): when no admin can get into a band any more -
  * every device's login gone at once, nobody left to press "Passwort zurücksetzen" in the app.
- * Runs on the Stage-Server itself with the server's own CouchDB login (serviceEnv.ts), adds no
+ * Runs on the Stage-Server itself with the server's own database login (serviceEnv.ts), adds no
  * network route and no client-visible secret: only someone with a shell on the server can use it.
  *
  *   npm run admin:reset -w core-backend                                  # list bands
@@ -12,6 +12,7 @@
  * <band> is the band's id or exact name, <member> the profile id or the name as in the roster
  * (case-insensitive). The new 4-digit PIN is printed once - like "Passwort zurücksetzen" in the app.
  */
+import { randomInt } from 'node:crypto'
 import { pathToFileURL } from 'node:url'
 import { serverCouchConfig } from './serviceEnv.js'
 
@@ -63,7 +64,8 @@ export function findMember(members: Member[], query: string, makeAdmin: boolean)
 async function main(): Promise<void> {
   const couch = serverCouchConfig()
   // Imported after the environment is set, like the server itself.
-  const { listWorkspaces, workspaceDbName, resetAdminPin, setMemberAdmin } = await import('../workspaceProvisioning.js')
+  const { listWorkspaces, workspaceDbName } = await import('../workspaceProvisioning.js')
+  const { createBandAccountsFor } = await import('../bandAccounts.js')
   const { allDocs, putDocWithRetry } = await import('../couch.js')
   type ProfileDoc = { _id: string; _rev?: string; id?: string; name?: string; stageRoles?: string[] }
 
@@ -91,9 +93,11 @@ async function main(): Promise<void> {
 
   const member = findMember(members, request.member, request.makeAdmin)
   if (typeof member === 'string') throw new Error(member)
-  const credentials = await resetAdminPin(couch, band.workspaceId, member.profileId)
+  const accounts = createBandAccountsFor(couch)(band.workspaceId)
+  const pin = randomInt(0, 10_000).toString().padStart(4, '0')
+  await accounts.setPin(member.profileId, pin)
   if (!member.isAdmin) {
-    await setMemberAdmin(couch, band.workspaceId, member.profileId, true)
+    await accounts.setAdmin(member.profileId, true)
     // The roster entry gets the admin role too, so the app shows it. Written with the server's
     // own CouchDB admin login (the roster validator lets `_admin` through) and re-read on a
     // conflict - a plain putDoc ignored a 409 and the roster silently stayed non-admin while this
@@ -104,7 +108,7 @@ async function main(): Promise<void> {
     })
   }
   console.log(`${member.name} in "${band.workspaceName}"${member.isAdmin ? '' : ' ist jetzt Admin'}.`)
-  console.log(`Neue PIN: ${credentials.password}`)
+  console.log(`Neue PIN: ${pin}`)
   console.log('In der App: Band beitreten, den Namen wählen, diese PIN eingeben - danach unter Einstellungen eine eigene PIN setzen.')
   console.log('Nach vielen Fehlversuchen ist das Konto ein paar Minuten gesperrt - dann warten oder: systemctl --user restart stageboard')
 }
