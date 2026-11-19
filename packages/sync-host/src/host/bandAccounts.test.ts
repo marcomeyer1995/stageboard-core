@@ -226,3 +226,28 @@ describe('the host role', () => {
     expect((await accounts.login(basic(tablet.username, tablet.password)))?.roles).toEqual(['member'])
   })
 })
+
+describe('the remembered logins do not grow without end', () => {
+  it('forget the ones that ran out, so reissued logins that nobody uses again leave nothing behind', async () => {
+    let t = 0
+    const accounts = createBandAccounts({ store, workspaceId: 'band', iterations: 1000, rememberMs: 1000, now: () => t, maxRemembered: 5 })
+    const logins: { username: string; password: string }[] = []
+    for (let i = 0; i < 20; i++) {
+      const device = await accounts.provisionDevice('p1', `d${i}`, false)
+      logins.push(device)
+      expect(await accounts.login(basic(device.username, device.password))).not.toBeNull()
+      t += 400 // each is remembered for 1000 ms: only the last few are still good
+    }
+    expect(accounts.rememberedCount()).toBeLessThanOrEqual(5)
+  })
+
+  it('never drop one that is still good to make room - it is only the newest of a full cache that has to wait for its turn', async () => {
+    let t = 0
+    const accounts = createBandAccounts({ store, workspaceId: 'band', iterations: 1000, rememberMs: 60_000, now: () => t, maxRemembered: 3 })
+    for (let i = 0; i < 6; i++) {
+      const device = await accounts.provisionDevice('p1', `d${i}`, false)
+      expect(await accounts.login(basic(device.username, device.password))).not.toBeNull() // still answers, remembered or not
+    }
+    expect(accounts.rememberedCount()).toBeLessThanOrEqual(3)
+  })
+})

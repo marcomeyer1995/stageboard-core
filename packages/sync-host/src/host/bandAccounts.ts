@@ -48,6 +48,9 @@ export interface BandAccountsOptions {
    * - what lets a host write the band's accounts with its own sync. Not stored with the login: a device that is taken
    * off the list loses it with the next check. Absent: no device has it. */
   hostDevices?: () => Promise<readonly string[]>
+  /** The most logins remembered at once (500). A login that cannot be remembered is still answered - it only pays the
+   * PBKDF2 again next time. */
+  maxRemembered?: number
   now?: () => number
 }
 
@@ -64,6 +67,8 @@ export interface BandAccounts {
   knownMember(profileId: string): Promise<boolean>
   /** Revokes every device login and the PIN of a person. */
   removeMember(profileId: string): Promise<void>
+  /** How many checked logins are remembered right now (what the host holds on to). */
+  rememberedCount(): number
   /** Gives every device login of a person the admin role, or takes it away. */
   setAdmin(profileId: string, isAdmin: boolean): Promise<void>
 }
@@ -97,6 +102,16 @@ export function createBandAccounts(options: BandAccountsOptions): BandAccounts {
   const matches = async (doc: AccountDoc | null, secret: string): Promise<boolean> => {
     if (!doc || doc.revoked || !doc.salt || !doc.derived_key) return false
     return same(await pbkdf2(secret, doc.salt, doc.iterations ?? iterations, doc.pbkdf2_prf), doc.derived_key)
+  }
+  const maxRemembered = options.maxRemembered ?? 500
+  /** Remembers a checked login - after forgetting the ones that ran out, and not at all when the cache is still full:
+   * entries that are never asked for again (a login that was reissued) must not pile up. */
+  const remember = (key: string, ctx: { name: string; roles: string[] }) => {
+    if (remembered.size >= maxRemembered) {
+      const t = now()
+      for (const [k, v] of remembered) if (v.until <= t) remembered.delete(k)
+    }
+    if (remembered.size < maxRemembered) remembered.set(key, { until: now() + rememberMs, ctx })
   }
   /** Whether the login is one of a device the band lists as a host: the id after the `~` is the device id exactly. */
   const isHostDevice = async (username: string): Promise<boolean> => {
@@ -133,7 +148,7 @@ export function createBandAccounts(options: BandAccountsOptions): BandAccounts {
       const roles = doc.roles ?? []
       if (!roles.includes('member') && !roles.includes('admin')) return null
       const ctx = { name: creds.user, roles: (await isHostDevice(creds.user)) ? [...roles, 'host'] : roles }
-      remembered.set(key, { until: now() + rememberMs, ctx })
+      remember(key, ctx)
       return ctx
     },
 
@@ -144,6 +159,8 @@ export function createBandAccounts(options: BandAccountsOptions): BandAccounts {
     async checkPin(profileId, pin) {
       return matches(await store.get(`${ANCHOR}${profileId}`), pin)
     },
+
+    rememberedCount: () => remembered.size,
 
     async hasPin(profileId) {
       const doc = await store.get(`${ANCHOR}${profileId}`)
