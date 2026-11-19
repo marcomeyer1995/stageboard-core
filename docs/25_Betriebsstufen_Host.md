@@ -305,6 +305,17 @@ After **5 s without a lease** and a **failed direct `/time`** to the primary, th
 | OSC in | A UDP socket in the native server; Android allows it. | One port for the box, as on the laptop (`STAGEBOARD_OSC_IN_PORT`)? |
 | Lookup (chords sites) | Needs a browser engine for some sites (the laptop uses Chrome). A tablet has a WebView. | Same scraping code in the page, or leave it to a laptop? |
 
+**Measured power of the test devices (2026-11-19, `tools/host-test/bench.js` run through CDP in each app's WebView; one fixed float32 multiply-accumulate workload over 1M-element arrays, 40 passes - a rough proxy for what audio models do, *not* a model benchmark).**
+
+| Device | Cores | Memory (browser's hint) | One thread | Same job on all 8 cores at once (time for 8 jobs) |
+|---|---|---|---|---|
+| Laptop (this one) | 16 | 27.9 GB | 3012 MFLOP/s (28 ms) | not measured |
+| Phone (Xiaomi 2407FPN8EG, Android 16) | 8 | 8 GB | 1974 MFLOP/s (43 ms) | 193 ms |
+| Redmi Pad (24075RP89G, Android 16) | 8 | 4 GB | 622 MFLOP/s (135 ms) | 826 ms |
+| Fire (KFTRPWI, Android 9) | 8 | 4 GB | 426 MFLOP/s (197 ms) | 564 ms |
+
+All three run WebAssembly with SIMD. What this says, and what it does not: **the Phone is about two thirds of the laptop's single-thread speed, the Redmi about a fifth, the Fire about a seventh** - so "a tablet is too weak" is wrong for the Phone and right-ish for the Fire. The eight workers do **not** give eight times the throughput (Phone about 1.8x, Redmi about 1.3x, Fire about 2.8x of one thread): mobile chips have few fast cores and throttle when hot - the "much slower and hot" note is true, the real factor depends on the device. Memory is a hint of the browser, capped, and says nothing about what a model needs; a real run of one stem-separation song is still the only way to know minutes and memory. Single run, devices on the table at normal temperature - no repeat, no sustained load.
+
 The notes in `tabletCapabilities.ts` are the words the person sees; they must be replaced with measured ones when a job exists - for now they say only what is certain (weaker processor, less memory, battery, heat).
 
 **Why not all live streams (#957).** The show-state push, the switch states and the presence stream are not one block. On the laptop each is twelve lines of fan-out; on the tablet the show-state push and the switches are relayed **natively** (`LocalHostPlugin.java`) on purpose - the hidden page stalls with the screen off (§6g, 25 s without a tick), and a detour through the page would build that back in. Nothing useful to share there; the contract (path, schema, who may push) is what both must keep. The presence snapshot is the one stream the page owns, and it is shared now. **Still not on the tablet host:** the plugin-health stream, the device-trigger and discovery streams, members/join/roster (the band's logins as band data, #932).
