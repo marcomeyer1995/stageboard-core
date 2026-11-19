@@ -13,6 +13,7 @@ import { createHostAudio } from './hostAudio'
 import { isNativeApp, pinListedHosts } from '../lib/native'
 import { getWorkspaceDb, localDbName, LOCAL_DB_OPTIONS } from '../lib/workspaceDb'
 import { bandIdsFromDatabases } from './bandScan'
+import { createServing } from './serving'
 import { createTabletCapabilities, deviceFromBrowser } from './tabletCapabilities'
 import { createTabletBandStore, type BandDatabase } from './tabletBandStore'
 
@@ -277,7 +278,7 @@ export async function startAndroidHost(): Promise<void> {
   const founded = new Set<string>()
   const isActiveBand = (band: string): boolean => hasBand && band === workspaceId
   const servesBand = (band: string): boolean => isActiveBand(band) || founded.has(band)
-  const serving = (band?: string): boolean => (band !== undefined && !isActiveBand(band) ? founded.has(band) : hasBand && machine.state().active)
+  const serving = createServing({ founded: () => founded, activeBand: () => (hasBand ? workspaceId : null), leaseActive: () => machine.state().active })
 
   // Presence (flash, Ready Check, heartbeat) and the Device Ledger are one store for all bands - they key by band - and
   // the native server publishes each served band's channel, so its devices see the Ready Check and flash messages.

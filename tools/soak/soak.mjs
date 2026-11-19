@@ -16,6 +16,7 @@
  */
 import { mkdirSync, readFileSync, writeFileSync, appendFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { execSync } from 'node:child_process'
 import PouchDB from 'pouchdb-core'
 import HttpAdapter from 'pouchdb-adapter-http'
 import MemoryAdapter from 'pouchdb-adapter-memory'
@@ -179,7 +180,18 @@ async function tracks() {
 }
 
 // ---- samples ----------------------------------------------------------------------------------------------------
+// `--mem-cmd "<shell command printing MB>"` samples any process by a command instead of /proc (a tablet host over adb:
+//   --mem-cmd "adb -s <serial> shell dumpsys meminfo <package> | awk '/TOTAL PSS:/ {print int(\$3/1024)}'").
+const memCmd = arg('mem-cmd', '')
 const rssMb = () => {
+  if (memCmd) {
+    try {
+      const mb = Number(execSync(memCmd, { encoding: 'utf-8', timeout: 20_000 }).trim())
+      return Number.isFinite(mb) && mb > 0 ? mb : null
+    } catch {
+      return null
+    }
+  }
   if (!pid) return null
   try {
     const kb = /VmRSS:\s+(\d+) kB/.exec(readFileSync(`/proc/${pid}/status`, 'utf-8'))?.[1]
