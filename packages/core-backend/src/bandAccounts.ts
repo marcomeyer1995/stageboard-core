@@ -21,12 +21,24 @@ function storeFor(config: DatabaseConfig, db: string): AccountStore {
 
 export type BandAccountsFor = (workspaceId: string) => BandAccounts
 
-export function createBandAccountsFor(config: DatabaseConfig, options: { iterations?: number } = {}): BandAccountsFor {
+export function createBandAccountsFor(
+  config: DatabaseConfig,
+  options: {
+    iterations?: number
+    /** The ids of the devices a band lists as its hosts - they get the role `host` (see `createBandAccounts`). */
+    hostDevices?: (workspaceId: string) => Promise<readonly string[]>
+  } = {},
+): BandAccountsFor {
   const perBand = new Map<string, BandAccounts>()
   return (workspaceId) => {
     let accounts = perBand.get(workspaceId)
     if (!accounts) {
-      accounts = createBandAccounts({ store: storeFor(config, workspaceDbName(workspaceId)), workspaceId, ...(options.iterations ? { iterations: options.iterations } : {}) })
+      accounts = createBandAccounts({
+        store: storeFor(config, workspaceDbName(workspaceId)),
+        workspaceId,
+        ...(options.iterations ? { iterations: options.iterations } : {}),
+        ...(options.hostDevices ? { hostDevices: () => options.hostDevices!(workspaceId) } : {}),
+      })
       perBand.set(workspaceId, accounts)
     }
     return accounts

@@ -1,6 +1,6 @@
 import { registerPlugin, type PluginListenerHandle } from '@capacitor/core'
 import { AccessCodeSchema, HostJoinInviteSchema } from 'shared-types'
-import { createBandAccounts, createBandAccountStore, createBandJoin, createBandMembers, createPinThrottle, createReplicationAccountIssuer, createHostPresence, leaseKey, signAccountRequest, startCatchUp, type CatchUp, createSyncHost, createWriteGuard, type SyncDatabase, type SyncRequest } from 'sync-host'
+import { BAND_SETTINGS_DOC_ID, createBandAccounts, createBandAccountStore, listedHostIds, createBandJoin, createBandMembers, createPinThrottle, createReplicationAccountIssuer, createHostPresence, leaseKey, signAccountRequest, startCatchUp, type CatchUp, createSyncHost, createWriteGuard, type SyncDatabase, type SyncRequest } from 'sync-host'
 import { useBandSettingsStore } from '../store/useBandSettingsStore'
 import { useAndroidHostStore } from '../store/useAndroidHostStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
@@ -223,7 +223,12 @@ export async function startAndroidHost(): Promise<void> {
   const guard = createWriteGuard({ open, security: async () => ({ admins: { roles: ['admin'] }, members: { roles: ['member', 'admin'] } }) })
   // The band's own accounts (#960): logins and PIN verifiers as documents of the band database, the same code the
   // Stage-Server runs.
-  const accounts = createBandAccounts({ store: createBandAccountStore(getWorkspaceDb(workspaceId) as never), workspaceId })
+  const accounts = createBandAccounts({
+    store: createBandAccountStore(getWorkspaceDb(workspaceId) as never),
+    workspaceId,
+    // The devices the band lists as hosts have the role `host`: they write the band's accounts with their own sync.
+    hostDevices: async () => listedHostIds(await getWorkspaceDb(workspaceId).get(BAND_SETTINGS_DOC_ID).catch(() => null)),
+  })
   // The login the returned primary copies what was written while the tablet was host with (#947): the same issuer the
   // Stage-Server runs, a login document of the band like every other.
   const issuer = createReplicationAccountIssuer({

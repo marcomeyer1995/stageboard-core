@@ -44,6 +44,10 @@ export interface BandAccountsOptions {
   iterations?: number
   /** How long a checked login is remembered (PBKDF2 is slow on a tablet). */
   rememberMs?: number
+  /** The ids of the devices the band lists as its hosts. A login on one of them has the role `host` on top of its own
+   * - what lets a host write the band's accounts with its own sync. Not stored with the login: a device that is taken
+   * off the list loses it with the next check. Absent: no device has it. */
+  hostDevices?: () => Promise<readonly string[]>
   now?: () => number
 }
 
@@ -94,6 +98,18 @@ export function createBandAccounts(options: BandAccountsOptions): BandAccounts {
     if (!doc || doc.revoked || !doc.salt || !doc.derived_key) return false
     return same(await pbkdf2(secret, doc.salt, doc.iterations ?? iterations, doc.pbkdf2_prf), doc.derived_key)
   }
+  /** Whether the login is one of a device the band lists as a host: the id after the `~` is the device id exactly. */
+  const isHostDevice = async (username: string): Promise<boolean> => {
+    if (!options.hostDevices) return false
+    const deviceId = username.slice(username.lastIndexOf('~') + 1)
+    if (!username.includes('~') || deviceId === '') return false
+    try {
+      return (await options.hostDevices()).includes(deviceId)
+    } catch {
+      // No settings yet, or not readable: no host role - never a reason to refuse the login itself.
+      return false
+    }
+  }
   /** Every device login of a person (revoked ones included - a document stays). */
   const devicesOf = (profileId: string) => store.list(`${ACCOUNT}${memberUsername(workspaceId, profileId)}~`)
 
@@ -116,7 +132,7 @@ export function createBandAccounts(options: BandAccountsOptions): BandAccounts {
       if (!doc || !(await matches(doc, creds.password))) return null
       const roles = doc.roles ?? []
       if (!roles.includes('member') && !roles.includes('admin')) return null
-      const ctx = { name: creds.user, roles }
+      const ctx = { name: creds.user, roles: (await isHostDevice(creds.user)) ? [...roles, 'host'] : roles }
       remembered.set(key, { until: now() + rememberMs, ctx })
       return ctx
     },

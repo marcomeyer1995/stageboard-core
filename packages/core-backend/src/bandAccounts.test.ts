@@ -74,4 +74,12 @@ describe('the band accounts as the Stage-Server holds them (documents of the ban
     await expect(accounts.hasPin('p1')).rejects.toThrow()
     await expect(accounts.login(basic('stageboard-band-p1~d', 'x'))).rejects.toThrow()
   })
+
+  it('gives the host role to a device the band lists as a host, as the host asks for the list', async () => {
+    const accountsFor = createBandAccountsFor(config, { iterations: 1000, hostDevices: async (workspaceId) => (workspaceId === 'band' ? ['tablet'] : []) })
+    const tablet = await accountsFor('band').provisionDevice('p1', 'tablet', false)
+    expect((await accountsFor('band').login(basic(tablet.username, tablet.password)))?.roles).toEqual(['member', 'host'])
+    const elsewhere = await accountsFor('other').provisionDevice('p1', 'tablet', false) // listed in no other band
+    expect((await accountsFor('other').login(basic(elsewhere.username, elsewhere.password)))?.roles).toEqual(['member'])
+  })
 })

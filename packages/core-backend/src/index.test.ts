@@ -1442,7 +1442,8 @@ describe('Fastify routes', () => {
       expect((await app.inject({ method: 'POST', url: '/workspaces/band-a/show-state/push', payload: push, headers })).statusCode).toBe(204)
       expect(received).toEqual([push, push])
       expect(other).toEqual([])
-      expect(fetchMock).toHaveBeenCalledTimes(1)
+      // The first push checks the login: the account, and the band's list of hosts (the host role, #960). The second one is remembered.
+      expect(fetchMock).toHaveBeenCalledTimes(2)
       off()
       offOther()
     })

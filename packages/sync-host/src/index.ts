@@ -264,3 +264,4 @@ export { createBandJoin, type BandJoin, type BandJoinDeps, type BandJoinResponse
 export { createBandMembers, type BandMembers, type BandMembersDeps } from './host/bandMembers.js'
 export { createBandAccountStore } from './host/bandAccountStore.js'
 export { createReplicationAccountIssuer, type ReplicationAccountIssuer } from './host/replicationAccount.js'
+export { BAND_SETTINGS_DOC_ID, listedHostIds } from './host/hostRole.js'

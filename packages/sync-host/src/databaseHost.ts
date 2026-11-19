@@ -3,6 +3,7 @@ export type { UserCtx } from './writeGuard.js'
 import { basicCredentials, same } from './passwords.js'
 import { createBandAccountStore } from './host/bandAccountStore.js'
 import { createBandAccounts, type BandAccounts } from './host/bandAccounts.js'
+import { BAND_SETTINGS_DOC_ID, listedHostIds } from './host/hostRole.js'
 import { createWriteGuard, inList, isServerAdmin, type SecurityDoc, type UserCtx } from './writeGuard.js'
 
 /**
@@ -63,7 +64,12 @@ export function createDatabaseHost(options: DatabaseHostOptions) {
   const accountsOf = (dbName: string): BandAccounts => {
     let accounts = bandAccounts.get(dbName)
     if (!accounts) {
-      accounts = createBandAccounts({ store: createBandAccountStore(db(dbName) as never), workspaceId: dbName.slice('stageboard-'.length) })
+      accounts = createBandAccounts({
+        store: createBandAccountStore(db(dbName) as never),
+        workspaceId: dbName.slice('stageboard-'.length),
+        // The devices the band lists as hosts have the role `host` (#960): they write the band's accounts with their own sync.
+        hostDevices: async () => listedHostIds(await db(dbName).get(BAND_SETTINGS_DOC_ID).catch(() => null)),
+      })
       bandAccounts.set(dbName, accounts)
     }
     return accounts

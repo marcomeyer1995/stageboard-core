@@ -261,7 +261,9 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
   }
   // The accounts of every band: documents of the band's own database, the same ones the built-in database host signs
   // devices in with and the tablet writes (#960). One instance per band, with its own remembered logins.
-  const accountsFor = createBandAccountsFor(database)
+  // The devices a band lists as its hosts have the role `host`, which lets them write the band's accounts with their own
+  // sync (#960); the list is read when a login is checked, so `readBandHosts` (below) is there by then.
+  const accountsFor = createBandAccountsFor(database, { hostDevices: async (workspaceId) => ((await readBandHosts(workspaceId)) ?? []).map((host) => host.hostId) })
   // Wrong tries at an admin's PIN, one count per workspace + profile - shared by joining, the PIN check and
   // activate-hardware, so none of them gives a fresh set of guesses (only 10,000 possibilities).
   const pinThrottle = createPinThrottle()

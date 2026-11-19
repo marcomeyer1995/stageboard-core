@@ -16,6 +16,9 @@ const ROSTER = `function(newDoc, oldDoc, userCtx) {
   if (newDoc._id.indexOf('profiles:') === 0 && !isAdmin) {
     throw({forbidden: 'Only a band admin may edit the roster.'});
   }
+  if (newDoc._id.indexOf('band-settings:') === 0 && !isAdmin) {
+    throw({forbidden: 'Only a band admin may change the band settings.'});
+  }
   if ((newDoc._id.indexOf('account:') === 0 || newDoc._id.indexOf('anchor:') === 0) && userCtx.roles.indexOf('_admin') === -1 && userCtx.roles.indexOf('host') === -1) {
     throw({forbidden: 'Only a host writes the band accounts.'});
   }
@@ -154,6 +157,30 @@ describe("a device's login lives in the band's own database (#960)", () => {
     const member = await bandAccounts('band').provisionDevice('p1', 'd1', false)
     const forged = await call('/stageboard-band/account:stageboard-band-p1~evil', { method: 'PUT', headers: login(member), body: JSON.stringify({ _id: 'account:stageboard-band-p1~evil', roles: ['member', 'admin'] }) })
     expect(forged.status).toBe(403)
+  })
+
+  it('lets a device the band lists as a host write the accounts with its own login - nobody else', async () => {
+    await foundBands('band')
+    const accounts = bandAccounts('band')
+    const tablet = await accounts.provisionDevice('p1', 'tablet-1', false)
+    const fire = await accounts.provisionDevice('p1', 'fire', false)
+    const boss = await accounts.provisionDevice('p2', 'laptop', true)
+    // The band lists the tablet as a host - written by an admin, the only one who may write the settings.
+    const settings = { _id: 'band-settings:band', hosts: [{ hostId: 'tablet-1', url: 'https://10.0.0.2:8443', priority: 1 }] }
+    expect((await call('/stageboard-band/band-settings:band', { method: 'PUT', headers: login(boss), body: JSON.stringify(settings) })).status).toBe(201)
+    const write = (who: { username: string; password: string }, name: string) =>
+      call(`/stageboard-band/account:${name}`, { method: 'PUT', headers: login(who), body: JSON.stringify({ _id: `account:${name}`, name, roles: ['member'] }) })
+    expect((await write(tablet, 'stageboard-band-p3~new-device')).status).toBe(201)
+    expect((await write(fire, 'stageboard-band-p3~other')).status).toBe(403)
+    // An admin is not a host just by being one: the role belongs to the device.
+    expect((await write(boss, 'stageboard-band-p3~third')).status).toBe(403)
+  })
+
+  it('a member cannot make itself a host by writing the settings - only a band admin may', async () => {
+    await foundBands('band')
+    const fire = await bandAccounts('band').provisionDevice('p1', 'fire', false)
+    const settings = { _id: 'band-settings:band', hosts: [{ hostId: 'fire', url: 'https://10.0.0.9:8443', priority: 1 }] }
+    expect((await call('/stageboard-band/band-settings:band', { method: 'PUT', headers: login(fire), body: JSON.stringify(settings) })).status).toBe(403)
   })
 
   it('there is no other account list: the old _users database does not exist', async () => {

@@ -175,3 +175,54 @@ describe('what a login check remembers', () => {
     expect(await accounts.login(auth)).toBeNull()
   })
 })
+
+describe('the host role', () => {
+  const asHosts = (hostIds: string[]) => createBandAccounts({ store, workspaceId: 'band', iterations: 1000, hostDevices: async () => hostIds })
+
+  it('is given to the login of a device the band lists as a host - on top of its roles, never stored', async () => {
+    const accounts = asHosts(['tablet'])
+    const tablet = await accounts.provisionDevice('p1', 'tablet', false)
+    const other = await accounts.provisionDevice('p1', 'fire', false)
+    expect(await accounts.login(basic(tablet.username, tablet.password))).toEqual({ name: tablet.username, roles: ['member', 'host'] })
+    expect((await accounts.login(basic(other.username, other.password)))?.roles).toEqual(['member'])
+    expect(store.docs.get(`account:${tablet.username}`)?.roles).toEqual(['member'])
+  })
+
+  it('comes with the admin role as well, for an admin who is on a host device', async () => {
+    const accounts = asHosts(['laptop'])
+    const admin = await accounts.provisionDevice('p2', 'laptop', true)
+    expect((await accounts.login(basic(admin.username, admin.password)))?.roles).toEqual(['member', 'admin', 'host'])
+  })
+
+  it('goes when the device is no longer listed (after the remembered login has run out)', async () => {
+    let t = 0
+    let listed = ['tablet']
+    const accounts = createBandAccounts({ store, workspaceId: 'band', iterations: 1000, rememberMs: 1000, now: () => t, hostDevices: async () => listed })
+    const tablet = await accounts.provisionDevice('p1', 'tablet', false)
+    expect((await accounts.login(basic(tablet.username, tablet.password)))?.roles).toContain('host')
+    listed = []
+    t = 1500
+    expect((await accounts.login(basic(tablet.username, tablet.password)))?.roles).toEqual(['member'])
+  })
+
+  it('is not given to a revoked login, nor by a device id that only ends alike', async () => {
+    const accounts = asHosts(['tablet'])
+    const fake = await accounts.provisionDevice('p1', 'my-tablet', false) // ends in "tablet", is not "tablet"
+    expect((await accounts.login(basic(fake.username, fake.password)))?.roles).toEqual(['member'])
+    const real = await accounts.provisionDevice('p1', 'tablet', false)
+    await accounts.removeMember('p1')
+    expect(await accounts.login(basic(real.username, real.password))).toBeNull()
+  })
+
+  it('does not stop a login when the list cannot be read - it only has no host role then', async () => {
+    const accounts = createBandAccounts({ store, workspaceId: 'band', iterations: 1000, hostDevices: async () => { throw new Error('no settings yet') } })
+    const tablet = await accounts.provisionDevice('p1', 'tablet', false)
+    expect((await accounts.login(basic(tablet.username, tablet.password)))?.roles).toEqual(['member'])
+  })
+
+  it('is not there at all when the band has no list of hosts to ask', async () => {
+    const accounts = createBandAccounts({ store, workspaceId: 'band', iterations: 1000 })
+    const tablet = await accounts.provisionDevice('p1', 'tablet', false)
+    expect((await accounts.login(basic(tablet.username, tablet.password)))?.roles).toEqual(['member'])
+  })
+})
