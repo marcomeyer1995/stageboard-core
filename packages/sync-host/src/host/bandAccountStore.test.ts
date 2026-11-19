@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createBandAccountStore } from './bandAccountStore'
+import { createBandAccountStore } from './bandAccountStore.js'
 
 /** A PouchDB-shaped stand-in: documents with revisions, a 409 on a stale write. */
 function fakeDb() {

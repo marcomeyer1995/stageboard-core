@@ -1,4 +1,4 @@
-import type { AccountDoc, AccountStore } from 'sync-host'
+import type { AccountDoc, AccountStore } from './bandAccounts.js'
 
 /** The slice of a PouchDB database the accounts use. */
 interface Db {

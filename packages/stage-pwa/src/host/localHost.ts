@@ -1,6 +1,6 @@
 import { registerPlugin, type PluginListenerHandle } from '@capacitor/core'
 import { AccessCodeSchema, HostJoinInviteSchema } from 'shared-types'
-import { createBandAccounts, createBandJoin, createBandMembers, createPinThrottle, createHostLogin, createHostPresence, leaseKey, signAccountRequest, startCatchUp, type CatchUp, createSyncHost, createWriteGuard, HOST_ACCOUNTS_DOC_ID, type HostAccount, type SyncDatabase, type SyncRequest } from 'sync-host'
+import { createBandAccounts, createBandAccountStore, createBandJoin, createBandMembers, createPinThrottle, createHostLogin, createHostPresence, leaseKey, signAccountRequest, startCatchUp, type CatchUp, createSyncHost, createWriteGuard, HOST_ACCOUNTS_DOC_ID, type HostAccount, type SyncDatabase, type SyncRequest } from 'sync-host'
 import { useBandSettingsStore } from '../store/useBandSettingsStore'
 import { useAndroidHostStore } from '../store/useAndroidHostStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
@@ -13,7 +13,6 @@ import { getAudioStorageBackend } from '../lib/audioStorageBackend'
 import { createHostAudio } from './hostAudio'
 import { isNativeApp, pinListedHosts } from '../lib/native'
 import { getWorkspaceDb, localDbName } from '../lib/workspaceDb'
-import { createBandAccountStore } from './bandAccountStore'
 
 /**
  * The tablet as the band's host (host backup, #947, docs/25 §6g): a switch starts a small native

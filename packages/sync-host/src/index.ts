@@ -263,3 +263,4 @@ export { createBandAccounts, deviceUsername, memberUsername, workspaceDbName, ty
 export { createPinThrottle, type PinThrottle, type PinThrottleOptions } from './host/pinThrottle.js'
 export { createBandJoin, type BandJoin, type BandJoinDeps, type BandJoinResponse } from './host/bandJoin.js'
 export { createBandMembers, type BandMembers, type BandMembersDeps } from './host/bandMembers.js'
+export { createBandAccountStore } from './host/bandAccountStore.js'

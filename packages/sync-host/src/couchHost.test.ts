@@ -5,6 +5,7 @@ import HttpAdapter from 'pouchdb-adapter-http'
 import MemoryAdapter from 'pouchdb-adapter-memory'
 import Replication from 'pouchdb-replication'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { createBandAccounts, type AccountDoc, type AccountStore } from './host/bandAccounts.js'
 import { createCouchHost, type Catalog, type CouchHostRequest } from './couchHost.js'
 
 PouchDB.plugin(HttpAdapter).plugin(MemoryAdapter).plugin(Replication)
@@ -14,6 +15,9 @@ const ROSTER = `function(newDoc, oldDoc, userCtx) {
   var isAdmin = userCtx.roles.indexOf('admin') !== -1 || userCtx.roles.indexOf('_admin') !== -1;
   if (newDoc._id.indexOf('profiles:') === 0 && !isAdmin) {
     throw({forbidden: 'Only a band admin may edit the roster.'});
+  }
+  if ((newDoc._id.indexOf('account:') === 0 || newDoc._id.indexOf('anchor:') === 0) && userCtx.roles.indexOf('_admin') === -1 && userCtx.roles.indexOf('host') === -1) {
+    throw({forbidden: 'Only a host writes the band accounts.'});
   }
 }`
 
@@ -125,5 +129,75 @@ describe('accounts copied from CouchDB 3.5 (2026-11-07)', () => {
     const t0 = Date.now()
     await call('/_session', { headers: auth('copied', 'pin-4711') })
     expect(Date.now() - t0).toBeLessThan(50)
+  })
+})
+
+describe('logins that live in the band database (#960)', () => {
+  /** The band's accounts as the Stage-Server writes them: as the server admin, over the host's own protocol. */
+  const storeOf = (band: string): AccountStore => ({
+    get: async (id) => {
+      const r = await call(`/${band}/${encodeURIComponent(id)}`, { headers: admin })
+      return r.status === 200 ? ((await r.json()) as AccountDoc) : null
+    },
+    put: async (doc) => {
+      const current = await call(`/${band}/${encodeURIComponent(doc._id)}`, { headers: admin })
+      const rev = current.status === 200 ? ((await current.json()) as AccountDoc)._rev : undefined
+      expect((await call(`/${band}/${encodeURIComponent(doc._id)}`, { method: 'PUT', headers: admin, body: JSON.stringify({ ...doc, ...(rev ? { _rev: rev } : {}) }) })).status).toBe(201)
+    },
+    list: async (prefix) => {
+      const r = await call(`/${band}/_all_docs?include_docs=true&startkey=${encodeURIComponent(JSON.stringify(prefix))}&endkey=${encodeURIComponent(JSON.stringify(prefix + '\ufff0'))}`, { headers: admin })
+      return ((await r.json()) as { rows: { doc: AccountDoc }[] }).rows.map((row) => row.doc)
+    },
+  })
+  const bandAccounts = (band: string) => createBandAccounts({ store: storeOf(`stageboard-${band}`), workspaceId: band, iterations: 1000 })
+
+  async function foundBands() {
+    for (const band of ['band', 'other']) {
+      expect((await call(`/stageboard-${band}`, { method: 'PUT', headers: admin })).status).toBe(201)
+      await call(`/stageboard-${band}/_security`, { method: 'PUT', headers: admin, body: JSON.stringify({ members: { names: [], roles: ['member'] } }) })
+      await call(`/stageboard-${band}/_design/roster`, { method: 'PUT', headers: admin, body: JSON.stringify({ validate_doc_update: ROSTER }) })
+    }
+  }
+  const login = (u: { username: string; password: string }) => auth(u.username, u.password)
+
+  it('lets a device with a login of the band into that band - and not into another band', async () => {
+    await foundBands()
+    const device = await bandAccounts('band').provisionDevice('p1', 'd1', false)
+    expect((await call('/stageboard-band/_all_docs', { headers: login(device) })).status).toBe(200)
+    expect((await call('/stageboard-other/_all_docs', { headers: login(device) })).status).toBe(401)
+  })
+
+  it('turns away a wrong password, a login nobody made, and one that was taken out', async () => {
+    await foundBands()
+    const accounts = bandAccounts('band')
+    const device = await accounts.provisionDevice('p1', 'd1', false)
+    expect((await call('/stageboard-band/_all_docs', { headers: auth(device.username, 'wrong') })).status).toBe(401)
+    expect((await call('/stageboard-band/_all_docs', { headers: auth('stageboard-band-p1~ghost', device.password) })).status).toBe(401)
+    await accounts.removeMember('p1')
+    // a revoked login is turned away at once on a fresh host check (the remembered check lasts a few minutes)
+    expect((await call('/stageboard-band/_all_docs', { headers: login(device) })).status).toBe(401)
+  })
+
+  it("holds the band's validator for them: an admin device edits the roster, a member device may not", async () => {
+    await foundBands()
+    const accounts = bandAccounts('band')
+    const member = await accounts.provisionDevice('p1', 'd1', false)
+    const boss = await accounts.provisionDevice('p2', 'd2', true)
+    const write = (who: { username: string; password: string }) =>
+      call('/stageboard-band/profiles:x', { method: 'PUT', headers: login(who), body: JSON.stringify({ _id: 'profiles:x', name: 'X' }) })
+    expect((await write(member)).status).toBe(403)
+    expect((await write(boss)).status).toBe(201)
+  })
+
+  it('does not let a plain login write the accounts themselves', async () => {
+    await foundBands()
+    const member = await bandAccounts('band').provisionDevice('p1', 'd1', false)
+    const forged = await call('/stageboard-band/account:stageboard-band-p1~evil', { method: 'PUT', headers: login(member), body: JSON.stringify({ _id: 'account:stageboard-band-p1~evil', roles: ['member', 'admin'] }) })
+    expect(forged.status).toBe(403)
+  })
+
+  it('still lets the old _users accounts in', async () => {
+    await foundBand()
+    expect((await call('/stageboard-band/_all_docs', { headers: auth('kai', 'pin-1234') })).status).toBe(200)
   })
 })

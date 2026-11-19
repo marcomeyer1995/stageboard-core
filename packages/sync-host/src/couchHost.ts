@@ -1,6 +1,8 @@
 import { createSyncHost, type SyncDatabase, type SyncRequest, type SyncResponse } from './index.js'
 export type { UserCtx } from './writeGuard.js'
 import { basicCredentials, hex, pbkdf2, same } from './passwords.js'
+import { createBandAccountStore } from './host/bandAccountStore.js'
+import { createBandAccounts, type BandAccounts } from './host/bandAccounts.js'
 import { createWriteGuard, inList, isServerAdmin, type SecurityDoc, type UserCtx } from './writeGuard.js'
 
 /**
@@ -71,13 +73,27 @@ export function createCouchHost(options: CouchHostOptions) {
   const verified = new Map<string, { ctx: UserCtx; until: number }>()
   const VERIFIED_MS = 5 * 60_000
 
-  /** Who is asking: the server admin, a user whose password checks out, or nobody. */
-  const whoIs = async (authorization: string | undefined): Promise<UserCtx | null> => {
+  // The accounts of each band, kept in the band's own database (#960). One instance per band: it keeps its own
+  // remembered logins, so a login of one band is never taken for another's.
+  const bandAccounts = new Map<string, BandAccounts>()
+  const accountsOf = (dbName: string): BandAccounts => {
+    let accounts = bandAccounts.get(dbName)
+    if (!accounts) {
+      accounts = createBandAccounts({ store: createBandAccountStore(db(dbName) as never), workspaceId: dbName.slice('stageboard-'.length) })
+      bandAccounts.set(dbName, accounts)
+    }
+    return accounts
+  }
+
+  /** Who is asking: the server admin, a user whose password checks out, a device login of the band whose database
+   * this is, or nobody. */
+  const whoIs = async (authorization: string | undefined, dbName?: string): Promise<UserCtx | null> => {
     const known = authorization ? verified.get(authorization) : undefined
     if (known && known.until > Date.now()) return known.ctx
     const ctx = await checkLogin(authorization)
     if (ctx && ctx.name !== null && authorization) verified.set(authorization, { ctx, until: Date.now() + VERIFIED_MS })
-    return ctx
+    if (ctx || !dbName?.startsWith('stageboard-') || !(await exists(dbName))) return ctx
+    return accountsOf(dbName).login(authorization)
   }
 
   const checkLogin = async (authorization: string | undefined): Promise<UserCtx | null> => {
@@ -109,10 +125,10 @@ export function createCouchHost(options: CouchHostOptions) {
 
   const handle = async (request: CouchHostRequest): Promise<SyncResponse> => {
     const method = request.method.toUpperCase()
-    const ctx = await whoIs(request.authorization)
-    if (!ctx) return error(401, 'unauthorized', 'Name or password is incorrect.')
     const parts = request.path.split('/').filter((p) => p !== '')
     const [first, second] = parts
+    const ctx = await whoIs(request.authorization, first === undefined ? undefined : decodeURIComponent(first))
+    if (!ctx) return error(401, 'unauthorized', 'Name or password is incorrect.')
 
     if (first === undefined) return sync(request)
     if (first === '_session') return json(200, { ok: true, userCtx: ctx, info: { authenticated: ctx.name ? 'default' : undefined } })
