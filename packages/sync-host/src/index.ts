@@ -257,3 +257,4 @@ export { createHostClock, type HostClock, type TimeSample } from './host/hostClo
 export { createHostPresence, type HostPresence } from './host/presence.js'
 export { startCatchUp, type CatchUp, type CatchUpStatus } from './host/catchUp.js'
 export { createHostLeaseService, TAKEOVER_AFTER_MS, INVITE_INTERVAL_MS, HANDBACK_STEADY_MS, HANDBACK_SETTLE_MS, type HostLeaseService, type HostRole, type HostRoleStore } from './host/leaseService.js'
+export { createHostRoutes, matchHostRoute, isSafeAudioId, type HostRoute, type HostRouteRequest, type HostRouteResponse, type HostRoutesDeps, type HostRoutesLease, type HostAudio } from './host/routes.js'

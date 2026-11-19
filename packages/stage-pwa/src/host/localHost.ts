@@ -5,7 +5,7 @@ import { useBandSettingsStore } from '../store/useBandSettingsStore'
 import { useAndroidHostStore } from '../store/useAndroidHostStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { getDeviceId } from '../lib/deviceId'
-import { answerHostRequest, loginCheckOf } from '../host/hostHttp'
+import { answerHostRequest, loginCheckOf, type AppHostDeps } from '../host/hostHttp'
 import { createTabletHost, type TabletHost } from '../host/tabletHost'
 import PouchDB from 'pouchdb-browser'
 import { createAccountIssuer } from '../host/replicationAccount'
@@ -285,6 +285,48 @@ export async function startAndroidHost(): Promise<void> {
   let startedFingerprint = ''
   let urlNow: string | null = null
 
+  // What this tablet answers: the routes every host shares (sync-host) plus its own (hostHttp.ts). Built once - the shared
+  // route table is cached on it.
+  const hostDeps: AppHostDeps = {
+    hostId,
+    port: PORT,
+    get address() {
+      return startedAddress
+    },
+    get certFingerprint() {
+      return startedFingerprint
+    },
+    state: () => machine.state(),
+    lease: {
+      bandTime: () => machine.bandTime(),
+      epoch: () => machine.service.epoch(),
+      isBandHost: () => machine.state().active,
+      isActive: () => machine.service.isActive(),
+      outdated: () => machine.service.outdated(),
+      status: () => machine.lease(),
+      clockOffsetMs: () => machine.service.clockOffsetMs(),
+      receive: async (raw) => {
+        const result = await machine.service.receive(raw)
+        publish(machine, urlNow, null)
+        pushState(machine)
+        return result
+      },
+    },
+    // The band this tablet holds - a passive backup holds it too (the primary must not invite it again).
+    activeWorkspaceId: () => workspaceId,
+    acceptInvite,
+    audio: hostAudio,
+    presence: {
+      report: (band, report) => band === workspaceId && presence.report(report),
+      heartbeat: (band, deviceId) => band === workspaceId && presence.heartbeat({ deviceId }),
+    },
+    verifyBandCode: async (band, code) => band === workspaceId && code === (await accessCodeNow()),
+    // Only the host serves the band: a passive backup hands out no login to its data.
+    issueAccount: async (raw) => (machine.state().active ? issuer.issue(raw) : null),
+    sync: (ctx, request) => guard(ctx, request as SyncRequest, (r) => syncHost(r)),
+    login,
+  }
+
   await listener?.remove()
   listener = await LocalHost.addListener('request', (req) => {
     void (async () => {
@@ -296,33 +338,7 @@ export async function startAndroidHost(): Promise<void> {
         await LocalHost.respond({ id: req.id, status: ctx ? 200 : 401, contentType: 'application/json', text: JSON.stringify(ctx ? { ok: true } : { error: 'unauthorized' }) })
         return
       }
-      const answer = await answerHostRequest(
-        { method: req.method, path: req.path, query: Object.fromEntries(new URLSearchParams(req.query)), authorization: req.authorization, body },
-        {
-          hostId,
-          port: PORT,
-          address: startedAddress,
-          certFingerprint: startedFingerprint,
-          bandTime: () => machine.bandTime(),
-          state: () => machine.state(),
-          activeWorkspaceId: () => (machine.state().active ? workspaceId : null),
-          lease: () => machine.lease(),
-          acceptLease: async (raw) => {
-            const result = await machine.service.receive(raw)
-            publish(machine, urlNow, null)
-            pushState(machine)
-            return result
-          },
-          acceptInvite,
-          audio: hostAudio,
-          presence: { workspaceId, report: (raw) => presence.report(raw), heartbeat: (raw) => presence.heartbeat(raw) },
-          verifyBandCode: async (band, code) => band === workspaceId && code === (await accessCodeNow()),
-          // Only the host serves the band: a passive backup hands out no login to its data.
-          issueAccount: async (raw) => (machine.state().active ? issuer.issue(raw) : null),
-          sync: (ctx, request) => guard(ctx, request as SyncRequest, (r) => syncHost(r)),
-          login,
-        },
-      )
+      const answer = await answerHostRequest({ method: req.method, path: req.path, query: Object.fromEntries(new URLSearchParams(req.query)), authorization: req.authorization, body }, hostDeps)
       if (answer.binary) await LocalHost.respond({ id: req.id, status: answer.status, contentType: answer.binary.contentType, body: toBase64(answer.binary.data) })
       else await LocalHost.respond({ id: req.id, status: answer.status, contentType: 'application/json', text: answer.status === 204 ? '' : JSON.stringify(answer.body ?? null) })
     })().catch((err: unknown) => {
