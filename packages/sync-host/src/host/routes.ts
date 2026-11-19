@@ -15,6 +15,8 @@ import {
   VerifyAdminPinRequestSchema,
 } from 'shared-types'
 import type { z } from 'zod'
+import type { BandCatalog } from './bandCatalog.js'
+import { createBandRoutes } from './bandRoutes.js'
 import type { BandJoin } from './bandJoin.js'
 import type { BandMembers } from './bandMembers.js'
 import type { LeaseStatus } from './leaseKeeper.js'
@@ -94,9 +96,10 @@ export interface HostRoutesDeps {
   lease: HostRoutesLease
   /** The band this host is set up for - null for a fresh backup that has none yet (the primary invites it then). */
   activeWorkspaceId: () => string | null
-  /** Whether this host serves the band right now. Audio and presence are refused with 503 while it does not - a
-   * passive backup serves nothing. Absent: always (the Stage-Server's behaviour so far). */
-  serving?: () => boolean
+  /** Whether this host serves the band right now - a passive backup serves nothing. The band is passed where the
+   * route has one, so a host that holds several bands can serve the ones it hosts while another is passive. Absent:
+   * always (the laptop's behaviour). */
+  serving?: (workspaceId?: string) => boolean
   /** More fields for `/server/host-lease` (the laptop adds its copy and the audio mirror). */
   hostLeaseExtra?: () => Record<string, unknown>
   /** The primary teaching this host its band (#945). */
@@ -109,6 +112,9 @@ export interface HostRoutesDeps {
   joinBand?: (workspaceId: string) => BandJoin | null
   /** Who manages the members of a band this host holds (null: not this host's band). Absent: not registered. */
   members?: (workspaceId: string) => BandMembers | null
+  /** Founding, listing, deleting, renaming, the access code, the master mode and the Device Ledger's block/remove
+   * (#962). Absent: the host answers none of these itself. */
+  bands?: BandCatalog
   /** What the host knows about each device (the Device Ledger). */
   deviceInfo: HostDeviceInfo
   /** The band as a joining device sees it, read from the band's own data. */
@@ -120,8 +126,9 @@ export interface HostRoutesDeps {
   }
   /** The presence store (`createHostPresence`): reports, the master's heartbeat, the Ready Check and flash messages land here. */
   presence: HostPresence
-  /** false: this host does not serve that band (the tablet serves one; absent: every band, as the Stage-Server does). */
-  servesBand?: (workspaceId: string) => boolean
+  /** false: this host does not serve that band (the tablet serves the bands it hosts; absent: every band, as the
+   * laptop does). */
+  servesBand?: (workspaceId: string) => boolean | Promise<boolean>
   /** Whether the login in `authorization` is a device of the band - a flash message puts text onto every tablet, so it
    * needs one (the reports do not: they only tell which already-visible roster member is active). */
   isBandDevice: (workspaceId: string, authorization: string | undefined) => Promise<boolean>
@@ -140,9 +147,10 @@ const safeDecode = (part: string): string => {
   }
 }
 
-/** The member routes: body checked first (400), then passive (503), then the band - one this host does not hold answers
- * like a wrong login, so it never tells which bands exist. */
-function memberRoutes(membersOf: (workspaceId: string) => BandMembers | null, serving: () => boolean): HostRoute[] {
+/** The member routes: body checked first (400), then the band guard (404 for a band this host does not serve, 503
+ * while passive), then the band - one this host does not hold answers like a wrong login, so it never tells which
+ * bands exist. */
+function memberRoutes(membersOf: (workspaceId: string) => BandMembers | null, refuseBand: (workspaceId: string) => Promise<HostRouteResponse | null>): HostRoute[] {
   const route = <T extends z.ZodType>(
     method: HostRoute['method'],
     pattern: string,
@@ -154,8 +162,10 @@ function memberRoutes(membersOf: (workspaceId: string) => BandMembers | null, se
     handle: async (request) => {
       const asked = schema.safeParse(request.body)
       if (!asked.success) return json(400, { status: 'error', message: asked.error.issues[0]?.message })
-      if (!serving()) return passive()
-      const members = membersOf(safeDecode(request.params.workspaceId ?? ''))
+      const workspaceId = safeDecode(request.params.workspaceId ?? '')
+      const refused = await refuseBand(workspaceId)
+      if (refused) return refused
+      const members = membersOf(workspaceId)
       if (!members) return json(403, { status: 'error', message: "Not this workspace's admin" })
       const answer = await run(members, safeDecode(request.params.profileId ?? ''), asked.data)
       return fromJoin(answer)
@@ -173,20 +183,26 @@ function memberRoutes(membersOf: (workspaceId: string) => BandMembers | null, se
 }
 
 export function createHostRoutes(deps: HostRoutesDeps): HostRoute[] {
-  const serving = () => deps.serving?.() ?? true
+  const serving = (workspaceId?: string) => deps.serving?.(workspaceId) ?? true
   const joinBand = deps.joinBand
   const membersOf = deps.members
   const notThisBand = () => json(404, { error: 'not_found', reason: 'Not the band of this host.' })
-  /** A report route: refused while passive, for another band, or for a body that does not fit; else `record` and 204. */
+  /** A body that is no request is 400 for anyone (it tells a stranger nothing); then 404 for a band this host does not
+   * serve at all, 503 while it is not serving it right now. `null` = serve it. */
+  const refuseBand = async (workspaceId: string): Promise<HostRouteResponse | null> => {
+    if (deps.servesBand && !(await deps.servesBand(workspaceId))) return notThisBand()
+    return serving(workspaceId) ? null : passive()
+  }
+  /** A report route: body first, then the band guard; else `record` and 204. */
   const presenceRoute = <T,>(pattern: string, schema: { safeParse: (body: unknown) => { success: true; data: T } | { success: false; error: { issues: { message: string }[] } } }, record: (workspaceId: string, body: T, request: HostRouteRequest) => void): HostRoute => ({
     method: 'POST',
     pattern,
     handle: async (request) => {
-      if (!serving()) return passive()
-      const workspaceId = safeDecode(request.params.workspaceId ?? '')
-      if (deps.servesBand && !deps.servesBand(workspaceId)) return notThisBand()
       const parsed = schema.safeParse(request.body)
       if (!parsed.success) return json(400, { status: 'error', message: parsed.error.issues[0]?.message })
+      const workspaceId = safeDecode(request.params.workspaceId ?? '')
+      const refused = await refuseBand(workspaceId)
+      if (refused) return refused
       record(workspaceId, parsed.data, request)
       return { status: 204 }
     },
@@ -268,12 +284,12 @@ export function createHostRoutes(deps: HostRoutesDeps): HostRoute[] {
       method: 'POST',
       pattern: '/workspaces/:workspaceId/roster',
       handle: async (request) => {
-        if (!serving()) return passive()
-        const workspaceId = safeDecode(request.params.workspaceId ?? '')
         const asked = RosterRequestSchema.safeParse(request.body)
         if (!asked.success) return json(400, { status: 'error', message: asked.error.issues[0]?.message })
-        // A band this host does not hold answers like a wrong code: it must not tell which bands exist.
-        const access = deps.servesBand && !deps.servesBand(workspaceId) ? null : await deps.band.accessCode(workspaceId)
+        const workspaceId = safeDecode(request.params.workspaceId ?? '')
+        const refused = await refuseBand(workspaceId)
+        if (refused) return refused
+        const access = await deps.band.accessCode(workspaceId)
         if (!access || asked.data.code !== access.code) return json(403, { status: 'error', message: 'Wrong code' })
         return json(200, { workspaceId, workspaceName: access.name, members: rosterOfProfileDocs(await deps.band.profileDocs(workspaceId)) })
       },
@@ -282,9 +298,9 @@ export function createHostRoutes(deps: HostRoutesDeps): HostRoute[] {
       method: 'GET',
       pattern: '/workspaces/:workspaceId/device-info',
       handle: async (request) => {
-        if (!serving()) return passive()
         const workspaceId = safeDecode(request.params.workspaceId ?? '')
-        if (deps.servesBand && !deps.servesBand(workspaceId)) return notThisBand()
+        const refused = await refuseBand(workspaceId)
+        if (refused) return refused
         // Polled, not streamed: the page is already near the browser's per-origin connection cap (the Stage-Server's reasoning).
         return json(200, deps.deviceInfo.snapshot(workspaceId))
       },
@@ -294,12 +310,12 @@ export function createHostRoutes(deps: HostRoutesDeps): HostRoute[] {
       method: 'POST',
       pattern: '/workspaces/:workspaceId/flash',
       handle: async (request) => {
-        if (!serving()) return passive()
-        const workspaceId = safeDecode(request.params.workspaceId ?? '')
-        if (deps.servesBand && !deps.servesBand(workspaceId)) return notThisBand()
         // A body that is no message is 400 for anyone (it tells a stranger nothing); only then is the login asked.
         const flash = FlashReportSchema.safeParse(request.body)
         if (!flash.success) return json(400, { status: 'error', message: flash.error.issues[0]?.message })
+        const workspaceId = safeDecode(request.params.workspaceId ?? '')
+        const refused = await refuseBand(workspaceId)
+        if (refused) return refused
         if (!(await deps.isBandDevice(workspaceId, request.authorization))) return json(401, { status: 'error', message: 'Only a device of this band can send flash messages' })
         return json(201, deps.presence.setFlash(workspaceId, flash.data.text, flash.data.from, flash.data.to))
       },
@@ -311,9 +327,11 @@ export function createHostRoutes(deps: HostRoutesDeps): HostRoute[] {
       handle: async (request) => {
         const asked = JoinAsMemberRequestSchema.safeParse(request.body)
         if (!asked.success) return json(400, { status: 'error', message: asked.error.issues[0]?.message })
-        if (!serving()) return passive()
+        const workspaceId = safeDecode(request.params.workspaceId ?? '')
+        const refused = await refuseBand(workspaceId)
+        if (refused) return refused
         // A band this host does not hold answers like a wrong code: it must not tell which bands exist.
-        const band = joinBand(safeDecode(request.params.workspaceId ?? ''))
+        const band = joinBand(workspaceId)
         if (!band) return json(403, { status: 'error', message: 'Wrong code' })
         return fromJoin(await band.join(safeDecode(request.params.profileId ?? ''), asked.data))
       },
@@ -324,14 +342,17 @@ export function createHostRoutes(deps: HostRoutesDeps): HostRoute[] {
       handle: async (request) => {
         const asked = VerifyAdminPinRequestSchema.safeParse(request.body)
         if (!asked.success) return json(400, { status: 'error', message: asked.error.issues[0]?.message })
-        if (!serving()) return passive()
-        const band = joinBand(safeDecode(request.params.workspaceId ?? ''))
+        const workspaceId = safeDecode(request.params.workspaceId ?? '')
+        const refused = await refuseBand(workspaceId)
+        if (refused) return refused
+        const band = joinBand(workspaceId)
         if (!band) return json(403, { status: 'error', message: 'Wrong admin or PIN' })
         return fromJoin(await band.verifyPin(asked.data))
       },
     },
     ] satisfies HostRoute[]) : []),
-    ...(membersOf ? memberRoutes(membersOf, serving) : []),
+    ...(membersOf ? memberRoutes(membersOf, refuseBand) : []),
+    ...(deps.bands ? createBandRoutes(deps.bands) : []),
   ]
 }
 

@@ -17,9 +17,10 @@ export type AppHostAnswer = SyncResponse
 
 /**
  * What the tablet adds to the routes every host shares (`sync-host`'s `createHostRoutes`, #949): its own
- * address for `/server-info`, the check of a band code, and the band database with its logins. `serving`
- * (from the shared deps) is whether this tablet is the band's host right now - the shared audio and presence
- * routes are refused with 503 while it is not.
+ * address for `/server-info`, the check of a band code, and the band databases with their logins. `serving`
+ * (from the shared deps) says per band whether this tablet serves it right now - the shared audio and presence
+ * routes are refused with 503 while it is not. A tablet may hold several bands (#962): it serves the bands it
+ * founded itself and the band the lease makes it host of, and answers every other band with 404.
  */
 export interface AppHostDeps extends HostRoutesDeps {
   port: number
@@ -58,7 +59,7 @@ const tables = new WeakMap<object, HostRoute[]>()
 const tableOf = (deps: AppHostDeps): HostRoute[] => {
   let table = tables.get(deps)
   if (!table) {
-    table = createHostRoutes({ ...deps, serving: () => deps.state().active })
+    table = createHostRoutes({ ...deps, serving: deps.serving ?? (() => deps.state().active) })
     tables.set(deps, table)
   }
   return table
@@ -88,8 +89,16 @@ export async function answerHostRequest(request: AppHostRequest, deps: AppHostDe
   }
   const band = bandOfPath(path)
   if (!band) return json(404, { error: 'not_found', reason: 'Not a route of this host.' })
+  const workspaceId = band.db.slice('stageboard-'.length)
+  // A band this tablet does not host is not its business - answering it as a wrong login would still tell a device
+  // that the name is a band (the shared routes' reasoning, #958).
+  if (deps.servesBand && !(await deps.servesBand(workspaceId))) {
+    return json(404, { error: 'not_found', reason: 'Not a band of this host.' })
+  }
   // A passive backup holds the band as a device but serves none of it: a device must follow the primary.
-  if (!state.active) return json(503, { error: 'passive', reason: 'This host is the backup and is not serving the band.' })
+  if (!(deps.serving ? deps.serving(workspaceId) : state.active)) {
+    return json(503, { error: 'passive', reason: 'This host is not serving the band right now.' })
+  }
   const ctx = await deps.login(request.authorization, band.db)
   if (!ctx) return unauthorized()
   return deps.sync(ctx, {

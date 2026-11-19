@@ -1,6 +1,6 @@
 import { registerPlugin, type PluginListenerHandle } from '@capacitor/core'
 import { AccessCodeSchema, HostJoinInviteSchema } from 'shared-types'
-import { BAND_SETTINGS_DOC_ID, createBandAccounts, createBandAccountStore, createHostDeviceInfo, createHostPresence, listedHostIds, createBandJoin, createBandMembers, createPinThrottle, createReplicationAccountIssuer, leaseKey, signAccountRequest, startCatchUp, type CatchUp, createSyncHost, createWriteGuard, type SyncDatabase, type SyncRequest } from 'sync-host'
+import { BAND_SETTINGS_DOC_ID, createBandAccounts, createBandAccountStore, createBandCatalog, createHostDeviceInfo, createHostPresence, listedHostIds, createBandJoin, createBandMembers, createPinThrottle, createReplicationAccountIssuer, leaseKey, signAccountRequest, startCatchUp, type BandAccounts, type BandJoin, type BandMembers, type CatchUp, createSyncHost, createWriteGuard, type SyncDatabase, type SyncRequest } from 'sync-host'
 import { useBandSettingsStore } from '../store/useBandSettingsStore'
 import { useAndroidHostStore } from '../store/useAndroidHostStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
@@ -12,6 +12,7 @@ import { getAudioStorageBackend } from '../lib/audioStorageBackend'
 import { createHostAudio } from './hostAudio'
 import { isNativeApp, pinListedHosts } from '../lib/native'
 import { getWorkspaceDb, localDbName } from '../lib/workspaceDb'
+import { createTabletBandStore, type BandDatabase } from './tabletBandStore'
 
 /**
  * The tablet as the band's host (host backup, #947, docs/25 §6g): a switch starts a small native
@@ -87,6 +88,13 @@ const storedCode = (workspaceId: string) => {
   return stored?.workspaceId === workspaceId ? stored.accessCode : null
 }
 
+/** Bands deleted on this device - a deleted band is never founded again (#364), even without a server. */
+const DELETED_KEY = 'stageboard-deleted-bands'
+const readDeletedBands = (): string[] => {
+  const ids = readJson<unknown>(DELETED_KEY)
+  return Array.isArray(ids) ? ids.filter((id): id is string => typeof id === 'string') : []
+}
+
 const workspaceIdNow = () => useWorkspaceStore.getState().activeWorkspaceId || null
 const hostsNow = () => useBandSettingsStore.getState().settings.hosts
 
@@ -126,7 +134,8 @@ let tick: ReturnType<typeof setInterval> | null = null
 let sample: ReturnType<typeof setInterval> | null = null
 let lastPushed = ''
 let catchUp: CatchUp | null = null
-let unsubscribePresence: (() => void) | null = null
+/** One native publish per served band (the presence store keys by band). */
+const presenceSubscriptions = new Map<string, () => void>()
 let catchingUp = false
 
 function pushState(machine: TabletHost) {
@@ -218,21 +227,176 @@ export async function startAndroidHost(): Promise<void> {
   const presence = createHostPresence({ now: () => machine.bandTime() })
   // What the tablet knows about each device (the Device Ledger, #958). It cannot ping, so reachable and name stay unknown.
   const deviceInfo = createHostDeviceInfo({ now: () => machine.bandTime() })
-  unsubscribePresence?.()
-  unsubscribePresence = presence.subscribe(workspaceId, (snapshot) => {
-    void LocalHost.publish({ channel: `${workspaceId}/presence`, text: JSON.stringify(snapshot) }).catch(() => undefined)
+
+  // The bands this tablet holds in IndexedDB: what the browser lists (PouchDB prefixes its databases with `_pouch_`),
+  // plus the app's own list - a band just founded is in the store before its database shows up.
+  const localBands = new Set<string>([workspaceId])
+  const localBandIds = async (): Promise<string[]> => {
+    const databases = (indexedDB as IDBFactory & { databases?: () => Promise<{ name?: string }[]> }).databases
+    if (typeof databases === 'function') {
+      try {
+        for (const database of await databases.call(indexedDB)) {
+          if (database.name?.startsWith('_pouch_stageboard-')) localBands.add(database.name.slice('_pouch_stageboard-'.length))
+        }
+      } catch {
+        // No database listing here - the app's own list still knows its bands.
+      }
+    }
+    for (const workspace of useWorkspaceStore.getState().workspaces) localBands.add(workspace.id)
+    return [...localBands]
+  }
+
+  // One handle per band: the active band's is the app's own (its live views follow what the host writes), every other
+  // band's a handle of its own. Opening a name the device does not hold would create an empty database, so `open`
+  // (the sync side) only answers names this tablet knows.
+  const handles = new Map<string, PouchDB.Database>()
+  const dbFor = (band: string): PouchDB.Database => {
+    let handle = handles.get(band)
+    if (!handle) {
+      handle = band === workspaceId ? (getWorkspaceDb(band) as unknown as PouchDB.Database) : new PouchDB(localDbName(band))
+      handles.set(band, handle)
+    }
+    return handle
+  }
+  const bandOfDbName = (name: string): string | null => (name.startsWith('stageboard-') ? name.slice('stageboard-'.length) : null)
+  const open = (name: string) => {
+    const band = bandOfDbName(name)
+    return band !== null && localBands.has(band) ? (dbFor(band) as unknown as SyncDatabase) : null
+  }
+
+  // The bands this tablet founded itself (its id in the access doc): it serves them even while another band is the
+  // active one. A band it only joined is served only while the lease makes it the host.
+  const founded = new Set<string>()
+  const servesBand = (band: string): boolean => band === workspaceId || founded.has(band)
+  const serving = (band?: string): boolean => (band !== undefined && band !== workspaceId ? founded.has(band) : machine.state().active)
+
+  // Presence (flash, Ready Check, heartbeat) and the Device Ledger are one store for all bands - they key by band - and
+  // the native server publishes each served band's channel, so its devices see the Ready Check and flash messages.
+  const subscribePresence = (band: string) => {
+    if (presenceSubscriptions.has(band)) return
+    presenceSubscriptions.set(
+      band,
+      presence.subscribe(band, (snapshot) => {
+        void LocalHost.publish({ channel: `${band}/presence`, text: JSON.stringify(snapshot) }).catch(() => undefined)
+      }),
+    )
+  }
+
+  /** The standing code of a band this host serves, read from its own data (the active band's is cached for the lease). */
+  const accessCodeOf = async (band: string): Promise<string | null> => {
+    if (band === workspaceId) {
+      await keys()
+      return keysFor
+    }
+    const doc = await dbFor(band).get('workspace:access').catch(() => null)
+    const parsed = AccessCodeSchema.safeParse(doc)
+    return parsed.success ? parsed.data.code : null
+  }
+  const profileOf = (band: string) => async (profileId: string) =>
+    (await dbFor(band).get(`profiles:${profileId}`).catch(() => null)) as { stageRoles?: string[] } | null
+
+  // One accounts/join/members set per band, built on first use - the same code the laptop runs.
+  const accountsPerBand = new Map<string, BandAccounts>()
+  const accountsFor = (band: string): BandAccounts => {
+    let accounts = accountsPerBand.get(band)
+    if (!accounts) {
+      accounts = createBandAccounts({
+        store: createBandAccountStore(dbFor(band) as never),
+        workspaceId: band,
+        // The devices the band lists as hosts have the role `host`: they write the band's accounts with their own sync.
+        hostDevices: async () => listedHostIds(await dbFor(band).get(BAND_SETTINGS_DOC_ID).catch(() => null)),
+      })
+      accountsPerBand.set(band, accounts)
+    }
+    return accounts
+  }
+  const joinPerBand = new Map<string, BandJoin>()
+  const joinBandFor = (band: string): BandJoin => {
+    let join = joinPerBand.get(band)
+    if (!join) {
+      join = createBandJoin({ accounts: accountsFor(band), throttle: createPinThrottle(), workspaceId: band, accessCode: () => accessCodeOf(band), profile: profileOf(band) })
+      joinPerBand.set(band, join)
+    }
+    return join
+  }
+  const membersPerBand = new Map<string, BandMembers>()
+  const membersFor = (band: string): BandMembers => {
+    let members = membersPerBand.get(band)
+    if (!members) {
+      members = createBandMembers({
+        accounts: accountsFor(band),
+        join: joinBandFor(band),
+        workspaceId: band,
+        loginThrottle: createPinThrottle(),
+        profile: profileOf(band),
+        adminProfileIds: async () => {
+          const rows = await dbFor(band).allDocs({ startkey: 'profiles:', endkey: 'profiles:￰', include_docs: true })
+          return rows.rows.flatMap((row) => {
+            const doc = row.doc as { id?: string; stageRoles?: string[] } | undefined
+            return doc?.id && (doc.stageRoles ?? []).includes('admin') ? [doc.id] : []
+          })
+        },
+      })
+      membersPerBand.set(band, members)
+    }
+    return members
+  }
+  const login = async (authorization: string | undefined, db: string) => {
+    const band = bandOfDbName(db)
+    return band !== null && servesBand(band) ? accountsFor(band).login(authorization) : null
+  }
+
+  // The band life cycle (#962) over the databases this app holds: founding, listing, deleting, renaming, the access
+  // code, the master mode and the Device Ledger's block/remove - the rules are sync-host's catalog.
+  const bandStore = createTabletBandStore({
+    hostId,
+    bandIds: async () => localBandIds(),
+    open: (band) => dbFor(band) as unknown as BandDatabase,
+    copy: async (band, docs) => {
+      // A copy of everything before the database goes (#362): a backup database the device can restore from.
+      const stamp = new Date().toISOString().slice(0, 16).replace('T', '_').replace(':', '')
+      const backup = new PouchDB(`stageboard-deleted-${band}-${stamp}`)
+      await backup.bulkDocs(
+        docs.map((doc) => {
+          const copy = { ...doc }
+          delete copy._rev
+          return copy
+        }),
+      )
+      await backup.close()
+    },
+    deleted: {
+      is: (band) => readDeletedBands().includes(band),
+      mark: (band) => {
+        const ids = readDeletedBands()
+        if (!ids.includes(band)) localStorage.setItem(DELETED_KEY, JSON.stringify([...ids, band]))
+      },
+    },
   })
-  const open = (name: string) => (name === dbName ? (getWorkspaceDb(workspaceId) as unknown as SyncDatabase) : null)
+  const bands = createBandCatalog({
+    store: {
+      ...bandStore,
+      create: async (band, name, founder) => {
+        const credentials = await bandStore.create(band, name, founder)
+        localBands.add(band)
+        founded.add(band)
+        subscribePresence(band)
+        return credentials
+      },
+      remove: async (band) => {
+        await bandStore.remove(band)
+        localBands.delete(band)
+        founded.delete(band)
+        handles.get(band)?.close?.()
+        handles.delete(band)
+      },
+    },
+    // Only a request from this very device (the app's own loopback) founds without an admin proof.
+    isSelfRequest: (address) => address === '127.0.0.1' || address === '::1' || address === '::ffff:127.0.0.1',
+  })
+
   const syncHost = createSyncHost({ open })
   const guard = createWriteGuard({ open, security: async () => ({ admins: { roles: ['admin'] }, members: { roles: ['member', 'admin'] } }) })
-  // The band's own accounts (#960): logins and PIN verifiers as documents of the band database, the same code the
-  // Stage-Server runs.
-  const accounts = createBandAccounts({
-    store: createBandAccountStore(getWorkspaceDb(workspaceId) as never),
-    workspaceId,
-    // The devices the band lists as hosts have the role `host`: they write the band's accounts with their own sync.
-    hostDevices: async () => listedHostIds(await getWorkspaceDb(workspaceId).get(BAND_SETTINGS_DOC_ID).catch(() => null)),
-  })
   // The login the returned primary copies what was written while the tablet was host with (#947): the same issuer the
   // Stage-Server runs, a login document of the band like every other.
   const issuer = createReplicationAccountIssuer({
@@ -240,35 +404,15 @@ export async function startAndroidHost(): Promise<void> {
     workspaceId: () => workspaceId,
     readHosts: async () => hostsNow() ?? null,
     readAccessCode: accessCodeNow,
-    mint: (_band, askingHostId) => accounts.provisionDevice('host', askingHostId, false),
+    mint: (_band, askingHostId) => accountsFor(workspaceId).provisionDevice('host', askingHostId, false),
     // Kept across a restart: a recorded request must not become good again.
     sentAt: {
       get: (askingHostId) => readJson<Record<string, number>>(SENT_AT_KEY)?.[askingHostId],
       set: (askingHostId, at) => localStorage.setItem(SENT_AT_KEY, JSON.stringify({ ...readJson<Record<string, number>>(SENT_AT_KEY), [askingHostId]: at })),
     },
   })
-  const joinBand = createBandJoin({
-    accounts,
-    throttle: createPinThrottle(),
-    workspaceId,
-    accessCode: accessCodeNow,
-    profile: async (profileId) => (await getWorkspaceDb(workspaceId).get(`profiles:${profileId}`).catch(() => null)) as { stageRoles?: string[] } | null,
-  })
-  const members = createBandMembers({
-    accounts,
-    join: joinBand,
-    workspaceId,
-    loginThrottle: createPinThrottle(),
-    profile: async (profileId) => (await getWorkspaceDb(workspaceId).get(`profiles:${profileId}`).catch(() => null)) as { stageRoles?: string[] } | null,
-    adminProfileIds: async () => {
-      const rows = await getWorkspaceDb(workspaceId).allDocs({ startkey: 'profiles:', endkey: 'profiles:\ufff0', include_docs: true })
-      return rows.rows.flatMap((row) => {
-        const doc = row.doc as { id?: string; stageRoles?: string[] } | undefined
-        return doc?.id && (doc.stageRoles ?? []).includes('admin') ? [doc.id] : []
-      })
-    },
-  })
-  const login = async (authorization: string | undefined, db: string) => (db === dbName ? accounts.login(authorization) : null)
+  subscribePresence(workspaceId)
+
 
   const acceptInvite = async (raw: unknown) => {
     const invite = HostJoinInviteSchema.safeParse(raw)
@@ -335,30 +479,43 @@ export async function startAndroidHost(): Promise<void> {
     activeWorkspaceId: () => workspaceId,
     acceptInvite,
     audio: hostAudio,
-    joinBand: (band) => (band === workspaceId ? joinBand : null),
-    members: (band) => (band === workspaceId ? members : null),
+    joinBand: (band) => (servesBand(band) ? joinBandFor(band) : null),
+    members: (band) => (servesBand(band) ? membersFor(band) : null),
     presence,
     deviceInfo,
-    // The tablet serves the one band it holds; a flash message needs a device of it (the same login as the database).
-    servesBand: (band) => band === workspaceId,
-    isBandDevice: async (band, authorization) => band === workspaceId && (await login(authorization, dbName)) !== null,
+    serving,
+    // The tablet serves every band it founded, and the band the lease makes it host of; a flash message needs a
+    // device of it (the same login as the database).
+    servesBand,
+    isBandDevice: async (band, authorization) => servesBand(band) && (await login(authorization, localDbName(band))) !== null,
     // The band as a joining device sees it - read from the band's own data, like every device holds it.
     band: {
       accessCode: async (band) => {
-        if (band !== workspaceId) return null
-        const doc = (await getWorkspaceDb(workspaceId).get('workspace:access').catch(() => null)) as { code?: unknown; name?: unknown } | null
+        if (!servesBand(band)) return null
+        const doc = (await dbFor(band).get('workspace:access').catch(() => null)) as { code?: unknown; name?: unknown } | null
         return typeof doc?.code === 'string' && typeof doc.name === 'string' && doc.name !== '' ? { code: doc.code, name: doc.name } : null
       },
       profileDocs: async (band) => {
-        if (band !== workspaceId) return []
-        const rows = await getWorkspaceDb(workspaceId).allDocs({ startkey: 'profiles:', endkey: 'profiles:￰', include_docs: true })
+        if (!servesBand(band)) return []
+        const rows = await dbFor(band).allDocs({ startkey: 'profiles:', endkey: 'profiles:￰', include_docs: true })
         return rows.rows.flatMap((row) => (row.doc ? [row.doc as unknown as Record<string, unknown>] : []))
       },
     },
+    bands,
     // Only the host serves the band: a passive backup hands out no login to its data.
     issueAccount: async (raw) => (machine.state().active ? issuer.issue(raw) : null),
     sync: (ctx, request) => guard(ctx, request as SyncRequest, (r) => syncHost(r)),
     login,
+  }
+
+  // Which local bands this tablet founded itself - the access doc names this host. They are served from now on, even
+  // while another band is the active one.
+  for (const band of await localBandIds()) {
+    const doc = (await dbFor(band).get('workspace:access').catch(() => null)) as { hostId?: unknown } | null
+    if (doc?.hostId === hostId) {
+      founded.add(band)
+      subscribePresence(band)
+    }
   }
 
   await listener?.remove()
@@ -368,7 +525,7 @@ export async function startAndroidHost(): Promise<void> {
       // The native server asks this before it relays a live channel: a device of this band, or nothing.
       const checkDb = loginCheckOf(req.path)
       if (checkDb !== null) {
-        const ctx = checkDb === dbName ? await login(req.authorization, checkDb) : null
+        const ctx = await login(req.authorization, checkDb)
         await LocalHost.respond({ id: req.id, status: ctx ? 200 : 401, contentType: 'application/json', text: JSON.stringify(ctx ? { ok: true } : { error: 'unauthorized' }) })
         return
       }
@@ -445,8 +602,8 @@ export async function stopAndroidHost(): Promise<void> {
   listener = null
   catchUp?.stop()
   catchUp = null
-  unsubscribePresence?.()
-  unsubscribePresence = null
+  for (const unsubscribe of presenceSubscriptions.values()) unsubscribe()
+  presenceSubscriptions.clear()
   if (isNativeApp()) await LocalHost.stop().catch(() => undefined)
   useAndroidHostStore.getState().reset()
 }

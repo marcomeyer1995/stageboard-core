@@ -67,6 +67,8 @@ export type WorkspaceSummary = z.infer<typeof WorkspaceSummarySchema>
 
 export const AccessCodeSchema = z.object({
   code: z.string().min(1),
+  /** The host that founded the band (#962): a tablet serves the bands it founded even while another one is active. */
+  hostId: z.string().min(1).optional(),
 })
 export type AccessCode = z.infer<typeof AccessCodeSchema>
 

@@ -349,3 +349,45 @@ describe('managing members', () => {
     expect((await call(d, 'POST', '/workspaces/other/members', { ...admin, profileId: 'p2' }))?.status).toBe(403)
   })
 })
+
+describe('the band life cycle in the shared table (#962)', () => {
+  const catalog = (over: Partial<Record<string, (...a: never[]) => unknown>> = {}) =>
+    ({
+      create: vi.fn(async () => ({ status: 201, body: { username: 'u', password: 'p' } })),
+      list: vi.fn(async () => ({ status: 200, body: [{ workspaceId: 'band', workspaceName: 'Band' }] })),
+      remove: vi.fn(async () => ({ status: 204 })),
+      accessCode: vi.fn(async () => ({ status: 200, body: { code: '12345678' } })),
+      rotateAccessCode: vi.fn(async () => ({ status: 200, body: { code: '87654321' } })),
+      rename: vi.fn(async () => ({ status: 200, body: { status: 'ok' } })),
+      setMasterMode: vi.fn(async () => ({ status: 200, body: { status: 'ok' } })),
+      revokeDevice: vi.fn(async () => ({ status: 204 })),
+      forgetDevice: vi.fn(async () => ({ status: 404, body: { status: 'error', message: 'Unknown device' } })),
+      ...over,
+    }) as never
+
+  it('answers founding, listing, deleting, renaming, the code and the master mode on every host that has a catalog', async () => {
+    const bands = catalog()
+    const d = deps({ bands })
+    expect((await call(d, 'POST', '/workspaces', { workspaceId: 'band', founderId: 'p1', workspaceName: 'Band', deviceId: 'tablet' }, {}, undefined, '10.0.0.9'))?.status).toBe(201)
+    expect(bands.create).toHaveBeenCalledWith(expect.objectContaining({ workspaceId: 'band' }), '10.0.0.9')
+    expect((await call(d, 'GET', '/workspaces'))?.body).toEqual([{ workspaceId: 'band', workspaceName: 'Band' }])
+    expect((await call(d, 'DELETE', '/workspaces/band', { adminUsername: 'a', adminPassword: 'b' }))?.status).toBe(204)
+    expect((await call(d, 'POST', '/workspaces/band/name', { name: 'Neu', adminUsername: 'a', adminPassword: 'b' }))?.status).toBe(200)
+    expect((await call(d, 'POST', '/workspaces/band/access-code', { adminUsername: 'a', adminPassword: 'b' }))?.body).toEqual({ code: '12345678' })
+    expect((await call(d, 'POST', '/workspaces/band/access-code/rotate', { adminUsername: 'a', adminPassword: 'b' }))?.body).toEqual({ code: '87654321' })
+    expect((await call(d, 'POST', '/workspaces/band/master-mode', { masterMode: 'account', adminUsername: 'a', adminPassword: 'b' }))?.status).toBe(200)
+    expect((await call(d, 'POST', '/workspaces/band/devices/fire/revoke', { revoked: true, adminUsername: 'a', adminPassword: 'b' }))?.status).toBe(204)
+    expect((await call(d, 'POST', '/workspaces/band/devices/fire/forget', { adminUsername: 'a', adminPassword: 'b' }))?.status).toBe(404)
+  })
+
+  it('checks the body before anything else, and says 400 for a founding without an id', async () => {
+    const bands = catalog()
+    const d = deps({ bands })
+    expect((await call(d, 'POST', '/workspaces', { founderId: 'p1', workspaceName: 'Band' }))?.status).toBe(400)
+    expect(bands.create).not.toHaveBeenCalled()
+  })
+
+  it('is absent where the host has no catalog, so a host that answers none of it keeps its table', async () => {
+    expect(matchHostRoute(createHostRoutes(deps()), 'GET', '/workspaces')).toBeNull()
+  })
+})

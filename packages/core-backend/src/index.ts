@@ -35,7 +35,6 @@ import {
   ActivateProfileRequestSchema,
   SERVER_EXECUTION_TARGET,
   ActivateWorkspaceHardwareRequestSchema,
-  CreateMemberRequestSchema,
   DeviceTriggerSchema,
   DiscoveryAssignRequestSchema,
   DiscoveryReportCandidateRequestSchema,
@@ -43,25 +42,11 @@ import {
   DiscoveryTriggeredRequestSchema,
   CalibrationRunRequestSchema,
   HealthReportSchema,
-  GetAccessCodeRequestSchema,
-  JoinAsMemberRequestSchema,
-  ReadyReportSchema,
-  RemoveMemberRequestSchema,
-  RenameWorkspaceRequestSchema,
-  SetMasterModeRequestSchema,
-  RevokeDeviceRequestSchema,
-  ForgetDeviceRequestSchema,
-  RotateAccessCodeRequestSchema,
-  SetMemberAdminRequestSchema,
-  SetOwnPinRequestSchema,
   ShowControlEventSchema,
-  VerifyAdminPinRequestSchema,
-  WorkspaceDeleteRequestSchema,
-  WorkspaceProvisionRequestSchema,
   type Device,
 } from 'shared-types'
 import { messageFieldsOf, serverMessage, type ServerMessage } from 'shared-types'
-import { BackupAdminRequestSchema, BackupSaveRequestSchema, MeasureInputsSaveRequestSchema, MeasureLevelRequestSchema, type MeasureInputsOverview, BackupTargetRequestSchema, FlashReportSchema, ShowStatePushAckSchema, ShowStatePushSchema, SwitchStateEventSchema, SpeechSpeedSchema, SpeechVoiceKeySchema, YOUTUBE_VIDEO_ID_RE } from 'shared-types'
+import { BackupAdminRequestSchema, BackupSaveRequestSchema, MeasureInputsSaveRequestSchema, MeasureLevelRequestSchema, type MeasureInputsOverview, BackupTargetRequestSchema, ShowStatePushAckSchema, ShowStatePushSchema, SwitchStateEventSchema, SpeechSpeedSchema, SpeechVoiceKeySchema, YOUTUBE_VIDEO_ID_RE } from 'shared-types'
 import { createBackupService, realBackupDeps, type BackupService } from './backup.js'
 import { deleteAudioFile, readAudioFile, writeAudioFile } from './audioStore.js'
 import { readPersistedActiveWorkspace } from './activeWorkspaceStateStore.js'
@@ -83,6 +68,8 @@ import { LookupRegistry } from './plugins/lookupRegistry.js'
 import { lookupErrorBody } from './plugins/lookupError.js'
 import { presence as presenceStore } from './presenceStore.js'
 import { registerHostRoutes } from './hostRoutes.js'
+import { createBandCatalog } from 'sync-host'
+import { createLaptopBandStore } from './bandStore.js'
 import { createBandJoin, createBandMembers, createHostRoutes, createReplicationAccountIssuer, type BandJoin } from 'sync-host'
 import * as showStatePushHub from './showStatePushHub.js'
 import * as switchStateHub from './switchStateHub.js'
@@ -542,89 +529,6 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
     return reply.status(204).send()
   })
 
-  // Ready Check answers (#60): a tablet says "this profile is ready" for the check the Master opened
-  // (ShowState.readyCheckId). In memory and pushed on the presence stream, like the master heartbeat.
-
-
-  // Device Ledger's admin-only "kick" (Marco, explicit request, deliberately a *soft* kick -
-  // see device.ts's `revoked` doc comment). Same verifyAdmin + zod-parse + putDocWithRetry-merge
-  // template as every other admin-gated write in this file (e.g. the member-admin route above).
-  app.post('/workspaces/:workspaceId/devices/:deviceId/revoke', async (request, reply) => {
-    const { workspaceId, deviceId } = request.params as { workspaceId: string; deviceId: string }
-    const parsed = RevokeDeviceRequestSchema.safeParse(request.body)
-    if (!parsed.success) {
-      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
-    }
-    if (!(await isWorkspaceAdmin(request, workspaceId, parsed.data.adminUsername, parsed.data.adminPassword))) {
-      return reply.status(403).send({ status: 'error', message: 'Not this workspace\'s admin' })
-    }
-
-    const docId = `devices:${deviceId}`
-    const existing = await getDoc<Device & DatabaseDoc>(database, workspaceDbName(workspaceId), docId)
-    if (!existing) {
-      return reply.status(404).send({ status: 'error', message: 'Unknown device' })
-    }
-    await putDocWithRetry<Device & DatabaseDoc>(database, workspaceDbName(workspaceId), docId, (current) => ({
-      ...(current ?? existing),
-      revoked: parsed.data.revoked,
-      _id: docId,
-      _rev: current?._rev ?? existing._rev,
-    }))
-    return reply.status(204).send()
-  })
-
-  // Device Ledger cleanup (Marco, 2026-10-07): removes an entry - old and duplicate devices
-  // flooded the Geräte tab. Unlike revoke this is no block: the device registers again on its
-  // next start. Refused (409) for a blocked device - the block lives on this very doc, deleting
-  // it would lift the block - and for a device a hardware device runs on (`executionTarget`):
-  // that must first move to another device in the Hardware tab (Marco's call: never remove a
-  // device in use).
-  app.post('/workspaces/:workspaceId/devices/:deviceId/forget', async (request, reply) => {
-    const { workspaceId, deviceId } = request.params as { workspaceId: string; deviceId: string }
-    const parsed = ForgetDeviceRequestSchema.safeParse(request.body)
-    if (!parsed.success) {
-      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
-    }
-    if (!(await isWorkspaceAdmin(request, workspaceId, parsed.data.adminUsername, parsed.data.adminPassword))) {
-      request.log.warn({ workspaceId, deviceId }, 'device forget refused: not this band\'s admin')
-      return reply.status(403).send({ status: 'error', message: 'Not this workspace\'s admin' })
-    }
-    const db = workspaceDbName(workspaceId)
-    const docId = `devices:${deviceId}`
-    const existing = await getDoc<Device & DatabaseDoc>(database, db, docId)
-    if (!existing) {
-      request.log.info({ workspaceId, deviceId }, 'device forget: unknown device')
-      return reply.status(404).send({ status: 'error', message: 'Unknown device' })
-    }
-    if (existing.revoked) {
-      request.log.info({ workspaceId, deviceId }, 'device forget refused: blocked')
-      return reply.status(409).send({ status: 'error', message: 'blocked' })
-    }
-    const hardware = await allDocs<DatabaseDoc & { name?: string; executionTarget?: string | null }>(database, db, {
-      startkey: 'logical-devices:',
-      endkey: 'logical-devices:\ufff0',
-    })
-    const usedBy = hardware.filter((doc) => doc.executionTarget === deviceId).map((doc) => doc.name ?? doc._id)
-    if (usedBy.length > 0) {
-      request.log.info({ workspaceId, deviceId, usedBy }, 'device forget refused: in use by hardware')
-      return reply.status(409).send({ status: 'error', message: 'in-use', usedBy })
-    }
-    // Checked and deleted against the same revision; a write in between (the device's own
-    // lastSeenAt, a rename, a block) is a conflict - read again and check again instead of
-    // answering 204 for a delete that never happened (#426 review).
-    const result = await deleteDocUnless<Device & DatabaseDoc, 'blocked'>(database, db, docId, (existing) => (existing.revoked ? 'blocked' : null))
-    if (result === 'missing') {
-      request.log.info({ workspaceId, deviceId }, 'device forget: unknown device')
-      return reply.status(404).send({ status: 'error', message: 'Unknown device' })
-    }
-    if (result === 'blocked') {
-      request.log.info({ workspaceId, deviceId }, 'device forget refused: blocked')
-      return reply.status(409).send({ status: 'error', message: 'blocked' })
-    }
-    request.log.info({ workspaceId, deviceId }, 'device removed from ledger')
-    return reply.status(204).send()
-  })
-
   // #10's HardwareSetup routing: a lighting/mixer cue fired from one tablet, relayed to
   // whichever tablet the active HardwareSetup binds that capability to, since - unlike
   // audio's continuous synced playbackStatus, which every tablet already watches on its own -
@@ -937,6 +841,18 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
     },
     saveFile: saveMirrorFile,
   })
+  // The bands this host holds (#962): founding, listing, deleting, renaming, the access code, the master mode and the
+  // Device Ledger's block/remove - the rules are sync-host's, the storage is the laptop's database host.
+  const bands = createBandCatalog({
+    store: createLaptopBandStore({
+      database,
+      accountsFor,
+      isAdminOfAnyBand: (username, password) => isAnyBandAdmin(undefined, username, password),
+      checkAdmin: (workspaceId, username, password) => checkBandAdmin(workspaceId, username, password),
+    }),
+    isSelfRequest: (address) => address !== undefined && isLoopback(address),
+  })
+
   // The routes every host answers the same way - one table in sync-host, shared with the tablet's app (#949).
   registerHostRoutes(
     app,
@@ -968,6 +884,7 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
           allDocs<DatabaseDoc & Record<string, unknown>>(database, workspaceDbName(workspaceId), { startkey: PROFILE_ID_PREFIX, endkey: `${PROFILE_ID_PREFIX}￰` }),
       },
       isBandDevice,
+      bands,
     }),
   )
 
@@ -979,9 +896,9 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
     return oscTargetFromConfig(await getDoc<DatabaseDoc>(database, workspaceDbName(workspaceId), `device-transport-config:${SERVER_EXECUTION_TARGET}:${logicalDeviceId}`))
   })
 
-  async function isWorkspaceAdmin(request: FastifyRequest, workspaceId: string, username: string, password: string): Promise<boolean> {
+  async function checkBandAdmin(workspaceId: string, username: string, password: string, remoteAddress?: string): Promise<boolean> {
     if (!username.startsWith(`${workspaceDbName(workspaceId)}-`)) {
-      app.log.warn({ workspaceId, username, remoteAddress: request.ip }, 'Admin login for another band refused')
+      app.log.warn({ workspaceId, username, remoteAddress }, 'Admin login for another band refused')
       return false
     }
     if (adminLoginThrottle.lockedForSeconds(username) > 0) return false
@@ -991,9 +908,12 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
       return true
     }
     if (adminLoginThrottle.recordFailure(username)) {
-      app.log.warn({ workspaceId, username, remoteAddress: request.ip }, 'Too many wrong admin logins - locked out temporarily')
+      app.log.warn({ workspaceId, username, remoteAddress }, 'Too many wrong admin logins - locked out temporarily')
     }
     return false
+  }
+  async function isWorkspaceAdmin(request: FastifyRequest, workspaceId: string, username: string, password: string): Promise<boolean> {
+    return checkBandAdmin(workspaceId, username, password, request.ip)
   }
 
   type PinCheck = { ok: true } | { ok: false; retryAfterSeconds?: number }
@@ -1223,7 +1143,7 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
 
   /** An admin login as proof for founding (any band's admin) - locked after 5 wrong tries per
    * account like the PIN routes, since an admin's anchor password is their 4-digit PIN. */
-  async function isAnyBandAdmin(request: FastifyRequest, username: string, password: string): Promise<boolean> {
+  async function isAnyBandAdmin(remoteAddress: string | undefined, username: string, password: string): Promise<boolean> {
     const key = `admin:${username}`
     if (adminProofThrottle.lockedForSeconds(key) > 0) return false
     // The login names its band (`stageboard-<band>-<profile>[~<device>]`): the band whose database name it extends.
@@ -1233,171 +1153,9 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
       adminProofThrottle.recordSuccess(key)
       return true
     }
-    if (adminProofThrottle.recordFailure(key)) app.log.warn({ username, remoteAddress: request.ip }, 'Too many wrong admin logins - locked out temporarily')
+    if (adminProofThrottle.recordFailure(key)) app.log.warn({ username, remoteAddress }, 'Too many wrong admin logins - locked out temporarily')
     return false
   }
-
-  app.post('/workspaces', async (request, reply) => {
-    const parsed = WorkspaceProvisionRequestSchema.safeParse(request.body)
-    if (!parsed.success) {
-      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
-    }
-    const { workspaceId, adminUsername, adminPassword } = parsed.data
-
-    // A deleted band comes back only through the documented the database recovery (docs/03 §0b) -
-    // this route handed its admin account to anyone before (#364, 2026-10-04).
-    if (readDeletedWorkspaces().includes(workspaceId)) {
-      app.log.warn({ workspaceId, remoteAddress: request.ip }, 'Refused to provision a deleted band again')
-      return reply.status(409).send({ status: 'error', code: 'deleted', message: 'This band was deleted - restore it via docs/03 §0b' })
-    }
-
-    // Accounts are tied to their band by name (`stageboard-<band>-<profile>`), so no band id may
-    // extend another one - band "x-y" would otherwise own names that look like band "x"'s.
-    const bandDbs = (await listDbs(database)).filter((db) => db.startsWith('stageboard-'))
-    const newDb = workspaceDbName(workspaceId)
-    if (bandDbs.some((db) => db !== newDb && (newDb.startsWith(`${db}-`) || db.startsWith(`${newDb}-`)))) {
-      app.log.warn({ workspaceId, remoteAddress: request.ip }, 'Refused a band id that extends another band id')
-      return reply.status(400).send({ status: 'error', message: 'Invalid band id' })
-    }
-
-    let proof: 'first-band' | 'server' | 'admin' | null = null
-    if (isLoopback(request.ip)) proof = 'server'
-    else if (bandDbs.length === 0) proof = 'first-band'
-    else if (adminUsername && adminPassword && (await isAnyBandAdmin(request, adminUsername, adminPassword))) proof = 'admin'
-    if (!proof) {
-      app.log.warn({ workspaceId, remoteAddress: request.ip }, 'Band provisioning refused - no proof')
-      return reply.status(403).send({ status: 'error', code: 'admin-required', message: 'Only an admin of a band on this server can found another band' })
-    }
-
-    try {
-      const credentials = await provisionWorkspace(database, workspaceId, parsed.data.founderId, parsed.data.workspaceName, {
-        accounts: accountsFor(workspaceId),
-        deviceId: parsed.data.deviceId ?? 'founding-device',
-      })
-      app.log.info({ workspaceId, proof, remoteAddress: request.ip }, 'Band provisioned')
-      return reply.status(201).send(credentials)
-    } catch (err) {
-      if (err instanceof WorkspaceAlreadyProvisionedError) {
-        return reply.status(409).send({ status: 'error', message: err.message })
-      }
-      app.log.error(err)
-      return reply.status(502).send({ status: 'error', message: err instanceof Error ? err.message : String(err) })
-    }
-  })
-
-  // Irreversibly destroys a workspace - same admin-verification pattern as the routes above.
-  // Deletes the band's database - and with it every login and PIN, which are documents of it
-  // (workspaceProvisioning.ts's deprovisionWorkspace); does not, and can't, notify any other
-  // device that already joined.
-  app.delete('/workspaces/:workspaceId', async (request, reply) => {
-    const { workspaceId } = request.params as { workspaceId: string }
-    const parsed = WorkspaceDeleteRequestSchema.safeParse(request.body)
-    if (!parsed.success) {
-      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
-    }
-
-    if (!(await isWorkspaceAdmin(request, workspaceId, parsed.data.adminUsername, parsed.data.adminPassword))) {
-      return reply.status(403).send({ status: 'error', message: 'Not this workspace\'s admin' })
-    }
-
-    await deprovisionWorkspace(database, workspaceId)
-    return reply.status(204).send()
-  })
-
-  // Public, no auth (2026-09-01 WiFi-style redesign, at Marco's request after being locked out
-  // of every device at once) - every band this Stage-Server hosts, discoverable with no code at
-  // all, the same way WiFi network names are visible before you enter a password. See
-  // workspaceProvisioning.ts's `listWorkspaces` for the lazy-backfill behavior on a workspace
-  // that predates this redesign.
-  app.get('/workspaces', async (_request, reply) => {
-    const workspaces = await listWorkspaces(database)
-    return reply.status(200).send(workspaces)
-  })
-
-  // Public, no auth - the WiFi "enter the network's password" step, scoped to one workspace
-  // picked from GET /workspaces above. `getOrCreateAccessCode` lazily creates a workspace's
-  // standing code on first use if it predates this redesign - this route alone is what made
-  // Marco's own locked-out workspace start working again, no separate migration needed. Hands
-  // back names/roles only, never credentials - the joining device still has to pick who it is
-  // (POST /workspaces/:workspaceId/join/:profileId below) before it gets anything real.
-
-  // Admin-only: fetches a workspace's *current* standing code, to display/re-display (e.g.
-  // BandManagementView.tsx's "Einladen") without changing it - lazily creates one first if
-  // this workspace predates the 2026-09-01 redesign (same backfill `POST /workspaces/:id/roster`
-  // and `.../join/:profileId` already do), so a pre-existing workspace's admin can view a real,
-  // working code the very first time they open "Einladen" post-upgrade.
-  app.post('/workspaces/:workspaceId/access-code', async (request, reply) => {
-    const { workspaceId } = request.params as { workspaceId: string }
-    const parsed = GetAccessCodeRequestSchema.safeParse(request.body)
-    if (!parsed.success) {
-      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
-    }
-
-    if (!(await isWorkspaceAdmin(request, workspaceId, parsed.data.adminUsername, parsed.data.adminPassword))) {
-      return reply.status(403).send({ status: 'error', message: 'Not this workspace\'s admin' })
-    }
-
-    const { code } = await getOrCreateAccessCode(database, workspaceId, workspaceId)
-    return reply.status(200).send({ code })
-  })
-
-  // Admin-only: rotates a workspace's standing access code (e.g. "the code leaked", or routine
-  // post-tour cleanup). Immediately invalidates the old code for anyone who only knew that one.
-  app.post('/workspaces/:workspaceId/access-code/rotate', async (request, reply) => {
-    const { workspaceId } = request.params as { workspaceId: string }
-    const parsed = RotateAccessCodeRequestSchema.safeParse(request.body)
-    if (!parsed.success) {
-      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
-    }
-
-    if (!(await isWorkspaceAdmin(request, workspaceId, parsed.data.adminUsername, parsed.data.adminPassword))) {
-      return reply.status(403).send({ status: 'error', message: 'Not this workspace\'s admin' })
-    }
-
-    const code = await rotateAccessCode(database, workspaceId)
-    return reply.status(200).send({ code })
-  })
-
-  // Admin-only (#58): renames a workspace. Writes straight onto the `workspace:access` doc's
-  // `name` field, keeping its `code` - that doc already replicates to every joined device via
-  // the ordinary workspace-db sync, so this is the only write needed for the new name to reach
-  // everyone, no separate notification/polling required.
-  app.post('/workspaces/:workspaceId/name', async (request, reply) => {
-    const { workspaceId } = request.params as { workspaceId: string }
-    const parsed = RenameWorkspaceRequestSchema.safeParse(request.body)
-    if (!parsed.success) {
-      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
-    }
-
-    if (!(await isWorkspaceAdmin(request, workspaceId, parsed.data.adminUsername, parsed.data.adminPassword))) {
-      return reply.status(403).send({ status: 'error', message: 'Not this workspace\'s admin' })
-    }
-
-    await renameWorkspace(database, workspaceId, parsed.data.name)
-    return reply.status(200).send({ status: 'ok' })
-  })
-
-  // Who holds the Master-Token (#85): admin-only, stored with the band name.
-  app.post('/workspaces/:workspaceId/master-mode', async (request, reply) => {
-    const { workspaceId } = request.params as { workspaceId: string }
-    const parsed = SetMasterModeRequestSchema.safeParse(request.body)
-    if (!parsed.success) {
-      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
-    }
-    // Band-scoped and locked out after wrong tries like every other admin route - a bare
-    // verifyAdmin() would take any band's admin and allow unlimited PIN guesses.
-    if (!(await isWorkspaceAdmin(request, workspaceId, parsed.data.adminUsername, parsed.data.adminPassword))) {
-      return reply.status(403).send({ status: 'error', message: "Not this workspace's admin" })
-    }
-    try {
-      await setMasterMode(database, workspaceId, parsed.data.masterMode)
-    } catch (err) {
-      app.log.error({ err, workspaceId, masterMode: parsed.data.masterMode }, 'Setting the master mode failed')
-      return reply.status(500).send({ status: 'error', message: 'Could not save the master mode' })
-    }
-    app.log.info({ workspaceId, masterMode: parsed.data.masterMode }, 'Master mode set')
-    return reply.status(200).send({ status: 'ok' })
-  })
 
   // Makes this box's hardware (plugin sync, Discovery Mode's MIDI watcher) serve `workspaceId`
   // instead of whichever workspace was previously active - the runtime replacement for having

@@ -156,6 +156,36 @@ describe('when it has taken over (#947)', () => {
   })
 })
 
+describe('several bands on one tablet (#962)', () => {
+  const several = () => {
+    const { deps, seen } = baseDeps()
+    const hosted = new Set(['leasetest', 'founded'])
+    // The band the lease makes this tablet host of, and a band it founded itself while another band became active.
+    deps.servesBand = (band: string) => hosted.has(band)
+    deps.serving = (band?: string) => band === 'founded'
+    return { deps, seen }
+  }
+
+  it('serves a band it founded even while the active band is passive - a band it only knows as a device is 404', async () => {
+    const { deps } = several()
+    const founded = await answerHostRequest({ method: 'GET', path: '/db/stageboard-founded/_changes', query: {}, authorization: 'Basic good' }, deps)
+    expect(founded.status).toBe(200)
+    expect(deps.login).toHaveBeenCalledWith('Basic good', 'stageboard-founded')
+    // The active band still follows the lease: passive means 503, not "served because it is active".
+    expect((await answerHostRequest({ method: 'GET', path: '/db/stageboard-leasetest/_changes', query: {}, authorization: 'Basic good' }, deps)).status).toBe(503)
+    // A band this tablet merely joined is not its business - 404, before the login asks anything.
+    expect((await answerHostRequest({ method: 'GET', path: '/db/stageboard-joined/_changes', query: {}, authorization: 'Basic good' }, deps)).status).toBe(404)
+    expect(deps.sync).toHaveBeenCalledTimes(1)
+  })
+
+  it('takes a presence report and a roster call for a served band, and refuses them for a band it does not host', async () => {
+    const { deps } = several()
+    expect((await answerHostRequest({ method: 'POST', path: '/workspaces/founded/master-heartbeat', query: {}, body: { deviceId: 'fire' } }, deps)).status).toBe(204)
+    expect(deps.presence.snapshot('founded').masterHeartbeat).toEqual({ deviceId: 'fire', at: 5_000 })
+    expect((await answerHostRequest({ method: 'POST', path: '/workspaces/joined/master-heartbeat', query: {}, body: { deviceId: 'fire' } }, deps)).status).toBe(404)
+  })
+})
+
 describe('bandOfPath', () => {
   it('strips the /db proxy prefix a device uses', () => {
     expect(bandOfPath('/db/stageboard-leasetest/_changes')).toEqual({ db: 'stageboard-leasetest', inner: '/stageboard-leasetest/_changes' })
