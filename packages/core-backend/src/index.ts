@@ -37,7 +37,6 @@ import {
   SERVER_EXECUTION_TARGET,
   ActivateWorkspaceHardwareRequestSchema,
   CreateMemberRequestSchema,
-  DeviceInfoReportSchema,
   DeviceTriggerSchema,
   DiscoveryAssignRequestSchema,
   DiscoveryReportCandidateRequestSchema,
@@ -54,7 +53,6 @@ import {
   ResetMemberPasswordRequestSchema,
   RevokeDeviceRequestSchema,
   ForgetDeviceRequestSchema,
-  RosterRequestSchema,
   RotateAccessCodeRequestSchema,
   SetMemberAdminRequestSchema,
   SetOwnPinRequestSchema,
@@ -642,49 +640,6 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
   // Ready Check answers (#60): a tablet says "this profile is ready" for the check the Master opened
   // (ShowState.readyCheckId). In memory and pushed on the presence stream, like the master heartbeat.
 
-  // Device Ledger's live diagnostic data (DeviceLedgerView.tsx, Marco's explicit request) -
-  // deliberately a plain one-shot GET, NOT an SSE push like plugin-health/presence above, and
-  // polled client-side instead (DeviceLedgerView.tsx's own effect) - found live, 2026-09-08:
-  // this app already holds ~5 other long-lived SSE/EventSource connections open per tab for the
-  // whole session (presence, trigger-stream, discovery, plugin-health x2) against a plain
-  // HTTPS/1.1 dev server (no HTTP/2 negotiated), already sitting at/near Chrome's
-  // 6-connections-per-origin cap *before* this route existed. A 6th persistent stream here
-  // starved one-off requests (report POSTs, and - worse - the admin revoke POST, exactly while
-  // someone had this screen open to use it) of a connection entirely. A poll holds nothing
-  // open between requests, so it doesn't compete for that same tight budget. No auth, same
-  // reasoning as presence's routes.
-  app.get('/workspaces/:workspaceId/device-info', (request, reply) => {
-    const { workspaceId } = request.params as { workspaceId: string }
-    return reply.status(200).send(deviceInfoStore.getSnapshot(workspaceId))
-  })
-
-  app.post('/workspaces/:workspaceId/device-info/report', async (request, reply) => {
-    const { workspaceId } = request.params as { workspaceId: string }
-    const parsed = DeviceInfoReportSchema.safeParse(request.body)
-    if (!parsed.success) {
-      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
-    }
-
-    deviceInfoStore.setEntry(workspaceId, parsed.data.deviceId, {
-      ip: request.ip,
-      os: parsed.data.os,
-      environment: parsed.data.environment,
-      syncStatus: parsed.data.syncStatus,
-      lastSeenAt: Date.now(),
-      // Preserved across a report (which doesn't know either) rather than reset - pingLoop.ts
-      // refreshes both independently on its own cadence.
-      networkReachable: deviceInfoStore.getSnapshot(workspaceId).devices[parsed.data.deviceId]?.networkReachable ?? null,
-      hostname: deviceInfoStore.getSnapshot(workspaceId).devices[parsed.data.deviceId]?.hostname ?? null,
-      audioOutput: parsed.data.audioOutput ?? null,
-      vitals: parsed.data.vitals ?? null,
-      leadNeededMs: parsed.data.leadNeededMs ?? null,
-      battery: parsed.data.battery ?? null,
-      midiOutputs: parsed.data.midiOutputs ?? null,
-      silenced: parsed.data.silenced ?? null,
-      foreground: parsed.data.foreground ?? null,
-    })
-    return reply.status(204).send()
-  })
 
   // Device Ledger's admin-only "kick" (Marco, explicit request, deliberately a *soft* kick -
   // see device.ts's `revoked` doc comment). Same verifyAdmin + zod-parse + putDocWithRetry-merge
@@ -1089,6 +1044,22 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
       issueAccount: (body) => replicationAccounts.issue(body),
       audio: { get: readAudioFile, put: (variantId, trackId, data) => writeAudioFile(variantId, trackId, Buffer.from(data)), remove: deleteAudioFile },
       presence: presenceStore(),
+      deviceInfo: deviceInfoStore.deviceInfo(),
+      band: {
+        accessCode: async (workspaceId) => {
+          try {
+            const access = await getOrCreateAccessCode(couch, workspaceId, workspaceId)
+            return { code: access.code, name: access.name }
+          } catch (err) {
+            // A band whose database does not exist cannot be given a code (the backfill's write finds no database): that is
+            // "no such band", answered like a wrong code - not a 500, which would tell a stranger which bands exist.
+            if (err instanceof Error && /: HTTP 404$/.test(err.message)) return null
+            throw err
+          }
+        },
+        profileDocs: (workspaceId) =>
+          allDocs<CouchDoc & Record<string, unknown>>(couch, workspaceDbName(workspaceId), { startkey: PROFILE_ID_PREFIX, endkey: `${PROFILE_ID_PREFIX}￰` }),
+      },
       isBandDevice,
     }),
   )
@@ -1599,21 +1570,6 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
   // Marco's own locked-out workspace start working again, no separate migration needed. Hands
   // back names/roles only, never credentials - the joining device still has to pick who it is
   // (POST /workspaces/:workspaceId/join/:profileId below) before it gets anything real.
-  app.post('/workspaces/:workspaceId/roster', async (request, reply) => {
-    const { workspaceId } = request.params as { workspaceId: string }
-    const parsed = RosterRequestSchema.safeParse(request.body)
-    if (!parsed.success) {
-      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
-    }
-
-    const accessCode = await getOrCreateAccessCode(couch, workspaceId, workspaceId)
-    if (parsed.data.code !== accessCode.code) {
-      return reply.status(403).send({ status: 'error', message: 'Wrong code' })
-    }
-
-    const members = await readRoster(couch, workspaceId)
-    return reply.status(200).send({ workspaceId, workspaceName: accessCode.name, members })
-  })
 
   // Public, no auth - the second half of the self-service join (2026-09-01 redesign). Requires
   // the workspace's current standing code, then defers to `resolveOutcome` above for the actual

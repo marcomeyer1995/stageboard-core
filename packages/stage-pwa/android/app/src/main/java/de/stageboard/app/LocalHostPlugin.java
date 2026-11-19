@@ -210,12 +210,14 @@ public class LocalHostPlugin extends Plugin {
             sock.setSoTimeout(90_000);
             InputStream in = new BufferedInputStream(sock.getInputStream(), 65536);
             OutputStream out = new java.io.BufferedOutputStream(sock.getOutputStream(), 65536);
+            java.net.InetAddress peer = sock.getInetAddress();
+            String remote = peer == null ? null : peer.getHostAddress();
             while (true) {
                 String requestLine = readLine(in);
                 if (requestLine.isEmpty()) return;
                 String[] parts = requestLine.split(" ");
                 if (parts.length < 2) return;
-                boolean keepAlive = serve(parts[0], parts[1], in, out);
+                boolean keepAlive = serve(parts[0], parts[1], in, out, remote);
                 out.flush();
                 if (!keepAlive) return;
             }
@@ -224,7 +226,7 @@ public class LocalHostPlugin extends Plugin {
     }
 
     /** Answers one request; true when the connection stays open for the next. */
-    private boolean serve(String method, String target, InputStream in, OutputStream out) throws IOException, InterruptedException {
+    private boolean serve(String method, String target, InputStream in, OutputStream out, String remote) throws IOException, InterruptedException {
         Map<String, String> headers = new HashMap<>();
         String line;
         while (!(line = readLine(in)).isEmpty()) {
@@ -295,7 +297,7 @@ public class LocalHostPlugin extends Plugin {
             String key = band + "\n" + authorization;
             Long until = allowed.get(key);
             if (live.group(3).equals("push") && (until == null || until < System.currentTimeMillis())) {
-                Pending check = ask("GET", "/_host-login/" + band, "", "", authorization, new byte[0]);
+                Pending check = ask("GET", "/_host-login/" + band, "", "", authorization, new byte[0], remote);
                 if (check.status != 200) {
                     write(out, 401, "application/json", "{\"error\":\"unauthorized\"}".getBytes(StandardCharsets.UTF_8), keepAlive);
                     return keepAlive;
@@ -305,13 +307,13 @@ public class LocalHostPlugin extends Plugin {
             return relay(live.group(1) + "/" + live.group(2), live.group(3), method, body, out, keepAlive);
         }
 
-        Pending p = ask(method, path, query, headers.getOrDefault("content-type", ""), authorization, body);
+        Pending p = ask(method, path, query, headers.getOrDefault("content-type", ""), authorization, body, remote);
         write(out, p.status, p.contentType, p.body, keepAlive);
         return keepAlive;
     }
 
     /** Hands a request to the app (sync-host and the login check live there) and waits for its answer. */
-    private Pending ask(String method, String path, String query, String contentType, String authorization, byte[] body) throws InterruptedException {
+    private Pending ask(String method, String path, String query, String contentType, String authorization, byte[] body, String remote) throws InterruptedException {
         long id = nextId.incrementAndGet();
         Pending p = new Pending();
         pending.put(id, p);
@@ -321,6 +323,8 @@ public class LocalHostPlugin extends Plugin {
         req.put("path", path);
         req.put("query", query);
         req.put("contentType", contentType);
+        // The address the connection came from - what the Device Ledger shows; never taken from the client.
+        if (remote != null) req.put("remoteAddress", remote);
         if (authorization != null) req.put("authorization", authorization);
         // JSON as text through the bridge, only binary as Base64.
         if (contentType.isEmpty() || contentType.contains("json")) req.put("text", new String(body, StandardCharsets.UTF_8));

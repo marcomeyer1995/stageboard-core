@@ -20,6 +20,8 @@ export function registerHostRoutes(app: FastifyInstance, routes: readonly HostRo
           params: hit?.params ?? {},
           query: (request.query ?? {}) as Record<string, string>,
           ...(request.headers.authorization ? { authorization: request.headers.authorization } : {}),
+          // The address the TCP connection came from - never taken from the client (it cannot know its own LAN address).
+          remoteAddress: request.ip,
           // JSON as parsed; an upload as the Buffer Fastify's catch-all parser hands over (a Uint8Array).
           body: request.body,
         })
