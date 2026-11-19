@@ -10,6 +10,7 @@ for the devices, Python with numpy for `measure/`. Nothing here ships with the a
 | [night-test](night-test/README.md) | does the app keep playing with the screen locked (#724, #789) |
 | [phone-check](phone-check/README.md) | pages at phone size in a headless Chrome |
 | [test-runner](test-runner/README.md) | checks on the real devices with a report: GUI (cut-off text, sizes), Solo start point (#819) |
+| [host-test](host-test/README.md) | a band on tablets alone: found, list, sync, block, delete against one tablet host (#962) |
 | [stage-map-harness](stage-map-harness/README.md) | the real stage map in a browser, no server |
 | [measure](measure/README.md) | click/track offset, crosstalk, silence after unplugging (#742) |
 | [server/deploy-ref.sh](server/deploy-ref.sh) | run the Host from another ref for a test, and back |

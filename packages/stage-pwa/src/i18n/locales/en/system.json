@@ -61,7 +61,6 @@
     "hostInfo": "Starts the host in the background. Name it as the primary or the backup on the stage map. As the backup it takes over once the primary has not answered for 5 s.",
     "hostStart": "Start host",
     "hostStop": "Stop host",
-    "hostNoBand": "No active band on this device.",
     "hostAddress": "Address",
     "hostEpoch": "Epoch",
     "hostRole": "Role",

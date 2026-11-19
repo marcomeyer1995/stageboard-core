@@ -131,6 +131,7 @@
     "sheetValid": "Valid until the code is made again in the app. Printed on {{date}}."
   },
   "join": {
+    "hostThisDevice": "This device as a host (found a band here from another device)",
     "noServerAt": "No Host reachable at {{host}}.",
     "noServerId": "This QR code holds no server identity - please enter the Host's address.",
     "whoAreYou": "Who are you?",

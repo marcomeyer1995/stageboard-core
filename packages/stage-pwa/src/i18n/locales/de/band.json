@@ -131,6 +131,7 @@
     "sheetValid": "Gültig, bis der Code in der App neu erzeugt wird. Gedruckt am {{date}}."
   },
   "join": {
+    "hostThisDevice": "Dieses Gerät als Host (Band hier von einem anderen Gerät gründen)",
     "noServerAt": "Kein Host unter {{host}} erreichbar.",
     "noServerId": "Dieser QR-Code enthält keine Server-Kennung – bitte die Adresse des Hosts eingeben.",
     "whoAreYou": "Wer bist du?",

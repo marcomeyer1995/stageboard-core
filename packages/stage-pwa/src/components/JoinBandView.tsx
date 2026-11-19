@@ -9,6 +9,7 @@ import { useActiveProfileStore } from '../store/useActiveProfileStore'
 import { useDialogStore } from '../store/useDialogStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { BackToWorkingBandLink } from './BackToWorkingBandLink'
+import { AndroidHostSettings } from './AndroidHostSettings'
 import { useBackHandler } from '../lib/backNavigation'
 import { Icon } from './Icon'
 import { Switch, Button, PinInput } from './ui'
@@ -644,6 +645,15 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
             </form>
           )}
         </div>
+        {/* A tablet needs no band to be a host (#962): a phone can found the band on it. */}
+        {native && (
+          <details className="rounded-md border border-line p-3">
+            <summary className="cursor-pointer text-sm text-ink-muted">{t('join.hostThisDevice')}</summary>
+            <div className="pt-2">
+              <AndroidHostSettings />
+            </div>
+          </details>
+        )}
       </div>
     </div>
   )

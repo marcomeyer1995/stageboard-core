@@ -12,6 +12,7 @@ import { getAudioStorageBackend } from '../lib/audioStorageBackend'
 import { createHostAudio } from './hostAudio'
 import { isNativeApp, pinListedHosts } from '../lib/native'
 import { getWorkspaceDb, localDbName, LOCAL_DB_OPTIONS } from '../lib/workspaceDb'
+import { bandIdsFromDatabases } from './bandScan'
 import { createTabletCapabilities, deviceFromBrowser } from './tabletCapabilities'
 import { createTabletBandStore, type BandDatabase } from './tabletBandStore'
 
@@ -172,20 +173,20 @@ export function androidHostSwitchOn(): boolean {
 export async function startAndroidHost(): Promise<void> {
   if (!isNativeApp()) return
   if (running) return
-  const workspaceId = workspaceIdNow()
-  if (!workspaceId) {
-    useAndroidHostStore.getState().set({ running: false, error: 'no-band' })
-    return
-  }
+  // A tablet needs no band of its own to be a host (#962): it then serves the clock, its capabilities and the band life
+  // cycle - a phone founds the first band on it - and every band it founded. `workspaceId` is '' while it holds none.
+  const activeBand = workspaceIdNow()
+  const hasBand = activeBand !== null
+  const workspaceId = activeBand ?? ''
   localStorage.setItem(SWITCH_KEY, 'on')
   localStorage.removeItem(INVITE_KEY)
   await pinHosts()
   const hostId = getDeviceId()
-  let keysFor = storedCode(workspaceId)
+  let keysFor = hasBand ? storedCode(workspaceId) : null
   const keys = async () => {
     // The band's code lives in its own database (`workspace:access`), which a host holds - the same
     // source the Host uses (hostLeaseAuth.ts). The invite (#945) is only the fallback.
-    if (!keysFor) {
+    if (!keysFor && hasBand) {
       const doc = await getWorkspaceDb(workspaceId).get('workspace:access').catch(() => null)
       const parsed = AccessCodeSchema.safeParse(doc)
       if (parsed.success) {
@@ -205,7 +206,7 @@ export async function startAndroidHost(): Promise<void> {
     selfHostId: hostId,
     baseEpoch: 1,
     roleStore: { load: storedRole, save: (role) => localStorage.setItem(ROLE_KEY, JSON.stringify(role)) },
-    workspaceId: () => workspaceId,
+    workspaceId: () => (hasBand ? workspaceId : null),
     readHosts: async () => hostsNow() ?? null,
     readAccessCode: accessCodeNow,
     get: (url) => getJson(url).catch(() => null),
@@ -214,6 +215,7 @@ export async function startAndroidHost(): Promise<void> {
     selfFingerprint: () => startedFingerprint || null,
     catchUp: () => catchUp?.status() ?? null,
     songRunning: async () => {
+      if (!hasBand) return false
       // A band that never played has no show-state yet: not running. A database that cannot be read throws: cannot tell.
       const doc = (await getWorkspaceDb(workspaceId).get('show-state').catch((err: { status?: number }) => {
         if (err.status === 404) return null
@@ -231,14 +233,12 @@ export async function startAndroidHost(): Promise<void> {
 
   // The bands this tablet holds in IndexedDB: what the browser lists (PouchDB prefixes its databases with `_pouch_`),
   // plus the app's own list - a band just founded is in the store before its database shows up.
-  const localBands = new Set<string>([workspaceId])
+  const localBands = new Set<string>(hasBand ? [workspaceId] : [])
   const localBandIds = async (): Promise<string[]> => {
     const databases = (indexedDB as IDBFactory & { databases?: () => Promise<{ name?: string }[]> }).databases
     if (typeof databases === 'function') {
       try {
-        for (const database of await databases.call(indexedDB)) {
-          if (database.name?.startsWith('_pouch_stageboard-')) localBands.add(database.name.slice('_pouch_stageboard-'.length))
-        }
+        for (const id of bandIdsFromDatabases((await databases.call(indexedDB)).map((database) => database.name))) localBands.add(id)
       } catch {
         // No database listing here - the app's own list still knows its bands.
       }
@@ -254,7 +254,7 @@ export async function startAndroidHost(): Promise<void> {
   const dbFor = (band: string): PouchDB.Database => {
     let handle = handles.get(band)
     if (!handle) {
-      handle = band === workspaceId ? (getWorkspaceDb(band) as unknown as PouchDB.Database) : new PouchDB(localDbName(band), LOCAL_DB_OPTIONS)
+      handle = isActiveBand(band) ? (getWorkspaceDb(band) as unknown as PouchDB.Database) : new PouchDB(localDbName(band), LOCAL_DB_OPTIONS)
       handles.set(band, handle)
     }
     return handle
@@ -268,8 +268,9 @@ export async function startAndroidHost(): Promise<void> {
   // The bands this tablet founded itself (its id in the access doc): it serves them even while another band is the
   // active one. A band it only joined is served only while the lease makes it the host.
   const founded = new Set<string>()
-  const servesBand = (band: string): boolean => band === workspaceId || founded.has(band)
-  const serving = (band?: string): boolean => (band !== undefined && band !== workspaceId ? founded.has(band) : machine.state().active)
+  const isActiveBand = (band: string): boolean => hasBand && band === workspaceId
+  const servesBand = (band: string): boolean => isActiveBand(band) || founded.has(band)
+  const serving = (band?: string): boolean => (band !== undefined && !isActiveBand(band) ? founded.has(band) : hasBand && machine.state().active)
 
   // Presence (flash, Ready Check, heartbeat) and the Device Ledger are one store for all bands - they key by band - and
   // the native server publishes each served band's channel, so its devices see the Ready Check and flash messages.
@@ -285,7 +286,7 @@ export async function startAndroidHost(): Promise<void> {
 
   /** The standing code of a band this host serves, read from its own data (the active band's is cached for the lease). */
   const accessCodeOf = async (band: string): Promise<string | null> => {
-    if (band === workspaceId) {
+    if (isActiveBand(band)) {
       await keys()
       return keysFor
     }
@@ -412,7 +413,7 @@ export async function startAndroidHost(): Promise<void> {
   // Host runs, a login document of the band like every other.
   const issuer = createReplicationAccountIssuer({
     selfHostId: hostId,
-    workspaceId: () => workspaceId,
+    workspaceId: () => (hasBand ? workspaceId : null),
     readHosts: async () => hostsNow() ?? null,
     readAccessCode: accessCodeNow,
     mint: (_band, askingHostId) => accountsFor(workspaceId).provisionDevice('host', askingHostId, false),
@@ -422,7 +423,7 @@ export async function startAndroidHost(): Promise<void> {
       set: (askingHostId, at) => localStorage.setItem(SENT_AT_KEY, JSON.stringify({ ...readJson<Record<string, number>>(SENT_AT_KEY), [askingHostId]: at })),
     },
   })
-  subscribePresence(workspaceId)
+  if (hasBand) subscribePresence(workspaceId)
 
 
   const acceptInvite = async (raw: unknown) => {
@@ -487,7 +488,7 @@ export async function startAndroidHost(): Promise<void> {
       },
     },
     // The band this tablet holds - a passive backup holds it too (the primary must not invite it again).
-    activeWorkspaceId: () => workspaceId,
+    activeWorkspaceId: () => (hasBand ? workspaceId : null),
     acceptInvite,
     audio: hostAudio,
     joinBand: (band) => (servesBand(band) ? joinBandFor(band) : null),

@@ -61,7 +61,6 @@
     "hostInfo": "Startet den Host im Hintergrund. Auf der Bühnenplan-Karte als Primary oder Backup eintragen. Als Backup übernimmt es erst, wenn der Primary 5 s nicht mehr antwortet.",
     "hostStart": "Host starten",
     "hostStop": "Host stoppen",
-    "hostNoBand": "Keine aktive Band auf diesem Gerät.",
     "hostAddress": "Adresse",
     "hostEpoch": "Epoche",
     "hostRole": "Rolle",
