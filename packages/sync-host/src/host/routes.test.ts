@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { createBandAccounts } from './bandAccounts.js'
 import { createBandJoin } from './bandJoin.js'
+import { createBandMembers } from './bandMembers.js'
 import { createPinThrottle } from './pinThrottle.js'
 import { createHostRoutes, matchHostRoute, type HostAudio, type HostRoutesDeps, type HostRouteResponse } from './routes.js'
 
@@ -201,5 +202,57 @@ describe('joining and the admin PIN', () => {
   it('is refused with 503 while passive, and not there at all on a host without members', async () => {
     expect((await call(memberDeps({ serving: () => false }), 'POST', '/workspaces/leasetest/join/p2', { code: '57832943', deviceId: 'x' }))?.status).toBe(503)
     expect(await call(deps(), 'POST', '/workspaces/leasetest/join/p2', { code: '57832943', deviceId: 'x' })).toBeNull()
+  })
+})
+
+describe('managing members', () => {
+  const setup = async (over: Partial<HostRoutesDeps> = {}) => {
+    const docs = new Map<string, Record<string, unknown> & { _id: string }>()
+    const accounts = createBandAccounts({
+      workspaceId: 'leasetest',
+      iterations: 1000,
+      store: { get: async (id) => (docs.get(id) as never) ?? null, put: async (d) => void docs.set(d._id, d as never), list: async (p) => [...docs.values()].filter((d) => d._id.startsWith(p)) as never },
+    })
+    const profiles: Record<string, { stageRoles?: string[] }> = { p1: { stageRoles: ['admin'] }, p2: {}, p3: { stageRoles: ['admin'] } }
+    const base = { accounts, throttle: createPinThrottle(), workspaceId: 'leasetest', accessCode: async () => '57832943', profile: async (id: string) => profiles[id] ?? null }
+    const join = createBandJoin(base)
+    const members = createBandMembers({ ...base, join, loginThrottle: createPinThrottle(), adminProfileIds: async () => Object.keys(profiles).filter((id) => profiles[id]!.stageRoles?.includes('admin')) })
+    const d = deps({ joinBand: (ws) => (ws === 'leasetest' ? join : null), members: (ws) => (ws === 'leasetest' ? members : null), ...over })
+    const made = (await call(d, 'POST', '/workspaces/leasetest/join/p1', { code: '57832943', password: '4711', deviceId: 'fire' }))?.body as { username: string; password: string }
+    return { d, admin: { adminUsername: made.username, adminPassword: made.password }, made }
+  }
+
+  it('adds a member, gives and takes admin, removes - each answered like the Stage-Server', async () => {
+    const { d, admin } = await setup()
+    expect((await call(d, 'POST', '/workspaces/leasetest/members', { ...admin, profileId: 'p3', isAdmin: true, password: '1234' }))?.body).toEqual({ username: 'stageboard-leasetest-p3', password: '1234' })
+    expect((await call(d, 'POST', '/workspaces/leasetest/members/p2/admin', { ...admin, isAdmin: true }))?.status).toBe(204)
+    expect((await call(d, 'DELETE', '/workspaces/leasetest/members/p2', admin))?.status).toBe(204)
+  })
+
+  it('answers 400 for a body that does not fit, 403 for someone who is no admin, 503 while passive, nothing without members', async () => {
+    const { d, admin } = await setup()
+    expect((await call(d, 'POST', '/workspaces/leasetest/members', { profileId: 'p2' }))?.status).toBe(400)
+    expect((await call(d, 'POST', '/workspaces/leasetest/members', { adminUsername: admin.adminUsername, adminPassword: 'wrong', profileId: 'p2' }))?.status).toBe(403)
+    let up = true
+    const passiveHost = await setup({ serving: () => up })
+    up = false
+    expect((await call(passiveHost.d, 'POST', '/workspaces/leasetest/members/p2/reset-password', passiveHost.admin))?.status).toBe(503)
+    expect(await call(deps(), 'POST', '/workspaces/leasetest/members', { ...admin, profileId: 'p2' })).toBeNull()
+  })
+
+  it('resets a PIN, sets one\'s own, and lets a device take on another person', async () => {
+    const { d, admin, made } = await setup()
+    const reset = await call(d, 'POST', '/workspaces/leasetest/members/p3/reset-password', admin)
+    expect(reset?.status).toBe(200)
+    expect((reset?.body as { password: string }).password).toMatch(/^\d{4}$/)
+    const own = await call(d, 'POST', '/workspaces/leasetest/members/p1/set-pin', { callerUsername: made.username, callerPassword: made.password, newPin: '9999', deviceId: 'fire' })
+    expect(own?.status).toBe(200)
+    const again = own?.body as { username: string; password: string }
+    expect((await call(d, 'POST', '/workspaces/leasetest/members/p2/activate', { callerUsername: again.username, callerPassword: again.password, deviceId: 'fire' }))?.status).toBe(201)
+  })
+
+  it('answers a band it does not hold like a wrong login (403)', async () => {
+    const { d, admin } = await setup()
+    expect((await call(d, 'POST', '/workspaces/other/members', { ...admin, profileId: 'p2' }))?.status).toBe(403)
   })
 })

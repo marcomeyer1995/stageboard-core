@@ -1,6 +1,6 @@
 import { registerPlugin, type PluginListenerHandle } from '@capacitor/core'
 import { AccessCodeSchema, HostJoinInviteSchema } from 'shared-types'
-import { createBandAccounts, createBandJoin, createPinThrottle, createHostLogin, createHostPresence, leaseKey, signAccountRequest, startCatchUp, type CatchUp, createSyncHost, createWriteGuard, HOST_ACCOUNTS_DOC_ID, type HostAccount, type SyncDatabase, type SyncRequest } from 'sync-host'
+import { createBandAccounts, createBandJoin, createBandMembers, createPinThrottle, createHostLogin, createHostPresence, leaseKey, signAccountRequest, startCatchUp, type CatchUp, createSyncHost, createWriteGuard, HOST_ACCOUNTS_DOC_ID, type HostAccount, type SyncDatabase, type SyncRequest } from 'sync-host'
 import { useBandSettingsStore } from '../store/useBandSettingsStore'
 import { useAndroidHostStore } from '../store/useAndroidHostStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
@@ -242,6 +242,20 @@ export async function startAndroidHost(): Promise<void> {
     accessCode: accessCodeNow,
     profile: async (profileId) => (await getWorkspaceDb(workspaceId).get(`profiles:${profileId}`).catch(() => null)) as { stageRoles?: string[] } | null,
   })
+  const members = createBandMembers({
+    accounts,
+    join: joinBand,
+    workspaceId,
+    loginThrottle: createPinThrottle(),
+    profile: async (profileId) => (await getWorkspaceDb(workspaceId).get(`profiles:${profileId}`).catch(() => null)) as { stageRoles?: string[] } | null,
+    adminProfileIds: async () => {
+      const rows = await getWorkspaceDb(workspaceId).allDocs({ startkey: 'profiles:', endkey: 'profiles:\ufff0', include_docs: true })
+      return rows.rows.flatMap((row) => {
+        const doc = row.doc as { id?: string; stageRoles?: string[] } | undefined
+        return doc?.id && (doc.stageRoles ?? []).includes('admin') ? [doc.id] : []
+      })
+    },
+  })
   const listedLogin = createHostLogin({
     accounts: async (db) => {
       const store = db === dbName ? open(db) : null
@@ -318,6 +332,7 @@ export async function startAndroidHost(): Promise<void> {
     acceptInvite,
     audio: hostAudio,
     joinBand: (band) => (band === workspaceId ? joinBand : null),
+    members: (band) => (band === workspaceId ? members : null),
     presence: {
       report: (band, report) => band === workspaceId && presence.report(report),
       heartbeat: (band, deviceId) => band === workspaceId && presence.heartbeat({ deviceId }),

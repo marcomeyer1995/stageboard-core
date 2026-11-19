@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createBandAccounts, createBandJoin, createPinThrottle, type AccountDoc, type SyncRequest } from 'sync-host'
+import { createBandAccounts, createBandJoin, createBandMembers, createPinThrottle, type AccountDoc, type SyncRequest } from 'sync-host'
 import { answerHostRequest, bandOfPath, loginCheckOf, type AppHostDeps } from './hostHttp'
 
 /** The routes every host shares are tested once, in sync-host (routes.test.ts); here: the tablet's own, and its wiring of the shared ones. */
@@ -164,5 +164,21 @@ describe('loginCheckOf', () => {
     const joined = await join('57832943')
     expect(joined.status).toBe(201)
     expect(joined.body).toMatchObject({ username: 'stageboard-leasetest-p1~fire', isAdmin: true })
+  })
+
+  it('lets an admin add a member through the tablet - body and answer like the Stage-Server - once it is the host', async () => {
+    const { deps } = baseDeps()
+    const docs = new Map<string, AccountDoc>()
+    const accounts = createBandAccounts({ workspaceId: 'leasetest', iterations: 1000, store: { get: async (id) => docs.get(id) ?? null, put: async (d) => void docs.set(d._id, d), list: async (p) => [...docs.values()].filter((d) => d._id.startsWith(p)) } })
+    const base = { accounts, throttle: createPinThrottle(), workspaceId: 'leasetest', accessCode: async () => '57832943', profile: async (id: string) => (id === 'p1' ? { stageRoles: ['admin'] } : {}) }
+    const join = createBandJoin(base)
+    deps.joinBand = () => join
+    deps.members = () => createBandMembers({ ...base, join, loginThrottle: createPinThrottle(), adminProfileIds: async () => ['p1'] })
+    active(deps)
+    const made = (await answerHostRequest({ method: 'POST', path: '/workspaces/leasetest/join/p1', query: {}, body: { code: '57832943', password: '4711', deviceId: 'fire' } }, deps)).body as { username: string; password: string }
+    const add = await answerHostRequest({ method: 'POST', path: '/workspaces/leasetest/members', query: {}, body: { adminUsername: made.username, adminPassword: made.password, profileId: 'p2' } }, deps)
+    expect(add.status).toBe(201)
+    const removed = await answerHostRequest({ method: 'DELETE', path: '/workspaces/leasetest/members/p2', query: {}, body: { adminUsername: made.username, adminPassword: made.password } }, deps)
+    expect(removed.status).toBe(204)
   })
 })

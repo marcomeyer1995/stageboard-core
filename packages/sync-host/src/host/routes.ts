@@ -1,5 +1,19 @@
-import { JoinAsMemberRequestSchema, MasterHeartbeatReportSchema, PresenceReportSchema, VerifyAdminPinRequestSchema, type PresenceReport } from 'shared-types'
+import {
+  ActivateProfileRequestSchema,
+  CreateMemberRequestSchema,
+  JoinAsMemberRequestSchema,
+  MasterHeartbeatReportSchema,
+  PresenceReportSchema,
+  RemoveMemberRequestSchema,
+  ResetMemberPasswordRequestSchema,
+  SetMemberAdminRequestSchema,
+  SetOwnPinRequestSchema,
+  VerifyAdminPinRequestSchema,
+  type PresenceReport,
+} from 'shared-types'
+import type { z } from 'zod'
 import type { BandJoin } from './bandJoin.js'
+import type { BandMembers } from './bandMembers.js'
 import type { LeaseStatus } from './leaseKeeper.js'
 
 /**
@@ -82,6 +96,8 @@ export interface HostRoutesDeps {
   /** How a device becomes a member and an admin PIN is checked, for a band this host holds (null: not this host's band).
    * Absent: the host does not answer these routes (the Stage-Server until its accounts move into the band, #960). */
   joinBand?: (workspaceId: string) => BandJoin | null
+  /** Who manages the members of a band this host holds (null: not this host's band). Absent: not registered. */
+  members?: (workspaceId: string) => BandMembers | null
   /** false: not the band of this host. */
   presence: {
     report: (workspaceId: string, report: PresenceReport) => boolean
@@ -102,9 +118,42 @@ const safeDecode = (part: string): string => {
   }
 }
 
+/** The member routes: body checked first (400), then passive (503), then the band - one this host does not hold answers
+ * like a wrong login, so it never tells which bands exist. */
+function memberRoutes(membersOf: (workspaceId: string) => BandMembers | null, serving: () => boolean): HostRoute[] {
+  const route = <T extends z.ZodType>(
+    method: HostRoute['method'],
+    pattern: string,
+    schema: T,
+    run: (members: BandMembers, profileId: string, body: z.infer<T>) => ReturnType<BandMembers['create']>,
+  ): HostRoute => ({
+    method,
+    pattern,
+    handle: async (request) => {
+      const asked = schema.safeParse(request.body)
+      if (!asked.success) return json(400, { status: 'error', message: asked.error.issues[0]?.message })
+      if (!serving()) return passive()
+      const members = membersOf(safeDecode(request.params.workspaceId ?? ''))
+      if (!members) return json(403, { status: 'error', message: "Not this workspace's admin" })
+      const answer = await run(members, safeDecode(request.params.profileId ?? ''), asked.data)
+      return fromJoin(answer)
+    },
+  })
+  const base = '/workspaces/:workspaceId'
+  return [
+    route('POST', `${base}/members`, CreateMemberRequestSchema, (m, _id, body) => m.create(body)),
+    route('POST', `${base}/members/:profileId/admin`, SetMemberAdminRequestSchema, (m, id, body) => m.setAdmin(id, body)),
+    route('DELETE', `${base}/members/:profileId`, RemoveMemberRequestSchema, (m, id, body) => m.remove(id, body)),
+    route('POST', `${base}/members/:profileId/reset-password`, ResetMemberPasswordRequestSchema, (m, id, body) => m.resetPin(id, body)),
+    route('POST', `${base}/members/:profileId/set-pin`, SetOwnPinRequestSchema, (m, id, body) => m.setOwnPin(id, body)),
+    route('POST', `${base}/members/:profileId/activate`, ActivateProfileRequestSchema, (m, id, body) => m.activate(id, body)),
+  ]
+}
+
 export function createHostRoutes(deps: HostRoutesDeps): HostRoute[] {
   const serving = () => deps.serving?.() ?? true
   const joinBand = deps.joinBand
+  const membersOf = deps.members
   const audioIds = (params: HostRouteRequest['params']) => ({ variantId: safeDecode(params.variantId ?? ''), trackId: safeDecode(params.trackId ?? '') })
 
   return [
@@ -222,6 +271,7 @@ export function createHostRoutes(deps: HostRoutesDeps): HostRoute[] {
       },
     },
     ] satisfies HostRoute[]) : []),
+    ...(membersOf ? memberRoutes(membersOf, serving) : []),
   ]
 }
 

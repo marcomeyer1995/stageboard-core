@@ -262,3 +262,4 @@ export { trackKey, parseTrackKey, tracksOfVariantDocs, planTrackSync, type Track
 export { createBandAccounts, deviceUsername, memberUsername, workspaceDbName, type AccountDoc, type AccountStore, type BandAccounts, type BandAccountsOptions } from './host/bandAccounts.js'
 export { createPinThrottle, type PinThrottle, type PinThrottleOptions } from './host/pinThrottle.js'
 export { createBandJoin, type BandJoin, type BandJoinDeps, type BandJoinResponse } from './host/bandJoin.js'
+export { createBandMembers, type BandMembers, type BandMembersDeps } from './host/bandMembers.js'

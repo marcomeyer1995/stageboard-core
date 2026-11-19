@@ -28,6 +28,9 @@ export interface BandJoinResponse {
 
 export interface BandJoin {
   join(profileId: string, request: Pick<JoinAsMemberRequest, 'code' | 'password' | 'deviceId'>): Promise<BandJoinResponse>
+  /** The decision both `join` (proof: the band code) and a device re-picking a person (proof: its own login) share:
+   * a non-admin gets a device login; an admin needs the PIN (the first time: chooses one) or the recovery suffix. */
+  become(profileId: string, deviceId: string, password: string | undefined): Promise<BandJoinResponse>
   verifyPin(request: VerifyAdminPinRequest): Promise<BandJoinResponse>
 }
 
@@ -51,30 +54,36 @@ export function createBandJoin(deps: BandJoinDeps): BandJoin {
     return right
   }
 
-  return {
+  const api: BandJoin = {
     async join(profileId, request) {
       const code = await deps.accessCode()
       if (!code || request.code !== code) return error(403, 'Wrong code')
+      return api.become(profileId, request.deviceId, request.password)
+    },
+
+    async become(profileId, deviceId, password) {
+      const code = await deps.accessCode()
+      if (!code) return error(403, 'Wrong code')
       const profile = await deps.profile(profileId)
       if (!profile) return error(404, 'Unknown roster member')
 
       if (!(profile.stageRoles ?? []).includes('admin')) {
         const known = await accounts.knownMember(profileId)
-        const credentials = await accounts.provisionDevice(profileId, request.deviceId, false)
+        const credentials = await accounts.provisionDevice(profileId, deviceId, false)
         return { status: known ? 200 : 201, body: { ...credentials, isAdmin: false } }
       }
 
       if (!(await accounts.hasPin(profileId))) {
-        if (!request.password || !/^\d{4}$/.test(request.password)) return error(400, 'Admin accounts need a 4-digit PIN')
-        await accounts.setPin(profileId, request.password)
-        const credentials = await accounts.provisionDevice(profileId, request.deviceId, true)
+        if (!password || !/^\d{4}$/.test(password)) return error(400, 'Admin accounts need a 4-digit PIN')
+        await accounts.setPin(profileId, password)
+        const credentials = await accounts.provisionDevice(profileId, deviceId, true)
         return { status: 201, body: { ...credentials, isAdmin: true } }
       }
-      if (!request.password) return error(403, 'Admin accounts require a code')
+      if (!password) return error(403, 'Admin accounts require a code')
       const wait = throttle.lockedForSeconds(keyOf(profileId))
       if (wait > 0) return locked(wait)
-      if (!(await tryPin(profileId, request.password, code.slice(-4)))) return error(403, 'Wrong code')
-      const credentials = await accounts.provisionDevice(profileId, request.deviceId, true)
+      if (!(await tryPin(profileId, password, code.slice(-4)))) return error(403, 'Wrong code')
+      const credentials = await accounts.provisionDevice(profileId, deviceId, true)
       return { status: 200, body: { ...credentials, isAdmin: true } }
     },
 
@@ -87,4 +96,5 @@ export function createBandJoin(deps: BandJoinDeps): BandJoin {
       return (await tryPin(request.profileId, request.pin, code.slice(-4))) ? { status: 200, body: { status: 'ok' } } : error(403, 'Wrong admin or PIN')
     },
   }
+  return api
 }
