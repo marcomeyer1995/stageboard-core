@@ -14,7 +14,7 @@ The Stage-Server is a **role** ("host"), not a particular computer (docs/25 §2)
 
 Moving up a tier is not an export/import: every device already holds the whole band (PouchDB); the data replicates to the new host (docs/25 §2).
 
-Graceful degradation per tier is the same rule as for missing hardware: the host reports what it can do (`GET /server/capabilities`), the app shows what is missing on this tier, widgets of missing capabilities go into the disabled state (CLAUDE.md core principle 2).
+Graceful degradation per tier is the same rule as for missing hardware: the host reports what it can do (`GET /host/capabilities`), the app shows what is missing on this tier, widgets of missing capabilities go into the disabled state (CLAUDE.md core principle 2).
 
 ## 2. What a function really needs
 

@@ -7,7 +7,7 @@ export async function fetchHostCapabilities(): Promise<HostCapabilities | null> 
   const base = getStageServerUrl()
   if (!base) return null
   try {
-    const response = await fetch(`${base}/server/capabilities`)
+    const response = await fetch(`${base}/host/capabilities`)
     if (!response.ok) return null
     const parsed = HostCapabilitiesSchema.safeParse(await response.json())
     return parsed.success ? parsed.data : null

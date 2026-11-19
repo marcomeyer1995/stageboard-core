@@ -12,6 +12,7 @@ import { getAudioStorageBackend } from '../lib/audioStorageBackend'
 import { createHostAudio } from './hostAudio'
 import { isNativeApp, pinListedHosts } from '../lib/native'
 import { getWorkspaceDb, localDbName, LOCAL_DB_OPTIONS } from '../lib/workspaceDb'
+import { createTabletCapabilities, deviceFromBrowser } from './tabletCapabilities'
 import { createTabletBandStore, type BandDatabase } from './tabletBandStore'
 
 /**
@@ -494,6 +495,7 @@ export async function startAndroidHost(): Promise<void> {
     presence,
     deviceInfo,
     channels,
+    capabilities: () => createTabletCapabilities(deviceFromBrowser()),
     serving,
     // The tablet serves every band it founded, and the band the lease makes it host of; a flash message needs a
     // device of it (the same login as the database).

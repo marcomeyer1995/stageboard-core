@@ -18,7 +18,7 @@ const { HelperError } = await import('./nativeHelper')
 const CERTS = androidHelperCerts(catalogEntry('youtube-download')!)
 const trusted: HelperInfo = { package: 'de.stageboard.helper.youtube', certSha256: CERTS[0]!, apiVersion: 1 }
 const stranger: HelperInfo = { ...trusted, certSha256: 'ab'.repeat(32) }
-const host = (available: boolean): HostCapabilities => ({ kind: 'stage-server', platform: 'linux', arch: 'x64', database: 'databases', plugins: [{ id: 'youtube-download', available, needs: available ? null : 'yt-dlp' }] })
+const host = (available: boolean): HostCapabilities => ({ kind: 'desktop', jobs: [], platform: 'linux', arch: 'x64', database: 'databases', plugins: [{ id: 'youtube-download', available, needs: available ? null : 'yt-dlp' }] })
 
 describe('youtubeRoute', () => {
   it('the host when it can, else a trusted helper on this device, else nowhere', () => {

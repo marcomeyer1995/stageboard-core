@@ -350,16 +350,23 @@ export const SetOwnPinResultSchema = JoinAsMemberResultSchema
 export type SetOwnPinResult = z.infer<typeof SetOwnPinResultSchema>
 
 /**
- * What a host can do (docs/25 §6, Marco 2026-11-07): the map shows the server plugins at the host
- * and offers only those it can run - a Linux PC the download tool and stem separation, an Android
- * host none of the heavy ones. `needs`: what is missing for a plugin (a tool to install), or null.
+ * What a host can do (docs/25 §6, Marco 2026-11-07; #962): **only the power of the device decides** - there is no
+ * "server" kind of host. Every host answers `GET /host/capabilities`. `jobs` are the things a host can be asked to do
+ * (backup, stem separation, speech, ...): `available: false` says what is missing (`needs`), and a request for it is
+ * refused with 501 and that reason, never with 404. `plugins` are the same for the plugins of this build that run on
+ * the host (a Linux PC the download tool and stem separation, an Android host none of the heavy ones).
  */
+const CapabilityEntrySchema = z.object({ id: z.string(), available: z.boolean(), needs: z.string().nullable() })
 export const HostCapabilitiesSchema = z.object({
-  kind: z.enum(['stage-server', 'android']),
+  kind: z.enum(['desktop', 'android']),
   platform: z.string(),
   arch: z.string(),
   database: z.enum(['databases', 'builtin']),
-  plugins: z.array(z.object({ id: z.string(), available: z.boolean(), needs: z.string().nullable() })),
+  /** The device's power, when it can tell: what a heavy job may be sent to. */
+  cpuCores: z.number().int().positive().optional(),
+  memoryMb: z.number().int().positive().optional(),
+  jobs: z.array(CapabilityEntrySchema).default([]),
+  plugins: z.array(CapabilityEntrySchema),
 })
 export type HostCapabilities = z.infer<typeof HostCapabilitiesSchema>
 

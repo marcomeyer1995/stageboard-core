@@ -1,4 +1,4 @@
-import { createHostRoutes, matchChannelStream, matchHostRoute, type HostRoute, type HostRoutesDeps, type SyncRequest, type SyncResponse } from 'sync-host'
+import { createHostRoutes, jobOfRequest, matchChannelStream, matchHostRoute, refusalFor, type HostRoute, type HostRoutesDeps, type SyncRequest, type SyncResponse } from 'sync-host'
 
 /** A request as the native server hands it to the app (LocalHostPlugin.java). */
 export interface AppHostRequest {
@@ -92,6 +92,11 @@ export async function answerHostRequest(request: AppHostRequest, deps: AppHostDe
   const stream = method === 'GET' ? matchChannelStream(path) : null
   if (stream) {
     return json(501, { error: 'capability_missing', capability: `live-stream:${stream.topic}`, reason: `This host does not relay the ${stream.topic} stream yet.` })
+  }
+  // A job this device cannot do (backup, speech, a plugin that needs Node, ...): 501 and what it lacks - never 404 (#962).
+  if (deps.capabilities && jobOfRequest(method, path) !== null) {
+    const refused = refusalFor(await deps.capabilities(), method, path)
+    if (refused) return json(refused.status, refused.body)
   }
   const band = bandOfPath(path)
   if (!band) return json(404, { error: 'not_found', reason: 'Not a route of this host.' })

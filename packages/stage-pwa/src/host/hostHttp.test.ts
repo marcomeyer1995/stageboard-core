@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { createBandAccounts, createBandJoin, createHostChannels, createBandMembers, createPinThrottle, createHostDeviceInfo, createHostPresence, type AccountDoc, type SyncRequest } from 'sync-host'
+import { createTabletCapabilities } from './tabletCapabilities'
 import { answerHostRequest, bandOfPath, loginCheckOf, type AppHostDeps } from './hostHttp'
 
 /** The routes every host shares are tested once, in sync-host (routes.test.ts); here: the tablet's own, and its wiring of the shared ones. */
@@ -254,5 +255,26 @@ describe('live channels on the tablet (#962)', () => {
     const stream = await answerHostRequest({ method: 'GET', path: '/workspaces/leasetest/discovery/stream', query: {} }, deps)
     expect(stream.status).toBe(501)
     expect(stream.body).toMatchObject({ error: 'capability_missing', capability: 'live-stream:discovery' })
+  })
+})
+
+describe('what the tablet cannot do (#962)', () => {
+  it('tells its capabilities, and refuses a job it cannot do with 501 and what it lacks - never 404', async () => {
+    const { deps } = baseDeps()
+    deps.capabilities = () => createTabletCapabilities({ platform: 'android', cpuCores: 8 })
+    const caps = await answerHostRequest({ method: 'GET', path: '/host/capabilities', query: {} }, deps)
+    expect(caps.status).toBe(200)
+    expect(caps.body).toMatchObject({ kind: 'android', cpuCores: 8 })
+    for (const [method, path, capability] of [
+      ['POST', '/server/backup/run', 'backup'],
+      ['GET', '/speech', 'speech'],
+      ['GET', '/lookup/ug/search', 'lookup'],
+      ['POST', '/plugins/stem-separation/trigger', 'plugin:stem-separation'],
+      ['POST', '/workspaces/leasetest/activate-hardware', 'hardware'],
+    ] as const) {
+      const refused = await answerHostRequest({ method, path, query: {} }, deps)
+      expect(refused.status, path).toBe(501)
+      expect(refused.body, path).toMatchObject({ error: 'capability_missing', capability })
+    }
   })
 })

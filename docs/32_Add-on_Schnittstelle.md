@@ -132,7 +132,7 @@ RESULT {"files":[{"key":"drums","file":"drums.opus"}]}
 - Dateien: in ein Arbeitsverzeichnis, das StageBoard vorgibt und danach aufräumt. Audio immer als **Ogg Opus** (docs/30 §8h).
 - *Gebaut* so: Stem-Trennung (`core-backend/scripts/stem_separate.py`); `yt-dlp` hat ein eigenes Format, das StageBoard übersetzt.
 
-**Laptop/PC** – *gebaut für die eingebauten*: ein Programm auf dem Host (`yt-dlp`, Python mit Demucs, Piper); der Host meldet je Add-on, ob es da ist (`GET /server/capabilities`).
+**Laptop/PC** – *gebaut für die eingebauten*: ein Programm auf dem Host (`yt-dlp`, Python mit Demucs, Piper); der Host meldet je Add-on, ob es da ist (`GET /host/capabilities`).
 
 **Android** – *geplant, erstes Beispiel: YouTube* (docs/25 §6b): ein **eigenes App-Paket** neben StageBoard, ohne Symbol auf dem Startbildschirm.
 - Es bietet einen gebundenen Dienst mit den Aktionen `de.stageboard.helper` (gemeinsam für alle – seit Android 11 sieht StageBoard fremde Apps nur über eine fest angemeldete Aktion) und `de.stageboard.helper.<add-on-id>` an, dazu die Metadaten `de.stageboard.addon` = Add-on-ID und `de.stageboard.apiVersion`. StageBoard findet es über den Paket-Manager.

@@ -17,7 +17,8 @@ beforeEach(() => install.mockClear())
 describe('HostPlugins (docs/25 §6, 2026-11-07)', () => {
   it('installable where the host can run it, greyed with what it lacks where not, installed marked', async () => {
     caps.current = {
-      kind: 'stage-server',
+      kind: 'desktop',
+      jobs: [],
       platform: 'linux',
       arch: 'x64',
       database: 'builtin',

@@ -86,6 +86,24 @@ describe('who the host is', () => {
   })
 })
 
+describe('what the host can do (#962)', () => {
+  const capabilities = { kind: 'android' as const, platform: 'android', arch: 'arm64', database: 'builtin' as const, jobs: [{ id: 'backup', available: false, needs: 'a Node machine' }], plugins: [] }
+
+  it('/host/capabilities tells what this device can do, on every host', async () => {
+    expect(await call(deps({ capabilities: () => capabilities }), 'GET', '/host/capabilities')).toEqual({ status: 200, body: capabilities })
+    expect(matchHostRoute(createHostRoutes(deps()), 'GET', '/host/capabilities')).toBeNull()
+  })
+
+  it('/health is the alive signal of any host', async () => {
+    expect(await call(deps(), 'GET', '/health')).toEqual({ status: 200, body: { status: 'ok' } })
+  })
+
+  it('/server/active-workspace/admins names only the admins of the band the host is set up for', async () => {
+    expect(await call(deps(), 'GET', '/server/active-workspace/admins')).toEqual({ status: 200, body: { workspaceId: 'leasetest', admins: [{ profileId: 'p1', name: 'Test' }] } })
+    expect((await call(deps({ activeWorkspaceId: () => null }), 'GET', '/server/active-workspace/admins'))?.status).toBe(404)
+  })
+})
+
 describe('the alive signal and the band invitation', () => {
   it('takes a lease and answers with whether it counted and the host\'s own epoch and role', async () => {
     const d = deps()

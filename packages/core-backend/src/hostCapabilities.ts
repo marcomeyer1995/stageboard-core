@@ -1,4 +1,6 @@
 import { existsSync } from 'node:fs'
+import { cpus, totalmem } from 'node:os'
+import { JOB_IDS } from 'sync-host'
 import type { HostCapabilities } from 'shared-types'
 import { PLUGIN_CATALOG } from './plugins/catalog.js'
 import { serverSpeech, PIPER_SPEECH_PLUGIN_ID } from './plugins/piperSpeechPlugin.js'
@@ -30,16 +32,30 @@ export const PLUGIN_CHECKS: Record<string, PluginCheck> = {
   [YOUTUBE_DOWNLOAD_PLUGIN_ID]: () => (found(resolveYtDlpExecutable, true) ? null : 'yt-dlp'),
 }
 
+/** The jobs that need a tool on this machine; every other job a Node machine can do. */
+const JOB_CHECKS: Record<string, string> = {
+  speech: PIPER_SPEECH_PLUGIN_ID,
+  'youtube-download': YOUTUBE_DOWNLOAD_PLUGIN_ID,
+}
+
 /**
- * This Stage-Server's capabilities (docs/25 §6, 2026-11-07): platform, database, and per server
- * plugin of this build whether it can run here and what it lacks. Test plugins are left out.
+ * This device's capabilities (docs/25 §6, 2026-11-07; #962): platform, power, database, and per job and per plugin of this
+ * build whether it can run here and what it lacks. Test plugins are left out. A Node machine can do every job of the table
+ * except the ones whose tool is missing - the same answer shape a tablet gives, with other values.
  */
 export function hostCapabilities(checks: Record<string, PluginCheck> = PLUGIN_CHECKS, catalog: readonly string[] = Object.keys(PLUGIN_CATALOG)): HostCapabilities {
   return {
-    kind: 'stage-server',
+    kind: 'desktop',
     platform: process.platform,
     arch: process.arch,
     database: 'builtin',
+    cpuCores: Math.max(1, cpus().length),
+    memoryMb: Math.max(1, Math.round(totalmem() / 1024 / 1024)),
+    jobs: JOB_IDS.map((id) => {
+      const tool = JOB_CHECKS[id]
+      const needs = tool ? (checks[tool]?.() ?? null) : null
+      return { id, available: needs === null, needs }
+    }),
     plugins: catalog
       .filter((id) => !id.startsWith('mock-'))
       .map((id) => {

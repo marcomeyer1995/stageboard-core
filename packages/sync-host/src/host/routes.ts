@@ -24,6 +24,7 @@ import type { BandMembers } from './bandMembers.js'
 import type { LeaseStatus } from './leaseKeeper.js'
 import type { HostDeviceInfo } from './deviceInfo.js'
 import type { HostPresence } from './presence.js'
+import type { HostCapabilities } from 'shared-types'
 import { rosterOfProfileDocs } from './roster.js'
 
 /**
@@ -119,6 +120,8 @@ export interface HostRoutesDeps {
   bands?: BandCatalog
   /** The live channels (#962): when given, the routes that feed them join the table. */
   channels?: HostChannels
+  /** What this device can do now (#962): every host answers `GET /host/capabilities`. */
+  capabilities?: () => HostCapabilities | Promise<HostCapabilities>
   /** A line for the host's log. */
   log?: (message: string, meta: Record<string, unknown>) => void
   /** What the host knows about each device (the Device Ledger). */
@@ -217,6 +220,20 @@ export function createHostRoutes(deps: HostRoutesDeps): HostRoute[] {
 
   return [
     { method: 'GET', pattern: '/time', handle: async () => json(200, { serverTime: deps.lease.bandTime(), hostId: deps.hostId, epoch: deps.lease.epoch(), active: deps.lease.isBandHost() }) },
+    { method: 'GET', pattern: '/health', handle: async () => json(200, { status: 'ok' }) },
+    ...(deps.capabilities ? [{ method: 'GET' as const, pattern: '/host/capabilities', handle: async () => json(200, await deps.capabilities!()) }] : []),
+    {
+      method: 'GET',
+      pattern: '/server/active-workspace/admins',
+      // Only names and ids, only for the band the host is set up for: no band in the path, so it cannot list any other
+      // band's roster (a PIN is still needed to do anything with them).
+      handle: async () => {
+        const workspaceId = deps.activeWorkspaceId()
+        if (!workspaceId) return json(404, { status: 'error', message: 'No workspace is active on this host' })
+        const members = rosterOfProfileDocs(await deps.band.profileDocs(workspaceId))
+        return json(200, { workspaceId, admins: members.filter((m) => m.isAdmin).map(({ profileId, name }) => ({ profileId, name })) })
+      },
+    },
     { method: 'GET', pattern: '/server/active-workspace', handle: async () => json(200, { activeWorkspaceId: deps.activeWorkspaceId() }) },
     {
       method: 'GET',
