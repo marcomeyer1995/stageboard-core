@@ -1,6 +1,7 @@
 import type { LookupResult } from 'shared-types'
 import { serverText } from './serverMessage'
-import { getHostUrl, NO_HOST_MESSAGE, HOST_UNREACHABLE_MESSAGE } from './hostUrl'
+import { NO_HOST_MESSAGE, HOST_UNREACHABLE_MESSAGE } from './hostUrl'
+import { resolveHostFor } from './jobHost'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 
 /** The band, so the server can check its add-ons (Ultimate Guitar, #546). */
@@ -12,8 +13,10 @@ export type LookupClientResult<T> = { status: 'ok'; data: T } | { status: 'error
 
 /** GET a JSON answer from the Host, with its errors as a message (also the YouTube search, #618). */
 export async function getJson<T>(url: string): Promise<LookupClientResult<T>> {
-  const base = getHostUrl()
-  if (!base) return { status: 'error', message: NO_HOST_MESSAGE }
+  // A job a host may not be able to do (lookup, YouTube search): the host that can gets it (#962).
+  const resolved = await resolveHostFor('GET', url.split('?')[0]!)
+  if (resolved.base === null) return { status: 'error', message: resolved.message === 'no-host' ? NO_HOST_MESSAGE : resolved.message }
+  const base = resolved.base
 
   try {
     const response = await fetch(`${base}${url}`)
