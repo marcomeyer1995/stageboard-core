@@ -9,7 +9,8 @@ import { answerHostRequest, loginCheckOf, type AppHostDeps } from '../host/hostH
 import { createTabletHost, type TabletHost } from '../host/tabletHost'
 import PouchDB from 'pouchdb-browser'
 import { createAccountIssuer } from '../host/replicationAccount'
-import { cacheKey, getCached, listCachedKeys, parseCacheKey, removeCached, setCached } from '../lib/audioCache'
+import { getAudioStorageBackend } from '../lib/audioStorageBackend'
+import { createHostAudio } from './hostAudio'
 import { isNativeApp, pinListedHosts } from '../lib/native'
 import { getWorkspaceDb, localDbName } from '../lib/workspaceDb'
 
@@ -106,29 +107,17 @@ async function postJson(url: string, body: unknown): Promise<unknown> {
   return response.ok ? response.json() : null
 }
 
-/** The tracks this tablet holds, as the host serves them (#781): its audio cache. A file the app stores under a
- * file revision (`variant:track@3`) is found by variant and track - the newest revision wins; an upload arrives
- * without one and is kept under the plain key until the band's track list names a revision. */
-const hostAudio = {
-  async get(variantId: string, trackId: string): Promise<Uint8Array | null> {
-    const wanted = (await listCachedKeys())
-      .filter((key) => {
-        const parsed = parseCacheKey(key)
-        return parsed.variantId === variantId && parsed.trackId === trackId
-      })
-      .sort((a, b) => revisionOf(b) - revisionOf(a))[0]
-    const blob = wanted ? await getCached(wanted) : null
-    return blob ? new Uint8Array(await blob.arrayBuffer()) : null
+/** The tracks this tablet holds, as the host serves them (#781, #954): its own playback cache - see hostAudio.ts. The
+ * revision of a track comes from the band's song list, which the tablet holds as every device does. */
+const hostAudio = createHostAudio({
+  backend: getAudioStorageBackend(),
+  revisionOf: async (variantId, trackId) => {
+    const workspaceId = useWorkspaceStore.getState().activeWorkspaceId
+    if (!workspaceId) return undefined
+    const doc = (await getWorkspaceDb(workspaceId).get(`song-variants:${variantId}`).catch(() => null)) as { tracks?: { id?: string; fileRev?: number }[] } | null
+    return doc?.tracks?.find((track) => track.id === trackId)?.fileRev
   },
-  put: (variantId: string, trackId: string, data: Uint8Array) => setCached(cacheKey(variantId, trackId), new Blob([data as BlobPart])),
-  async remove(variantId: string, trackId: string): Promise<void> {
-    for (const key of await listCachedKeys()) {
-      const parsed = parseCacheKey(key)
-      if (parsed.variantId === variantId && parsed.trackId === trackId) await removeCached(key)
-    }
-  },
-}
-const revisionOf = (key: string): number => Number(key.split('@')[1] ?? 0) || 0
+})
 
 let running = false
 let listener: PluginListenerHandle | null = null

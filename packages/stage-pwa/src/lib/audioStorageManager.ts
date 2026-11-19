@@ -1,5 +1,6 @@
 import { isSongEntry, type Setlist, type SongVariant } from 'shared-types'
 import { fetchTrack } from './audioClient'
+import { planTrackSync } from 'sync-host'
 import { cacheKey, parseCacheKey } from './audioCache'
 import { getAudioStorageBackend } from './audioStorageBackend'
 import type { AudioSyncMode } from '../store/useAudioSyncStore'
@@ -138,9 +139,11 @@ export async function reconcileAudioCache(
 ): Promise<void> {
   const backend = getAudioStorageBackend()
   const target = computeTargetKeys(mode, variants, activeSetlist, pinnedSongIds, alwaysKeepKeys, stemMode)
-  const cached = new Set(await backend.listKeys())
+  // What is missing and what is superfluous is the rule every store of tracks follows (sync-host's trackSync, #954);
+  // this device evicts what its sync mode does not want.
+  const plan = planTrackSync(target, await backend.listKeys(), { evict: true })
 
-  await Promise.all([...cached].filter((key) => !target.has(key)).map((key) => backend.remove(key)))
+  await Promise.all(plan.evict.map((key) => backend.remove(key)))
 
   async function fetchAndCache(key: string): Promise<void> {
     const { variantId, trackId } = parseCacheKey(key)
@@ -148,7 +151,7 @@ export async function reconcileAudioCache(
     if (blob) await backend.set(key, blob)
   }
 
-  const toFetch = [...target].filter((key) => !cached.has(key))
+  const toFetch = plan.fetch
   // The currently-playing track (if any) fetches first, awaited on its own - a live show can't
   // wait behind the rest of a large "Full" catalog sync for the one file it actually needs
   // right now, and every fetch otherwise competes for the same bandwidth (core-backend serves

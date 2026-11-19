@@ -6,6 +6,7 @@ import { resolveTrackForEntry } from './computeQueue'
 import { useQueue } from './queue'
 import { useRigCheckTrackKey } from './rigCheck'
 import { useAudioPinsStore } from '../store/useAudioPinsStore'
+import { useAndroidHostStore } from '../store/useAndroidHostStore'
 import { useAudioSyncStore } from '../store/useAudioSyncStore'
 import { useShowStateStore } from '../store/useShowStateStore'
 import { useStemPlaybackStore } from '../store/useStemPlaybackStore'
@@ -27,8 +28,13 @@ import { useSongVariantsStore } from '../store/useSongVariantsStore'
  * re-downloading the same tracks in parallel (found live, 2026-09-16).
  */
 export function useAudioSyncReconciler(workspaceId: string) {
-  const mode = useAudioSyncStore((state) => state.modeFor(workspaceId))
-  const stemMode = useAudioSyncStore((state) => state.stemModeFor(workspaceId))
+  // A device that is a band host holds everything the band lists (#932, #954): it serves it to the others, and the audio
+  // manager must not evict what it serves. The chosen mode is kept for when it stops hosting.
+  const hosting = useAndroidHostStore((state) => state.running)
+  const chosenMode = useAudioSyncStore((state) => state.modeFor(workspaceId))
+  const chosenStemMode = useAudioSyncStore((state) => state.stemModeFor(workspaceId))
+  const mode = hosting ? 'full' : chosenMode
+  const stemMode = hosting ? 'full' : chosenStemMode
   const pinnedSongIds = useAudioPinsStore((state) => state.pinsFor(workspaceId))
   const variants = useSongVariantsStore((state) => state.variants)
   const { activeSetlist, currentEntry, currentVariant } = useQueue()

@@ -8,6 +8,8 @@
  * lean on purpose (see couch.ts), and the surface needed here is a handful of tiny operations.
  */
 
+import { parseTrackKey, trackKey } from 'sync-host'
+
 const DB_NAME = 'stageboard-audio-cache'
 const STORE_NAME = 'tracks'
 
@@ -22,16 +24,17 @@ function openDb(): Promise<IDBDatabase> {
   })
 }
 
-/** A track's place in the cache - with its file revision (TrackMeta.fileRev) once the file was
- * replaced, so the old one drops out of what should be cached and the new one is fetched. */
+/** A track's place in the cache - with its file revision (TrackMeta.fileRev) once the file was replaced, so the old one
+ * drops out of what should be cached and the new one is fetched. The form is the one every store of tracks uses
+ * (sync-host's `trackKey`, #954). */
 export function cacheKey(variantId: string, trackId: string, fileRev?: number): string {
-  return fileRev ? `${variantId}:${trackId}@${fileRev}` : `${variantId}:${trackId}`
+  return trackKey(variantId, trackId, fileRev)
 }
 
 /** The track a cache key stands for (what the server's /audio route needs). */
 export function parseCacheKey(key: string): { variantId: string; trackId: string } {
-  const [variantId = '', rest = ''] = key.split(':')
-  return { variantId, trackId: rest.split('@')[0] ?? '' }
+  const { variantId, trackId } = parseTrackKey(key)
+  return { variantId, trackId }
 }
 
 export async function getCached(key: string): Promise<Blob | null> {

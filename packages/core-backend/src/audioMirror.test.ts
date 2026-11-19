@@ -1,13 +1,14 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { BandHostEntry } from 'shared-types'
-import { createAudioMirror, type MirrorTrack } from './audioMirror.js'
+import { trackKey, type TrackRef } from 'sync-host'
+import { createAudioMirror } from './audioMirror.js'
 
 const FP = 'a'.repeat(64)
 const primary: BandHostEntry = { hostId: 'laptop', url: 'https://10.0.0.1:8443', certFingerprint: FP, priority: 1 }
 const backup: BandHostEntry = { hostId: 'stage-pc', url: 'https://10.0.0.2:8443', priority: 2 }
 
 /** In-memory stand-in for the audio folder: `files` maps "variant/track" to the revision it holds. */
-function setup(tracks: MirrorTrack[], files: Record<string, number | null> = {}, over: Record<string, unknown> = {}) {
+function setup(tracks: TrackRef[], files: Record<string, number | null> = {}, over: Record<string, unknown> = {}) {
   const store = new Map<string, number | null>(Object.entries(files))
   const fetchFile = vi.fn(async (_base: string, _fingerprint: string | undefined, _variantId: string, _trackId: string): Promise<Buffer | null> => Buffer.from('audio'))
   const saveFile = vi.fn(async (variantId: string, trackId: string, rev: number | null) => void store.set(`${variantId}/${trackId}`, rev))
@@ -17,14 +18,14 @@ function setup(tracks: MirrorTrack[], files: Record<string, number | null> = {},
     readHosts: async () => [primary, backup],
     passive: () => true,
     listTracks: async () => tracks,
-    localRevision: async (v: string, t: string) => (store.has(`${v}/${t}`) ? { rev: store.get(`${v}/${t}`) ?? null } : null),
+    heldKeys: async () => [...store].map(([path, rev]) => { const [v, t] = path.split('/'); return trackKey(v!, t!, rev ?? undefined) }),
     fetchFile,
     saveFile,
     ...over,
   })
   return { m, store, fetchFile, saveFile }
 }
-const t = (variantId: string, trackId: string, fileRev?: number): MirrorTrack => ({ variantId, trackId, fileRev })
+const t = (variantId: string, trackId: string, fileRev?: number): TrackRef => ({ variantId, trackId, fileRev })
 
 describe('audio mirror on the backup (#919)', () => {
   it('fetches only what is missing, from the primary pinned to its fingerprint', async () => {

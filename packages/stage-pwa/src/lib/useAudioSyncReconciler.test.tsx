@@ -5,6 +5,7 @@ import { useAudioSyncReconciler } from './useAudioSyncReconciler'
 import { scheduleReconcileAudioCache } from './audioStorageManager'
 import { useQueue } from './queue'
 import { useRigCheckTrackKey } from './rigCheck'
+import { useAndroidHostStore } from '../store/useAndroidHostStore'
 import { useAudioPinsStore } from '../store/useAudioPinsStore'
 import { useAudioSyncStore } from '../store/useAudioSyncStore'
 import { useShowStateStore } from '../store/useShowStateStore'
@@ -74,6 +75,7 @@ beforeEach(() => {
   vi.mocked(useSongVariantsStore).mockImplementation((selector) => selector({ variants: [] } as never))
   vi.mocked(useShowStateStore).mockImplementation((selector) => selector({ state: { trackOverride: null } } as never))
   vi.mocked(useRigCheckTrackKey).mockReturnValue(null)
+  useAndroidHostStore.getState().reset()
   mockQueue({})
 })
 
@@ -105,5 +107,19 @@ describe('useAudioSyncReconciler', () => {
     vi.mocked(useRigCheckTrackKey).mockReturnValue('rig-check-quick:rig-check-v1')
     render(<DriverHost workspaceId="ws-1" />)
     expect(scheduleReconcileAudioCache).toHaveBeenCalledWith('none', [], null, [], new Set(['rig-check-quick:rig-check-v1']), 'none')
+  })
+
+  it('keeps every track and stem the band lists while this device is a band host, whatever mode was chosen (#932, #954)', () => {
+    useAndroidHostStore.getState().set({ running: true })
+    render(<DriverHost workspaceId="ws-1" />)
+    expect(scheduleReconcileAudioCache).toHaveBeenCalledWith('full', [], null, [], new Set(), 'full')
+  })
+
+  it('goes back to the chosen mode once it stops hosting', () => {
+    useAndroidHostStore.getState().set({ running: true })
+    const { rerender } = render(<DriverHost workspaceId="ws-1" />)
+    useAndroidHostStore.getState().set({ running: false })
+    rerender(<DriverHost workspaceId="ws-1" />)
+    expect(scheduleReconcileAudioCache).toHaveBeenLastCalledWith('none', [], null, [], new Set(), 'none')
   })
 })
