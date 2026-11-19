@@ -7,6 +7,8 @@ export interface AppHostRequest {
   path: string
   query: Readonly<Record<string, string>>
   authorization?: string
+  /** The address the connection came from, as the native server saw it. */
+  remoteAddress?: string
   /** JSON parsed; an upload as `{ data, contentType }`. */
   body?: unknown
 }
@@ -25,8 +27,6 @@ export interface AppHostDeps extends HostRoutesDeps {
   address: string | null
   certFingerprint: string
   state: () => { epoch: number; active: boolean; outdated: boolean; priority: 1 | 2 | null }
-  /** Is `code` this band's standing code? A fresh backup checks the invite's code with the primary this way (#945). */
-  verifyBandCode: (workspaceId: string, code: string) => Promise<boolean>
   /** A band database request, already past login: sync-host plus the write rules. */
   sync: (ctx: { name: string; roles: string[] }, request: SyncRequest) => Promise<SyncResponse>
   /** The band's device logins (`host-accounts`); null when the login is not one of the band. */
@@ -69,8 +69,7 @@ const bodyOf = (body: unknown): unknown => (body && typeof body === 'object' && 
 
 /**
  * What the app answers on the tablet's own web server (host backup, #947, docs/25 §6g). The routes every
- * host shares come from `sync-host`; what is left here is the tablet's own: `/server-info`, the band-code
- * check and the band database. A passive backup answers the shared routes that need no band (who it is,
+ * host shares come from `sync-host`; what is left here is the tablet's own: `/server-info`, the band database. A passive backup answers the shared routes that need no band (who it is,
  * the lease, the invitation) and refuses the rest with 503 - the clock `/time` is answered natively first.
  */
 export async function answerHostRequest(request: AppHostRequest, deps: AppHostDeps): Promise<AppHostAnswer> {
@@ -80,22 +79,13 @@ export async function answerHostRequest(request: AppHostRequest, deps: AppHostDe
 
   const hit = matchHostRoute(tableOf(deps), method, path)
   if (hit) {
-    const answer = await hit.route.handle({ method, path, params: hit.params, query: request.query, body: bodyOf(request.body), ...(request.authorization ? { authorization: request.authorization } : {}) })
+    const answer = await hit.route.handle({ method, path, params: hit.params, query: request.query, body: bodyOf(request.body), ...(request.authorization ? { authorization: request.authorization } : {}), ...(request.remoteAddress ? { remoteAddress: request.remoteAddress } : {}) })
     return { status: answer.status, body: answer.body ?? null, ...(answer.binary ? { binary: answer.binary } : {}) }
   }
 
   if (path === '/server-info' && method === 'GET') {
     return json(200, { lanIp: deps.address, port: deps.port, hostname: 'stageboard.local', certFingerprint: deps.certFingerprint })
   }
-  const roster = /^\/workspaces\/([^/]+)\/roster$/.exec(path)
-  if (roster && method === 'POST') {
-    // Only the host answers for its band: a passive backup confirms no code.
-    const code = (request.body as { code?: unknown } | undefined)?.code
-    const workspace = decodeURIComponent(roster[1]!)
-    const ok = state.active && typeof code === 'string' && (await deps.verifyBandCode(workspace, code))
-    return ok ? json(200, { workspaceId: workspace, members: [] }) : json(403, { status: 'error' })
-  }
-
   const band = bandOfPath(path)
   if (!band) return json(404, { error: 'not_found', reason: 'Not a route of this host.' })
   // A passive backup holds the band as a device but serves none of it: a device must follow the primary.

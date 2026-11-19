@@ -2010,6 +2010,19 @@ describe('Fastify routes', () => {
       expect(response.statusCode).toBe(403)
     })
 
+    it('answers a band that does not exist like a wrong code (403) - a 500 would tell a stranger which bands exist', async () => {
+      stubFetch([
+        { ok: false, status: 404 }, // getAccessCode -> missing
+        { ok: false, status: 404 }, // writeAccessCodeDoc's own getDoc (for _rev) -> missing
+        { ok: false, status: 404 }, // putDoc: there is no database for this band
+      ])
+
+      const response = await app.inject({ method: 'POST', url: '/workspaces/no-such-band/roster', payload: { code: '12345678' } })
+
+      expect(response.statusCode).toBe(403)
+      expect(response.json()).toEqual({ status: 'error', message: 'Wrong code' })
+    })
+
     it('returns 400 for a body that fails schema validation', async () => {
       const response = await app.inject({ method: 'POST', url: '/workspaces/band-a/roster', payload: {} })
       expect(response.statusCode).toBe(400)

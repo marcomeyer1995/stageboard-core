@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createHostPresence, type SyncRequest } from 'sync-host'
+import { createHostDeviceInfo, createHostPresence, type SyncRequest } from 'sync-host'
 import { answerHostRequest, bandOfPath, loginCheckOf, type AppHostDeps } from './hostHttp'
 
 /** The routes every host shares are tested once, in sync-host (routes.test.ts); here: the tablet's own, and its wiring of the shared ones. */
@@ -30,9 +30,13 @@ const baseDeps = () => {
       remove: vi.fn(async () => undefined),
     },
     presence: createHostPresence({ now: () => 5_000, newId: () => 'flash-1' }),
+    deviceInfo: createHostDeviceInfo({ now: () => 5_000 }),
     servesBand: (band: string) => band === 'leasetest',
     isBandDevice: async (_band: string, authorization: string | undefined) => authorization === 'Basic good',
-    verifyBandCode: vi.fn(async (workspaceId: string, code: string) => workspaceId === 'leasetest' && code === '57832943'),
+    band: {
+      accessCode: async (band: string) => (band === 'leasetest' ? { code: '57832943', name: 'Lease Test' } : null),
+      profileDocs: async () => [{ _id: 'profiles:p1', id: 'p1', name: 'Test', stageRoles: ['admin'] }],
+    },
     issueAccount: vi.fn(async () => ({ username: 'u', password: 'p' })),
     sync: vi.fn(async (_ctx, request) => {
       seen.push(request)
@@ -81,14 +85,14 @@ describe('what a passive backup answers (#947)', () => {
     expect((await answerHostRequest({ method: 'GET', path: '/server/active-workspace', query: {} }, deps)).body).toEqual({ activeWorkspaceId: 'leasetest' })
   })
 
-  it('confirms the band code only while it is the host', async () => {
+  it('hands a joining device the real roster once it has the band\'s code - a passive backup shows nothing (503)', async () => {
     const { deps } = baseDeps()
     const ask = (code: string) => answerHostRequest({ method: 'POST', path: '/workspaces/leasetest/roster', query: {}, body: { code } }, deps)
-    expect((await ask('57832943')).status).toBe(403) // passive backup
+    expect((await ask('57832943')).status).toBe(503)
     active(deps)
-    expect((await ask('57832943')).status).toBe(200)
+    expect(await ask('57832943')).toEqual({ status: 200, body: { workspaceId: 'leasetest', workspaceName: 'Lease Test', members: [{ profileId: 'p1', name: 'Test', isAdmin: true }] } })
     expect((await ask('00000000')).status).toBe(403)
-    expect((await answerHostRequest({ method: 'POST', path: '/workspaces/leasetest/roster', query: {} }, deps)).status).toBe(403)
+    expect((await answerHostRequest({ method: 'POST', path: '/workspaces/leasetest/roster', query: {} }, deps)).status).toBe(400)
   })
 
   it('answers unknown routes with 404', async () => {
@@ -132,6 +136,15 @@ describe('when it has taken over (#947)', () => {
     const sent = await answerHostRequest({ method: 'POST', path: '/workspaces/leasetest/flash', query: {}, authorization: 'Basic good', body: { text: 'Pause', from: 'Anna' } }, deps)
     expect(sent.status).toBe(201)
     expect(deps.presence.snapshot('leasetest').flash).toMatchObject({ text: 'Pause', from: 'Anna' })
+  })
+
+  it('takes a device report with the address the native server saw, and lists it - the Device Ledger used to be 404 on the tablet', async () => {
+    const { deps } = baseDeps()
+    active(deps)
+    const report = { deviceId: 'fire', os: 'Fire', environment: 'native', syncStatus: 'idle' }
+    expect((await answerHostRequest({ method: 'POST', path: '/workspaces/leasetest/device-info/report', query: {}, remoteAddress: '192.168.178.179', body: report }, deps)).status).toBe(204)
+    const list = await answerHostRequest({ method: 'GET', path: '/workspaces/leasetest/device-info', query: {} }, deps)
+    expect((list.body as { devices: Record<string, { ip: string }> }).devices.fire!.ip).toBe('192.168.178.179')
   })
 
   it('records presence for its own band only', async () => {

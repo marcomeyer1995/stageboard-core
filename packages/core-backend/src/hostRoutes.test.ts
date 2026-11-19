@@ -1,6 +1,6 @@
 import Fastify from 'fastify'
 import { describe, expect, it, vi } from 'vitest'
-import { createHostPresence, createHostRoutes, type HostRoutesDeps } from 'sync-host'
+import { createHostDeviceInfo, createHostPresence, createHostRoutes, type HostRoutesDeps } from 'sync-host'
 import { registerHostRoutes } from './hostRoutes.js'
 
 function build(over: Partial<HostRoutesDeps> = {}) {
@@ -26,6 +26,8 @@ function build(over: Partial<HostRoutesDeps> = {}) {
       remove: async (v, t) => void files.delete(`${v}/${t}`),
     },
     presence: createHostPresence({ now: () => 1_000, newId: () => 'f1' }),
+    deviceInfo: createHostDeviceInfo({ now: () => 1_000 }),
+    band: { accessCode: async () => ({ code: '12345678', name: 'Band A' }), profileDocs: async () => [{ _id: 'profiles:p', id: 'p', name: 'Anna', stageRoles: ['admin'] }] },
     isBandDevice: async (_ws: string, authorization: string | undefined) => authorization === 'Basic good',
     ...over,
   }
@@ -84,5 +86,21 @@ describe('the shared host routes on Fastify (#949)', () => {
     const sent = await app.inject({ method: 'POST', url: '/workspaces/band-a/flash', headers: { authorization: 'Basic good' }, payload: { text: 'Pause', from: 'Anna' } })
     expect(sent.statusCode).toBe(201)
     expect(sent.json()).toMatchObject({ id: 'f1', text: 'Pause', from: 'Anna' })
+  })
+
+  it('stamps a device report with the address the request came from, not one the client names', async () => {
+    const { app, deps } = build()
+    expect((await app.inject({ method: 'POST', url: '/workspaces/band-a/device-info/report', remoteAddress: '10.9.8.7', payload: { deviceId: 'd', os: 'iPad', environment: 'browser', syncStatus: 'idle', ip: '1.2.3.4' } })).statusCode).toBe(204)
+    expect(deps.deviceInfo.snapshot('band-a').devices.d!.ip).toBe('10.9.8.7')
+    const list = await app.inject({ method: 'GET', url: '/workspaces/band-a/device-info' })
+    expect(list.json().devices.d.os).toBe('iPad')
+  })
+
+  it('answers the roster to a device that knows the code, and 403 to one that does not', async () => {
+    const { app } = build()
+    const ok = await app.inject({ method: 'POST', url: '/workspaces/band-a/roster', payload: { code: '12345678' } })
+    expect(ok.statusCode).toBe(200)
+    expect(ok.json()).toEqual({ workspaceId: 'band-a', workspaceName: 'Band A', members: [{ profileId: 'p', name: 'Anna', isAdmin: true }] })
+    expect((await app.inject({ method: 'POST', url: '/workspaces/band-a/roster', payload: { code: 'nope' } })).statusCode).toBe(403)
   })
 })

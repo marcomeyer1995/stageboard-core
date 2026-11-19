@@ -1,6 +1,6 @@
 import { registerPlugin, type PluginListenerHandle } from '@capacitor/core'
 import { AccessCodeSchema, HostJoinInviteSchema } from 'shared-types'
-import { createHostLogin, createHostPresence, leaseKey, signAccountRequest, startCatchUp, type CatchUp, createSyncHost, createWriteGuard, HOST_ACCOUNTS_DOC_ID, type HostAccount, type SyncDatabase, type SyncRequest } from 'sync-host'
+import { createHostDeviceInfo, createHostLogin, createHostPresence, leaseKey, signAccountRequest, startCatchUp, type CatchUp, createSyncHost, createWriteGuard, HOST_ACCOUNTS_DOC_ID, type HostAccount, type SyncDatabase, type SyncRequest } from 'sync-host'
 import { useBandSettingsStore } from '../store/useBandSettingsStore'
 import { useAndroidHostStore } from '../store/useAndroidHostStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
@@ -39,6 +39,8 @@ interface HostRequest {
   query: string
   contentType: string
   authorization?: string
+  /** The address the connection came from (LocalHostPlugin.java). */
+  remoteAddress?: string
   text?: string
   body?: string
 }
@@ -215,6 +217,8 @@ export async function startAndroidHost(): Promise<void> {
 
   // Who is online and who is master - what a device needs to be confirmed as master; the native server relays it.
   const presence = createHostPresence({ now: () => machine.bandTime() })
+  // What the tablet knows about each device (the Device Ledger). It cannot ping, so reachable and name stay unknown.
+  const deviceInfo = createHostDeviceInfo({ now: () => machine.bandTime() })
   unsubscribePresence?.()
   unsubscribePresence = presence.subscribe(workspaceId, (snapshot) => {
     void LocalHost.publish({ channel: `${workspaceId}/presence`, text: JSON.stringify(snapshot) }).catch(() => undefined)
@@ -306,10 +310,23 @@ export async function startAndroidHost(): Promise<void> {
     acceptInvite,
     audio: hostAudio,
     presence,
+    deviceInfo,
     // The tablet serves the one band it holds; a flash message needs a device of it (the same login as the database).
     servesBand: (band) => band === workspaceId,
     isBandDevice: async (band, authorization) => band === workspaceId && (await login(authorization, dbName)) !== null,
-    verifyBandCode: async (band, code) => band === workspaceId && code === (await accessCodeNow()),
+    // The band as a joining device sees it - read from the band's own data, like every device holds it.
+    band: {
+      accessCode: async (band) => {
+        if (band !== workspaceId) return null
+        const doc = (await getWorkspaceDb(workspaceId).get('workspace:access').catch(() => null)) as { code?: unknown; name?: unknown } | null
+        return typeof doc?.code === 'string' && typeof doc.name === 'string' && doc.name !== '' ? { code: doc.code, name: doc.name } : null
+      },
+      profileDocs: async (band) => {
+        if (band !== workspaceId) return []
+        const rows = await getWorkspaceDb(workspaceId).allDocs({ startkey: 'profiles:', endkey: 'profiles:\ufff0', include_docs: true })
+        return rows.rows.flatMap((row) => (row.doc ? [row.doc as unknown as Record<string, unknown>] : []))
+      },
+    },
     // Only the host serves the band: a passive backup hands out no login to its data.
     issueAccount: async (raw) => (machine.state().active ? issuer.issue(raw) : null),
     sync: (ctx, request) => guard(ctx, request as SyncRequest, (r) => syncHost(r)),
@@ -327,7 +344,7 @@ export async function startAndroidHost(): Promise<void> {
         await LocalHost.respond({ id: req.id, status: ctx ? 200 : 401, contentType: 'application/json', text: JSON.stringify(ctx ? { ok: true } : { error: 'unauthorized' }) })
         return
       }
-      const answer = await answerHostRequest({ method: req.method, path: req.path, query: Object.fromEntries(new URLSearchParams(req.query)), authorization: req.authorization, body }, hostDeps)
+      const answer = await answerHostRequest({ method: req.method, path: req.path, query: Object.fromEntries(new URLSearchParams(req.query)), authorization: req.authorization, ...(req.remoteAddress ? { remoteAddress: req.remoteAddress } : {}), body }, hostDeps)
       if (answer.binary) await LocalHost.respond({ id: req.id, status: answer.status, contentType: answer.binary.contentType, body: toBase64(answer.binary.data) })
       else await LocalHost.respond({ id: req.id, status: answer.status, contentType: 'application/json', text: answer.status === 204 ? '' : JSON.stringify(answer.body ?? null) })
     })().catch((err: unknown) => {

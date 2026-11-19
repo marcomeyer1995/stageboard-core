@@ -1,6 +1,8 @@
-import { FlashReportSchema, MasterHeartbeatReportSchema, PresenceReportSchema, ReadyReportSchema } from 'shared-types'
+import { DeviceInfoReportSchema, FlashReportSchema, MasterHeartbeatReportSchema, PresenceReportSchema, ReadyReportSchema, RosterRequestSchema } from 'shared-types'
 import type { LeaseStatus } from './leaseKeeper.js'
+import type { HostDeviceInfo } from './deviceInfo.js'
 import type { HostPresence } from './presence.js'
+import { rosterOfProfileDocs } from './roster.js'
 
 /**
  * The routes every host answers the same way (host module, #949): who it is, the alive signal, the band
@@ -21,6 +23,8 @@ export interface HostRouteRequest {
   query: Readonly<Record<string, string>>
   /** The `Authorization` header, if the request carried one. */
   authorization?: string
+  /** The address the request came from (the Device Ledger shows it), if the platform knows it. */
+  remoteAddress?: string
   /** JSON parsed; an upload as bytes. */
   body?: unknown
 }
@@ -79,6 +83,15 @@ export interface HostRoutesDeps {
   /** The returned primary asking for a login to copy this host's data (#919). */
   issueAccount: (raw: unknown) => Promise<{ username: string; password: string } | null>
   audio: HostAudio
+  /** What the host knows about each device (the Device Ledger). */
+  deviceInfo: HostDeviceInfo
+  /** The band as a joining device sees it, read from the band's own data. */
+  band: {
+    /** The band's standing access code and its name, or null for a band this host does not hold. */
+    accessCode: (workspaceId: string) => Promise<{ code: string; name: string } | null>
+    /** The band's `profiles:*` documents. */
+    profileDocs: (workspaceId: string) => Promise<Record<string, unknown>[]>
+  }
   /** The presence store (`createHostPresence`): reports, the master's heartbeat, the Ready Check and flash messages land here. */
   presence: HostPresence
   /** false: this host does not serve that band (the tablet serves one; absent: every band, as the Stage-Server does). */
@@ -104,7 +117,7 @@ export function createHostRoutes(deps: HostRoutesDeps): HostRoute[] {
   const serving = () => deps.serving?.() ?? true
   const notThisBand = () => json(404, { error: 'not_found', reason: 'Not the band of this host.' })
   /** A report route: refused while passive, for another band, or for a body that does not fit; else `record` and 204. */
-  const presenceRoute = <T,>(pattern: string, schema: { safeParse: (body: unknown) => { success: true; data: T } | { success: false; error: { issues: { message: string }[] } } }, record: (workspaceId: string, body: T) => void): HostRoute => ({
+  const presenceRoute = <T,>(pattern: string, schema: { safeParse: (body: unknown) => { success: true; data: T } | { success: false; error: { issues: { message: string }[] } } }, record: (workspaceId: string, body: T, request: HostRouteRequest) => void): HostRoute => ({
     method: 'POST',
     pattern,
     handle: async (request) => {
@@ -113,7 +126,7 @@ export function createHostRoutes(deps: HostRoutesDeps): HostRoute[] {
       if (deps.servesBand && !deps.servesBand(workspaceId)) return notThisBand()
       const parsed = schema.safeParse(request.body)
       if (!parsed.success) return json(400, { status: 'error', message: parsed.error.issues[0]?.message })
-      record(workspaceId, parsed.data)
+      record(workspaceId, parsed.data, request)
       return { status: 204 }
     },
   })
@@ -190,6 +203,32 @@ export function createHostRoutes(deps: HostRoutesDeps): HostRoute[] {
     presenceRoute('/workspaces/:workspaceId/presence/report', PresenceReportSchema, (ws, report) => deps.presence.setEntry(ws, report.deviceId, report.profileId)),
     presenceRoute('/workspaces/:workspaceId/master-heartbeat', MasterHeartbeatReportSchema, (ws, beat) => deps.presence.setMasterHeartbeat(ws, beat.deviceId)),
     presenceRoute('/workspaces/:workspaceId/ready-check/report', ReadyReportSchema, (ws, answer) => deps.presence.setReady(ws, answer.checkId, answer.profileId)),
+    {
+      method: 'POST',
+      pattern: '/workspaces/:workspaceId/roster',
+      handle: async (request) => {
+        if (!serving()) return passive()
+        const workspaceId = safeDecode(request.params.workspaceId ?? '')
+        const asked = RosterRequestSchema.safeParse(request.body)
+        if (!asked.success) return json(400, { status: 'error', message: asked.error.issues[0]?.message })
+        // A band this host does not hold answers like a wrong code: it must not tell which bands exist.
+        const access = deps.servesBand && !deps.servesBand(workspaceId) ? null : await deps.band.accessCode(workspaceId)
+        if (!access || asked.data.code !== access.code) return json(403, { status: 'error', message: 'Wrong code' })
+        return json(200, { workspaceId, workspaceName: access.name, members: rosterOfProfileDocs(await deps.band.profileDocs(workspaceId)) })
+      },
+    },
+    {
+      method: 'GET',
+      pattern: '/workspaces/:workspaceId/device-info',
+      handle: async (request) => {
+        if (!serving()) return passive()
+        const workspaceId = safeDecode(request.params.workspaceId ?? '')
+        if (deps.servesBand && !deps.servesBand(workspaceId)) return notThisBand()
+        // Polled, not streamed: the page is already near the browser's per-origin connection cap (the Stage-Server's reasoning).
+        return json(200, deps.deviceInfo.snapshot(workspaceId))
+      },
+    },
+    presenceRoute('/workspaces/:workspaceId/device-info/report', DeviceInfoReportSchema, (ws, report, request) => deps.deviceInfo.report(ws, report, request.remoteAddress)),
     {
       method: 'POST',
       pattern: '/workspaces/:workspaceId/flash',
