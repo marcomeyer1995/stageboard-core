@@ -216,7 +216,7 @@ export async function startAndroidHost(): Promise<void> {
   // Who is online and who is master - what a device needs to be confirmed as master; the native server relays it.
   const presence = createHostPresence({ now: () => machine.bandTime() })
   unsubscribePresence?.()
-  unsubscribePresence = presence.subscribe((snapshot) => {
+  unsubscribePresence = presence.subscribe(workspaceId, (snapshot) => {
     void LocalHost.publish({ channel: `${workspaceId}/presence`, text: JSON.stringify(snapshot) }).catch(() => undefined)
   })
   const open = (name: string) => (name === dbName ? (getWorkspaceDb(workspaceId) as unknown as SyncDatabase) : null)
@@ -305,10 +305,10 @@ export async function startAndroidHost(): Promise<void> {
     activeWorkspaceId: () => workspaceId,
     acceptInvite,
     audio: hostAudio,
-    presence: {
-      report: (band, report) => band === workspaceId && presence.report(report),
-      heartbeat: (band, deviceId) => band === workspaceId && presence.heartbeat({ deviceId }),
-    },
+    presence,
+    // The tablet serves the one band it holds; a flash message needs a device of it (the same login as the database).
+    servesBand: (band) => band === workspaceId,
+    isBandDevice: async (band, authorization) => band === workspaceId && (await login(authorization, dbName)) !== null,
     verifyBandCode: async (band, code) => band === workspaceId && code === (await accessCodeNow()),
     // Only the host serves the band: a passive backup hands out no login to its data.
     issueAccount: async (raw) => (machine.state().active ? issuer.issue(raw) : null),

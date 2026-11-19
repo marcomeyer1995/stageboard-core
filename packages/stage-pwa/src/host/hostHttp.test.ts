@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { SyncRequest } from 'sync-host'
+import { createHostPresence, type SyncRequest } from 'sync-host'
 import { answerHostRequest, bandOfPath, loginCheckOf, type AppHostDeps } from './hostHttp'
 
 /** The routes every host shares are tested once, in sync-host (routes.test.ts); here: the tablet's own, and its wiring of the shared ones. */
@@ -29,7 +29,9 @@ const baseDeps = () => {
       put: vi.fn(async (v: string, t: string, data: Uint8Array) => void files.set(`${v}/${t}`, data)),
       remove: vi.fn(async () => undefined),
     },
-    presence: { report: vi.fn(() => true), heartbeat: vi.fn(() => true) },
+    presence: createHostPresence({ now: () => 5_000, newId: () => 'flash-1' }),
+    servesBand: (band: string) => band === 'leasetest',
+    isBandDevice: async (_band: string, authorization: string | undefined) => authorization === 'Basic good',
     verifyBandCode: vi.fn(async (workspaceId: string, code: string) => workspaceId === 'leasetest' && code === '57832943'),
     issueAccount: vi.fn(async () => ({ username: 'u', password: 'p' })),
     sync: vi.fn(async (_ctx, request) => {
@@ -121,11 +123,23 @@ describe('when it has taken over (#947)', () => {
     expect(got).toEqual({ status: 200, body: null, binary: { data: bytes, contentType: 'application/octet-stream' } })
   })
 
+  it('takes a Ready Check answer and a flash message from a device of the band - both used to be 404 on the tablet', async () => {
+    const { deps } = baseDeps()
+    active(deps)
+    expect((await answerHostRequest({ method: 'POST', path: '/workspaces/leasetest/ready-check/report', query: {}, body: { checkId: 'c1', profileId: 'anna' } }, deps)).status).toBe(204)
+    expect(deps.presence.snapshot('leasetest').readyCheck).toEqual({ checkId: 'c1', readyProfileIds: ['anna'] })
+    expect((await answerHostRequest({ method: 'POST', path: '/workspaces/leasetest/flash', query: {}, body: { text: 'Pause' } }, deps)).status).toBe(401)
+    const sent = await answerHostRequest({ method: 'POST', path: '/workspaces/leasetest/flash', query: {}, authorization: 'Basic good', body: { text: 'Pause', from: 'Anna' } }, deps)
+    expect(sent.status).toBe(201)
+    expect(deps.presence.snapshot('leasetest').flash).toMatchObject({ text: 'Pause', from: 'Anna' })
+  })
+
   it('records presence for its own band only', async () => {
     const { deps } = baseDeps()
     active(deps)
     expect((await answerHostRequest({ method: 'POST', path: '/workspaces/leasetest/master-heartbeat', query: {}, body: { deviceId: 'fire' } }, deps)).status).toBe(204)
-    expect(deps.presence.heartbeat).toHaveBeenCalledWith('leasetest', 'fire')
+    expect(deps.presence.snapshot('leasetest').masterHeartbeat).toEqual({ deviceId: 'fire', at: 5_000 })
+    expect((await answerHostRequest({ method: 'POST', path: '/workspaces/other/master-heartbeat', query: {}, body: { deviceId: 'fire' } }, deps)).status).toBe(404)
   })
 })
 

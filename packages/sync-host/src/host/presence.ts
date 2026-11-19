@@ -1,53 +1,89 @@
-import { MasterHeartbeatReportSchema, PresenceReportSchema, type Presence, type PresenceEntry, type MasterHeartbeat } from 'shared-types'
+import type { FlashMessage, MasterHeartbeat, Presence, PresenceEntry, ReadyCheck } from 'shared-types'
 
 /**
- * Who is online and who holds the master token, for the one band the tablet serves (host backup, #947,
- * docs/25 §6g) - a port of core-backend's `presenceStore` (#32), reduced to what a show needs: every
- * device's periodic report and the master's heartbeat, pushed as a **full snapshot** on every change
- * (and to a new subscriber at once, so a reconnecting tablet catches up). In memory only: after a
- * restart nobody is known until they report again. Without this a device never gets its master
- * confirmed and cannot press Play.
+ * Who is online, who holds the master token, the open Ready Check and the latest Stage-Messenger message, per
+ * band (host module, #949): the one presence store both hosts use - the laptop's Stage-Server (several bands) and
+ * the tablet's app (the one it serves). Every change is pushed as a **full snapshot** to every subscriber of the
+ * band, and a new subscriber gets the current one at once, so a reconnecting tablet catches up and no one needs
+ * merge logic. In memory only: a heartbeat has no value offline, and after a restart nobody is known until they
+ * report again.
  */
 export interface HostPresence {
-  /** A device's report (`POST …/presence/report`): false when the body is no report. */
-  report(raw: unknown): boolean
-  /** The master's beat (`POST …/master-heartbeat`): false when the body is no beat. */
-  heartbeat(raw: unknown): boolean
-  snapshot(): Presence
-  /** Calls `fn` at once with the current snapshot, and again on every change. Returns the unsubscribe. */
-  subscribe(fn: (snapshot: Presence) => void): () => void
+  /** A device's periodic report: the profile it is signed in as, stamped with this host's time. */
+  setEntry(workspaceId: string, deviceId: string, profileId: string): void
+  /** The master token holder's beat - one slot per band, since only one device is master at a time. */
+  setMasterHeartbeat(workspaceId: string, deviceId: string): void
+  /** `profileId` is ready for Ready Check `checkId`. A report for another id starts a fresh check: the previous
+   * check's answers must never count towards a new one. */
+  setReady(workspaceId: string, checkId: string, profileId: string): void
+  /** A message for every device of the band; `to` (profile ids) narrows who shows it - everyone gets it, only the
+   * addressed ones display it. Replaces the one before. */
+  setFlash(workspaceId: string, text: string, from: string | undefined, to?: string[]): FlashMessage
+  snapshot(workspaceId: string): Presence
+  /** Calls `fn` at once with the current snapshot, and again on every change of the band. Returns the unsubscribe. */
+  subscribe(workspaceId: string, fn: (snapshot: Presence) => void): () => void
 }
 
-export function createHostPresence(deps: { now: () => number }): HostPresence {
-  const devices = new Map<string, PresenceEntry>()
-  let master: MasterHeartbeat | undefined
-  const subscribers = new Set<(snapshot: Presence) => void>()
-  const snapshot = (): Presence => ({ devices: Object.fromEntries(devices), ...(master ? { masterHeartbeat: master } : {}) })
-  const changed = () => {
-    const now = snapshot()
-    for (const fn of subscribers) fn(now)
+export function createHostPresence(deps: { now: () => number; newId?: () => string }): HostPresence {
+  const newId = deps.newId ?? (() => crypto.randomUUID())
+  const devices = new Map<string, Map<string, PresenceEntry>>()
+  const masters = new Map<string, MasterHeartbeat>()
+  const readyChecks = new Map<string, { checkId: string; ready: Set<string> }>()
+  const flashes = new Map<string, FlashMessage>()
+  const subscribers = new Map<string, Set<(snapshot: Presence) => void>>()
+
+  const readyCheck = (workspaceId: string): ReadyCheck | undefined => {
+    const check = readyChecks.get(workspaceId)
+    return check ? { checkId: check.checkId, readyProfileIds: [...check.ready] } : undefined
   }
+  const snapshot = (workspaceId: string): Presence => {
+    const master = masters.get(workspaceId)
+    const check = readyCheck(workspaceId)
+    const flash = flashes.get(workspaceId)
+    return {
+      devices: Object.fromEntries(devices.get(workspaceId) ?? []),
+      ...(master ? { masterHeartbeat: master } : {}),
+      ...(check ? { readyCheck: check } : {}),
+      ...(flash ? { flash } : {}),
+    }
+  }
+  const changed = (workspaceId: string) => {
+    const now = snapshot(workspaceId)
+    for (const fn of subscribers.get(workspaceId) ?? []) fn(now)
+  }
+
   return {
-    report(raw) {
-      const report = PresenceReportSchema.safeParse(raw)
-      if (!report.success) return false
-      devices.set(report.data.deviceId, { profileId: report.data.profileId, lastSeenAt: deps.now() })
-      changed()
-      return true
+    setEntry(workspaceId, deviceId, profileId) {
+      const band = devices.get(workspaceId) ?? new Map<string, PresenceEntry>()
+      band.set(deviceId, { profileId, lastSeenAt: deps.now() })
+      devices.set(workspaceId, band)
+      changed(workspaceId)
     },
-    heartbeat(raw) {
-      const beat = MasterHeartbeatReportSchema.safeParse(raw)
-      if (!beat.success) return false
-      master = { deviceId: beat.data.deviceId, at: deps.now() }
-      changed()
-      return true
+    setMasterHeartbeat(workspaceId, deviceId) {
+      masters.set(workspaceId, { deviceId, at: deps.now() })
+      changed(workspaceId)
+    },
+    setReady(workspaceId, checkId, profileId) {
+      const existing = readyChecks.get(workspaceId)
+      const check = existing?.checkId === checkId ? existing : { checkId, ready: new Set<string>() }
+      check.ready.add(profileId)
+      readyChecks.set(workspaceId, check)
+      changed(workspaceId)
+    },
+    setFlash(workspaceId, text, from, to) {
+      const flash: FlashMessage = { id: newId(), text, from, ...(to && to.length ? { to } : {}), at: deps.now() }
+      flashes.set(workspaceId, flash)
+      changed(workspaceId)
+      return flash
     },
     snapshot,
-    subscribe(fn) {
-      subscribers.add(fn)
-      fn(snapshot())
+    subscribe(workspaceId, fn) {
+      const set = subscribers.get(workspaceId) ?? new Set<(snapshot: Presence) => void>()
+      set.add(fn)
+      subscribers.set(workspaceId, set)
+      fn(snapshot(workspaceId))
       return () => {
-        subscribers.delete(fn)
+        set.delete(fn)
       }
     },
   }

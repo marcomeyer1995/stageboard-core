@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { createHostPresence } from './presence.js'
 import { createHostRoutes, matchHostRoute, type HostAudio, type HostRoutesDeps, type HostRouteResponse } from './routes.js'
 
 function audioStub(): HostAudio & { files: Map<string, Uint8Array> } {
@@ -28,16 +29,17 @@ function deps(over: Partial<HostRoutesDeps> = {}): HostRoutesDeps & { audio: Ret
     acceptInvite: vi.fn(async () => ({ ok: true as const })),
     issueAccount: vi.fn(async () => ({ username: 'u', password: 'p' })),
     audio: audioStub(),
-    presence: { report: vi.fn(() => true), heartbeat: vi.fn(() => true) },
+    presence: createHostPresence({ now: () => 9_000, newId: () => 'flash-1' }),
+    isBandDevice: vi.fn(async (_ws: string, authorization: string | undefined) => authorization === 'Basic good'),
     ...over,
   } as HostRoutesDeps & { audio: ReturnType<typeof audioStub> }
 }
 
 /** Dispatches like both platforms do: match the table, hand over the params. */
-async function call(d: HostRoutesDeps, method: string, path: string, body?: unknown, query: Record<string, string> = {}): Promise<HostRouteResponse | null> {
+async function call(d: HostRoutesDeps, method: string, path: string, body?: unknown, query: Record<string, string> = {}, authorization?: string): Promise<HostRouteResponse | null> {
   const routes = createHostRoutes(d)
   const hit = matchHostRoute(routes, method, path)
-  return hit ? hit.route.handle({ method, path, params: hit.params, query, body }) : null
+  return hit ? hit.route.handle({ method, path, params: hit.params, query, body, ...(authorization ? { authorization } : {}) }) : null
 }
 
 describe('the route table', () => {
@@ -138,26 +140,58 @@ describe('audio', () => {
   })
 })
 
-describe('presence and the master\'s heartbeat', () => {
+describe('presence, the master\'s heartbeat, the Ready Check and flash messages', () => {
   it('records a report and a beat for the band, as 204', async () => {
     const d = deps()
     expect(await call(d, 'POST', '/workspaces/leasetest/presence/report', { deviceId: 'fire', profileId: 'p1' })).toEqual({ status: 204 })
-    expect(d.presence.report).toHaveBeenCalledWith('leasetest', { deviceId: 'fire', profileId: 'p1' })
     expect(await call(d, 'POST', '/workspaces/leasetest/master-heartbeat', { deviceId: 'fire' })).toEqual({ status: 204 })
-    expect(d.presence.heartbeat).toHaveBeenCalledWith('leasetest', 'fire')
+    expect(d.presence.snapshot('leasetest')).toEqual({ devices: { fire: { profileId: 'p1', lastSeenAt: 9_000 } }, masterHeartbeat: { deviceId: 'fire', at: 9_000 } })
   })
 
-  it('answers 400 with the first problem when the body is no report or beat', async () => {
+  it('records a Ready Check answer', async () => {
+    const d = deps()
+    expect(await call(d, 'POST', '/workspaces/leasetest/ready-check/report', { checkId: 'c1', profileId: 'anna' })).toEqual({ status: 204 })
+    expect(d.presence.snapshot('leasetest').readyCheck).toEqual({ checkId: 'c1', readyProfileIds: ['anna'] })
+  })
+
+  it('answers 400 with the first problem when the body is no report, beat or answer', async () => {
     const d = deps()
     const bad = await call(d, 'POST', '/workspaces/leasetest/presence/report', { deviceId: 'fire' })
     expect(bad?.status).toBe(400)
     expect(bad?.body).toMatchObject({ status: 'error' })
     expect((await call(d, 'POST', '/workspaces/leasetest/master-heartbeat', {}))?.status).toBe(400)
-    expect(d.presence.report).not.toHaveBeenCalled()
+    expect((await call(d, 'POST', '/workspaces/leasetest/ready-check/report', { checkId: 'c1' }))?.status).toBe(400)
+    expect(d.presence.snapshot('leasetest')).toEqual({ devices: {} })
   })
 
-  it('answers 404 for a band that is not the host\'s', async () => {
-    const d = deps({ presence: { report: vi.fn(() => false), heartbeat: vi.fn(() => false) } })
+  it('answers 404 for a band that is not the host\'s, when the platform serves only one', async () => {
+    const d = deps({ servesBand: (ws) => ws === 'leasetest' })
     expect((await call(d, 'POST', '/workspaces/other/master-heartbeat', { deviceId: 'fire' }))?.status).toBe(404)
+    expect((await call(d, 'POST', '/workspaces/other/ready-check/report', { checkId: 'c', profileId: 'p' }))?.status).toBe(404)
+    expect((await call(d, 'POST', '/workspaces/leasetest/master-heartbeat', { deviceId: 'fire' }))?.status).toBe(204)
+  })
+
+  it('sends a flash message for a device of the band only - nothing is stored without the login', async () => {
+    const d = deps()
+    const body = { text: 'Pause 10 min', from: 'Anna' }
+    expect((await call(d, 'POST', '/workspaces/leasetest/flash', body))?.status).toBe(401)
+    expect((await call(d, 'POST', '/workspaces/leasetest/flash', body, {}, 'Basic bad'))?.status).toBe(401)
+    expect(d.presence.snapshot('leasetest').flash).toBeUndefined()
+    const sent = await call(d, 'POST', '/workspaces/leasetest/flash', body, {}, 'Basic good')
+    expect(sent).toEqual({ status: 201, body: { id: 'flash-1', text: 'Pause 10 min', from: 'Anna', at: 9_000 } })
+    expect(d.presence.snapshot('leasetest').flash).toEqual(sent?.body)
+    expect(d.isBandDevice).toHaveBeenCalledWith('leasetest', 'Basic good')
+  })
+
+  it('refuses a flash message that is no message with 400, whoever sends it', async () => {
+    const d = deps()
+    expect((await call(d, 'POST', '/workspaces/leasetest/flash', { text: '' }, {}, 'Basic good'))?.status).toBe(400)
+    expect((await call(d, 'POST', '/workspaces/leasetest/flash', { text: 'x'.repeat(121) }))?.status).toBe(400)
+  })
+
+  it('is refused with 503 while the host does not serve the band', async () => {
+    const d = deps({ serving: () => false })
+    expect((await call(d, 'POST', '/workspaces/leasetest/master-heartbeat', { deviceId: 'fire' }))?.status).toBe(503)
+    expect((await call(d, 'POST', '/workspaces/leasetest/flash', { text: 'x' }, {}, 'Basic good'))?.status).toBe(503)
   })
 })
