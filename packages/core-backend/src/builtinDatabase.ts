@@ -72,7 +72,10 @@ export async function startBuiltinDatabase(options: { dataDir: string; user: str
   const dbDir = join(options.dataDir, 'db')
   await mkdir(dbDir, { recursive: true })
   const handler = createDatabaseHost({
-    storage: (name) => new PouchDB(join(dbDir, encodeURIComponent(name)), { adapter: 'leveldb' }),
+    // Revision history is bounded (#962, soak): a 4 h run of three devices writing the same 150 songs left ~1,200 revisions
+    // per document and the host's write time rose from 8 ms to over a second. Old bodies are compacted on write and only the
+    // last 50 ancestors are kept - more than enough to merge the few devices of a band.
+    storage: (name) => new PouchDB(join(dbDir, encodeURIComponent(name)), { adapter: 'leveldb', auto_compaction: true, revs_limit: 50 }),
     catalog: fileCatalog(join(options.dataDir, 'databases.json')),
     admin: { user: options.user, password: options.password },
   })

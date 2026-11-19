@@ -245,7 +245,7 @@ const summary = {
   requests: stats.requests,
   failures: stats.failures,
   deviceWrites: devices.map((d) => d.writes),
-  latencyMs: Object.fromEntries(Object.entries(stats.latencies).map(([k, v]) => [k, { n: v.length, p50: percentile(v, 50), p95: percentile(v, 95), p99: percentile(v, 99), max: v.length ? Math.round(Math.max(...v)) : null }])),
+  latencyMs: Object.fromEntries(Object.entries(stats.latencies).map(([k, v]) => [k, { n: v.length, p50: percentile(v, 50), p95: percentile(v, 95), p99: percentile(v, 99), max: v.length ? Math.round(v.reduce((m, x) => (x > m ? x : m), 0)) : null }])),
   rssMb: { afterWarmup: first, peak, last, growthPerHourSecondHalf: slope === null ? null : Math.round(slope * 10) / 10 },
   songsPerDevice: settled,
   divergedSongs: diverged,

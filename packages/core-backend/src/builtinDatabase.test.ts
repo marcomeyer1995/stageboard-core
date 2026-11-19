@@ -40,6 +40,28 @@ describe('the built-in database host (no the database, docs/25)', () => {
     }
   })
 
+  it('keeps the revision history of a document bounded, so hours of writes do not slow the host down (#962, soak)', async () => {
+    const host = await startBuiltinDatabase({ dataDir: dir, user: 'admin', password: 'secret', port: 0 })
+    const config: DatabaseConfig = { url: host.url, user: 'admin', password: 'secret' }
+    try {
+      await ensureDb(config, 'stageboard-band')
+      let rev: string | undefined
+      for (let i = 0; i < 160; i++) {
+        const response = await fetch(`${host.url}/stageboard-band/song:1`, {
+          method: 'PUT',
+          headers: { 'content-type': 'application/json', authorization: `Basic ${Buffer.from('admin:secret').toString('base64')}` },
+          body: JSON.stringify({ _id: 'song:1', ...(rev ? { _rev: rev } : {}), title: `take ${i}` }),
+        })
+        rev = ((await response.json()) as { rev: string }).rev
+      }
+      const doc = (await (await fetch(`${host.url}/stageboard-band/song:1?revs=true`, { headers: { authorization: `Basic ${Buffer.from('admin:secret').toString('base64')}` } })).json()) as { _revisions: { ids: string[] } }
+      // A band's documents are edited by a few devices; ancestry beyond a short window is never needed to merge them.
+      expect(doc._revisions.ids.length).toBeLessThanOrEqual(50)
+    } finally {
+      await host.close()
+    }
+  })
+
   it("a member's tablet syncs its band through it", async () => {
     const host = await startBuiltinDatabase({ dataDir: dir, user: 'admin', password: 'secret', port: 0 })
     const config: DatabaseConfig = { url: host.url, user: 'admin', password: 'secret' }

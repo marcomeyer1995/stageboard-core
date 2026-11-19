@@ -55,8 +55,11 @@ export function remoteDbUrl(workspaceId: string, base: string | undefined = getS
   return `${base.replace(/\/$/, '')}/db/${localDbName(workspaceId)}`
 }
 
+/** A device's copy keeps a bounded revision history like the host's (#962, soak): hours of writes must not slow it down. */
+export const LOCAL_DB_OPTIONS = { auto_compaction: true, revs_limit: 50 } as const
+
 let currentWorkspaceId: string | null = null
-let db: PouchDB.Database<Record<string, unknown>> = new PouchDB(localDbName('default'))
+let db: PouchDB.Database<Record<string, unknown>> = new PouchDB(localDbName('default'), LOCAL_DB_OPTIONS)
 let syncHandle: TrackedSync | null = null
 
 /**
@@ -70,7 +73,7 @@ export function getWorkspaceDb<T extends object = Record<string, unknown>>(
 ): PouchDB.Database<T> {
   if (workspaceId !== currentWorkspaceId) {
     currentWorkspaceId = workspaceId
-    db = new PouchDB(localDbName(workspaceId))
+    db = new PouchDB(localDbName(workspaceId), LOCAL_DB_OPTIONS)
     // Local change listeners all share this one db (7+ collections, plus show-state) - since
     // 2026-09-27 through one shared feed (localChanges.ts), but PouchDB's own sync and
     // per-feed plumbing can still pass Node's default

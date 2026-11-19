@@ -11,7 +11,7 @@ import PouchDB from 'pouchdb-browser'
 import { getAudioStorageBackend } from '../lib/audioStorageBackend'
 import { createHostAudio } from './hostAudio'
 import { isNativeApp, pinListedHosts } from '../lib/native'
-import { getWorkspaceDb, localDbName } from '../lib/workspaceDb'
+import { getWorkspaceDb, localDbName, LOCAL_DB_OPTIONS } from '../lib/workspaceDb'
 import { createTabletBandStore, type BandDatabase } from './tabletBandStore'
 
 /**
@@ -253,7 +253,7 @@ export async function startAndroidHost(): Promise<void> {
   const dbFor = (band: string): PouchDB.Database => {
     let handle = handles.get(band)
     if (!handle) {
-      handle = band === workspaceId ? (getWorkspaceDb(band) as unknown as PouchDB.Database) : new PouchDB(localDbName(band))
+      handle = band === workspaceId ? (getWorkspaceDb(band) as unknown as PouchDB.Database) : new PouchDB(localDbName(band), LOCAL_DB_OPTIONS)
       handles.set(band, handle)
     }
     return handle
