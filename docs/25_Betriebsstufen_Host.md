@@ -1,5 +1,7 @@
 # Operating tiers: StageBoard without a fixed Stage-Server
 
+> **Seit #960 (2026-11) gibt es kein CouchDB mehr.** Die Datenbank ist der eingebaute Host (`packages/sync-host`), Logins und PINs sind Dokumente jeder Band-Datenbank (§6h). Die älteren Abschnitte unten (§6a-§6g) beschreiben den Stand zu ihrem Datum, als CouchDB noch der Standard war.
+
 Basic idea as of 2026-10-28, discussed with Marco on 2026-10-27/28. Decided and started since 2026-11-07: §6a. Since 2026-11-10 (#784) the three operating tiers replace the old hardware matrix: [docs/02](02_Operating_Tiers.md) was rewritten, and core principle 1 in CLAUDE.md now reads "the host is the heart". Since 2026-11-17: the host backup (a primary and a passive backup) is decided, §6e; since 2026-11-18 as a module of the base package, not an add-on (#949). Translated to English on 2026-11-17 (#785), together with the decisions that until then lived only on the branch `spike/android-host` (§6a measurements, §6c, §6d).
 
 ## 1. Why

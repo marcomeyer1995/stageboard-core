@@ -32,7 +32,7 @@ flowchart LR
   subgraph Master
     P[Play] --> SS[ShowState<br/>startedAt = Serverzeit + 400 ms]
   end
-  SS -- Push 11-130 ms<br/>+ CouchDB --> G
+  SS -- Push 11-130 ms<br/>+ Datenbank --> G
   subgraph G[Jedes Gerät]
     CS[clockSync<br/>Offset zur Serverzeit] --> ST[Songzeit<br/>aus ShowState + Serverzeit]
     ST --> E1[Klick-Engine]
@@ -78,7 +78,7 @@ Jede Abweichung hat eine **Art**, und die Art entscheidet, wie man sie behandelt
 
 ### 3.2 Ankunft des Play-Befehls
 
-- Schneller Push 11-130 ms, CouchDB als zweiter Weg (docs/19 §6.1). Der Start liegt 400 ms in der Zukunft (`PLAY_LEAD_MS`), also kommt er normalerweise rechtzeitig an.
+- Schneller Push 11-130 ms, die Datenbank-Replikation als zweiter Weg (docs/19 §6.1). Der Start liegt 400 ms in der Zukunft (`PLAY_LEAD_MS`), also kommt er normalerweise rechtzeitig an.
 - Kommt er zu spät, steigt das Gerät an der richtigen Stelle ein (Songzeit aus `startedAt`), nur der Anfang fehlt - **kein Versatz**, sondern ein verspäteter Einstieg.
 - Ausnahme: **Fortsetzen nach Pause** startet „jetzt" ohne Vorlauf (docs/19 §6.2) → jedes Gerät steigt ~0,1-0,2 s später ein, Position richtig.
 - Art: kein Zeitfehler, solange die Songzeit aus der Serverzeit berechnet wird. Gehört aber zur Kette: Vorlauf muss größer sein als die längste Ankunft + längster Stillstand.
