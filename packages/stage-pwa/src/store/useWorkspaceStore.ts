@@ -1037,3 +1037,6 @@ export const useWorkspaceStore = create<WorkspaceState>()(
     { name: 'stageboard-workspaces', version: 1, migrate: migrateWorkspaceState as never },
   ),
 )
+
+// For measuring and testing over USB (tools/cdp, tools/host-test): the store the app runs on, like the other `__sb*` hooks.
+if (typeof window !== 'undefined') (window as unknown as { __sbWorkspace: typeof useWorkspaceStore }).__sbWorkspace = useWorkspaceStore

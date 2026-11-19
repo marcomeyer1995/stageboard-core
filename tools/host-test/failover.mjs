@@ -62,10 +62,12 @@ const call = async (url, path, init = {}) => {
   return { status: response.status, body }
 }
 const basic = (u, p) => `Basic ${Buffer.from(`${u}:${p}`).toString('base64')}`
+// A device may already host with the real dev app on 8443 (the Redmi does): the test app then takes another port.
+const PORTS = { [primary.name]: Number(arg('primary-port', 8443)), [backup.name]: Number(arg('backup-port', 8443)) }
 const urlOf = async (d) => {
   const ip = adb(d, 'shell', 'ip', '-o', '-4', 'addr', 'show', 'wlan0').match(/inet (\d+\.\d+\.\d+\.\d+)/)?.[1]
   if (!ip) throw new Error(`no WiFi address on ${d.name}`)
-  return `https://${ip}:8443`
+  return `https://${ip}:${PORTS[d.name]}`
 }
 
 console.log(`primary ${primary.name}, backup ${backup.name}`)
@@ -78,7 +80,7 @@ for (const d of [primary, backup]) {
   adb(d, 'shell', 'am', 'start', '-n', MAIN)
 }
 await sleep(9000)
-for (const d of [primary, backup]) cdp(d, "localStorage.setItem('stageboard-android-host','on'); location.reload(); 'ok'")
+for (const d of [primary, backup]) cdp(d, `localStorage.setItem('stageboard-host-port','${PORTS[d.name]}'); localStorage.setItem('stageboard-android-host','on'); location.reload(); 'ok'`)
 await sleep(14000)
 const P = await urlOf(primary)
 const B = await urlOf(backup)

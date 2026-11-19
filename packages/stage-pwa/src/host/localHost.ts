@@ -31,7 +31,12 @@ const ROLE_KEY = 'stageboard-android-host-role'
 const CODE_KEY = 'stageboard-android-host-code'
 const SENT_AT_KEY = 'stageboard-android-account-requests'
 const INVITE_KEY = 'stageboard-android-host-invite-at'
-const PORT = 8443
+/** 8443 - unless this install says otherwise (`stageboard-host-port`): a second app on the same device (the isolated test app next
+ * to the dev app) cannot bind the same port, and a test must not take over the real one. */
+const PORT = (() => {
+  const chosen = typeof localStorage === 'undefined' ? NaN : Number(localStorage.getItem('stageboard-host-port'))
+  return Number.isInteger(chosen) && chosen >= 1024 && chosen <= 65535 ? chosen : 8443
+})()
 const TICK_MS = 1_000
 const SAMPLE_MS = 2_000
 
