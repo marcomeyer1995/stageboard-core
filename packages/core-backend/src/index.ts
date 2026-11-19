@@ -4,8 +4,9 @@ import { AddonInstallRequestSchema, AddonPreviewRequestSchema, HostAdminActionSc
 import { existsSync, readFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { CalibrationRuns } from './calibration/calibrationRuns.js'
-import { listAudioInputs, MeasureInputStore, measureLevel } from './calibration/measureInputs.js'
-import { fallbackMicDevice, startMicCapture } from './calibration/micCapture.js'
+import { MeasureInputStore } from './calibration/measureInputs.js'
+import { startMicCapture } from './calibration/micCapture.js'
+import { registerServerSettingsRoutes } from './serverSettingsRoutes.js'
 import { PIPER_SPEECH_PLUGIN_ID, serverSpeech, serverVoices } from './plugins/piperSpeechPlugin.js'
 import { PiperSpeech } from './speech/piperSpeech.js'
 import { createServer } from 'node:http'
@@ -32,26 +33,19 @@ import { createBandAccountsFor } from './bandAccounts.js'
 import fastifyStatic from '@fastify/static'
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify'
 import {
-  ActivateProfileRequestSchema,
   SERVER_EXECUTION_TARGET,
   ActivateWorkspaceHardwareRequestSchema,
-  DeviceTriggerSchema,
-  DiscoveryAssignRequestSchema,
-  DiscoveryReportCandidateRequestSchema,
-  DiscoveryStartRequestSchema,
-  DiscoveryTriggeredRequestSchema,
   CalibrationRunRequestSchema,
-  HealthReportSchema,
   ShowControlEventSchema,
   type Device,
 } from 'shared-types'
 import { messageFieldsOf, serverMessage, type ServerMessage } from 'shared-types'
-import { BackupAdminRequestSchema, BackupSaveRequestSchema, MeasureInputsSaveRequestSchema, MeasureLevelRequestSchema, type MeasureInputsOverview, BackupTargetRequestSchema, ShowStatePushAckSchema, ShowStatePushSchema, SwitchStateEventSchema, SpeechSpeedSchema, SpeechVoiceKeySchema, YOUTUBE_VIDEO_ID_RE } from 'shared-types'
+import { SpeechSpeedSchema, SpeechVoiceKeySchema, YOUTUBE_VIDEO_ID_RE } from 'shared-types'
 import { createBackupService, realBackupDeps, type BackupService } from './backup.js'
 import { deleteAudioFile, readAudioFile, writeAudioFile } from './audioStore.js'
 import { readPersistedActiveWorkspace } from './activeWorkspaceStateStore.js'
 import { isSafePluginId, readPluginBundle } from './plugins/pluginBundleStore.js'
-import { allDocs, deleteDocUnless, getDoc, putDoc, putDocWithRetry, type DatabaseConfig, type DatabaseDoc } from './database.js'
+import { allDocs, getDoc, type DatabaseConfig, type DatabaseDoc } from './database.js'
 import * as deviceInfoStore from './deviceInfoStore.js'
 import { installShutdownHandlers, trackConnections } from './gracefulShutdown.js'
 import { registerAppRoutes } from './appDownload.js'
@@ -70,24 +64,15 @@ import { createLaptopBandStore } from './bandStore.js'
 import { createBandJoin, createBandMembers, createHostRoutes, createReplicationAccountIssuer, type BandJoin } from 'sync-host'
 import { PluginRegistry } from './plugins/registry.js'
 import { createPinThrottle } from 'sync-host'
-import { isLoopback, readDeletedWorkspaces } from './provisioningAuth.js'
+import { isLoopback } from './provisioningAuth.js'
 import { listDbs } from './database.js'
 import { decodeOscPacket, oscTargetFromConfig, setOscTargetResolver } from './plugins/oscPlugin.js'
 import { createWorkspaceHardwareController } from './workspaceHardwareController.js'
 import {
-  deprovisionWorkspace,
-  deviceUsername,
   getOrCreateAccessCode,
-  listWorkspaces,
-  memberUsername,
-  provisionWorkspace,
   updateRosterValidators,
-  renameWorkspace,
-  setMasterMode,
-  rotateAccessCode,
   getAccessCode,
   workspaceDbName,
-  WorkspaceAlreadyProvisionedError,
 } from './workspaceProvisioning.js'
 
 const certFile = fileURLToPath(new URL('../../../certs/dev-cert.pem', import.meta.url))
@@ -1048,86 +1033,7 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
     }
     return true
   }
-  app.post('/server/backup/overview', async (request, reply) => {
-    const parsed = BackupAdminRequestSchema.safeParse(request.body)
-    if (!parsed.success) return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
-    if (!(await activeBandAdmin(request, reply, parsed.data))) return reply
-    return reply.status(200).send(await backups.overview())
-  })
-  app.post('/server/backup/save', async (request, reply) => {
-    const parsed = BackupSaveRequestSchema.safeParse(request.body)
-    if (!parsed.success) return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
-    if (!(await activeBandAdmin(request, reply, parsed.data))) return reply
-    backups.save(parsed.data.target)
-    return reply.status(200).send(await backups.overview())
-  })
-  app.post('/server/backup/delete', async (request, reply) => {
-    const parsed = BackupTargetRequestSchema.safeParse(request.body)
-    if (!parsed.success) return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
-    if (!(await activeBandAdmin(request, reply, parsed.data))) return reply
-    backups.remove(parsed.data.targetId)
-    return reply.status(200).send(await backups.overview())
-  })
-  app.post('/server/backup/run', async (request, reply) => {
-    const parsed = BackupTargetRequestSchema.safeParse(request.body)
-    if (!parsed.success) return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
-    if (!(await activeBandAdmin(request, reply, parsed.data))) return reply
-    // Runs in the background (minutes with backing tracks); the app follows it via overview.
-    void backups.run(parsed.data.targetId, 'manual').catch((err) => app.log.error({ err }, 'Backup run failed'))
-    return reply.status(202).send({ status: 'started' })
-  })
-  app.post('/server/backup/test', async (request, reply) => {
-    const parsed = BackupTargetRequestSchema.safeParse(request.body)
-    if (!parsed.success) return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
-    if (!(await activeBandAdmin(request, reply, parsed.data))) return reply
-    return reply.status(200).send(await backups.test(parsed.data.targetId))
-  })
-
-  // Measuring inputs (docs/24 §7.2, #662): which of the server's audio inputs listens to speakers
-  // (microphone) and to headphones / in-ear / Bluetooth (cable) - System → Rig-Check, admins only.
-  app.post('/server/measure-inputs/overview', async (request, reply) => {
-    const parsed = BackupAdminRequestSchema.safeParse(request.body)
-    if (!parsed.success) return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
-    if (!(await activeBandAdmin(request, reply, parsed.data))) return reply
-    const overview: MeasureInputsOverview = { inputs: await listAudioInputs(), selected: measureInputs.get(), fallbackMic: fallbackMicDevice() }
-    return reply.status(200).send(overview)
-  })
-  app.post('/server/measure-inputs/save', async (request, reply) => {
-    const parsed = MeasureInputsSaveRequestSchema.safeParse(request.body)
-    if (!parsed.success) return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
-    if (!(await activeBandAdmin(request, reply, parsed.data))) return reply
-    measureInputs.save(parsed.data.selected)
-    app.log.info({ selected: parsed.data.selected }, 'Measuring inputs saved')
-    return reply.status(200).send({ status: 'ok' })
-  })
-  app.post('/server/measure-inputs/level', async (request, reply) => {
-    const parsed = MeasureLevelRequestSchema.safeParse(request.body)
-    if (!parsed.success) return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
-    if (!(await activeBandAdmin(request, reply, parsed.data))) return reply
-    // The device is in use while a calibration run records - one at a time.
-    if (calibrationRuns.busy()) return reply.status(409).send({ status: 'error', ...serverMessage('calibration.busy') })
-    const level = await measureLevel(parsed.data.input, parsed.data.durationMs ?? 2000)
-    if (level.error) app.log.warn({ input: parsed.data.input, error: level.error }, 'Measuring input level failed')
-    return reply.status(200).send(level)
-  })
-
-  // The status line in the app (Geräte → Host): the configured targets' summary; before
-  // any target exists, the last run of a hand-started scripts/backup.mjs; null = never set up.
-  app.get('/server/backup-status', async (_request, reply) => {
-    const summary = backups.summary()
-    if (summary) return reply.status(200).send(summary)
-    const file = join(process.env.STAGEBOARD_STATE_DIR ?? './data', 'backup-status.json')
-    if (!existsSync(file)) return reply.status(200).send(null)
-    try {
-      return reply.status(200).send(JSON.parse(readFileSync(file, 'utf8')))
-    } catch (err) {
-      app.log.warn({ err }, 'backup-status.json unreadable')
-      return reply.status(200).send({ ok: false, error: serverMessage('backup.statusUnreadable').message, errorCode: 'backup.statusUnreadable' })
-    }
-  })
-
-  // What this host can run - the map offers server plugins by it (docs/25 §6, 2026-11-07).
-
+  registerServerSettingsRoutes(app, { backups, activeBandAdmin, measureInputs, calibrationRuns })
 
   // 2026-09-02 fourth follow-up, at Marco's explicit request: consolidates the PWA, this API,
   // and the database onto this one origin, so a new device only ever has to accept one self-signed
