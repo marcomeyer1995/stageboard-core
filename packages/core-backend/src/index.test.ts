@@ -30,11 +30,9 @@ import {
 import { bandDbProxyRefusal, buildApp } from './index.js'
 import { LookupError } from './plugins/lookupError.js'
 import { __resetHealthStoreForTests, getSnapshot, setEntry } from './plugins/healthStore.js'
-import {
-  __resetPresenceStoreForTests,
-  getSnapshot as getPresenceSnapshot,
-  setEntry as setPresenceEntry,
-} from './presenceStore.js'
+import { __resetPresenceStoreForTests, presence } from './presenceStore.js'
+
+const getPresenceSnapshot = (workspaceId: string) => presence().snapshot(workspaceId)
 import { recordDeletedWorkspace } from './provisioningAuth.js'
 
 function testContext(): PluginContext {
@@ -768,7 +766,7 @@ describe('Fastify routes', () => {
 
   describe('GET /workspaces/:workspaceId/presence/stream', () => {
     beforeEach(() => {
-      __resetPresenceStoreForTests()
+      __resetPresenceStoreForTests(() => 123)
     })
 
     it('streams the current snapshot immediately, then pushes updates as they happen', async () => {
@@ -803,7 +801,7 @@ describe('Fastify routes', () => {
       const first = await chunks.next()
       expect(Buffer.from(first.value as Buffer).toString()).toBe('data: {"devices":{}}\n\n')
 
-      setPresenceEntry('band-a', 'device-1', { profileId: 'p1', lastSeenAt: 123 })
+      presence().setEntry('band-a', 'device-1', 'p1') // stamped 123 by the clock this describe resets the store with
 
       const second = await chunks.next()
       expect(Buffer.from(second.value as Buffer).toString()).toBe(
@@ -1554,6 +1552,19 @@ describe('Fastify routes', () => {
       const response = await app.inject({ method: 'POST', url: '/workspaces/band-a/roster', payload: { code: 'guessed' } })
 
       expect(response.statusCode).toBe(403)
+    })
+
+    it('answers a band that does not exist like a wrong code (403) - a 500 would tell a stranger which bands exist', async () => {
+      stubFetch([
+        { ok: false, status: 404 }, // getAccessCode -> missing
+        { ok: false, status: 404 }, // writeAccessCodeDoc's own getDoc (for _rev) -> missing
+        { ok: false, status: 404 }, // putDoc: there is no database for this band
+      ])
+
+      const response = await app.inject({ method: 'POST', url: '/workspaces/no-such-band/roster', payload: { code: '12345678' } })
+
+      expect(response.statusCode).toBe(403)
+      expect(response.json()).toEqual({ status: 'error', message: 'Wrong code' })
     })
 
     it('returns 400 for a body that fails schema validation', async () => {

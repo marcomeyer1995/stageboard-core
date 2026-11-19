@@ -3,6 +3,8 @@ import { createBandAccounts } from './bandAccounts.js'
 import { createBandJoin } from './bandJoin.js'
 import { createBandMembers } from './bandMembers.js'
 import { createPinThrottle } from './pinThrottle.js'
+import { createHostDeviceInfo } from './deviceInfo.js'
+import { createHostPresence } from './presence.js'
 import { createHostRoutes, matchHostRoute, type HostAudio, type HostRoutesDeps, type HostRouteResponse } from './routes.js'
 
 function audioStub(): HostAudio & { files: Map<string, Uint8Array> } {
@@ -32,16 +34,22 @@ function deps(over: Partial<HostRoutesDeps> = {}): HostRoutesDeps & { audio: Ret
     acceptInvite: vi.fn(async () => ({ ok: true as const })),
     issueAccount: vi.fn(async () => ({ username: 'u', password: 'p' })),
     audio: audioStub(),
-    presence: { report: vi.fn(() => true), heartbeat: vi.fn(() => true) },
+    presence: createHostPresence({ now: () => 9_000, newId: () => 'flash-1' }),
+    deviceInfo: createHostDeviceInfo({ now: () => 9_000 }),
+    band: {
+      accessCode: async (ws: string) => (ws === 'leasetest' ? { code: '57832943', name: 'Lease Test' } : null),
+      profileDocs: async () => [{ _id: 'profiles:p1', id: 'p1', name: 'Test', stageRoles: ['admin'] }, { _id: 'profiles:p2', id: 'p2', name: 'Zed' }],
+    },
+    isBandDevice: vi.fn(async (_ws: string, authorization: string | undefined) => authorization === 'Basic good'),
     ...over,
   } as HostRoutesDeps & { audio: ReturnType<typeof audioStub> }
 }
 
 /** Dispatches like both platforms do: match the table, hand over the params. */
-async function call(d: HostRoutesDeps, method: string, path: string, body?: unknown, query: Record<string, string> = {}): Promise<HostRouteResponse | null> {
+async function call(d: HostRoutesDeps, method: string, path: string, body?: unknown, query: Record<string, string> = {}, authorization?: string, remoteAddress?: string): Promise<HostRouteResponse | null> {
   const routes = createHostRoutes(d)
   const hit = matchHostRoute(routes, method, path)
-  return hit ? hit.route.handle({ method, path, params: hit.params, query, body }) : null
+  return hit ? hit.route.handle({ method, path, params: hit.params, query, body, ...(authorization ? { authorization } : {}), ...(remoteAddress ? { remoteAddress } : {}) }) : null
 }
 
 describe('the route table', () => {
@@ -142,27 +150,112 @@ describe('audio', () => {
   })
 })
 
-describe('presence and the master\'s heartbeat', () => {
+describe('presence, the master\'s heartbeat, the Ready Check and flash messages', () => {
   it('records a report and a beat for the band, as 204', async () => {
     const d = deps()
     expect(await call(d, 'POST', '/workspaces/leasetest/presence/report', { deviceId: 'fire', profileId: 'p1' })).toEqual({ status: 204 })
-    expect(d.presence.report).toHaveBeenCalledWith('leasetest', { deviceId: 'fire', profileId: 'p1' })
     expect(await call(d, 'POST', '/workspaces/leasetest/master-heartbeat', { deviceId: 'fire' })).toEqual({ status: 204 })
-    expect(d.presence.heartbeat).toHaveBeenCalledWith('leasetest', 'fire')
+    expect(d.presence.snapshot('leasetest')).toEqual({ devices: { fire: { profileId: 'p1', lastSeenAt: 9_000 } }, masterHeartbeat: { deviceId: 'fire', at: 9_000 } })
   })
 
-  it('answers 400 with the first problem when the body is no report or beat', async () => {
+  it('records a Ready Check answer', async () => {
+    const d = deps()
+    expect(await call(d, 'POST', '/workspaces/leasetest/ready-check/report', { checkId: 'c1', profileId: 'anna' })).toEqual({ status: 204 })
+    expect(d.presence.snapshot('leasetest').readyCheck).toEqual({ checkId: 'c1', readyProfileIds: ['anna'] })
+  })
+
+  it('answers 400 with the first problem when the body is no report, beat or answer', async () => {
     const d = deps()
     const bad = await call(d, 'POST', '/workspaces/leasetest/presence/report', { deviceId: 'fire' })
     expect(bad?.status).toBe(400)
     expect(bad?.body).toMatchObject({ status: 'error' })
     expect((await call(d, 'POST', '/workspaces/leasetest/master-heartbeat', {}))?.status).toBe(400)
-    expect(d.presence.report).not.toHaveBeenCalled()
+    expect((await call(d, 'POST', '/workspaces/leasetest/ready-check/report', { checkId: 'c1' }))?.status).toBe(400)
+    expect(d.presence.snapshot('leasetest')).toEqual({ devices: {} })
   })
 
-  it('answers 404 for a band that is not the host\'s', async () => {
-    const d = deps({ presence: { report: vi.fn(() => false), heartbeat: vi.fn(() => false) } })
+  it('answers 404 for a band that is not the host\'s, when the platform serves only one', async () => {
+    const d = deps({ servesBand: (ws) => ws === 'leasetest' })
     expect((await call(d, 'POST', '/workspaces/other/master-heartbeat', { deviceId: 'fire' }))?.status).toBe(404)
+    expect((await call(d, 'POST', '/workspaces/other/ready-check/report', { checkId: 'c', profileId: 'p' }))?.status).toBe(404)
+    expect((await call(d, 'POST', '/workspaces/leasetest/master-heartbeat', { deviceId: 'fire' }))?.status).toBe(204)
+  })
+
+  it('sends a flash message for a device of the band only - nothing is stored without the login', async () => {
+    const d = deps()
+    const body = { text: 'Pause 10 min', from: 'Anna' }
+    expect((await call(d, 'POST', '/workspaces/leasetest/flash', body))?.status).toBe(401)
+    expect((await call(d, 'POST', '/workspaces/leasetest/flash', body, {}, 'Basic bad'))?.status).toBe(401)
+    expect(d.presence.snapshot('leasetest').flash).toBeUndefined()
+    const sent = await call(d, 'POST', '/workspaces/leasetest/flash', body, {}, 'Basic good')
+    expect(sent).toEqual({ status: 201, body: { id: 'flash-1', text: 'Pause 10 min', from: 'Anna', at: 9_000 } })
+    expect(d.presence.snapshot('leasetest').flash).toEqual(sent?.body)
+    expect(d.isBandDevice).toHaveBeenCalledWith('leasetest', 'Basic good')
+  })
+
+  it('refuses a flash message that is no message with 400, whoever sends it', async () => {
+    const d = deps()
+    expect((await call(d, 'POST', '/workspaces/leasetest/flash', { text: '' }, {}, 'Basic good'))?.status).toBe(400)
+    expect((await call(d, 'POST', '/workspaces/leasetest/flash', { text: 'x'.repeat(121) }))?.status).toBe(400)
+  })
+
+  it('is refused with 503 while the host does not serve the band', async () => {
+    const d = deps({ serving: () => false })
+    expect((await call(d, 'POST', '/workspaces/leasetest/master-heartbeat', { deviceId: 'fire' }))?.status).toBe(503)
+    expect((await call(d, 'POST', '/workspaces/leasetest/flash', { text: 'x' }, {}, 'Basic good'))?.status).toBe(503)
+  })
+})
+
+describe('the Device Ledger', () => {
+  const report = { deviceId: 'fire', os: 'Fire', environment: 'native', syncStatus: 'idle' }
+
+  it('takes a device\'s report, stamped with the address it came from, and lists it', async () => {
+    const d = deps()
+    expect(await call(d, 'POST', '/workspaces/leasetest/device-info/report', report, {}, undefined, '192.168.178.179')).toEqual({ status: 204 })
+    const list = await call(d, 'GET', '/workspaces/leasetest/device-info')
+    expect(list?.status).toBe(200)
+    expect((list?.body as { devices: Record<string, { ip: string; os: string; lastSeenAt: number }> }).devices.fire).toMatchObject({ ip: '192.168.178.179', os: 'Fire', lastSeenAt: 9_000 })
+    expect(list?.body).toHaveProperty('collectingSince', 9_000)
+  })
+
+  it('answers 400 with the first problem for a report that does not fit, and stores nothing', async () => {
+    const d = deps()
+    const bad = await call(d, 'POST', '/workspaces/leasetest/device-info/report', { deviceId: 'fire', os: 'Fire', environment: 'toaster', syncStatus: 'idle' })
+    expect(bad?.status).toBe(400)
+    expect(bad?.body).toMatchObject({ status: 'error' })
+    expect(d.deviceInfo.snapshot('leasetest').devices).toEqual({})
+  })
+
+  it('is refused with 503 while passive and 404 for a band that is not the host\'s', async () => {
+    expect((await call(deps({ serving: () => false }), 'GET', '/workspaces/leasetest/device-info'))?.status).toBe(503)
+    expect((await call(deps({ serving: () => false }), 'POST', '/workspaces/leasetest/device-info/report', report))?.status).toBe(503)
+    const one = deps({ servesBand: (ws) => ws === 'leasetest' })
+    expect((await call(one, 'GET', '/workspaces/other/device-info'))?.status).toBe(404)
+    expect((await call(one, 'POST', '/workspaces/other/device-info/report', report))?.status).toBe(404)
+  })
+})
+
+describe('the roster', () => {
+  const ask = (d: HostRoutesDeps, ws: string, body: unknown) => call(d, 'POST', `/workspaces/${ws}/roster`, body)
+
+  it('hands a device that knows the band\'s code the list to pick from, with the band\'s name', async () => {
+    expect(await ask(deps(), 'leasetest', { code: '57832943' })).toEqual({
+      status: 200,
+      body: { workspaceId: 'leasetest', workspaceName: 'Lease Test', members: [{ profileId: 'p1', name: 'Test', isAdmin: true }, { profileId: 'p2', name: 'Zed', isAdmin: false }] },
+    })
+  })
+
+  it('answers 403 for a wrong code and shows nothing', async () => {
+    expect(await ask(deps(), 'leasetest', { code: '00000000' })).toEqual({ status: 403, body: { status: 'error', message: 'Wrong code' } })
+  })
+
+  it('answers 400 for a body without a code, and 403 for a band it does not hold (it must not say which exist)', async () => {
+    expect((await ask(deps(), 'leasetest', {}))?.status).toBe(400)
+    expect((await ask(deps(), 'unknown-band', { code: '57832943' }))?.status).toBe(403)
+  })
+
+  it('is refused with 503 while the host does not serve the band', async () => {
+    expect((await ask(deps({ serving: () => false }), 'leasetest', { code: '57832943' }))?.status).toBe(503)
   })
 })
 
