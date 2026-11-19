@@ -49,8 +49,7 @@ type CameraStatus = 'idle' | 'requesting' | 'scanning' | 'denied' | 'insecure-co
  * for someone who just downloaded the app.
  *
  * "Passwort direkt eingeben" is the pre-#21 raw-credential mechanism, kept for script-
- * provisioned dev workspaces (`scripts/setup-couchdb.sh`), which have no admin device to show a
- * code from at all.
+ * provisioned dev workspaces, which have no admin device to show a code from at all.
  *
  * The `<video>` element is always mounted (visibility toggled via CSS), never conditionally
  * rendered on `cameraStatus` - attaching `stream` to `videoRef.current` happens right after

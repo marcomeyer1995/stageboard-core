@@ -14,7 +14,7 @@ This is the single authoritative source for the tech stack (do not duplicate it 
 *   **Architecture:** monorepo (NPM workspaces or Turborepo)
 *   **Frontend:** React, Vite, TypeScript (100 % strict), Tailwind CSS, Zustand (state management), PouchDB (local database)
 *   **Backend:** Node.js, Fastify, TypeScript, Zod (schema validation, microkernel architecture for plugins)
-*   **Database:** CouchDB (Docker) for multi-master replication
+*   **Database:** the built-in CouchDB-compatible host (`packages/sync-host`, PouchDB over LevelDB) - the same code on the laptop, Linux and the Android tablet; PouchDB on every device replicates with it. Logins and PINs are documents of each band's database (docs/25 §6h). No CouchDB, no Docker.
 *   **Native app:** Capacitor (Android) around the same frontend build (`packages/stage-pwa/android`, UI inside the APK, certificate pinning, updates from the Stage-Server) - details in docs/03 §0c.
 *   **Infrastructure:** native execution (no virtualisation for the live host because of MIDI/audio latencies); the dedicated Stage-Server runs on Linux, the band host on the laptop's own OS (docs/25).
 

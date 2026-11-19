@@ -1,5 +1,5 @@
 import { pbkdf2Sync } from 'node:crypto'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import * as showStatePushHub from './showStatePushHub.js'
 import { request as httpRequest } from 'node:http'
 import { request as httpsRequest, Server as HttpsServer } from 'node:https'
@@ -1988,8 +1988,12 @@ describe('Fastify routes', () => {
     })
 
     it('deletes the workspace - its database, and with it every login and PIN - when the caller verifies as an admin', async () => {
+      const stateDir = mkdtempSync(join(tmpdir(), 'delete-band-'))
+      vi.stubEnv('STAGEBOARD_STATE_DIR', stateDir)
       const fetchMock = stubFetch([
         { ok: true, status: 200, json: async () => accountDoc('stageboard-band-a-p1', ['member', 'admin']) },
+        { ok: true, status: 200, json: async () => ({ rows: [] }) }, // the copy kept first (#362): _all_docs
+        { ok: true, status: 200, json: async () => ({}) }, // ... _security
         { ok: true, status: 200 }, // deleteDb
       ])
 
@@ -2000,8 +2004,11 @@ describe('Fastify routes', () => {
       })
 
       expect(response.statusCode).toBe(204)
-      expect(fetchMock).toHaveBeenCalledTimes(2) // the login, the database - no account is deleted one by one any more
-      expect((fetchMock.mock.calls[1] as [string, RequestInit])[1].method).toBe('DELETE')
+      expect(fetchMock).toHaveBeenCalledTimes(4) // the login, the copy (2 reads), the database - no account is deleted one by one any more
+      expect((fetchMock.mock.calls[3] as [string, RequestInit])[1].method).toBe('DELETE')
+      expect(readdirSync(join(stateDir, 'deleted-bands'))).toHaveLength(1) // the band stays recoverable (#362)
+      vi.unstubAllEnvs()
+      rmSync(stateDir, { recursive: true, force: true })
     })
 
     it('returns 403 when the caller does not verify as an admin', async () => {

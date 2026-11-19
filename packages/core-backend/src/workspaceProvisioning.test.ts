@@ -227,18 +227,52 @@ describe('access code (2026-09-01 WiFi-style redesign)', () => {
 })
 
 describe('deprovisionWorkspace', () => {
-  it('deletes the database - the logins and PIN verifiers are documents of it, so they go with it - and never lets the id be founded again', async () => {
-    const fetchMock = stubFetch([{ ok: true, status: 200 }]) // deleteDb
+  const withStateDir = async (run: (dir: string) => Promise<void>) => {
+    const { mkdtempSync, rmSync } = await import('node:fs')
+    const { tmpdir } = await import('node:os')
+    const { join } = await import('node:path')
+    const dir = mkdtempSync(join(tmpdir(), 'deprovision-'))
+    const before = process.env.STAGEBOARD_STATE_DIR
+    process.env.STAGEBOARD_STATE_DIR = dir
+    try {
+      await run(dir)
+    } finally {
+      if (before === undefined) delete process.env.STAGEBOARD_STATE_DIR
+      else process.env.STAGEBOARD_STATE_DIR = before
+      rmSync(dir, { recursive: true, force: true })
+    }
+  }
 
-    await deprovisionWorkspace(config, 'band-c')
+  it('keeps a copy, then deletes the database - the logins and PIN verifiers are documents of it, so they go with it', async () => {
+    await withStateDir(async (dir) => {
+      const fetchMock = stubFetch([
+        { ok: true, status: 200, json: async () => ({ rows: [{ doc: { _id: 'profiles:p1', _rev: '1-a' } }] }) }, // _all_docs (the copy)
+        { ok: true, status: 200, json: async () => ({ members: {} }) }, // _security (the copy)
+        { ok: true, status: 200 }, // deleteDb
+      ])
 
-    expect(fetchMock).toHaveBeenCalledTimes(1)
-    expect(fetchMock.mock.calls[0][0]).toBe('http://localhost:5984/stageboard-band-c')
-    expect(fetchMock.mock.calls[0][1].method).toBe('DELETE')
+      await deprovisionWorkspace(config, 'band-c')
+
+      expect(fetchMock).toHaveBeenCalledTimes(3)
+      expect(fetchMock.mock.calls[2][0]).toBe('http://localhost:5984/stageboard-band-c')
+      expect(fetchMock.mock.calls[2][1].method).toBe('DELETE')
+      const { readdirSync } = await import('node:fs')
+      expect(readdirSync(`${dir}/deleted-bands`)).toHaveLength(1)
+    })
+  })
+
+  it('does not delete a band whose copy could not be made', async () => {
+    await withStateDir(async () => {
+      const fetchMock = stubFetch([{ ok: false, status: 500 }])
+      await expect(deprovisionWorkspace(config, 'band-c')).rejects.toThrow()
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+    })
   })
 
   it('tolerates an already-gone database', async () => {
-    stubFetch([{ ok: false, status: 404 }])
-    await expect(deprovisionWorkspace(config, 'band-c')).resolves.toBeUndefined()
+    await withStateDir(async () => {
+      stubFetch([{ ok: false, status: 404 }, { ok: false, status: 404 }]) // no copy to make; deleteDb
+      await expect(deprovisionWorkspace(config, 'band-c')).resolves.toBeUndefined()
+    })
   })
 })

@@ -331,8 +331,7 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
         }) as unknown as FastifyInstance)
       : Fastify({ logger: true, bodyLimit })
 
-  // Tablets fetch this cross-origin (their own dev-server or PWA origin, not this server's) -
-  // same FRONTEND_ORIGIN convention as scripts/setup-couchdb.sh's CouchDB CORS setup.
+  // Tablets fetch this cross-origin (their own dev-server or PWA origin, not this server's).
   //
   // `methods` isn't derived from whatever routes actually exist - @fastify/cors defaults it to
   // the static string 'GET,HEAD,POST' if left unset, silently CORS-blocking every cross-origin

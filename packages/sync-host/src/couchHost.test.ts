@@ -201,3 +201,21 @@ describe('logins that live in the band database (#960)', () => {
     expect((await call('/stageboard-band/_all_docs', { headers: auth('kai', 'pin-1234') })).status).toBe(200)
   })
 })
+
+describe('the access rules of a band (_security)', () => {
+  it('are read back as CouchDB gives them - admins and members only, no internal id or revision', async () => {
+    await foundBand()
+    const rules = { admins: { names: [], roles: ['admin'] }, members: { names: [], roles: ['member', 'admin'] } }
+    expect((await call('/stageboard-band/_security', { method: 'PUT', headers: admin, body: JSON.stringify(rules) })).status).toBe(200)
+    expect(await (await call('/stageboard-band/_security', { headers: admin })).json()).toEqual(rules)
+  })
+
+  it('can be put back from what was read - a backup restores them (a stray _id or _rev in the body changes nothing)', async () => {
+    await foundBand()
+    const read = await (await call('/stageboard-band/_security', { headers: admin })).json()
+    await call('/stageboard-band/_security', { method: 'DELETE', headers: admin }).catch(() => undefined)
+    const answer = await call('/stageboard-band/_security', { method: 'PUT', headers: admin, body: JSON.stringify({ ...read, _id: '_local/_security', _rev: '0-1' }) })
+    expect(answer.status).toBe(200)
+    expect(await (await call('/stageboard-band/_security', { headers: admin })).json()).toEqual(read)
+  })
+})

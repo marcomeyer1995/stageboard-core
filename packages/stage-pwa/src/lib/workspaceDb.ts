@@ -93,9 +93,8 @@ export function getWorkspaceDb<T extends object = Record<string, unknown>>(
  *
  * `auth` is the workspace-scoped CouchDB user's credentials (see #12) - this device never
  * holds admin credentials, so unlike the old admin-authenticated version, it can no longer
- * create the remote database itself (CouchDB requires admin rights for that): the database
- * only ever comes into existence via scripts/setup-couchdb.sh or core-backend's
- * `POST /workspaces` route, both of which run with admin credentials.
+ * create the remote database itself (that needs the database's admin login): the database
+ * only ever comes into existence via core-backend's `POST /workspaces` route, which runs with it.
  */
 /**
  * Documents that are status, not saved work (Marco, 2026-11-06: "everything which does not need

@@ -11,6 +11,7 @@ import {
   type CouchConfig,
   type CouchDoc,
 } from './couch.js'
+import { saveDeletedBand } from './deletedBand.js'
 import { recordDeletedWorkspace } from './provisioningAuth.js'
 
 /** The names every device derives on its own from a workspace id (stage-pwa's workspaceDb.ts, #960): one definition, in sync-host. */
@@ -275,9 +276,12 @@ export async function listWorkspaces(config: CouchConfig): Promise<Array<{ works
 
 /**
  * Deletes a band: its database - and with it every login and PIN verifier, which are documents of that database
- * (#960) - and records the id so it is never provisioned again through POST /workspaces (#364).
+ * (#960) - and records the id so it is never provisioned again through POST /workspaces (#364). A copy is kept first
+ * (`saveDeletedBand`, #362) - the database host destroys what it deletes - and a band whose copy could not be made is
+ * not deleted.
  */
 export async function deprovisionWorkspace(config: CouchConfig, workspaceId: string): Promise<void> {
+  await saveDeletedBand(config, workspaceId, process.env.STAGEBOARD_STATE_DIR ?? './data')
   await deleteDb(config, workspaceDbName(workspaceId))
   recordDeletedWorkspace(workspaceId)
 }

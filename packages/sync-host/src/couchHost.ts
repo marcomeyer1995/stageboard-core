@@ -108,7 +108,16 @@ export function createCouchHost(options: CouchHostOptions) {
     return same(derived, doc.derived_key) ? { name: creds.user, roles: doc.roles ?? [] } : null
   }
 
-  const security = async (name: string): Promise<SecurityDoc> => ((await db(name).get(SECURITY_ID).catch(() => null)) as SecurityDoc | null) ?? {}
+  /** The band's access rules as CouchDB gives them: `admins` and `members` only - the document they are kept in
+   * (its id and revision) is this host's own business and must not leak, or a backup could not put them back. */
+  const security = async (name: string): Promise<SecurityDoc> => {
+    const stored = (await db(name).get(SECURITY_ID).catch(() => null)) as (SecurityDoc & { _id?: string; _rev?: string }) | null
+    if (!stored) return {}
+    const { _id, _rev, ...rules } = stored
+    void _id
+    void _rev
+    return rules
+  }
 
   /** CouchDB 3: a database without members is for admins only. */
   const access = async (name: string, ctx: UserCtx): Promise<'admin' | 'member' | null> => {
@@ -181,7 +190,11 @@ export function createCouchHost(options: CouchHostOptions) {
         if (role !== 'admin') return error(403, 'forbidden', 'Admins only.')
         const store = db(name)
         const current = await store.get(SECURITY_ID).catch(() => null)
-        await store.put({ ...(request.body as object), _id: SECURITY_ID, ...(current ? { _rev: current._rev } : {}) })
+        // Whatever id or revision the body carries (a backup reads them back from an older host) is not the stored document's.
+        const { _id, _rev, ...rules } = request.body as Record<string, unknown>
+        void _id
+        void _rev
+        await store.put({ ...rules, _id: SECURITY_ID, ...(current ? { _rev: current._rev } : {}) })
         return json(200, { ok: true })
       }
     }

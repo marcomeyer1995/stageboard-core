@@ -19,7 +19,7 @@ It is inspired by the modular dashboard approach of Home Assistant: a small core
 | `packages/stage-pwa` | the app: React + Vite + TypeScript PWA, also wrapped as the Android app (Capacitor, `android/`) |
 | `packages/core-backend` | the host: Fastify server, sync proxy, clock reference, push, tracks, built-in server add-ons |
 | `packages/shared-types` | Zod schemas and shared logic used by both (stage map, timing, tracks, plugins) |
-| `packages/sync-host` | a small CouchDB-compatible replication host on PouchDB, for hosts without CouchDB |
+| `packages/sync-host` | the database host (CouchDB-compatible replication on PouchDB) and the shared host logic - accounts, join, members, routes - used by the Stage-Server and the Android app |
 | `docs/` | concepts, decisions and investigation write-ups - the index with "read when" hints is in [CLAUDE.md](CLAUDE.md) |
 
 ## Running it

@@ -42,7 +42,11 @@ async function restore(file) {
     const info = await request('GET', `/${db}`)
     if (info.json.doc_count > 0) throw new Error(`${dump.db} already has ${info.json.doc_count} documents - add --force to merge`)
   }
-  if (dump.security && Object.keys(dump.security).length > 0) await request('PUT', `/${db}/_security`, dump.security)
+  if (dump.security && Object.keys(dump.security).length > 0) {
+    // Without the access rules nobody can read the restored band - never carry on silently.
+    const rules = await request('PUT', `/${db}/_security`, dump.security)
+    if (rules.status !== 200) throw new Error(`_security of ${dump.db}: HTTP ${rules.status}`)
+  }
   // Design documents last: a validate_doc_update function (the band's roster validator) would
   // otherwise already judge the documents restored after it and reject some (found in the
   // restore test: one member profile went missing).
