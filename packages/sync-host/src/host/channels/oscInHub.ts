@@ -1,7 +1,7 @@
 import type { OscInMessage } from 'shared-types'
 
 /**
- * OSC messages the Stage-Server received (#484, OSC as a trigger), to every device of the band
+ * OSC messages the Host received (#484, OSC as a trigger), to every device of the band
  * listening - in practice the master that runs the rules, and a device learning a button. In
  * memory, nothing replayed: a trigger that arrives while nobody listens is gone, like a pedal
  * pressed with the app closed.

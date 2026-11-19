@@ -1,9 +1,9 @@
 import type { DetectedHardware } from 'shared-types'
-import { getStageServerUrl } from './stageServer'
+import { getHostUrl } from './hostUrl'
 
 async function post(path: string, body: unknown): Promise<void> {
-  const base = getStageServerUrl()
-  if (!base) return // No Stage-Server (e.g. Tier 1 "Solo") - Discovery Mode has no coordinator, silently a no-op.
+  const base = getHostUrl()
+  if (!base) return // No Host (e.g. Tier 1 "Solo") - Discovery Mode has no coordinator, silently a no-op.
   try {
     await fetch(`${base}${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
   } catch {

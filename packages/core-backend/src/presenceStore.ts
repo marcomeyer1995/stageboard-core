@@ -1,7 +1,7 @@
 import { createHostPresence, type HostPresence } from 'sync-host'
 
 /**
- * The Stage-Server's presence (who is logged in from which device, the master's heartbeat, the Ready Check, the
+ * The Host's presence (who is logged in from which device, the master's heartbeat, the Ready Check, the
  * Stage-Messenger message): the one store every host uses (`sync-host`'s `createHostPresence`, #949) - this module
  * only holds the single instance of this process. In memory by design: a fresh restart legitimately does not know
  * anyone is online until they report again.

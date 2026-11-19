@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { isLoopback } from './provisioningAuth.js'
 
-describe('isLoopback - the Stage-Server machine itself (#364)', () => {
+describe('isLoopback - the Host machine itself (#364)', () => {
   it('accepts loopback in every spelling', () => {
     for (const ip of ['127.0.0.1', '::1', '::ffff:127.0.0.1']) expect(isLoopback(ip, new Set())).toBe(true)
   })

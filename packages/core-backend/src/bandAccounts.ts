@@ -3,7 +3,7 @@ import { allDocs, getDoc, putDocWithRetry, type DatabaseConfig, type DatabaseDoc
 import { workspaceDbName } from './workspaceProvisioning.js'
 
 /**
- * The band accounts (`sync-host`'s `createBandAccounts`, #960) as the Stage-Server holds them: documents of the
+ * The band accounts (`sync-host`'s `createBandAccounts`, #960) as the Host holds them: documents of the
  * band's database, read and written over HTTP as the server admin - the very same documents the built-in
  * database host signs devices in with, and the tablet writes. One instance per band, so the remembered logins
  * of one band are never another's, and a change made here is forgotten at once.

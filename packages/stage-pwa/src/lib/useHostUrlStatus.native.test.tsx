@@ -11,19 +11,19 @@ vi.mock('pouchdb-browser', () => ({
 }))
 vi.mock('@capacitor/core', () => ({ Capacitor: { isNativePlatform: () => true }, registerPlugin: () => ({}) }))
 
-const { useStageServerStatus } = await import('./useStageServerStatus')
+const { useHostUrlStatus } = await import('./useHostUrlStatus')
 const { useWorkspaceStore } = await import('../store/useWorkspaceStore')
-const { useStageServerStore } = await import('../store/useStageServerStore')
+const { useHostUrlStore } = await import('../store/useHostUrlStore')
 
-describe('useStageServerStatus in the unpaired native app', () => {
+describe('useHostUrlStatus in the unpaired native app', () => {
   it('reports "unpaired" and asks no server', async () => {
-    useStageServerStore.getState().setUrl(null)
+    useHostUrlStore.getState().setUrl(null)
     const listWorkspaces = vi.fn(async () => null)
     const fetchActiveWorkspaceHardware = vi.fn(async () => null)
     const fetchServerInfo = vi.fn(async () => null)
     useWorkspaceStore.setState({ listWorkspaces, fetchActiveWorkspaceHardware, fetchServerInfo })
 
-    const { result } = renderHook(() => useStageServerStatus())
+    const { result } = renderHook(() => useHostUrlStatus())
     await waitFor(() => expect(result.current.status).toBe('unpaired'))
     expect(listWorkspaces).not.toHaveBeenCalled()
     expect(fetchServerInfo).not.toHaveBeenCalled()

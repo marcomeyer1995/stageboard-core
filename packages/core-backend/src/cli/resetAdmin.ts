@@ -1,7 +1,7 @@
 /**
  * Server-local admin recovery (#70 break-glass): when no admin can get into a band any more -
  * every device's login gone at once, nobody left to press "Passwort zurücksetzen" in the app.
- * Runs on the Stage-Server itself with the server's own database login (serviceEnv.ts), adds no
+ * Runs on the Host itself with the server's own database login (serviceEnv.ts), adds no
  * network route and no client-visible secret: only someone with a shell on the server can use it.
  *
  *   npm run admin:reset -w core-backend                                  # list bands
@@ -42,7 +42,7 @@ export function parseArgs(args: string[]): Request {
 
 export function findBand(bands: Band[], query: string): Band | string {
   const band = bands.find((b) => b.workspaceId === query) ?? bands.find((b) => b.workspaceName === query)
-  return band ?? `Keine Band "${query}" auf diesem Stage-Server. Ohne Angabe aufrufen, um alle Bands zu sehen.`
+  return band ?? `Keine Band "${query}" auf diesem Host. Ohne Angabe aufrufen, um alle Bands zu sehen.`
 }
 
 /** The member to reset, or why not: unknown, ambiguous, or not an admin without --make-admin. */
@@ -72,7 +72,7 @@ async function main(): Promise<void> {
   const request = parseArgs(process.argv.slice(2))
   const bands = await listWorkspaces(database)
   if (request.kind === 'bands') {
-    console.log('Bands auf diesem Stage-Server:')
+    console.log('Bands auf diesem Host:')
     for (const band of bands) console.log(`  ${band.workspaceId}  ${band.workspaceName}`)
     console.log('\nMitglieder einer Band: npm run admin:reset -w core-backend -- <Band>')
     return

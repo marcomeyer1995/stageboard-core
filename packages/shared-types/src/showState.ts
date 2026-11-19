@@ -96,13 +96,13 @@ export const ShowStateSchema = z.object({
    * out; without it every master device drives, as before. */
   drivingDeviceId: z.string().nullable().optional(),
   /** Server time at which the master issued the last change (#468). The change reaches the other
-   * devices twice - first pushed through the Stage-Server (showStatePush), then through database
+   * devices twice - first pushed through the Host (showStatePush), then through database
    * replication; a device keeps whichever is newer, so a late replication of an older state can't
    * undo a newer Play. Optional: older devices leave it out. */
   stateIssuedAt: z.number().nullable().optional(),
   /** The id of the Ready Check the Master has open (#60), or null when none is. Only the OPEN/CLOSE
    * state lives here (Master-gated like everything else in this doc); the musicians' answers do not -
-   * every tablet would write the same doc, so they go to the Stage-Server's in-memory presence
+   * every tablet would write the same doc, so they go to the Host's in-memory presence
    * snapshot instead (`Presence.readyCheck`). A new id starts a fresh check. */
   readyCheckId: z.string().nullable(),
   /** A "show" is every ShowLog event sharing one id - see showLog.ts. Null until the first
@@ -133,7 +133,7 @@ export const DEFAULT_SHOW_STATE: ShowState = {
   lastActivityAt: null,
 }
 
-/** A master's change to the show state, pushed through the Stage-Server to every device at once
+/** A master's change to the show state, pushed through the Host to every device at once
  * (#468) - the database replication alone took up to 1 s from a slow tablet, too late for an
  * ahead-of-time Play. */
 export const ShowStatePushSchema = z.object({
@@ -150,7 +150,7 @@ export const ShowStatePushAckSchema = z.object({
   deviceName: z.string().max(120).optional(),
   issuedAt: z.number(),
   receivedAt: z.number(),
-  /** 'push' (Stage-Server) or 'db' (replication) - whichever brought the change first. */
+  /** 'push' (Host) or 'db' (replication) - whichever brought the change first. */
   via: z.enum(['push', 'db']),
 })
 export type ShowStatePushAck = z.infer<typeof ShowStatePushAckSchema>
@@ -158,7 +158,7 @@ export type ShowStatePushAck = z.infer<typeof ShowStatePushAckSchema>
 /**
  * A switch's state change from one device (docs/23 §11.5): `held`/`released` for a tastend or
  * running zeitgesteuert switch (a holder repeats `held` every second; 3 s without, it counts as
- * released), `on`/`off` for a rastend one. Pushed through the Stage-Server so every button bound to
+ * released), `on`/`off` for a rastend one. Pushed through the Host so every button bound to
  * the switch lights up at once.
  */
 export const SwitchStateEventSchema = z.object({

@@ -101,7 +101,7 @@
     "noProfile": "Kein Profil gewählt - dieses Gerät kann nicht antworten.",
     "ready": "Ich bin bereit",
     "close": "Schließen",
-    "failed": "Keine Verbindung zum Stage-Server - bitte nochmal tippen.",
+    "failed": "Keine Verbindung zum Host - bitte nochmal tippen.",
     "askTitle": "Alle Tablets fragen, ob die Band bereit ist",
     "short": "Ready",
     "unknown": "Unbekannt",
@@ -111,7 +111,7 @@
     "end": "Ende"
   },
   "up": {
-    "available": "Neue App-Version {{version}} auf dem Stage-Server",
+    "available": "Neue App-Version {{version}} auf dem Host",
     "failed": "Update konnte nicht geladen werden – später erneut versuchen. ({{reason}})",
     "loading": "Lädt…",
     "update": "Aktualisieren",

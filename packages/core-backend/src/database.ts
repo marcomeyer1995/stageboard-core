@@ -1,6 +1,6 @@
 /**
  * Minimal the database client over Node's global fetch. Deliberately no dependency: the
- * Stage-Server only needs to read the replicated plugin documents and write its own
+ * Host only needs to read the replicated plugin documents and write its own
  * heartbeat, and docs/03 keeps this package lean on purpose.
  */
 export interface DatabaseConfig {
@@ -39,7 +39,7 @@ async function request(
 }
 
 /** Lists every database name on this the database instance (2026-09-01, `GET /workspaces` - the
- * WiFi-style "which bands does this Stage-Server host" listing). Admin-only endpoint on
+ * WiFi-style "which bands does this Host host" listing). Admin-only endpoint on
  * the database's side; core-backend's own trusted config is the only caller. */
 export async function listDbs(config: DatabaseConfig): Promise<string[]> {
   const response = await request(config, `${config.url.replace(/\/$/, '')}/_all_dbs`)

@@ -12,7 +12,7 @@ for the devices, Python with numpy for `measure/`. Nothing here ships with the a
 | [test-runner](test-runner/README.md) | checks on the real devices with a report: GUI (cut-off text, sizes), Solo start point (#819) |
 | [stage-map-harness](stage-map-harness/README.md) | the real stage map in a browser, no server |
 | [measure](measure/README.md) | click/track offset, crosstalk, silence after unplugging (#742) |
-| [server/deploy-ref.sh](server/deploy-ref.sh) | run the Stage-Server from another ref for a test, and back |
+| [server/deploy-ref.sh](server/deploy-ref.sh) | run the Host from another ref for a test, and back |
 
 **Devices:** copy `devices.example.json` to `devices.json` (git-ignored) and fill in the serials
 and models from `adb devices -l`, a free local port per device and how its volume changes. Names in there

@@ -26,13 +26,13 @@ describe('AppVersionSettings (#348)', () => {
     native.offered = { versionCode: 420, versionName: '1.420' }
     const { unmount } = render(<AppVersionSettings />)
     fireEvent.click(screen.getByText('Nach Update suchen'))
-    expect(await screen.findByText('Aktuell – der Stage-Server hat keine neuere Version.')).toBeInTheDocument()
+    expect(await screen.findByText('Aktuell – der Host hat keine neuere Version.')).toBeInTheDocument()
     unmount()
 
     native.offered = null
     render(<AppVersionSettings />)
     fireEvent.click(screen.getByText('Nach Update suchen'))
-    expect(await screen.findByText('Der Stage-Server bietet keine App an (oder ist nicht erreichbar).')).toBeInTheDocument()
+    expect(await screen.findByText('Der Host bietet keine App an (oder ist nicht erreichbar).')).toBeInTheDocument()
   })
 
   it('a dev build (StageBoard Dev) offers no server update - it would install as the real app beside it', () => {

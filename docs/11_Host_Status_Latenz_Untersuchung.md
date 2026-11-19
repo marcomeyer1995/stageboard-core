@@ -1,8 +1,8 @@
-# Stage-Server-Status "Lade…" und Audio-Downloads: Untersuchung vom 2026-09-18
+# Host-Status "Lade…" und Audio-Downloads: Untersuchung vom 2026-09-18
 
 Diese Datei dokumentiert die Live-Untersuchung zu Marcos Beobachtung, dass die Einstellungen
 ("Aktive Band (Hardware)") nach einem Band-Wechsel über 30 Sekunden auf "Lade…" standen, obwohl der
-Stage-Server dieselben Anfragen in wenigen Millisekunden beantwortet. Ausgangspunkt war der Bau des
+Host dieselben Anfragen in wenigen Millisekunden beantwortet. Ausgangspunkt war der Bau des
 Band-Wechsel-Wizards (#236, #238-#240). Ziel: falls das Symptom (langsame, aber nicht fehlgeschlagene
 Anfragen während eines Audio-Syncs) wieder auftaucht, hier zuerst nachschlagen. **Ein Teil des
 Problems ist bewusst offen geblieben - siehe Abschnitt 5.**
@@ -52,7 +52,7 @@ all via one Promise.all gives no real priority to any of them"), begrenzt hatte 
 ### 4.1 On-Device-Diagnose ohne adb (inzwischen wieder entfernt)
 
 Für die Untersuchung gab es kurz einen Diagnose-Schalter in den Einstellungen (Flag
-`sb:debug:stageServer`, Muster wie `gridDebug.ts`, docs/03 §1a), der die Status-Anfragen auf dem
+`sb:debug:hostUrl`, Muster wie `gridDebug.ts`, docs/03 §1a), der die Status-Anfragen auf dem
 Tablet vermaß und den Log auf dem Gerät anzeigte, weil ohne adb keine Konsole zur Verfügung stand. Pro
 Anfrage: Gesamtzeit und aus dem Resource-Timing des Browsers `blocked` (Warteschlange/Verbindungsaufbau),
 `server` (bis zum ersten Byte), `transfer`, `js-continuation` (wie lange nach vollständigem Empfang der
@@ -63,9 +63,9 @@ eigene Code lief - ein beschäftigter Main-Thread zeigt sich hier), dazu Netzwer
 **Entfernt am 2026-09-18** (Marco: "we remove it completely and add it later again if necessary"):
 jeder Musiker sah "Diagnose" in den Einstellungen, was dem Prinzip "Standard-UI idiotensicher, Komplexes
 versteckt" widerspricht. Der Code steht unverändert in der Git-History (Squash-Commit von #240,
-`c7285a0`): `packages/stage-pwa/src/lib/stageServerDebug.ts` (Flag, Logger, Ringpuffer),
-`components/StageServerDiagnostics.tsx` (Schalter + Anzeige) samt Tests und die Instrumentierung in
-`lib/useStageServerStatus.ts` (`timed()`, `describeNetwork()`, `startLongTaskProbe()`). Zurückholen z.B.
+`c7285a0`): `packages/stage-pwa/src/lib/hostUrlDebug.ts` (Flag, Logger, Ringpuffer),
+`components/HostUrlDiagnostics.tsx` (Schalter + Anzeige) samt Tests und die Instrumentierung in
+`lib/useHostUrlStatus.ts` (`timed()`, `describeNetwork()`, `startLongTaskProbe()`). Zurückholen z.B.
 mit `git show c7285a0:<Pfad>`. **Falls wieder eingebaut, nicht wieder für alle sichtbar:** besprochen
 wurden ein Entwicklermodus zum Freischalten (wie bei Android: mehrfach auf die App-Version tippen, nur
 lokal am Gerät gespeichert) oder Sichtbarkeit nur für Admins der aktiven Band; eine eigene
@@ -97,9 +97,9 @@ Tablet-Log), sonst sucht man im falschen Zeitfenster.
 * **Ursache abgeschwächt:** `reconcileAudioCache` lädt Hintergrund-Tracks nacheinander statt alle
   gleichzeitig; der gerade spielende Track kommt weiterhin zuerst und für sich. `fetchTrack` wirft nie
   (Fehler = `null`), ein fehlgeschlagener Download stoppt die folgenden also nicht.
-* **Symptom:** `useStageServerStatus` zeigt sofort den letzten bekannten Stand (In-Memory-Cache, wird
+* **Symptom:** `useHostUrlStatus` zeigt sofort den letzten bekannten Stand (In-Memory-Cache, wird
   bei echtem Ausfall verworfen), übernimmt jede der drei Antworten einzeln statt auf die langsamste zu
-  warten, und markiert nach 8 s ohne Antwort `slow` ("Stage-Server antwortet langsam…") statt
+  warten, und markiert nach 8 s ohne Antwort `slow` ("Host antwortet langsam…") statt
   "nicht erreichbar". `unreachable` gibt es nur bei tatsächlich fehlgeschlagenen Anfragen.
 
 Ergebnis im Diagnose-Log nach dem Fix, während des Audio-Syncs: 1,2-1,5 s statt 9-15 s, 3/3 Antworten

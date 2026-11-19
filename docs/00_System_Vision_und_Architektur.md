@@ -1,6 +1,6 @@
 # StageBoard: System Vision & Architecture
 
-StageBoard is a Local-First, modular live operating system functioning in two distinct states: a self-sufficient offline sandbox for home preparation, and a distributed hardware mesh powered by a dedicated physical stage server.
+StageBoard is a Local-First, modular live operating system functioning in two distinct states: a self-sufficient offline sandbox for home preparation, and a distributed hardware mesh powered by a dedicated physical host.
 
 ## 1. System Vision & Dual-State Architecture
 
@@ -15,7 +15,7 @@ A standalone offline mode where musicians prepare setlists, edit songs, and prac
 * **Roster Management:** The bandleader can create new Workspaces and add new Profiles (band members and crew) completely offline.
 
 #### Individual Rehearsal
-* **Standalone Audio:** "Solo Üben" mode (per-device, see `useAppModeStore.ts`) routes the same `ShowTransportWidget` used live through `localAudioEngine.ts` instead of a Stage-Server plugin, playing directly through the tablet or PC's own speakers/headphone jack - no separate practice widget or dashboard, and never touches the shared, synced `ShowState`/`ShowLog` (see #13's design notes).
+* **Standalone Audio:** "Solo Üben" mode (per-device, see `useAppModeStore.ts`) routes the same `ShowTransportWidget` used live through `localAudioEngine.ts` instead of a Host plugin, playing directly through the tablet or PC's own speakers/headphone jack - no separate practice widget or dashboard, and never touches the shared, synced `ShowState`/`ShowLog` (see #13's design notes).
 * **AI Stem Separation & Mixing:** To enhance practice sessions, the system supports AI stem separation. Musicians can isolate, mute, or adjust the volume of specific instruments (e.g., muting the original bass track to play along with the rest of the band).
 * **Loop & Speed Trainer:** A dedicated loop player enables musicians to isolate and repeat specific song sections. A "loop trainer" mode can automatically increase the playback tempo with each successive loop, providing a structured way to master difficult passages.
 * **Local Tuning:** The TunerWidget utilizes the tablet’s built-in microphone for chromatic tuning, bypassing the need for a stage audio interface.
@@ -26,14 +26,14 @@ A standalone offline mode where musicians prepare setlists, edit songs, and prac
 * **Cosmetic Preferences:** Musicians can swap visual themes (e.g., from "Klassisch" to "Neon Live") and test them under different local lighting conditions.
 
 #### The Reconnection Phase
-* **Seamless Merging:** Everything done in the sandbox is saved to the local PouchDB instance. When connected to the Stage-Server, PouchDB quietly syncs all offline edits back to the host's database, instantly propagating updates to the rest of the band.
+* **Seamless Merging:** Everything done in the sandbox is saved to the local PouchDB instance. When connected to the Host, PouchDB quietly syncs all offline edits back to the host's database, instantly propagating updates to the rest of the band.
 
 ### Stage Mesh
-The full live experience relies on a Stage-Server (a dedicated Linux box, or the laptop or tablet that is the band host - docs/25) running Fastify and the built-in database host. This central unit handles low-latency event routing, central database synchronization, and multi-device coordination.
+The full live experience relies on a Host (a dedicated Linux box, or the laptop or tablet that is the band host - docs/25) running Fastify and the built-in database host. This central unit handles low-latency event routing, central database synchronization, and multi-device coordination.
 
 ## 2. Onboarding & Network Discovery
 
-* **Server Discovery:** Native apps use mDNS to auto-discover active Stage-Servers. A "Host on this Device" option is explicitly selected by the admin to prevent split-brain networks. Browser users connect via direct IP or QR code scanning.
+* **Server Discovery:** Native apps use mDNS to auto-discover active Hosts. A "Host on this Device" option is explicitly selected by the admin to prevent split-brain networks. Browser users connect via direct IP or QR code scanning.
 * **First-Access Gatekeeping:** Joining a workspace requires a printed Access Code or Admin approval. Scanning a QR code bypasses manual typing by embedding the IP, Workspace ID, and token directly.
 * **Device Ledger & Revocation:** Every connected device registers its unique clientId. Admins retain full manual control to revoke access rights per device directly from the settings menu without automated token expirations or profile deletions.
 
@@ -48,7 +48,7 @@ The full live experience relies on a Stage-Server (a dedicated Linux box, or the
 
 To achieve the sub-5ms latency required for professional stage production over local Wi-Fi, the system abandons traditional immediate-execution networking in favor of an NTP-synced, ahead-of-time execution model.
 
-* **Local Hardware Probing:** Tablets run local browser probes (WebMIDI, Web Audio) to detect attached gear (e.g., Kemper via USB) and register these capabilities with the Stage-Server's health monitor.
+* **Local Hardware Probing:** Tablets run local browser probes (WebMIDI, Web Audio) to detect attached gear (e.g., Kemper via USB) and register these capabilities with the Host's health monitor.
 * **NTP-Style Clock Sync (The Burst Handshake):** Upon connection, tablets execute a rapid 5-10 message "ping-pong" burst with the Fastify server. By measuring round-trip times, the client calculates a highly accurate offset between its local hardware clock and the server's master clock, eliminating network lag from its timekeeping.
 * **Ahead-of-Time Dispatch:** The Fastify server never commands a tablet to execute an action "now." Instead, real-time transport commands (Play/Pause, Quick Actions) are bundled with a future targetTimestamp (e.g., Now + 200ms). This buffer ensures all devices receive the packet before execution, completely neutralizing Wi-Fi jitter.
 * **Sub-5ms Execution Rules:** The client strictly bans the use of JavaScript `setTimeout` for stage cues.
@@ -82,7 +82,7 @@ To keep the StageBoard core lean and maintainable, specific hardware integration
 * **Anatomy of a StageBoard Plugin:** A plugin (e.g., `@stageboard/plugin-kemper`) is a self-contained module exposing specific hooks to the core:
   * **Client-Side UI (React):** Custom widgets for the performer dashboard and custom cue editing panels for the Song Editor.
   * **Client-Side Execution (Translator):** Logic translating standardized JSON cue payloads from PouchDB into native browser API calls (WebMIDI, Web Audio, WebSockets).
-  * **Server-Side API (Fastify - Optional):** Backend routes when hardware control requires server-level execution or direct serial/network access on the Stage-Server.
+  * **Server-Side API (Fastify - Optional):** Backend routes when hardware control requires server-level execution or direct serial/network access on the Host.
   * **Timing Declaration (docs/21 §6):** The manifest's `timing` field - timing class, `honoursScheduledAt`, default latency and an optional calibration stimulus per capability. The core uses it to decide how far ahead to hand a cue over and how much earlier to send it.
 
 ### Integration Hooks (The Kemper Example)

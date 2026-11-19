@@ -1,5 +1,5 @@
 import PouchDB from 'pouchdb-browser'
-import { getStageServerUrl } from './stageServer'
+import { getHostUrl } from './hostUrl'
 import { trackedSync, type TrackedSync } from './trackedSync'
 
 /**
@@ -43,14 +43,14 @@ export async function destroyLocalWorkspaceDb(workspaceId: string): Promise<void
  * rather than the database's own port directly (2026-09-02 fourth follow-up, at Marco's explicit
  * request). Browsers trust a self-signed cert per *origin*, not per-certificate - pointing
  * PouchDB at a *separate* the database port meant every new device needed a second manual
- * "trotzdem fortfahren" tap beyond the one for the Stage-Server API/PWA itself
+ * "trotzdem fortfahren" tap beyond the one for the Host API/PWA itself
  * (docs/03 section 0a). core-backend's `/db` prefix (`index.ts`, `@fastify/http-proxy`) is a
  * pure passthrough - this device's own per-person Basic Auth (`startWorkspaceSync`'s `auth`
  * below) travels straight through to real the database unmodified, so nothing about who can read or
- * write what changes; only the network hop does. `null` when no Stage-Server is configured at
+ * write what changes; only the network hop does. `null` when no Host is configured at
  * all (Tier-A local-only-founding follow-up) - same as before.
  */
-export function remoteDbUrl(workspaceId: string, base: string | undefined = getStageServerUrl()): string | null {
+export function remoteDbUrl(workspaceId: string, base: string | undefined = getHostUrl()): string | null {
   if (!base) return null
   return `${base.replace(/\/$/, '')}/db/${localDbName(workspaceId)}`
 }
@@ -115,14 +115,14 @@ export function isStatusDocId(id: string): boolean {
 }
 
 /**
- * `serverUrl`: the Stage-Server this sync talks to. The caller passes the current one so a server
+ * `serverUrl`: the Host this sync talks to. The caller passes the current one so a server
  * switch restarts the sync - before, the stream kept long-polling the old server, and the
  * indicator said "Synchronisiert" while the device was paired with another one (#897).
  */
 export function startWorkspaceSync(
   workspaceId: string,
   auth: { username: string; password: string },
-  serverUrl: string | undefined = getStageServerUrl(),
+  serverUrl: string | undefined = getHostUrl(),
 ): TrackedSync | null {
   const url = remoteDbUrl(workspaceId, serverUrl)
   if (!url) return null

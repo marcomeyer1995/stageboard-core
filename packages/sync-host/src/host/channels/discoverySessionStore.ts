@@ -46,7 +46,7 @@ export function getSnapshot(workspaceId: string): DiscoverySession {
   return snapshotFor(workspaceId)
 }
 
-/** For a participant that needs more than the broadcast snapshot carries - the Stage-Server's
+/** For a participant that needs more than the broadcast snapshot carries - the Host's
  * own midiWatcher.ts resolves a winning candidate's real *output* port by the matched plugin's
  * `hardwareIds` namePattern (webMidiOutput.ts's doc comment has the full story on why), which
  * needs the plugin's full manifest, not just its id. */
@@ -140,7 +140,7 @@ function isSpecificMatch(plugin: PluginInstallation): boolean {
 
 /** Only flips status/assignment bookkeeping - writing the actual DeviceTransportConfig is each
  * winning participant's own job, reacting to seeing itself win in the broadcast snapshot (a
- * tablet's #106 `bind()`, or the Stage-Server's own midiWatcher.ts). Deliberately not done here:
+ * tablet's #106 `bind()`, or the Host's own midiWatcher.ts). Deliberately not done here:
  * resolving the real *output* port to write (as opposed to the *input* port a candidate was
  * detected on - see webMidiOutput.ts's doc comment for the full story on why those differ) needs
  * hardware-library access this module doesn't have and shouldn't need. */
@@ -227,7 +227,7 @@ function onIdentifyTimeout(workspaceId: string, deadline: number): void {
   publish(workspaceId)
 }
 
-/** A participant (tablet or the Stage-Server's own midiWatcher.ts) reports every port it
+/** A participant (tablet or the Host's own midiWatcher.ts) reports every port it
  * currently sees - both on session start (a full enumeration) and on every later connect event,
  * for as long as the session stays active. Matching against the workspace's installed plugins
  * happens here, once, on report - not re-run on every recompute. */

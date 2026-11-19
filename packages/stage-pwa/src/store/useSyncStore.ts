@@ -45,7 +45,7 @@ interface SyncState {
    */
   browserOffline: boolean
   setBrowserOffline: (offline: boolean) => void
-  /** Bands (by workspace id) whose database the paired Stage-Server answered with 404: the band
+  /** Bands (by workspace id) whose database the paired Host answered with 404: the band
    * is not on that server (#897). Reports for it have nowhere to go, so the reporters skip them. */
   notOnServer: Record<string, true>
   setNotOnServer: (name: string, missing: boolean) => void

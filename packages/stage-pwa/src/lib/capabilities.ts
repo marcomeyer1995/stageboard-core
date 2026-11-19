@@ -15,7 +15,7 @@ export type CapabilityStatus = 'available' | 'degraded' | 'missing'
 
 /**
  * Resolves what the UI may show. Server-side plugins are judged by the heartbeat the
- * Stage-Server writes; client-side ones (WebMIDI is a browser API) by a local probe,
+ * Host writes; client-side ones (WebMIDI is a browser API) by a local probe,
  * because no server can know whether *this* tablet has a foot switch attached.
  */
 export function resolveCapabilities(
@@ -58,7 +58,7 @@ export function pluginStatus(
   }
 
   const entry = health.plugins[plugin.id]
-  // Nobody writes "offline" when the Stage-Server dies, so a stale heartbeat - or none
+  // Nobody writes "offline" when the Host dies, so a stale heartbeat - or none
   // at all - is the only signal the tablets get. It has to count as offline.
   if (!entry || entry.status !== 'online') return 'degraded'
   if (now - entry.lastSeenAt > HEALTH_TIMEOUT_MS) return 'degraded'
@@ -67,7 +67,7 @@ export function pluginStatus(
 
 /**
  * Which installed, enabled plugin to send a trigger for a given capability to - the
- * PluginRegistry on the Stage-Server keys plugins by this same id (see catalog.ts), so it
+ * PluginRegistry on the Host keys plugins by this same id (see catalog.ts), so it
  * doubles as the `:name` path segment for `/plugins/:name/trigger`. Several plugins could
  * offer the same capability; the first enabled one wins, same tie-break as resolveCapabilities.
  */

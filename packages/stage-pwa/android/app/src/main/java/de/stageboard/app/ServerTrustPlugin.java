@@ -29,7 +29,7 @@ import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
 
 /**
- * Certificate pinning for the Stage-Server (#348). Its certificate is self-signed (no CA can sign
+ * Certificate pinning for the Host (#348). Its certificate is self-signed (no CA can sign
  * one for a LAN address at an offline venue), so instead of a CA the app remembers the exact
  * certificate - by SHA-256 fingerprint, per host - learned when pairing (from the band's invite QR
  * code, or confirmed by the user for a typed-in address). PinnedWebViewClient accepts a server
@@ -115,7 +115,7 @@ public class ServerTrustPlugin extends Plugin {
         }
     }
 
-    /** Downloads an app update from the paired Stage-Server - over the pinned certificate, as the
+    /** Downloads an app update from the paired Host - over the pinned certificate, as the
      * WebView would - and hands it to Android's installer (the user confirms there; the first
      * time Android also asks to allow installs from StageBoard). */
     @PluginMethod
@@ -130,7 +130,7 @@ public class ServerTrustPlugin extends Plugin {
             String host = target.getHost();
             String pinned = pinnedFingerprint(getContext(), host);
             if (!"https".equals(target.getProtocol()) || pinned == null) {
-                updateFailed(call, "Only the paired Stage-Server can provide updates (host " + host + ", pinned " + (pinned != null) + ")");
+                updateFailed(call, "Only the paired Host can provide updates (host " + host + ", pinned " + (pinned != null) + ")");
                 return;
             }
             TrustManager[] pinnedOnly = { new X509TrustManager() {

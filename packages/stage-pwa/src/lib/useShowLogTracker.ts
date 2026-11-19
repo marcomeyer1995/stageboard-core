@@ -30,7 +30,7 @@ export const CAPABILITY_SETTLE_MS = 10_000
  *
  * Compared against the last *logged* state, once the status has been steady for
  * CAPABILITY_SETTLE_MS - a flip that turns back in time logs nothing; a real one keeps the time it
- * started. No baseline before the Stage-Server's first plugin status: until then everything only
+ * started. No baseline before the Host's first plugin status: until then everything only
  * looks "degraded", and each reload of the master logged that as 7 recoveries.
  */
 export function useShowLogTracker(): void {

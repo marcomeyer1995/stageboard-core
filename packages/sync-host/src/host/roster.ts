@@ -3,7 +3,7 @@ import type { RosterMember } from 'shared-types'
 /**
  * The roster a device sees while it joins (host module, #949): every profile of the band as just enough to render a
  * "who are you" picker - id, name, whether an admin - and nothing else (no credentials, no roles). Both hosts read
- * the band's `profiles:*` documents their own way (the Stage-Server from CouchDB, the tablet from its PouchDB); this
+ * the band's `profiles:*` documents their own way (the Host from CouchDB, the tablet from its PouchDB); this
  * is what they make of them.
  */
 export function rosterOfProfileDocs(docs: readonly Record<string, unknown>[]): RosterMember[] {

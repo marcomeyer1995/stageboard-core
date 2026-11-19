@@ -24,7 +24,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Finds Stage-Servers on the local network (#351) - DNS-SD service `_stageboard._tcp`, announced
+ * Finds Hosts on the local network (#351) - DNS-SD service `_stageboard._tcp`, announced
  * by the server's mDNS responder with its certificate fingerprint in the TXT record. Android's own
  * mDNS stack (NsdManager) does the work, so this works where the browser can't resolve
  * `stageboard.local`. Read-only: finding a server never trusts it - pairing still pins the

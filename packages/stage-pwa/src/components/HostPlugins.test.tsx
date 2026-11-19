@@ -40,6 +40,6 @@ describe('HostPlugins (docs/25 §6, 2026-11-07)', () => {
   it('an older server that says nothing: a note instead of a list', async () => {
     caps.current = null
     render(<HostPlugins canInstall />)
-    expect(await screen.findByText('Dieser Stage-Server meldet noch nicht, was er ausführen kann (ältere Version).')).toBeInTheDocument()
+    expect(await screen.findByText('Dieser Host meldet noch nicht, was er ausführen kann (ältere Version).')).toBeInTheDocument()
   })
 })

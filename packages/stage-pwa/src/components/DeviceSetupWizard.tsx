@@ -173,7 +173,7 @@ function TypeStep({
 /** Step 3 - connection. Auto-discovery reuses Discovery Mode's own bandwide session/broadcast
  * (started fresh for this step, stopped when the wizard closes), filtered down to candidates
  * matching this device's chosen plugin and labeled by which participant reported them - a
- * tablet, the Stage-Server, or this device itself. A resolved/manually-picked candidate whose
+ * tablet, the Host, or this device itself. A resolved/manually-picked candidate whose
  * gateway is a *different* device still needs that device to self-write its own
  * DeviceTransportConfig (unchanged Discovery Mode behavior, useHardwareDetection.ts's
  * resolveDiscoveryWins already does this regardless of which UI started the session) - this step
@@ -203,13 +203,13 @@ function ConnectionStep({
   const [sendingKey, setSendingKey] = useState<string | null>(null)
   const [assigningKey, setAssigningKey] = useState<string | null>(null)
   const [manualTarget, setManualTarget] = useState(device?.executionTarget ?? '')
-  // What this device (or, for a Stage-Server device, the server) already has - shown again when editing.
+  // What this device (or, for a Host device, the server) already has - shown again when editing.
   const configs = useDeviceTransportConfigStore((state) => state.configs)
   const existingConfig = configs.find((c) => c.id === `${device?.executionTarget === SERVER_EXECUTION_TARGET ? SERVER_EXECUTION_TARGET : getDeviceId()}:${draft.id}`)
   const [manualTransportId, setManualTransportId] = useState(existingConfig?.transportId ?? '')
   const [manualValues, setManualValues] = useState<Record<string, string>>(existingConfig?.values ?? {})
   // Transport fields are filled in where the device runs: on this tablet for itself, and - since the
-  // Stage-Server has no screen - from any tablet for a Stage-Server device (OSC host and port, #484).
+  // Host has no screen - from any tablet for a Host device (OSC host and port, #484).
   const configTarget = manualTarget === getDeviceId() || manualTarget === SERVER_EXECUTION_TARGET ? manualTarget : null
 
   const plugin = installed.find((p) => p.id === draft.pluginId) ?? null
@@ -286,7 +286,7 @@ function ConnectionStep({
       {resolvedTarget && (
         <p className="rounded-control bg-control-strong px-3 py-2 text-sm text-ink">
           {t('wiz.connectedTo', { target: reporterLabel(resolvedTarget) })}
-          {/* The Stage-Server has no screen to register from - nothing to wait for there. */}
+          {/* The Host has no screen to register from - nothing to wait for there. */}
           {resolvedTarget !== getDeviceId() && resolvedTarget !== SERVER_EXECUTION_TARGET && (
             <span className="text-ink-faint">{t('wiz.waitsSelf')}</span>
           )}

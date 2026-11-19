@@ -2,7 +2,7 @@ import type { FlashMessage, MasterHeartbeat, Presence, PresenceEntry, ReadyCheck
 
 /**
  * Who is online, who holds the master token, the open Ready Check and the latest Stage-Messenger message, per
- * band (host module, #949): the one presence store both hosts use - the laptop's Stage-Server (several bands) and
+ * band (host module, #949): the one presence store both hosts use - the laptop's Host (several bands) and
  * the tablet's app (the one it serves). Every change is pushed as a **full snapshot** to every subscriber of the
  * band, and a new subscriber gets the current one at once, so a reconnecting tablet catches up and no one needs
  * merge logic. In memory only: a heartbeat has no value offline, and after a restart nobody is known until they

@@ -184,7 +184,7 @@ export async function startAndroidHost(): Promise<void> {
   let keysFor = storedCode(workspaceId)
   const keys = async () => {
     // The band's code lives in its own database (`workspace:access`), which a host holds - the same
-    // source the Stage-Server uses (hostLeaseAuth.ts). The invite (#945) is only the fallback.
+    // source the Host uses (hostLeaseAuth.ts). The invite (#945) is only the fallback.
     if (!keysFor) {
       const doc = await getWorkspaceDb(workspaceId).get('workspace:access').catch(() => null)
       const parsed = AccessCodeSchema.safeParse(doc)
@@ -409,7 +409,7 @@ export async function startAndroidHost(): Promise<void> {
   const syncHost = createSyncHost({ open })
   const guard = createWriteGuard({ open, security: async () => ({ admins: { roles: ['admin'] }, members: { roles: ['member', 'admin'] } }) })
   // The login the returned primary copies what was written while the tablet was host with (#947): the same issuer the
-  // Stage-Server runs, a login document of the band like every other.
+  // Host runs, a login document of the band like every other.
   const issuer = createReplicationAccountIssuer({
     selfHostId: hostId,
     workspaceId: () => workspaceId,
@@ -434,7 +434,7 @@ export async function startAndroidHost(): Promise<void> {
     const last = readJson<{ at: number }>(INVITE_KEY)?.at ?? -1
     if (sentAt <= last || sentAt > Date.now() + 60_000) return { ok: false as const, status: 409, message: 'This invite is old or was already used' }
     // The code arrives from the primary, so the primary is asked whether it is really this band's -
-    // the same proof the Stage-Server's host join uses (#945). Already known and unchanged: trust it.
+    // the same proof the Host's host join uses (#945). Already known and unchanged: trust it.
     if (storedCode(workspaceId) !== accessCode) {
       try {
         if (fingerprint) await pinListedHosts([{ url: primaryUrl, certFingerprint: fingerprint }])

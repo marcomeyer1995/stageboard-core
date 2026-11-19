@@ -229,7 +229,7 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
   // this is a LAN-only server (docs/01), so a generous ceiling costs nothing real.
   const bodyLimit = Number(process.env.MAX_AUDIO_UPLOAD_BYTES ?? 200 * 1024 * 1024)
 
-  // Admin database credentials - core-backend is the trusted, physically-secured Stage-Server
+  // Admin database credentials - core-backend is the trusted, physically-secured Host
   // process, so unlike the PWA (see #12) it keeps using these directly, both for its own
   // plugin-sync data access and for the /workspaces provisioning route below, which needs
   // admin rights to create the database users and databases.
@@ -272,7 +272,7 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
   }
 
   // How a device becomes a member and an admin PIN is checked, and who manages the members: the rules of
-  // sync-host, once for every host (#960) - the Stage-Server only brings its database, its code and its counts.
+  // sync-host, once for every host (#960) - the Host only brings its database, its code and its counts.
   const bandJoinDeps = (workspaceId: string) => ({
     accounts: accountsFor(workspaceId),
     throttle: pinThrottle,
@@ -360,7 +360,7 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
   // below already broadcasts - exposed here too for a device that's never seen that broadcast
   // (e.g. connected via a typed raw IP) but still wants to show this box's name, not just its
   // address.
-  // Latency calibration with the Stage-Server's microphone (docs/21 §4, #491): a device asks for a
+  // Latency calibration with the Host's microphone (docs/21 §4, #491): a device asks for a
   // run, plays its click at the irregular times returned, and polls for the delay the server heard.
   // Which input listens (#662): the microphone for speakers, the cable for everything plugged in.
   const measureInputs = new MeasureInputStore()
@@ -609,7 +609,7 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
     if (!parsed.success) return reply.status(400).send({ status: 'error', message: 'An https host address is needed' })
     // A host the admin named, not yet trusted: no fingerprint to check it against.
     const host = await lookUpHost(parsed.data.address, (url) => getFromHost(url, undefined, 3_000))
-    return host ?? reply.status(502).send({ status: 'error', message: 'That address does not answer as a Stage-Server' })
+    return host ?? reply.status(502).send({ status: 'error', message: 'That address does not answer as a Host' })
   })
   // The backup keeps its copy of the primary's database going; started in main() (#919).
   const replication = createReplicationRunner({
@@ -702,7 +702,7 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
     }),
   )
 
-  // OSC devices (#484): host and port are the device's transport config for the Stage-Server
+  // OSC devices (#484): host and port are the device's transport config for the Host
   // (Bühnentechnik), in the band whose hardware this server serves.
   setOscTargetResolver(async (logicalDeviceId) => {
     const workspaceId = workspaceHardware.getActiveWorkspaceId()
@@ -754,7 +754,7 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
 
   app.get('/plugins', async () => registry.list())
 
-  // #101's Stage-Server mirror: whatever pluginSync.ts's downloadMissingBundles already
+  // #101's Host mirror: whatever pluginSync.ts's downloadMissingBundles already
   // cached to disk, served back out to any tablet on the LAN - same @fastify/static-style
   // static-file-from-disk shape the app's own build output uses (see docs/03), just for one
   // plugin bundle at a time instead of the whole PWA.
@@ -937,7 +937,7 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
     }
   })
 
-  // The hits' thumbnails through the Stage-Server (#618): the tablets on stage often have no
+  // The hits' thumbnails through the Host (#618): the tablets on stage often have no
   // internet of their own, only the server does.
   app.get('/youtube/thumbnail', async (request, reply) => {
     const { id } = request.query as { id?: string }
@@ -981,7 +981,7 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
   // Makes this box's hardware (plugin sync, Discovery Mode's MIDI watcher) serve `workspaceId`
   // instead of whichever workspace was previously active - the runtime replacement for having
   // to kill the process and restart it with a different STAGEBOARD_WORKSPACE env var, for the
-  // real case of one Stage-Server serving two of Marco's own bands on different days, never at
+  // real case of one Host serving two of Marco's own bands on different days, never at
   // the same time (see workspaceHardwareController.ts).
   app.post('/workspaces/:workspaceId/activate-hardware', async (request, reply) => {
     const { workspaceId } = request.params as { workspaceId: string }
@@ -1023,7 +1023,7 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
   // /workspaces/:workspaceId since it describes the server, not a workspace, and needs no auth
   // for the same reason /server-info needs none: not new information beyond what's already
   // observable on the LAN.
-  // The Stage-Server's backups (#363, Marco 2026-10-08): targets chosen in the app (System →
+  // The Host's backups (#363, Marco 2026-10-08): targets chosen in the app (System →
   // Backup), run by the server itself - backup.ts. Admin of the band this server serves.
   const backups: BackupService =
     options.backupService ??
@@ -1111,7 +1111,7 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
     return reply.status(200).send(level)
   })
 
-  // The status line in the app (Geräte → Stage-Server): the configured targets' summary; before
+  // The status line in the app (Geräte → Host): the configured targets' summary; before
   // any target exists, the last run of a hand-started scripts/backup.mjs; null = never set up.
   app.get('/server/backup-status', async (_request, reply) => {
     const summary = backups.summary()
@@ -1141,7 +1141,7 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
   // `database` credentials above are never injected here, and the database itself still does every bit
   // of the actual authentication/authorization exactly as if the client had connected to it
   // directly. `stage-pwa`'s `workspaceDb.ts` now builds its remote database URL from this
-  // server's own origin plus this `/db` prefix (`VITE_STAGE_SERVER_URL`) instead of a separate
+  // server's own origin plus this `/db` prefix (`VITE_HOST_URL`) instead of a separate
   // `VITE_DB_URL` pointing at the database's own port - one address to configure, not two.
   await app.register(httpProxy, {
     upstream: database.url,
@@ -1251,7 +1251,7 @@ async function main() {
     // 2026-09-02 fourteenth follow-up, at Marco's explicit request, after finding a phantom
     // empty "band-a" workspace kept reappearing in "Verfügbare Bands" no matter how often he
     // deleted it: this used to default to workspaceId 'band-a' when STAGEBOARD_WORKSPACE
-    // wasn't set - a leftover from before the WiFi-style redesign, when a Stage-Server
+    // wasn't set - a leftover from before the WiFi-style redesign, when a Host
     // belonged to exactly one fixed band. `start()` (pluginSync.ts) calls `ensureDb()`
     // unconditionally, which *creates* that database if it's missing - so every server
     // restart silently recreated an empty "band-a" nobody ever founded through the app. Now

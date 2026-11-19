@@ -61,7 +61,7 @@ const error = (status: number, message: string, code?: string): BandAnswer => ({
 const ok = (body?: unknown, status = 200): BandAnswer => (body === undefined ? { status } : { status, body })
 
 /**
- * The band life cycle every host answers the same way (#962, Marco: "there is no Stage-Server any more - every device
+ * The band life cycle every host answers the same way (#962, Marco: "there is no Host any more - every device
  * can be host; only its power decides what it can do"). Founding, listing, deleting, renaming, the access code, the
  * master mode and the Device Ledger's block/remove. Public listing and band founding keep the proofs they had on the
  * laptop: a fresh host founds its first band freely, every later band needs an admin login of a band it already holds

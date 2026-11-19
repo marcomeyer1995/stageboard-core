@@ -11,7 +11,7 @@ export interface FireContext {
   deviceId: string
   logicalDevices: LogicalDevice[]
   installed: PluginInstallation[]
-  /** Whether this device sends cues that go to a Stage-Server plugin. Every tablet runs the
+  /** Whether this device sends cues that go to a Host plugin. Every tablet runs the
    * scheduler, and each one used to send them - a light cue arrived once per tablet (a toggle
    * undid itself). Only the master does now (2026-10-08). */
   sendsServerCues: boolean
@@ -33,7 +33,7 @@ export interface CueOutcome {
 /**
  * Fires (or silently skips) one cue on this device - #102's cue scheduler and, later, any
  * ad-hoc-by-LogicalDeviceId trigger share this same decision. 'local-mine' calls the Translator
- * directly, 'plugin' forwards to the Stage-Server, and 'local-other'/'none' do nothing at all:
+ * directly, 'plugin' forwards to the Host, and 'local-other'/'none' do nothing at all:
  * per docs/00 §6's "Dual Execution Contexts", the *other* device bound to this Logical Device
  * runs its own scheduler instance off the same synced clock and fires it independently - zero
  * network traffic for the predefined-timeline case, unlike ad-hoc events.
@@ -78,10 +78,10 @@ export async function fireCue(cue: ShowCue, ctx: FireContext): Promise<CueOutcom
     if (engine === 'plugin' && pluginId) {
       if (!ctx.sendsServerCues) return null
       // An add-on that only runs on a tablet (the Kemper's USB-MIDI) has nothing on the
-      // Stage-Server to send it - the cue came back as "Unknown plugin: kemper-profiler"
+      // Host to send it - the cue came back as "Unknown plugin: kemper-profiler"
       // (Rig-Check, 2026-10-29). Missed, and why, in words.
       if (ctx.installed.find((p) => p.id === pluginId)?.runtime === 'client') return { target, ok: false, message: TABLET_ONLY_MESSAGE }
-      // The Stage-Server's gateway holds it until scheduledAt (core-backend index.ts) - server time
+      // The Host's gateway holds it until scheduledAt (core-backend index.ts) - server time
       // is what scheduledAt is in, so no conversion.
       return outcome(await triggerShowControl(pluginId, scheduledAt === undefined ? event : { ...event, scheduledAt }))
     }

@@ -1,16 +1,16 @@
 import type { YoutubeSearchResult } from 'shared-types'
 import { bandParam, getJson, type LookupClientResult } from './lookupClient'
-import { getStageServerUrl } from './stageServer'
+import { getHostUrl } from './hostUrl'
 
-/** "Track hinzufügen" (#618): YouTube searched by the Stage-Server's yt-dlp - only with the band's
+/** "Track hinzufügen" (#618): YouTube searched by the Host's yt-dlp - only with the band's
  * YouTube-Download add-on, which the server checks. */
 export function searchYoutube(query: string): Promise<LookupClientResult<YoutubeSearchResult[]>> {
   return getJson(`/youtube/search?q=${encodeURIComponent(query)}${bandParam()}`)
 }
 
-/** A hit's picture, fetched through the Stage-Server - the tablets often have no internet of their own. */
+/** A hit's picture, fetched through the Host - the tablets often have no internet of their own. */
 export function youtubeThumbnailUrl(videoId: string): string | null {
-  const base = getStageServerUrl()
+  const base = getHostUrl()
   return base ? `${base}/youtube/thumbnail?id=${encodeURIComponent(videoId)}` : null
 }
 

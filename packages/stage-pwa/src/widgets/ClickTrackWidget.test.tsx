@@ -186,7 +186,7 @@ describe('ClickTrackWidget', () => {
     expect(screen.queryByText('Kein Klick-Ausgabegerät eingerichtet')).not.toBeInTheDocument()
   })
 
-  it('shows the effective state (not the placeholder) when the click-track device is bound through the Stage-Server/a plugin, not a specific tablet (#148: pluginId used to be hardcoded null here, so this binding shape always showed "Kein Klick-Ausgabegerät eingerichtet" even though it was correctly configured)', () => {
+  it('shows the effective state (not the placeholder) when the click-track device is bound through the Host/a plugin, not a specific tablet (#148: pluginId used to be hardcoded null here, so this binding shape always showed "Kein Klick-Ausgabegerät eingerichtet" even though it was correctly configured)', () => {
     mockLogicalDevices([
       { id: CLICK_LOGICAL_DEVICE_ID, name: 'Klick', capability: CAPABILITIES.clickTrack, pluginId: null, executionTarget: SERVER_EXECUTION_TARGET },
     ])

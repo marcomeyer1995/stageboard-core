@@ -97,7 +97,7 @@ interface UgTabPageData {
  * challenge, which only a real browser executing JS gets past - a plain HTTP request (the
  * originally-planned cheerio approach) is served the challenge page, never real content.
  * Verified live against the real site while building this. Requires a Chrome/Chromium binary
- * on the Stage-Server host (see resolveChromeExecutable) - an external dependency, not an npm
+ * on the Host host (see resolveChromeExecutable) - an external dependency, not an npm
  * one, the same shape as yt-dlp elsewhere in this roadmap; puppeteer-core deliberately ships
  * no bundled browser of its own.
  *

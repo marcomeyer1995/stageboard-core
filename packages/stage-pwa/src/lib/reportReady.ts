@@ -1,10 +1,10 @@
-import { getStageServerUrl } from './stageServer'
+import { getHostUrl } from './hostUrl'
 
-/** POSTs "this profile is ready" for a Ready Check (#60). Returns whether the Stage-Server took
+/** POSTs "this profile is ready" for a Ready Check (#60). Returns whether the Host took
  * it - the caller keeps the overlay up and lets the musician retry when it did not, since a
  * silently lost answer would leave the bandleader waiting on someone who did tap. */
 export async function reportReady(workspaceId: string, checkId: string, profileId: string): Promise<boolean> {
-  const base = getStageServerUrl()
+  const base = getHostUrl()
   if (!base) return false
 
   try {

@@ -10,7 +10,7 @@ import { useTranslation } from 'react-i18next'
 type Step = 'closing' | 'pick-band' | 'target' | 'committing'
 
 /**
- * Switches which band's hardware this Stage-Server serves, as one wizard - every step can be
+ * Switches which band's hardware this Host serves, as one wizard - every step can be
  * aborted, and nothing changes on the server until the very last one:
  *
  * 1. (started by WorkspaceHardwareSettings.tsx's button)

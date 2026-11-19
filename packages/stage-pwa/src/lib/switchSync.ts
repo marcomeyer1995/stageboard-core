@@ -3,7 +3,7 @@ import { SwitchStateEventSchema, type SwitchStateEvent } from 'shared-types'
 import { getServerTime } from './clockSync'
 import { getDeviceId } from './deviceId'
 import { useShowModeOnDemand } from './showMode'
-import { getStageServerUrl } from './stageServer'
+import { getHostUrl } from './hostUrl'
 import { applyRemoteSwitchEvent, expireRemoteHolders, resetTriggerState, setSwitchPublisher, switchesHeldHere } from './triggerPress'
 import { drivesAutomation, useShowStateStore } from '../store/useShowStateStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
@@ -12,7 +12,7 @@ import { useWorkspaceStore } from '../store/useWorkspaceStore'
 export const HEARTBEAT_MS = 1_000
 
 function url(workspaceId: string, path: string): string | null {
-  const base = getStageServerUrl()
+  const base = getHostUrl()
   return base && workspaceId ? `${base}/workspaces/${encodeURIComponent(workspaceId)}/switch-state/${path}` : null
 }
 
@@ -28,11 +28,11 @@ function send(workspaceId: string, event: SwitchStateEvent): void {
 }
 
 /**
- * Switch states for the whole band (docs/23 §11.5): this tablet's presses go to the Stage-Server,
+ * Switch states for the whole band (docs/23 §11.5): this tablet's presses go to the Host,
  * the other tablets' come back over its stream - so a button lights up everywhere while the blinder
  * is held, wherever it was pressed. Held switches repeat "held" every second; a tablet that went
  * silent counts as released after 3 s, and the device running the show then sends the release
- * action. Without a Stage-Server, switches simply stay per tablet. Mounted once (PlaybackDrivers).
+ * action. Without a Host, switches simply stay per tablet. Mounted once (PlaybackDrivers).
  */
 export function useSwitchSync(): void {
   // The clock only at a press (#457) - not a re-render on every frame.

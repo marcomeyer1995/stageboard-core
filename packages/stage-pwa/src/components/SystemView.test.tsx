@@ -20,7 +20,7 @@ beforeEach(() => {
   useWorkspaceStore.setState({
     workspaces: [],
     activeWorkspaceId: '',
-    // Renders SystemSettings.tsx -> WorkspaceHardwareSettings.tsx, whose useStageServerStatus.ts
+    // Renders SystemSettings.tsx -> WorkspaceHardwareSettings.tsx, whose useHostUrlStatus.ts
     // fires all three of these on mount (same "every test needs some stub for it" reasoning as
     // JoinBandView.test.tsx's default for listWorkspaces()) - without this, an unstubbed real
     // fetch to a fake test hostname was surfacing as a flaky "unhandled rejection" at teardown.
@@ -67,7 +67,7 @@ describe('SystemView', () => {
     usePluginsStore.setState({ installed: [] })
     render(<SystemView />)
 
-    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['Dieses Gerät', 'Band', 'Bühne', 'Tablets & Handys', 'Rig-Check', 'Stage-Server', 'Add-ons'])
+    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['Dieses Gerät', 'Band', 'Bühne', 'Tablets & Handys', 'Rig-Check', 'Host', 'Add-ons'])
     expect(screen.getByText('Dieses Gerät', { selector: 'h1' })).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('tab', { name: 'Add-ons' }))
@@ -80,11 +80,11 @@ describe('SystemView', () => {
     expect(screen.getByText('Band', { selector: 'h1' })).toBeInTheDocument()
   })
 
-  it('Backup is part of Stage-Server, no tab of its own', () => {
+  it('Backup is part of Host, no tab of its own', () => {
     usePluginsStore.setState({ installed: [] })
     render(<SystemView />)
     expect(screen.queryByRole('tab', { name: 'Backup' })).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('tab', { name: 'Stage-Server' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Host' }))
     expect(screen.getByRole('region', { name: 'Backup' })).toBeInTheDocument()
   })
 
@@ -204,9 +204,9 @@ describe('SystemView - sidebar (pointer or wide screen) vs. tab strip (narrow to
     expect(screen.queryByRole('tab', { name: 'Ton & Timing' })).not.toBeInTheDocument()
     expect(screen.queryByText('Ton-Latenz ausgleichen')).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Stage-Server' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Host' }))
     const connection = screen.getByRole('region', { name: 'Verbindung' })
-    expect(within(connection).getByText('Stage-Server')).toBeInTheDocument()
+    expect(within(connection).getByText('Host')).toBeInTheDocument()
     expect(within(connection).getByText('Synchronisation')).toBeInTheDocument()
     // "Band wechseln…" switches the server's band for everyone - its own, marked group.
     expect(within(screen.getByRole('region', { name: 'Aktive Band - gilt für alle' })).getByText('Aktive Band (Hardware)')).toBeInTheDocument()

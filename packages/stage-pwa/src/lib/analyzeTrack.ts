@@ -30,7 +30,7 @@ function mixToMono(buffer: AudioBuffer): Float32Array {
  * Runs analyzeWithMusicTempo in a dedicated Web Worker (see musicTempoWorker.ts's own doc
  * comment) instead of directly on the main thread - a real, full-length song's worth of
  * synchronous Beatroot computation froze the entire app for 80+ seconds, confirmed live against
- * the real Stage-Server, 2026-09-12. `mono`'s underlying buffer is transferred, not copied
+ * the real Host, 2026-09-12. `mono`'s underlying buffer is transferred, not copied
  * (a multi-minute track's samples can be tens of MB) - `mono` itself is unusable in this scope
  * afterward, which is fine, since the hand-rolled path never runs in the same call.
  */

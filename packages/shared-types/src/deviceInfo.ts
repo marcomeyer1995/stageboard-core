@@ -89,7 +89,7 @@ export const DeviceInfoEntrySchema = z.object({
   /** Epoch ms of the last report - stamped server-side, same convention as Presence. Staleness
    * (see DEVICE_INFO_TIMEOUT_MS) is this entry's "is the app open" signal. */
   lastSeenAt: z.number().int().nonnegative(),
-  /** Whether the Stage-Server's own background ping (core-backend's pingLoop.ts) most recently
+  /** Whether the Host's own background ping (core-backend's pingLoop.ts) most recently
    * reached this device's `ip` - `null` until the first ping tick runs. Deliberately a separate
    * signal from `lastSeenAt`'s "is the app open" (Marco, explicit request): a device can be
    * network-reachable with the app closed, or app-open-stale while still on the network (or
@@ -126,7 +126,7 @@ export type DeviceInfoEntry = z.infer<typeof DeviceInfoEntrySchema>
 /** Keyed by deviceId, same shape as Presence/PluginHealth's own snapshot schemas. */
 export const DeviceInfoSchema = z.object({
   devices: z.record(z.string(), DeviceInfoEntrySchema).default({}),
-  /** When this Stage-Server started collecting reports (its start, ms). Until every running
+  /** When this Host started collecting reports (its start, ms). Until every running
    * device has had time to report, a missing report says nothing - the Geräte tab's "Inaktive
    * entfernen" waits for that instead of a fixed day (Marco, 2026-10-07). Absent from older
    * servers. */
@@ -144,7 +144,7 @@ export const DEVICE_INFO_TIMEOUT_MS = 30_000
 /** Body a tablet POSTs to report its own diagnostic info - `ip`/`lastSeenAt`/`networkReachable`/
  * `hostname` are deliberately absent: all four are determined server-side, never supplied by
  * the reporting device (`ip`/`lastSeenAt` for the same reason Presence's report excludes them;
- * `networkReachable`/`hostname` because they're the Stage-Server's own ping loop's job, not
+ * `networkReachable`/`hostname` because they're the Host's own ping loop's job, not
  * something a device could truthfully self-report anyway). */
 export const DeviceInfoReportSchema = z.object({
   deviceId: z.string().min(1),

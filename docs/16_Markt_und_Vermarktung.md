@@ -1,6 +1,6 @@
 # 16 · Markt und Vermarktung
 
-Stand 2026-10-08, ergänzt 2026-10-13 (BandHelper korrigiert, Ableton-Rig ergänzt, Positionierung §1a, Interviewleitfaden §4; ausführlicher Vergleich in docs/20). Erste Überlegung, kein Beschluss: Gibt es StageBoard schon, und was braucht es, um App und Stage-Server an andere Bands zu verkaufen? Rechtliche Punkte sind eine Struktur zum Weiterklären, keine Rechtsberatung (Steuerberater und IT-/Markenanwalt einbeziehen).
+Stand 2026-10-08, ergänzt 2026-10-13 (BandHelper korrigiert, Ableton-Rig ergänzt, Positionierung §1a, Interviewleitfaden §4; ausführlicher Vergleich in docs/20). Erste Überlegung, kein Beschluss: Gibt es StageBoard schon, und was braucht es, um App und Host an andere Bands zu verkaufen? Rechtliche Punkte sind eine Struktur zum Weiterklären, keine Rechtsberatung (Steuerberater und IT-/Markenanwalt einbeziehen).
 
 ## 1. Marktrecherche: Gibt es das schon?
 
@@ -79,7 +79,7 @@ Dazu die **fertige Box**: Heute bauen Bands ihr Rack selbst zusammen (Playback-R
 
 StageBoard ist keine Einzelgerät-App, die **Band** teilt sich einen Server. Deshalb **pro Band bzw. Server lizenzieren, nicht pro Gerät**:
 
-*Seit 2026-11-10 (#784): die Stufen hier folgen den drei Betriebsstufen aus docs/02 - Free ≈ Solo, Band ≈ Band-Host auf dem eigenen Laptop, Box ≈ Stage-Server. Entscheidung zur Lizenz des Codes: #787.*
+*Seit 2026-11-10 (#784): die Stufen hier folgen den drei Betriebsstufen aus docs/02 - Free ≈ Solo, Band ≈ Band-Host auf dem eigenen Laptop, Box ≈ Host. Entscheidung zur Lizenz des Codes: #787.*
 
 | Stufe | Inhalt | Preisidee |
 |---|---|---|

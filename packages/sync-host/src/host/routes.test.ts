@@ -164,7 +164,7 @@ describe('audio', () => {
     const passive = deps({ serving: () => false })
     expect((await call(passive, 'GET', '/audio/v/t'))?.status).toBe(503)
     expect((await call(passive, 'POST', '/workspaces/leasetest/master-heartbeat', { deviceId: 'fire' }))?.status).toBe(503)
-    expect((await call(deps(), 'GET', '/audio/v/t'))?.status).toBe(404) // no `serving`: always open, as the Stage-Server was
+    expect((await call(deps(), 'GET', '/audio/v/t'))?.status).toBe(404) // no `serving`: always open, as the Host was
   })
 })
 
@@ -333,7 +333,7 @@ describe('managing members', () => {
     return { d, admin: { adminUsername: made.username, adminPassword: made.password }, made }
   }
 
-  it('adds a member, gives and takes admin, removes - each answered like the Stage-Server', async () => {
+  it('adds a member, gives and takes admin, removes - each answered like the Host', async () => {
     const { d, admin } = await setup()
     expect((await call(d, 'POST', '/workspaces/leasetest/members', { ...admin, profileId: 'p3', isAdmin: true, password: '1234' }))?.body).toEqual({ username: 'stageboard-leasetest-p3', password: '1234' })
     expect((await call(d, 'POST', '/workspaces/leasetest/members/p2/admin', { ...admin, isAdmin: true }))?.status).toBe(204)

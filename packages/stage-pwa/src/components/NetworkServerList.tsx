@@ -5,7 +5,7 @@ import { Button } from './ui'
 import { useTranslation } from 'react-i18next'
 
 /**
- * Native app (#351): the Stage-Servers announcing themselves on the local network - tap one to
+ * Native app (#351): the Hosts announcing themselves on the local network - tap one to
  * connect. Finding a server isn't trusting it: connecting reads the certificate the server really
  * presents and asks to confirm its fingerprint, exactly as for a typed-in address.
  */

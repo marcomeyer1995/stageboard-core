@@ -480,7 +480,7 @@
   "msg": {
     "sentTo": "Sent to {{to}}: “{{text}}”",
     "notSignedIn": "Not sent - this device is not signed in to the band.",
-    "offline": "Not sent - Stage server not reachable.",
+    "offline": "Not sent - Host not reachable.",
     "everyone": "everyone",
     "recipients": "Recipients",
     "to": "To",
@@ -504,7 +504,7 @@
     "caption": "System status",
     "none": "No plug-ins installed.",
     "clock": "Clock sync",
-    "server": "Stage server",
+    "server": "Host",
     "notYet": "Not synchronised yet",
     "detail": "Offset {{offset}} ms · drift {{drift}} ms · {{s}}s ago"
   },

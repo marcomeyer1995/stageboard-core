@@ -183,7 +183,7 @@ describe('createMidiWatcher', () => {
     watcher.stop()
   })
 
-  describe('while a role is identifying and the Stage-Server itself is a contender', () => {
+  describe('while a role is identifying and the Host itself is a contender', () => {
     const IDENTIFYING_SESSION = {
       active: true,
       startedAt: 1,
@@ -266,7 +266,7 @@ describe('createMidiWatcher', () => {
     })
   })
 
-  describe('when one of the Stage-Server\'s own candidates has just won a role', () => {
+  describe('when one of the Host\'s own candidates has just won a role', () => {
     const WON_SESSION = {
       active: true,
       startedAt: 1,

@@ -1,11 +1,11 @@
 import { useState } from 'react'
-import { useStageServerStatus } from '../lib/useStageServerStatus'
+import { useHostUrlStatus } from '../lib/useHostUrlStatus'
 import { SwitchServerBandWizard } from './SwitchServerBandWizard'
 import { Button } from './ui'
 import { useTranslation } from 'react-i18next'
 
 /**
- * Which band this physical Stage-Server's hardware (plugin sync, Discovery Mode's MIDI watcher)
+ * Which band this physical Host's hardware (plugin sync, Discovery Mode's MIDI watcher)
  * currently serves - never more than one at a time (see workspaceHardwareController.ts on the
  * server; real case: Marco runs one box for two of his own bands, never simultaneously). Just the
  * current state and the button that starts SwitchServerBandWizard.tsx, which does the whole
@@ -13,7 +13,7 @@ import { useTranslation } from 'react-i18next'
  */
 export function WorkspaceHardwareSettings() {
   const { t } = useTranslation('system')
-  const { status, refreshing, slow, workspaces, activeWorkspaceName, activeWorkspaceId, reload } = useStageServerStatus()
+  const { status, refreshing, slow, workspaces, activeWorkspaceName, activeWorkspaceId, reload } = useHostUrlStatus()
   const [wizardOpen, setWizardOpen] = useState(false)
 
   return (

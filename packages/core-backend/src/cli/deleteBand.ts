@@ -1,7 +1,7 @@
 /**
  * Server-local command to delete a band (#70 break-glass, first piece). Deleting through the
  * app needs that band's admin login - useless for leftovers nobody can log into any more (test
- * bands from development). This runs on the Stage-Server itself, with the server's own the database
+ * bands from development). This runs on the Host itself, with the server's own the database
  * configuration, and never prints any credential.
  *
  *   npm run band:delete -w core-backend                                 # list bands
@@ -30,11 +30,11 @@ export function planDeletion(args: string[], bands: Band[], activeWorkspaceId: s
   if (positional.length === 0) return { kind: 'list' }
   const id = positional[0]
   const band = bands.find((b) => b.workspaceId === id)
-  if (!band) return { kind: 'error', message: `Keine Band mit der ID ${id} auf diesem Stage-Server.` }
+  if (!band) return { kind: 'error', message: `Keine Band mit der ID ${id} auf diesem Host.` }
   if (band.workspaceId === activeWorkspaceId) {
     return {
       kind: 'error',
-      message: `"${band.workspaceName}" ist die aktive Band dieses Stage-Servers und wird nicht gelöscht. Erst in der App eine andere Band aktivieren.`,
+      message: `"${band.workspaceName}" ist die aktive Band dieses Hosts und wird nicht gelöscht. Erst in der App eine andere Band aktivieren.`,
     }
   }
   const confirmIndex = args.indexOf('--confirm')
@@ -59,7 +59,7 @@ async function main(): Promise<void> {
   const plan = planDeletion(process.argv.slice(2), bands, active)
 
   if (plan.kind === 'list') {
-    console.log('Bands auf diesem Stage-Server:')
+    console.log('Bands auf diesem Host:')
     for (const band of bands) {
       console.log(`  ${band.workspaceId}  ${band.workspaceName}${band.workspaceId === active ? '  (aktiv)' : ''}`)
     }

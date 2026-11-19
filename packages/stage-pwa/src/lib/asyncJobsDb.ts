@@ -4,7 +4,7 @@ import { createWorkspaceCollection, type Doc } from './workspaceCollection'
 export type AsyncJobDoc = Doc<AsyncJob>
 
 /** Same shared-workspace-db, prefix-scoped collection every other document kind uses (#49
- * follow-up) - the Stage-Server watches this exact collection's `async-jobs:` prefix
+ * follow-up) - the Host watches this exact collection's `async-jobs:` prefix
  * (`asyncJobWatcher.ts`) the same way it watches `plugins:` installs. */
 const asyncJobs = createWorkspaceCollection<AsyncJob>('async-jobs')
 

@@ -2,14 +2,14 @@ import { create } from 'zustand'
 import { DEFAULT_DEVICE_INFO, type DeviceInfo } from 'shared-types'
 import { fetchDeviceInfo } from '../lib/fetchDeviceInfo'
 import { deliverInBackground, dropFromInbox } from '../lib/inbox'
-import { getStageServerUrl } from '../lib/stageServer'
+import { getHostUrl } from '../lib/hostUrl'
 
 interface DeviceInfoState {
   deviceInfo: DeviceInfo
-  /** The first answer from the Stage-Server arrived - before it, every device looks inactive. */
+  /** The first answer from the Host arrived - before it, every device looks inactive. */
   loaded: boolean
-  /** Whether the Stage-Server answered the last poll (#747, the map's check) - null before the
-   * first one, and where no Stage-Server is set. */
+  /** Whether the Host answered the last poll (#747, the map's check) - null before the
+   * first one, and where no Host is set. */
   reachable: boolean | null
   init: (workspaceId: string) => Promise<void>
   stop: () => void
@@ -50,7 +50,7 @@ export const useDeviceInfoStore = create<DeviceInfoState>((set) => ({
 
     const poll = async () => {
       const deviceInfo = await fetchDeviceInfo(workspaceId)
-      const reachable = getStageServerUrl() ? deviceInfo !== null : null
+      const reachable = getHostUrl() ? deviceInfo !== null : null
       // Only a status: applied in free time (docs/26), the newest wins.
       deliverInBackground(INBOX_CHANNEL, { deviceInfo, reachable }, (value) => {
         if (value.deviceInfo) set({ deviceInfo: value.deviceInfo, loaded: true, reachable: value.reachable })

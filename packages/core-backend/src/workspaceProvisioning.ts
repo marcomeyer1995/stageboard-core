@@ -116,7 +116,7 @@ interface AccessCodeDoc extends DatabaseDoc {
 function generateAccessCode(): string {
   // 8 digits, zero-padded - the "WiFi password" a band writes down/prints once, not a
   // cryptographically-unguessable secret on its own (its real protection is that it's only
-  // ever handed out over the LAN the Stage-Server itself controls, same trust level the old
+  // ever handed out over the LAN the Host itself controls, same trust level the old
   // ephemeral invite code and the raw workspace password before it both already had).
   return randomInt(0, 100_000_000).toString().padStart(8, '0')
 }
@@ -221,10 +221,10 @@ export async function setMasterMode(config: DatabaseConfig, workspaceId: string,
   }))
 }
 
-/** Every workspace the Stage-Server hosts, with a real (or lazily-backfilled) display name -
+/** Every workspace the Host hosts, with a real (or lazily-backfilled) display name -
  * `GET /workspaces`, the WiFi "which networks are in range" listing, public/no auth by design
  * (see `WorkspaceSummarySchema`'s doc comment - a band's name alone isn't sensitive on a LAN
- * the Stage-Server itself controls). Filters `_all_dbs` down to `stageboard-*` databases
+ * the Host itself controls). Filters `_all_dbs` down to `stageboard-*` databases
  * (matching `workspaceDbName`), excluding the database's own system databases. */
 export async function listWorkspaces(config: DatabaseConfig): Promise<Array<{ workspaceId: string; workspaceName: string }>> {
   const dbs = await listDbs(config)

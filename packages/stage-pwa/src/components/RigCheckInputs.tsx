@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import type { MeasureInput, MeasureInputKind, MeasureInputs, MeasureInputsOverview, MeasureLevel } from 'shared-types'
 import { playClickAt } from '../lib/clickEngine'
 import { getSharedAudioContext } from '../lib/sharedAudioContext'
-import { getStageServerUrl } from '../lib/stageServer'
+import { getHostUrl } from '../lib/hostUrl'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { Group } from './SystemSettings'
 import { Button, Section, Select } from './ui'
@@ -23,7 +23,7 @@ function useServerCall() {
   const workspace = useWorkspaceStore((s) => s.workspaces.find((w) => w.id === s.activeWorkspaceId))
   return useCallback(
     async <T,>(path: string, extra: object = {}): Promise<T> => {
-      const base = getStageServerUrl()
+      const base = getHostUrl()
       if (!base || !workspace?.username || !workspace.password) throw new Error(t('inputs.noAdmin'))
       const res = await fetch(`${base}/server/measure-inputs/${path}`, {
         method: 'POST',
@@ -115,7 +115,7 @@ function InputRow({ kind, overview, onChange }: { kind: MeasureInputKind; overvi
 }
 
 /**
- * System → Rig-Check → Messeingänge (docs/24 §7.2, #662): which of the Stage-Server's audio inputs
+ * System → Rig-Check → Messeingänge (docs/24 §7.2, #662): which of the Host's audio inputs
  * listens when it measures a device's click - a microphone for speakers, a cable for headphones,
  * in-ear and Bluetooth. Kept by the server (its hardware); only admins see and change it.
  */

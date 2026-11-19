@@ -4,7 +4,7 @@ Stand: 2026-09-27. Auslöser: Der Klick „holpert“, und das Stoppen eines Son
 
 ## 1. Was gemessen wurde
 
-Alles auf dem Fire-Tablet der Band (CDP über adb, siehe docs/09–11) und gegen die echten Tracks auf dem Stage-Server.
+Alles auf dem Fire-Tablet der Band (CDP über adb, siehe docs/09–11) und gegen die echten Tracks auf dem Host.
 
 **Wiedergabe-Pfad (behoben, PRs #297–#299):**
 
@@ -23,7 +23,7 @@ Alles auf dem Fire-Tablet der Band (CDP über adb, siehe docs/09–11) und gegen
 | Xiaomi Tablet | Chrome 153, Android | 16 ms | 3 / 5 ms | 0 % | 40 ms |
 | Xiaomi Handy | Chrome 154, Android | 16 ms | 3 / 5 ms | 0 % | 40 ms |
 | Samsung Handy | Chrome 154, Android | 16 ms | 2 / 5 ms | 0 % | 24 ms |
-| Laptop (Stage-Server-PC) | Chrome 154, Linux | 10,7 ms | 6 / 11 ms | 0 % | 32 ms |
+| Laptop (Host-PC) | Chrome 154, Linux | 10,7 ms | 6 / 11 ms | 0 % | 32 ms |
 
 Das Fire-Tablet ist der Ausreißer (4–6× gröbere Uhr, 3–6× höhere Ausgabelatenz); die geglättete Audio-Uhr ist dort nötig, auf den anderen Geräten unschädlich. Kurze Uhr-Stillstände gibt es auch anderswo (Xiaomi Tablet einmal 228 ms, Xiaomi Handy 162 ms in der Bild-für-Bild-Messung). Für Tablets, die Klick oder Backing-Track selbst ausgeben, ist das Fire wegen der Latenz die schlechteste Wahl.
 
@@ -102,5 +102,5 @@ Anker entstehen durch Tippen **und** durch automatische Erkennung; beide liefern
 
 **Offen, ebenfalls zu untersuchen** (mit der Frage, ob und wie man kalibriert):
 - Latenz über Klinke/Line-Out, Audio-Interfaces und Bluetooth-Kopfhörer je Gerät.
-- Latenz **zu** externen Zielen: Licht (Stage-Server → DMX/Art-Net), Effektgeräte/Amp-Modeller (MIDI-Befehle an Kemper, MG-30 …).
+- Latenz **zu** externen Zielen: Licht (Host → DMX/Art-Net), Effektgeräte/Amp-Modeller (MIDI-Befehle an Kemper, MG-30 …).
 - Latenz **von** externen Quellen: MIDI-Fußschalter, Bluetooth-Fußschalter (Tastendruck → Aktion in der App).

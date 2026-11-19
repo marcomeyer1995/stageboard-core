@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { getAutomaticStageServerUrl, overrideForTypedUrl } from '../lib/stageServer'
-import { useStageServerStore } from '../store/useStageServerStore'
+import { getAutomaticHostUrl, overrideForTypedUrl } from '../lib/hostUrl'
+import { useHostUrlStore } from '../store/useHostUrlStore'
 import { isNativeApp } from '../lib/native'
 import { NetworkServerList } from './NetworkServerList'
 import { INPUT_FREE } from './ui/styles'
@@ -8,20 +8,20 @@ import { Button, InfoHint } from './ui'
 import { useTranslation } from 'react-i18next'
 
 /**
- * Which Stage-Server this device talks to. Normally nothing to set up: a tablet that opened the
- * app from the Stage-Server uses exactly that address automatically (`getAutomaticStageServerUrl`),
+ * Which Host this device talks to. Normally nothing to set up: a tablet that opened the
+ * app from the Host uses exactly that address automatically (`getAutomaticHostUrl`),
  * so the section just shows it. The manual override (a runtime setting, see the Tier-A
  * local-only-founding follow-up) is behind "Erweitert" - it is only for a device that did *not*
- * load the app from the Stage-Server - and while one is set it is shown openly with a way back
+ * load the app from the Host - and while one is set it is shown openly with a way back
  * to automatic, because a stale override silently breaks every server call on this device.
  * Connecting a solo-founded band for the first time is BandManagementView.tsx's "Verbinden"
  * flow, which writes to this same store.
  */
-export function StageServerSettings() {
+export function HostUrlSettings() {
   const { t } = useTranslation('system')
-  const override = useStageServerStore((state) => state.url)
-  const setUrl = useStageServerStore((state) => state.setUrl)
-  const automatic = getAutomaticStageServerUrl()
+  const override = useHostUrlStore((state) => state.url)
+  const setUrl = useHostUrlStore((state) => state.setUrl)
+  const automatic = getAutomaticHostUrl()
   const [draft, setDraft] = useState(override ?? '')
 
   const effective = override || automatic

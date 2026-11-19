@@ -247,7 +247,7 @@ async function changes(db: SyncDatabase, method: string, request: SyncRequest, l
 
 export { createWriteGuard, type SecurityDoc, type UserCtx, type WriteGuardOptions } from './writeGuard.js'
 
-// The host module (#949, step 1 of #932): what every host shares, whatever it runs on - the laptop's Stage-Server,
+// The host module (#949, step 1 of #932): what every host shares, whatever it runs on - the laptop's Host,
 // the tablet's app. No Node API, no DOM: WebCrypto and plain objects only, so the same code runs on Android,
 // Windows and Linux.
 export { leaseKey, verifyLease, signLease, signAccountRequest, verifyAccountRequest } from './host/leaseAuth.js'

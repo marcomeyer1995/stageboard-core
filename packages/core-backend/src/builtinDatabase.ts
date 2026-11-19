@@ -10,7 +10,7 @@ PouchDB.plugin(LevelAdapter)
 
 /**
  * The built-in database host (docs/25, Host step 1, 2026-11-07): instead of the database in Docker, the
- * Stage-Server runs sync-host's small the database itself, its databases in LevelDB files. It listens
+ * Host runs sync-host's small the database itself, its databases in LevelDB files. It listens
  * where the database would (127.0.0.1:5984 by default), so `database.ts`, the `/db` proxy for the devices
  * and the command-line tools (PIN reset, delete a band) talk to it exactly as to the database - and only
  * this one process opens the files.

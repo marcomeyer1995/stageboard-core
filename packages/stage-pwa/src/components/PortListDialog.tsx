@@ -122,7 +122,7 @@ export function PortListDialog({ item, onSave, onClose }: { item: StageEquipment
     const taken = new Set(rows.flatMap((r) => (r.id ? [r.id] : [])))
     onSave(numberPorts(rows.map((r) => portOf(r, taken))))
   }
-  const templates = BUILTIN_MODELS.filter((m) => m.kind !== 'stageboard' && m.kind !== 'stage-server' && m.kind !== 'person' && m.kind !== 'hall')
+  const templates = BUILTIN_MODELS.filter((m) => m.kind !== 'stageboard' && m.kind !== 'host-computer' && m.kind !== 'person' && m.kind !== 'hall')
   return (
     <Dialog
       title={t('ports.title', { name: item.name })}

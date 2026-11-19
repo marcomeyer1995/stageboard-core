@@ -221,7 +221,7 @@ describe('CustomTriggerWidget', () => {
     expect(localMixerApplyEvent).not.toHaveBeenCalled()
   })
 
-  it('forwards to the Stage-Server plugin when unbound', async () => {
+  it('forwards to the Host plugin when unbound', async () => {
     const mixer = device({ id: 'mixer-1', name: 'Mixer', capability: 'lighting' })
     useLogicalDevicesStore.setState({ devices: [mixer] })
     usePluginsStore.setState({

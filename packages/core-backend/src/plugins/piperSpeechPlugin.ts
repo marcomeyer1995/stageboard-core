@@ -11,7 +11,7 @@ export const serverVoices = new SpeechVoices(config.voicesDir)
 export const PIPER_SPEECH_PLUGIN_ID = 'piper-speech'
 
 /**
- * Spoken announcements' voice (#63): installing this plugin lets the Stage-Server generate speech
+ * Spoken announcements' voice (#63): installing this plugin lets the Host generate speech
  * clips with Piper (`GET /speech`). Without Piper on the machine it still installs, reports it in
  * the log and on "Testen", and the devices simply stay silent (Graceful Degradation).
  */

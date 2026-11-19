@@ -1,7 +1,7 @@
 /**
  * Server-local command: converts the existing track library once to the track format - Ogg Opus,
  * 48 kHz, 160 kbit/s (docs/30 §8h; Marco, 2026-11-13: "einmal am Server", the original kept as an
- * archive on the Stage-Server only, YouTube's Opus re-encoded too). Runs on the Stage-Server
+ * archive on the Host only, YouTube's Opus re-encoded too). Runs on the Host
  * itself with the service's own database login and never prints a credential.
  *
  *   npm run tracks:convert -w core-backend                 # dry run: convert into a temp dir, check, report

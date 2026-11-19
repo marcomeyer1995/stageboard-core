@@ -9,8 +9,8 @@ export interface LocalAudioResult {
 
 /**
  * Plays a backing track straight out of this tablet's own speakers/headphones - no
- * Stage-Server or audio interface involved. The Practice-mode counterpart to
- * `triggerShowControl.ts`'s HTTP call to a Stage-Server plugin, deliberately kept as its own
+ * Host or audio interface involved. The Practice-mode counterpart to
+ * `triggerShowControl.ts`'s HTTP call to a Host plugin, deliberately kept as its own
  * standalone, reusable module rather than private to any one widget: once #10 (Logical
  * Devices & Hardware Setup Profiles) adds a way to bind *this specific tablet* as the live
  * audio-output target for a Gig-mode show, that path can call these same functions rather than

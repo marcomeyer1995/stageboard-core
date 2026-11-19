@@ -246,9 +246,9 @@ describe('useProfilesStore', () => {
       const createMember = vi.fn()
       useWorkspaceStore.setState({ connectWorkspace, createMember })
 
-      const result = await useProfilesStore.getState().connectToServer('https://stage-server:3001')
+      const result = await useProfilesStore.getState().connectToServer('https://host-computer:3001')
 
-      expect(connectWorkspace).toHaveBeenCalledWith('band-a', 'https://stage-server:3001')
+      expect(connectWorkspace).toHaveBeenCalledWith('band-a', 'https://host-computer:3001')
       expect(createMember).not.toHaveBeenCalled()
       expect(result).toBe(true)
     })
@@ -262,7 +262,7 @@ describe('useProfilesStore', () => {
       })
       useWorkspaceStore.setState({ connectWorkspace: vi.fn().mockResolvedValue(false) })
 
-      const result = await useProfilesStore.getState().connectToServer('https://stage-server:3001')
+      const result = await useProfilesStore.getState().connectToServer('https://host-computer:3001')
 
       expect(result).toBe(false)
     })

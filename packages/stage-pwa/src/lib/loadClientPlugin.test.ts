@@ -6,13 +6,13 @@ describe('resolveClientBundleUrl', () => {
     expect(resolveClientBundleUrl({ id: 'kemper' }, 'https://stage.local')).toBeNull()
   })
 
-  it('prefers the Stage-Server local mirror when one is configured', () => {
+  it('prefers the Host local mirror when one is configured', () => {
     expect(resolveClientBundleUrl({ id: 'kemper', clientSource: 'https://cdn.example/kemper.js' }, 'https://stage.local')).toBe(
       'https://stage.local/plugins/kemper/client.js',
     )
   })
 
-  it('falls back to clientSource directly for the solo/no-Stage-Server case', () => {
+  it('falls back to clientSource directly for the solo/no-Host case', () => {
     expect(resolveClientBundleUrl({ id: 'kemper', clientSource: 'https://cdn.example/kemper.js' }, null)).toBe(
       'https://cdn.example/kemper.js',
     )

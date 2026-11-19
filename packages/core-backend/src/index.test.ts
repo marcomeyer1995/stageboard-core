@@ -183,7 +183,7 @@ describe('Fastify routes', () => {
       expect((await app.inject({ method: 'GET', url: '/host/look-up?address=http://10.0.0.2' })).statusCode).toBe(400)
     })
 
-    it('answers 502 for an address that is not a Stage-Server', async () => {
+    it('answers 502 for an address that is not a Host', async () => {
       // Nothing listens there: the lookup must end, not hang (it answers on connection refusal).
       const response = await app.inject({ method: 'GET', url: '/host/look-up?address=https://127.0.0.1:1' })
       expect(response.statusCode).toBe(502)

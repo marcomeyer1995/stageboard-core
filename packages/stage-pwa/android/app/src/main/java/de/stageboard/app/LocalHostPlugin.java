@@ -74,7 +74,7 @@ public class LocalHostPlugin extends Plugin {
     private final AtomicLong nextId = new AtomicLong();
     private final Map<Long, Pending> pending = new ConcurrentHashMap<>();
     /** Live channels (Play, switches): per "<band>/<topic>" the open streams - relayed natively,
-     * without the WebView, like the Stage-Server's push hubs (show-state, switch-state). */
+     * without the WebView, like the Host's push hubs (show-state, switch-state). */
     /** The latest snapshot of a channel that sends its whole state (presence): a stream gets it on connecting. */
     private final Map<String, String> snapshots = new ConcurrentHashMap<>();
     private final Map<String, java.util.Set<OutputStream>> streams = new ConcurrentHashMap<>();
@@ -268,7 +268,7 @@ public class LocalHostPlugin extends Plugin {
             write(out, 200, "application/json", answer.getBytes(StandardCharsets.UTF_8), keepAlive);
             return keepAlive;
         }
-        // Who this host is - the Stage-Server reads the fingerprint here when the admin names the tablet (#914).
+        // Who this host is - the Host reads the fingerprint here when the admin names the tablet (#914).
         if (path.equals("/server-info")) {
             String address = lanAddress();
             String cert;
@@ -292,7 +292,7 @@ public class LocalHostPlugin extends Plugin {
                 return keepAlive;
             }
             // The app checks the login once, then the channel runs natively. Only a push needs it: a page opens
-            // the stream with EventSource, which cannot send a login - the Stage-Server's stream is open too.
+            // the stream with EventSource, which cannot send a login - the Host's stream is open too.
             String band = "stageboard-" + live.group(1);
             String key = band + "\n" + authorization;
             Long until = allowed.get(key);
@@ -414,7 +414,7 @@ public class LocalHostPlugin extends Plugin {
     /**
      * The tablet's own certificate (docs/25 §6c): made once, the key stays in the Android keystore
      * and never leaves the device. Every tablet of the band trusts exactly this certificate - by its
-     * fingerprint in the band data (`hosts:<device>`), like the Stage-Server's at pairing.
+     * fingerprint in the band data (`hosts:<device>`), like the Host's at pairing.
      */
     private static final String KEY_ALIAS = "stageboard-host";
 
@@ -445,7 +445,7 @@ public class LocalHostPlugin extends Plugin {
         return ctx;
     }
 
-    /** SHA-256 of the certificate - lowercase hex, no separators, like the Stage-Server's. */
+    /** SHA-256 of the certificate - lowercase hex, no separators, like the Host's. */
     private String fingerprint() throws Exception {
         byte[] digest = MessageDigest.getInstance("SHA-256").digest(keyStore().getCertificate(KEY_ALIAS).getEncoded());
         StringBuilder hex = new StringBuilder();

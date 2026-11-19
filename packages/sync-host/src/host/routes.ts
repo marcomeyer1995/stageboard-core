@@ -76,7 +76,7 @@ export interface HostAudio {
   remove: (variantId: string, trackId: string) => Promise<void>
 }
 
-/** An id becomes part of a storage key, so no separators or control characters (the Stage-Server's rule). */
+/** An id becomes part of a storage key, so no separators or control characters (the Host's rule). */
 const SAFE_AUDIO_ID = /^[a-zA-Z0-9-]+$/
 export const isSafeAudioId = (id: string): boolean => SAFE_AUDIO_ID.test(id)
 
@@ -324,7 +324,7 @@ export function createHostRoutes(deps: HostRoutesDeps): HostRoute[] {
         const workspaceId = safeDecode(request.params.workspaceId ?? '')
         const refused = await refuseBand(workspaceId)
         if (refused) return refused
-        // Polled, not streamed: the page is already near the browser's per-origin connection cap (the Stage-Server's reasoning).
+        // Polled, not streamed: the page is already near the browser's per-origin connection cap (the Host's reasoning).
         return json(200, deps.deviceInfo.snapshot(workspaceId))
       },
     },

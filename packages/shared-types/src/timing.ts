@@ -24,7 +24,7 @@ export const TIMING_CLASS_TOLERANCE_MS: Record<TimingClass, number | null> = {
 }
 
 /** What a calibration sensor can detect (docs/21 §4). The sensor itself is a plugin too; which
- * hardware (audio input on the Stage-Server, a microcontroller box, a tablet) is open. */
+ * hardware (audio input on the Host, a microcontroller box, a tablet) is open. */
 export const SensorKindSchema = z.enum(['light', 'sound', 'midi-loopback', 'video'])
 export type SensorKind = z.infer<typeof SensorKindSchema>
 
@@ -35,7 +35,7 @@ export const CapabilityTimingSchema = z.object({
   capability: CapabilityIdSchema,
   timingClass: TimingClassSchema,
   /** The client Translator sends at the event's `scheduledAt` itself (a WebMIDI timestamp, #477).
-   * False: it acts on receipt, so the core waits for the moment before calling it. A Stage-Server
+   * False: it acts on receipt, so the core waits for the moment before calling it. A Host
    * plugin needs no flag - the gateway always holds an event until `scheduledAt`. */
   honoursScheduledAt: z.boolean().default(false),
   /** Known delay from the send to the real output (lamp lit, sound out), before any calibration -
@@ -109,7 +109,7 @@ export const NATIVE_AUDIO_OUTPUT = 'audio-native'
 /**
  * A stored latency profile for one output path (docs/21 §3, #491): `deviceId` drives `output`
  * (a Logical Device id, or AUDIO_OUTPUT for its own audio) over `route` (audio only; null for
- * everything else). `deviceId` is `server` for outputs the Stage-Server drives. Replicates
+ * everything else). `deviceId` is `server` for outputs the Host drives. Replicates
  * band-wide so the Geräte tab shows every device's values; the scheduler of the device that
  * drives the output uses it.
  */
@@ -125,7 +125,7 @@ export function latencyProfileId(deviceId: string, output: string, route: AudioR
   return `${deviceId}:${output}:${route ?? '-'}`
 }
 
-/** Where the Stage-Server listens when it measures (docs/24 §7.2, #662): an ALSA capture device
+/** Where the Host listens when it measures (docs/24 §7.2, #662): an ALSA capture device
  * and one of its channels (0-based). */
 export const MeasureInputSchema = z.object({
   device: z.string().min(1).max(200),
@@ -142,7 +142,7 @@ export const MeasureInputsSchema = z.object({
 export type MeasureInputs = z.infer<typeof MeasureInputsSchema>
 export type MeasureInputKind = keyof MeasureInputs
 
-/** An audio input the Stage-Server sees (`arecord -l`). `channels` null: unknown (busy). */
+/** An audio input the Host sees (`arecord -l`). `channels` null: unknown (busy). */
 export interface AudioInputInfo {
   device: string
   name: string

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Soak test for a Stage-Server's database host (#960): several simulated devices write to one band at the same time,
+ * Soak test for a Host's database host (#960): several simulated devices write to one band at the same time,
  * replicate both ways with real PouchDB, join and check PINs, upload tracks - for hours - while the server's memory,
  * answer times and errors are recorded. It answers "does the built-in database host hold up on a laptop", with numbers.
  *

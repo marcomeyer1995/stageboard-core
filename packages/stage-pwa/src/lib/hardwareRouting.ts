@@ -94,7 +94,7 @@ export function resolveHardwareEngine(
  * own tablet - the same reasoning ShowTransportWidget already applied to audio-playback alone,
  * generalized here to every capability after #25's Click Generator hit the identical gap
  * (Marco, 2026-09-09). A capability with no local execution path at all
- * (`supportsLocalExecution` false - e.g. `backup`, a pure Stage-Server concept) simply has
+ * (`supportsLocalExecution` false - e.g. `backup`, a pure Host concept) simply has
  * nothing to route to in Practice mode either, same as any other unreachable capability (docs/07
  * Graceful Degradation) - there is no third option to fall back to.
  */

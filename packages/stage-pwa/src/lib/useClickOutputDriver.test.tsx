@@ -199,7 +199,7 @@ describe('useClickOutputDriver', () => {
     expect(startClick).toHaveBeenCalled()
   })
 
-  it('does not start the local click engine when the device is bound through the Stage-Server/a plugin, not a specific tablet - that capability is produced by the plugin/server-side hardware, not this tab\'s own Web Audio (#148: useCapabilityRouting\'s pluginId now resolves correctly for this binding shape, but shouldPlay only ever cares about engine === \'local-mine\', so this case is unaffected either way)', () => {
+  it('does not start the local click engine when the device is bound through the Host/a plugin, not a specific tablet - that capability is produced by the plugin/server-side hardware, not this tab\'s own Web Audio (#148: useCapabilityRouting\'s pluginId now resolves correctly for this binding shape, but shouldPlay only ever cares about engine === \'local-mine\', so this case is unaffected either way)', () => {
     mockLogicalDevices([
       { id: CLICK_LOGICAL_DEVICE_ID, name: 'Klick', capability: CAPABILITIES.clickTrack, pluginId: null, executionTarget: SERVER_EXECUTION_TARGET },
     ])

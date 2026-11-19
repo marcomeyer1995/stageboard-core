@@ -1,10 +1,10 @@
 import { HostCapabilitiesSchema, type HostCapabilities } from 'shared-types'
-import { getStageServerUrl } from './stageServer'
+import { getHostUrl } from './hostUrl'
 
-/** What the Stage-Server can run (docs/25 §6) - null without a server, or from one that doesn't
+/** What the Host can run (docs/25 §6) - null without a server, or from one that doesn't
  * say yet (built before 2026-11-07). */
 export async function fetchHostCapabilities(): Promise<HostCapabilities | null> {
-  const base = getStageServerUrl()
+  const base = getHostUrl()
   if (!base) return null
   try {
     const response = await fetch(`${base}/host/capabilities`)

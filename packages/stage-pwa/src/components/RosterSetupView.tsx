@@ -27,7 +27,7 @@ type Phase = 'founder' | 'members' | 'summary'
  *    calls `setOwnPin` to replace that with the PIN you actually chose (best-effort - if the
  *    request fails, e.g. a network hiccup, this still advances rather than stranding you here;
  *    "Meinen PIN setzen" in Band-management is always there to fix it after the fact). Local-
- *    only founding (Tier-A follow-up, no Stage-Server configured) still collects the PIN for
+ *    only founding (Tier-A follow-up, no Host configured) still collects the PIN for
  *    a consistent flow, but has no account yet to set it on - `setOwnPin` is simply skipped.
  *    Also immediately marks this profile as this device's own active one
  *    (`useActiveProfileStore`'s `setActive`) - typing your own name here already answers "wer

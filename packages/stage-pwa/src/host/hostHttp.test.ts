@@ -209,7 +209,7 @@ describe('loginCheckOf', () => {
     expect(loginCheckOf('/db/stageboard-x')).toBeNull()
   })
 
-  it('lets a device join the band through the tablet - the same answers as the Stage-Server - once it is the host', async () => {
+  it('lets a device join the band through the tablet - the same answers as the Host - once it is the host', async () => {
     const { deps } = baseDeps()
     const docs = new Map<string, AccountDoc>()
     const accounts = createBandAccounts({ workspaceId: 'leasetest', iterations: 1000, store: { get: async (id) => docs.get(id) ?? null, put: async (d) => void docs.set(d._id, d), list: async (p) => [...docs.values()].filter((d) => d._id.startsWith(p)) } })
@@ -224,7 +224,7 @@ describe('loginCheckOf', () => {
     expect(joined.body).toMatchObject({ username: 'stageboard-leasetest-p1~fire', isAdmin: true })
   })
 
-  it('lets an admin add a member through the tablet - body and answer like the Stage-Server - once it is the host', async () => {
+  it('lets an admin add a member through the tablet - body and answer like the Host - once it is the host', async () => {
     const { deps } = baseDeps()
     const docs = new Map<string, AccountDoc>()
     const accounts = createBandAccounts({ workspaceId: 'leasetest', iterations: 1000, store: { get: async (id) => docs.get(id) ?? null, put: async (d) => void docs.set(d._id, d), list: async (p) => [...docs.values()].filter((d) => d._id.startsWith(p)) } })

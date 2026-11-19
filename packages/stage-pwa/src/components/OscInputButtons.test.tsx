@@ -11,7 +11,7 @@ vi.mock('pouchdb-browser', () => ({
     }
   },
 }))
-vi.mock('../lib/stageServer', () => ({ getStageServerUrl: () => 'https://192.168.178.158' }))
+vi.mock('../lib/hostUrl', () => ({ getHostUrl: () => 'https://192.168.178.158' }))
 
 const { OscInputButtonsDialog } = await import('./OscInputButtons')
 const { oscLearn } = await import('../lib/useOscInput')

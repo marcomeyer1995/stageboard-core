@@ -1,16 +1,16 @@
 import type { ShowStatePush, ShowStatePushAck } from 'shared-types'
-import { getStageServerUrl } from './stageServer'
+import { getHostUrl } from './hostUrl'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 
 /**
  * The fast lane for the master's show-state changes (#468): Play, Pause, Stop, Weiter are pushed
- * through the Stage-Server to every device at once. The database write stays the record and the
- * fallback - without a Stage-Server (Solo tier) or when this push fails, replication still delivers
+ * through the Host to every device at once. The database write stays the record and the
+ * fallback - without a Host (Solo tier) or when this push fails, replication still delivers
  * the change, only later (up to 1 s from a slow tablet, measured 2026-10-10).
  */
 
 function streamUrl(workspaceId: string, path: string): string | null {
-  const base = getStageServerUrl()
+  const base = getHostUrl()
   return base && workspaceId ? `${base}/workspaces/${encodeURIComponent(workspaceId)}/show-state/${path}` : null
 }
 

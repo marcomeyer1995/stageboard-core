@@ -59,7 +59,7 @@ export default defineConfig({
       output: {
         // A chunk is named after its module's folder, and @soundtouchjs ships in ".dist/" - a file
         // starting with a dot is left out of the Android app (aapt skips dotfiles), so the Loop's
-        // import failed there while the browser, served by the Stage-Server, had it.
+        // import failed there while the browser, served by the Host, had it.
         chunkFileNames: (chunk) => `assets/${chunk.name.replace(/^\.+/, '') || 'chunk'}-[hash].js`,
       },
     },

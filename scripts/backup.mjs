@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Backup of a Stage-Server to a second medium (#363).
+ * Backup of a Host to a second medium (#363).
  *
  *   node scripts/backup.mjs <target-dir>          (or STAGEBOARD_BACKUP_TARGET=<dir>)
  *
@@ -21,7 +21,7 @@
  *
  * Never silently skipped: a missing target (e.g. USB disk not mounted), a failed step or a full
  * disk ends with exit code 1, a JSON error line on stderr (journal) and `ok: false` in
- * `<STAGEBOARD_STATE_DIR>/backup-status.json`, which the app shows (Geräte → Stage-Server).
+ * `<STAGEBOARD_STATE_DIR>/backup-status.json`, which the app shows (Geräte → Host).
  *
  * the database access like core-backend: STAGEBOARD_DB_URL / STAGEBOARD_DB_USER / STAGEBOARD_DB_PASSWORD, otherwise the
  * same defaults. No credential is ever printed.
@@ -38,7 +38,7 @@ const keep = Math.max(1, Number(process.env.STAGEBOARD_BACKUP_KEEP ?? 7))
 const dataDir = process.env.STAGEBOARD_DATA_DIR ?? join(homedir(), 'stageboard-data')
 const certsDir = process.env.CERTS_DIR ?? join(repoRoot, 'certs')
 const stateDir = process.env.STAGEBOARD_STATE_DIR ?? dataDir
-// Set by the Stage-Server's backup runner (core-backend/src/backup.ts): its own status file per
+// Set by the Host's backup runner (core-backend/src/backup.ts): its own status file per
 // target, and - for a NAS over SSH - no data archive (rsync copies the data folder itself, so
 // generations share unchanged backing tracks through hard links).
 const statusFile = process.env.STAGEBOARD_BACKUP_STATUS_FILE ?? join(stateDir, 'backup-status.json')
@@ -102,7 +102,7 @@ async function dumpDb(db) {
 
 function tarGz(sourceDir, file) {
   if (!existsSync(sourceDir)) throw new Error(`Folder to back up is missing: ${sourceDir}`)
-  // The folder itself may be a link - on the Stage-Server `certs` in the deploy worktree points at
+  // The folder itself may be a link - on the Host `certs` in the deploy worktree points at
   // the dev checkout's certs (found 2026-10-09: the archive held only the link, no key). Pack what
   // it points to, under the folder's own name.
   const real = realpathSync(sourceDir)

@@ -12,7 +12,7 @@ interface AudioSyncState {
   modeFor: (workspaceId: string) => AudioSyncMode
   setMode: (workspaceId: string, mode: AudioSyncMode) => void
   /** Stems kept on this device, separate from the tracks (Marco, 2026-10-16). Default "none":
-   * only the stems practiced right now, loaded from the Stage-Server. */
+   * only the stems practiced right now, loaded from the Host. */
   stemsByWorkspace: Record<string, AudioSyncMode>
   stemModeFor: (workspaceId: string) => AudioSyncMode
   setStemMode: (workspaceId: string, mode: AudioSyncMode) => void

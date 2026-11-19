@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const serverTime = vi.hoisted(() => ({ now: 10_000 }))
 const clicks = vi.hoisted(() => [] as number[])
 vi.mock('./clockSync', () => ({ getServerTime: () => serverTime.now }))
-vi.mock('./stageServer', () => ({ getStageServerUrl: () => 'https://server' }))
+vi.mock('./hostUrl', () => ({ getHostUrl: () => 'https://server' }))
 vi.mock('./deviceId', () => ({ getDeviceId: () => 'fire' }))
 vi.mock('./sharedAudioContext', () => ({
   // currentTime follows server time 1:1 here, so audio times read directly as server seconds.

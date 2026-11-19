@@ -19,7 +19,7 @@ import { usePluginsStore } from '../store/usePluginsStore'
  * Writes this tablet's own DeviceTransportConfig for `detected` bound to `logicalDeviceId` via
  * `match`, remembers the pairing (#106's Auto-Memory), and updates the Logical Device's own live
  * binding (`pluginId`/`executionTarget`, logicalDevice.ts) to point at this device - the
- * counterpart to core-backend's midiWatcher.ts doing the same for a Stage-Server win. Shared by
+ * counterpart to core-backend's midiWatcher.ts doing the same for a Host win. Shared by
  * the passive per-tablet flow below and by Discovery Mode's "I just won a role" reaction
  * (resolveDiscoveryWins) - both are just different ways of arriving at the same (detected,
  * match, logicalDeviceId) triple.

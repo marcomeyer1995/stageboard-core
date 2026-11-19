@@ -53,9 +53,9 @@ export type AdminProof = z.infer<typeof AdminProofSchema>
  * workspace's own database (`workspaceProvisioning.ts`'s `workspace:access` doc), never
  * expiring on its own. The critical property the old design lacked: getting a working code
  * never depends on any admin device being currently online, logged in, or even still existing -
- * the Stage-Server itself is the sole source of truth, and it's already physically at the gig.
+ * the Host itself is the sole source of truth, and it's already physically at the gig.
  *
- * Every workspace the Stage-Server hosts is listed via `GET /workspaces` with no code needed at
+ * Every workspace the Host hosts is listed via `GET /workspaces` with no code needed at
  * all (the SSID-list equivalent) - only the next step, seeing the roster or actually joining,
  * needs the code (the password equivalent).
  */
@@ -174,10 +174,10 @@ export type AdminPinProof = z.infer<typeof AdminPinProofSchema>
 export const VerifyAdminPinRequestSchema = AdminPinProofSchema
 export type VerifyAdminPinRequest = z.infer<typeof VerifyAdminPinRequestSchema>
 
-/** Body to make this Stage-Server's local hardware (plugin sync, Discovery Mode's MIDI watcher)
+/** Body to make this Host's local hardware (plugin sync, Discovery Mode's MIDI watcher)
  * serve this workspace. Activating always deactivates whichever workspace was previously active
  * on this box first - the two subsystems this gates are inherently tied to physically local
- * gear, so exactly one workspace's hardware ever runs on a given Stage-Server at a time, never
+ * gear, so exactly one workspace's hardware ever runs on a given Host at a time, never
  * two concurrently (see workspaceHardwareController.ts).
  *
  * Two separate admin proofs, not one, because they guard two different mistakes: the *opening*
@@ -194,7 +194,7 @@ export const ActivateWorkspaceHardwareRequestSchema = z.object({
 export type ActivateWorkspaceHardwareRequest = z.infer<typeof ActivateWorkspaceHardwareRequestSchema>
 
 /** Response shape for `GET /server/active-workspace` - which workspace (if any) this specific
- * Stage-Server's local hardware currently serves. `null` before any workspace has ever been
+ * Host's local hardware currently serves. `null` before any workspace has ever been
  * activated on this box. */
 export const ActiveWorkspaceStatusSchema = z.object({
   activeWorkspaceId: z.string().nullable(),
@@ -202,7 +202,7 @@ export const ActiveWorkspaceStatusSchema = z.object({
 export type ActiveWorkspaceStatus = z.infer<typeof ActiveWorkspaceStatusSchema>
 
 /** Response of `GET /server/active-workspace/admins` - the roster admins (names + ids only) of the
- * band this Stage-Server is *currently serving*, no band code needed: that band is already
+ * band this Host is *currently serving*, no band code needed: that band is already
  * registered here, and the hardware-switch wizard only needs to show whose PIN can close it. Only
  * ever the active band - the route takes no workspace parameter, so it can't be used to enumerate
  * any other band's admins (those stay behind that band's code, `POST /workspaces/:id/roster`). */
@@ -216,7 +216,7 @@ export type ActiveWorkspaceAdmins = z.infer<typeof ActiveWorkspaceAdminsSchema>
  * any one workspace. `hostname` is the same name already broadcast over mDNS (`MDNS_HOSTNAME`
  * env var, defaulting to `stageboard.local`), just also exposed here so a device that's never
  * seen the mDNS broadcast (e.g. typed a raw IP) can still show it, for example in the Device
- * Ledger's "this is the Stage-Server itself" row. */
+ * Ledger's "this is the Host itself" row. */
 export const ServerInfoSchema = z.object({
   lanIp: z.string(),
   hostname: z.string(),

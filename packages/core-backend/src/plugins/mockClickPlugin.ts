@@ -9,7 +9,7 @@ import {
 /**
  * Hardware-mock per docs/03: stands in for a server-side click / MIDI-Clock generator (#25's
  * hardware-routed half). The tablet-local Web Audio click needs no plugin at all; this only
- * tracks on/off so routing a click-track cue to the Stage-Server resolves instead of dangling.
+ * tracks on/off so routing a click-track cue to the Host resolves instead of dangling.
  */
 export function createMockClickPlugin(): IShowControlPlugin {
   let context: PluginContext | undefined

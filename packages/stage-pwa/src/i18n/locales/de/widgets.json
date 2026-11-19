@@ -480,7 +480,7 @@
   "msg": {
     "sentTo": "An {{to}} gesendet: „{{text}}“",
     "notSignedIn": "Nicht gesendet - dieses Gerät ist nicht bei der Band angemeldet.",
-    "offline": "Nicht gesendet - Stage-Server nicht erreichbar.",
+    "offline": "Nicht gesendet - Host nicht erreichbar.",
     "everyone": "alle",
     "recipients": "Empfänger",
     "to": "An",
@@ -504,7 +504,7 @@
     "caption": "System-Status",
     "none": "Keine Plugins installiert.",
     "clock": "Uhrzeit-Sync",
-    "server": "Stage-Server",
+    "server": "Host",
     "notYet": "Noch nicht synchronisiert",
     "detail": "Offset {{offset}} ms · Drift {{drift}} ms · vor {{s}}s"
   },

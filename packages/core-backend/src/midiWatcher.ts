@@ -38,10 +38,10 @@ function detectedFor(portName: string): DetectedHardware {
 }
 
 /**
- * Gear plugged directly into the Stage-Server (not a tablet) - this workspace's native-MIDI
+ * Gear plugged directly into the Host (not a tablet) - this workspace's native-MIDI
  * counterpart to stage-pwa's useHardwareDetection.ts, participating in the exact same
  * discoverySessionStore.ts as every tablet: it reports every port it sees, and when Discovery
- * Mode asks a musician to "identify" a role the Stage-Server itself is a contender for, it
+ * Mode asks a musician to "identify" a role the Host itself is a contender for, it
  * listens for the matching CC sequence on that one native port and reports back, same as a
  * tablet's useDiscoveryTrigger.ts would.
  */
@@ -54,7 +54,7 @@ export function createMidiWatcher(options: MidiWatcherOptions): MidiWatcherHandl
 
   /** Creates a native RtMidi port, or null when the ALSA sequencer can't be opened (e.g.
    * `/dev/snd/seq` not accessible at boot before a desktop login, #336). MIDI is optional - the
-   * Stage-Server must keep running without it, and the poll keeps retrying, so ports appear as
+   * Host must keep running without it, and the poll keeps retrying, so ports appear as
    * soon as access exists. Logged once per outage, not every poll. */
   function openNative<T>(make: () => T): T | null {
     try {
@@ -67,7 +67,7 @@ export function createMidiWatcher(options: MidiWatcherOptions): MidiWatcherHandl
     } catch (err) {
       if (!unavailable) {
         unavailable = true
-        log.error('Native MIDI unavailable - running without the Stage-Server\'s own MIDI ports, retrying', { error: String(err) })
+        log.error('Native MIDI unavailable - running without the Host\'s own MIDI ports, retrying', { error: String(err) })
       }
       return null
     }
@@ -75,11 +75,11 @@ export function createMidiWatcher(options: MidiWatcherOptions): MidiWatcherHandl
 
   /**
    * Resolves the real *output* port to actually send to and writes the DeviceTransportConfig
-   * doc, for any of the Stage-Server's own candidates that just won a role and hasn't been
+   * doc, for any of the Host's own candidates that just won a role and hasn't been
    * written yet - the counterpart to a tablet reacting to seeing itself win (#106's `bind()`).
    * Deliberately resolves by the matched plugin's `hardwareIds` namePattern against `Output`
    * ports, not by reusing the winning candidate's own hardwareKey: that key was built from an
-   * `Input` port (what the Stage-Server can *receive* on), a different physical/virtual port
+   * `Input` port (what the Host can *receive* on), a different physical/virtual port
    * from the `Output` it needs to *send* on - webMidiOutput.ts's doc comment has the full story
    * on why those two are never the same id, client-side or here.
    */
@@ -115,7 +115,7 @@ export function createMidiWatcher(options: MidiWatcherOptions): MidiWatcherHandl
           values: { midiOutputId: output.getPortName(outputIndex) },
         })
         void putDoc(database, workspaceDbName(workspaceId), { ...doc, _id: `${DEVICE_TRANSPORT_CONFIG_PREFIX}${doc.id}` }).catch((err) =>
-          log.error('Failed to write DeviceTransportConfig for a Stage-Server-plugged device', { error: String(err) }),
+          log.error('Failed to write DeviceTransportConfig for a Host-plugged device', { error: String(err) }),
         )
 
         // The Logical Device's own live binding (logicalDevice.ts) - the counterpart to a
@@ -140,7 +140,7 @@ export function createMidiWatcher(options: MidiWatcherOptions): MidiWatcherHandl
             })
             return { ...merged, _id: logicalDeviceDocId, _rev: existing?._rev }
           },
-        ).catch((err) => log.error('Failed to write Logical Device binding for a Stage-Server-plugged device', { error: String(err) }))
+        ).catch((err) => log.error('Failed to write Logical Device binding for a Host-plugged device', { error: String(err) }))
 
         written.add(candidate.hardwareKey)
       } finally {
@@ -242,7 +242,7 @@ export function createMidiWatcher(options: MidiWatcherOptions): MidiWatcherHandl
     syncTriggerListener()
     writeWonRoles()
   }, POLL_INTERVAL_MS)
-  // Reacts immediately to a role entering "identifying" (or the Stage-Server itself winning
+  // Reacts immediately to a role entering "identifying" (or the Host itself winning
   // one) rather than waiting for the next poll.
   const unsubscribe = discoverySessionStore.subscribe(workspaceId, () => {
     syncTriggerListener()

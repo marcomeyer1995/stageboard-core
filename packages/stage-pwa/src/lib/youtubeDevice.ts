@@ -89,7 +89,7 @@ export interface DeviceJobDeps {
 // Loaded only when a video has no Opus - the encoder's WASM stays out of the app's start.
 const encodeWithWasm = async (file: Blob, onProgress: (done: number) => void): Promise<Blob> => (await import('./engine/encodeForUpload')).encodeForUpload(file, onProgress)
 
-/** The job's runner field for this device (asyncJob.ts): the Stage-Server leaves it alone. */
+/** The job's runner field for this device (asyncJob.ts): the Host leaves it alone. */
 export function deviceRunner(deviceId: string): string {
   return `device:${deviceId}`
 }
@@ -105,7 +105,7 @@ export const activeDeviceJobs = new Set<string>()
 /**
  * Runs a YouTube job on this device: download through the helper, re-wrap Opus into Ogg (lossless),
  * upload as a normal track (`putTrack`: to whichever host the band has), report on the job document
- * the whole band sees - exactly as the Stage-Server's watcher does.
+ * the whole band sees - exactly as the Host's watcher does.
  */
 export async function runOnDevice(job: YoutubeExtractJob, deviceId: string, helper: HelperInfo, trusted: readonly string[], deps: DeviceJobDeps, signal?: AbortSignal): Promise<void> {
   const now = deps.now ?? Date.now
@@ -177,14 +177,14 @@ async function encodeTrack(file: Blob, result: DownloadResult, encode: NonNullab
 
 /**
  * Jobs this device was running when the app stopped (killed, crashed): nothing will finish them -
- * marked failed, as the Stage-Server does with its own after a restart. `active`: ids running now.
+ * marked failed, as the Host does with its own after a restart. `active`: ids running now.
  */
 export function leftoverDeviceJobs(jobs: readonly AsyncJob[], deviceId: string, active: ReadonlySet<string>): AsyncJob[] {
   const runner = deviceRunner(deviceId)
   return jobs.filter((j) => j.runner === runner && j.status === 'running' && !active.has(j.id))
 }
 
-/** A new YouTube job for this device to run - created as running, so no Stage-Server picks it up. */
+/** A new YouTube job for this device to run - created as running, so no Host picks it up. */
 export function newDeviceJob(variantId: string, url: string, label: string, deviceId: string, now: number = Date.now()): YoutubeExtractJob {
   return { id: randomId(), type: 'youtube-extract', status: 'running', progress: 0, createdAt: now, updatedAt: now, variantId, url, label, runner: deviceRunner(deviceId) }
 }

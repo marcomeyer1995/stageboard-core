@@ -16,7 +16,7 @@ import java.security.cert.Certificate;
 import java.security.cert.CertificateFactory;
 
 /**
- * Accepts the Stage-Server's self-signed certificate only when it is exactly the pinned one for
+ * Accepts the Host's self-signed certificate only when it is exactly the pinned one for
  * that host (ServerTrustPlugin) - for every request the web app makes: API, the database sync, event
  * streams, audio. Any other certificate error cancels the request, as in a normal browser.
  */

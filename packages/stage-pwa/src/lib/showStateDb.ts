@@ -53,7 +53,7 @@ async function writeOnce(target: PouchDB.Database<ShowState>, patch: Partial<Sho
  * Merges `patch` into the show state. Writes are queued one after another and retried on a revision
  * conflict: "Weiter, Weiter, Play" within a second used to overlap, the later write failed with a 409
  * and was silently dropped - the master's own tablet fell back to "BEREIT" while every other device,
- * which got the Play through the Stage-Server push, kept playing (2026-10-10, #468). Same fix as
+ * which got the Play through the Host push, kept playing (2026-10-10, #468). Same fix as
  * workspaceCollection.ts's queuedWrite.
  */
 export function putShowState(patch: Partial<ShowState>): Promise<void> {

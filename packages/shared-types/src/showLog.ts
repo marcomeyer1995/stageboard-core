@@ -124,7 +124,7 @@ export const ShowLogEventSchema = z.discriminatedUnion('type', [
       })
       .optional(),
     /** The measuring round before the run (docs/24 §7.1, #662): every device's slot, one after
-     * the other - each plays its 12 clicks at `at` while the Stage-Server listens. */
+     * the other - each plays its 12 clicks at `at` while the Host listens. */
     measure: z
       .object({
         startedAt: z.number().int().nonnegative(),
@@ -153,7 +153,7 @@ export const ShowLogEventSchema = z.discriminatedUnion('type', [
     /** 'practice': in Solo Üben - it does not follow the run. */
     mode: z.enum(['gig', 'practice']),
     trackReady: z.boolean(),
-    /** This device's clock against the Stage-Server's, and how much it varies (clockSync.ts). */
+    /** This device's clock against the Host's, and how much it varies (clockSync.ts). */
     clockOffsetMs: z.number().nullable(),
     clockJitterMs: z.number().nullable(),
     /** Speaker, headphones, Bluetooth … (useAudioRouteStore) and the stored output latency for it. */
@@ -161,7 +161,7 @@ export const ShowLogEventSchema = z.discriminatedUnion('type', [
     outputLatencyMs: z.number().nullable(),
     verdict: z.enum(['ok', 'problem']).nullable(),
     note: z.string().max(300).optional(),
-    /** This device's click as the Stage-Server heard it in the measuring round (#662): played with
+    /** This device's click as the Host heard it in the measuring round (#662): played with
      * the stored latency, so `offsetMs` near 0 means the stored value is right. */
     measured: z
       .object({

@@ -6,7 +6,7 @@ import { getAllDevices, putDevice, devicesChanges, switchDevicesWorkspace } from
 import { getDeviceId } from '../lib/deviceId'
 import { rememberDeviceName, rememberedDeviceName } from '../lib/ownDeviceName'
 import { firstDeviceName } from '../lib/guessDeviceName'
-import { getStageServerUrl } from '../lib/stageServer'
+import { getHostUrl } from '../lib/hostUrl'
 import { useDialogStore } from './useDialogStore'
 import { useWorkspaceStore } from './useWorkspaceStore'
 
@@ -24,12 +24,12 @@ interface DevicesState {
    * same placement/shape as useWorkspaceStore.ts's `rotateAccessCode` (reads this device's own
    * admin credentials off the active Workspace, POSTs, no optimistic local update - the live
    * `devicesChanges` subscription in `init()` already picks up the synced result). `null` means
-   * the call couldn't even be attempted (no Stage-Server, or this device isn't that workspace's
+   * the call couldn't even be attempted (no Host, or this device isn't that workspace's
    * admin) - the caller shows nothing more specific than "not possible right now" either way,
    * matching `rotateAccessCode`'s own contract. */
   revoke: (workspaceId: string, id: string, revoked: boolean) => Promise<boolean>
   /** Device Ledger cleanup: removes an entry (no block - it registers again on its next start).
-   * The Stage-Server refuses blocked devices and ones a hardware device runs on. */
+   * The Host refuses blocked devices and ones a hardware device runs on. */
   forget: (workspaceId: string, id: string) => Promise<ForgetResult>
 }
 
@@ -100,7 +100,7 @@ export const useDevicesStore = create<DevicesState>((set, get) => ({
     })
   },
   revoke: async (workspaceId, id, revoked) => {
-    const base = getStageServerUrl()
+    const base = getHostUrl()
     const workspace = useWorkspaceStore.getState().workspaces.find((w) => w.id === workspaceId)
     if (!base || !workspace?.isAdmin || !workspace.password || !workspace.username) {
       return false
@@ -116,12 +116,12 @@ export const useDevicesStore = create<DevicesState>((set, get) => ({
       return true
     } catch (err) {
       console.error('Failed to update device revoked status', err)
-      void useDialogStore.getState().alert('Aktion nicht möglich - Stage-Server nicht erreichbar.')
+      void useDialogStore.getState().alert('Aktion nicht möglich - Host nicht erreichbar.')
       return false
     }
   },
   forget: async (workspaceId, id) => {
-    const base = getStageServerUrl()
+    const base = getHostUrl()
     const workspace = useWorkspaceStore.getState().workspaces.find((w) => w.id === workspaceId)
     if (!base || !workspace?.isAdmin || !workspace.password || !workspace.username) return 'failed'
     try {

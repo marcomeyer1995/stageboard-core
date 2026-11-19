@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Runs the productive Stage-Server from another git ref for a test, and back (docs/03 "Redeploy").
+# Runs the productive Host from another git ref for a test, and back (docs/03 "Redeploy").
 #   tools/server/deploy-ref.sh status
 #   tools/server/deploy-ref.sh switch origin/<branch>     build that ref in the deploy worktree, restart
 #   tools/server/deploy-ref.sh revert                     back to origin/main

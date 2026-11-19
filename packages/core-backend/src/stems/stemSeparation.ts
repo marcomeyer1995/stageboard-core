@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url'
 import { ServerMessageError, type StemModel } from 'shared-types'
 
 /**
- * Stem separation (#9) on the Stage-Server: a Python script (`scripts/stem_separate.py`, Demucs +
+ * Stem separation (#9) on the Host: a Python script (`scripts/stem_separate.py`, Demucs +
  * PyAV) in its own virtualenv - `$STAGEBOARD_STATE_DIR/stems/venv`, overridable with STEMS_PYTHON.
  * Installed on demand like Piper (docs/03), ~1.1 GB; without it the stem-separation plugin still
  * installs and says so (Graceful Degradation). All the small things (2:50): 4 stems in ~45 s.

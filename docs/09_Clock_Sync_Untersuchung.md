@@ -142,7 +142,7 @@ Ohne echte MIDI-Hardware lässt sich die reale Feuerungsgenauigkeit trotzdem end
    Root/Kernelmodul nötig): `new easymidi.Input('<Name>', true)` - erscheint sofort als echter
    ALSA-Sequencer-Port, den auch Chromes WebMIDI-Implementierung sieht.
 2. **Mixed-Content-Falle:** Ein Test-Empfänger-Server für die Rückmeldung der Geräte muss über
-   HTTPS laufen (selbes Dev-Zertifikat wie der Stage-Server, `certs/dev-cert.pem`/`dev-key.pem`
+   HTTPS laufen (selbes Dev-Zertifikat wie der Host, `certs/dev-cert.pem`/`dev-key.pem`
    wiederverwenden) - eine `https://`-Seite blockiert `fetch()` zu `http://` lautlos
    ("Failed to fetch" ohne aussagekräftige Fehlermeldung), auch von Chrome auf demselben Rechner.
 3. Jedes Gerät führt unabhängig einen eigenen Mini-NTP-Burst gegen `/time` und wartet dann (per

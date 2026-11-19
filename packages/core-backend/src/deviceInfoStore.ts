@@ -1,7 +1,7 @@
 import { createHostDeviceInfo, type HostDeviceInfo } from 'sync-host'
 
 /**
- * What the Stage-Server knows about each device (the Device Ledger): the one store every host uses
+ * What the Host knows about each device (the Device Ledger): the one store every host uses
  * (`sync-host`'s `createHostDeviceInfo`, #949) - this module only holds the single instance of this process, and
  * the plain functions `pingLoop.ts` walks the devices with. In memory by design: a restart knows nothing about any
  * device until it hears from it again.

@@ -4,7 +4,7 @@ import { AppVersionSettings } from './AppVersionSettings'
 import { AudioSyncSettings } from './AudioSyncSettings'
 import { isNativeApp } from '../lib/native'
 import { DeviceNameSettings } from './DeviceNameSettings'
-import { StageServerSettings } from './StageServerSettings'
+import { HostUrlSettings } from './HostUrlSettings'
 import { SyncIndicator } from './SyncIndicator'
 import { TextSizeSettings } from './TextSizeSettings'
 import { StatusBarSettingsEntry } from './StatusBarSettings'
@@ -80,7 +80,7 @@ export function Page({ title, info, children }: { title: string; info: string; c
 
 /*
  * The former "Einstellungen" tab (5-6 screens) split by scope (docs/15 §9 step 3, Marco
- * 2026-10-16): what only this device does, and what the Stage-Server does for everyone. The short-
+ * 2026-10-16): what only this device does, and what the Host does for everyone. The short-
  * lived "Ton & Timing" tab is gone again: latency sits in "Latenz…" (Tablets & Handys), the
  * announcements switch with the Ansagen add-on, the Web Audio test switch in Diagnose. What "Geübt" / "Geprobt" count sits in the Bibliothek beside that sort.
  */
@@ -153,14 +153,14 @@ export function DeviceSettings() {
   )
 }
 
-/** System → Stage-Server: the connection, which band its hardware serves, and its backups. */
-export function StageServerPage() {
+/** System → Host: the connection, which band its hardware serves, and its backups. */
+export function HostPage() {
   const { t } = useTranslation('system')
   return (
     <Page title={t('server.title')} info={t('server.info')}>
       <Group title={t('server.connection')} info={t('server.connectionInfo')}>
         <Section title={t('server.server')}>
-          <StageServerSettings />
+          <HostUrlSettings />
         </Section>
         <Section title={t('server.sync')}>
           <SyncIndicator />

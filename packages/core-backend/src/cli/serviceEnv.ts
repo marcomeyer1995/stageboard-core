@@ -1,5 +1,5 @@
 /**
- * What the server-local commands (band:delete, admin:reset - #70) run with: the Stage-Server
+ * What the server-local commands (band:delete, admin:reset - #70) run with: the Host
  * service's own environment (database login, state folder), so they work from a plain shell
  * without retyping any credential.
  */

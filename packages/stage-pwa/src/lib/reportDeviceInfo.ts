@@ -1,16 +1,16 @@
 import type { DeviceInfoReport } from 'shared-types'
 import { useSyncStore } from '../store/useSyncStore'
-import { getStageServerUrl } from './stageServer'
+import { getHostUrl } from './hostUrl'
 
 /**
- * POSTs this device's OS/environment/sync-status to the Stage-Server (deviceInfoStore.ts),
+ * POSTs this device's OS/environment/sync-status to the Host (deviceInfoStore.ts),
  * which other tablets pick up via `fetchDeviceInfo.ts`'s poll, and stamps the server-observed
  * `ip`/`lastSeenAt` itself - useDeviceInfoReporter.ts calls this on an interval. Best-effort,
- * same as reportPresence.ts: if the Stage-Server is unreachable, nothing here needs recovering -
+ * same as reportPresence.ts: if the Host is unreachable, nothing here needs recovering -
  * only the Device Ledger misses out on knowing this device is around.
  */
 export async function reportDeviceInfo(workspaceId: string, report: DeviceInfoReport): Promise<void> {
-  const base = getStageServerUrl()
+  const base = getHostUrl()
   if (!base) return
   // The paired server does not have this band (#897): nothing there to report to.
   if (useSyncStore.getState().notOnServer[workspaceId]) return

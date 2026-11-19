@@ -5,7 +5,7 @@ export type PluginInstallationDoc = Doc<PluginInstallation>
 
 /**
  * Installed plugins replicate per workspace: installing one on any tablet distributes it
- * across the whole stage mesh (every other tablet and the Stage-Server) through the database.
+ * across the whole stage mesh (every other tablet and the Host) through the database.
  */
 const plugins = createWorkspaceCollection<PluginInstallation>('plugins')
 
