@@ -4,13 +4,13 @@ Rewritten 2026-11-10 (#784). Marco's decision: the three **operating tiers** of 
 
 ## 1. The three tiers
 
-The Host is a **role** ("host"), not a particular computer (docs/25 §2). What a band needs follows from who hosts:
+The host is a **role**, not a particular computer (docs/25 §2) - and since #962 there is no "server" kind of host: any device can take the role, and its power alone decides what it can do (`GET /host/capabilities`, docs/34). What a band needs follows from who hosts:
 
 | Tier | Who hosts | What works | Network |
 |---|---|---|---|
 | **1 Solo** | nobody - one device for itself | everything for one person: practice, prompter, track, click, count-in, announcements, MIDI and footswitches on the device, stage map of one device | none |
 | **2 Band host** | one of the band's own devices: a laptop or Windows tablet today, an Android device later (#781) | several devices in sync: shared show, master, band time, pushes, tracks distributed, post-gig report, stage map, add-ons whose helper runs on that host | Wi-Fi at the venue or the host's hotspot |
-| **3 Host** | a dedicated box (Linux) | everything of tier 2, plus the heavy helpers (stem separation, speech synthesis, scraping), USB audio out of the host itself (#25/#743), later host redundancy (#782) | own router/access point |
+| **3 Dedicated host** | a dedicated box (Linux; it was called the Stage-Server until #962) | everything of tier 2, plus the heavy helpers (stem separation, speech synthesis, scraping), USB audio out of the host itself (#25/#743), later host redundancy (#782) | own router/access point |
 
 Moving up a tier is not an export/import: every device already holds the whole band (PouchDB); the data replicates to the new host (docs/25 §2).
 
