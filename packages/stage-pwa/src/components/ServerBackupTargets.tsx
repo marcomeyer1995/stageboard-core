@@ -56,17 +56,17 @@ export function ServerBackupTargets() {
   const call = useCallback(
     async (path: string, extra: object = {}): Promise<unknown> => {
       const base = getStageServerUrl()
-      if (!base || !workspace?.username || !workspace.couchPassword) throw new Error(t('bk.noAdmin'))
+      if (!base || !workspace?.username || !workspace.password) throw new Error(t('bk.noAdmin'))
       const res = await fetch(`${base}/server/backup/${path}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ adminUsername: workspace.username, adminPassword: workspace.couchPassword, ...extra }),
+        body: JSON.stringify({ adminUsername: workspace.username, adminPassword: workspace.password, ...extra }),
       })
       const body = (await res.json().catch(() => null)) as { message?: string } | null
       if (!res.ok) throw new Error(serverText(body) ?? t('bk.httpError', { status: res.status }))
       return body
     },
-    [workspace?.username, workspace?.couchPassword, t],
+    [workspace?.username, workspace?.password, t],
   )
 
   const reload = useCallback(() => {

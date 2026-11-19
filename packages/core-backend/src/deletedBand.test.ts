@@ -28,7 +28,7 @@ describe('keeping a band that is being deleted (#362: a deleted band stays recov
 
     const file = await saveDeletedBand(config, 'band', dir, () => new Date('2026-11-19T10:30:00Z'))
 
-    expect(file).toBe(join(dir, 'deleted-bands', 'stageboard-band-2026-11-19_1030', 'couchdb', 'stageboard-band.json'))
+    expect(file).toBe(join(dir, 'deleted-bands', 'stageboard-band-2026-11-19_1030', 'databases', 'stageboard-band.json'))
     const dump = JSON.parse(readFileSync(file!, 'utf-8'))
     expect(dump.db).toBe('stageboard-band')
     expect(dump.security).toEqual({ admins: { roles: ['admin'] } })

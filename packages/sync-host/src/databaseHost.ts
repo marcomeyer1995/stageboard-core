@@ -1,25 +1,24 @@
 import { createSyncHost, type SyncDatabase, type SyncRequest, type SyncResponse } from './index.js'
 export type { UserCtx } from './writeGuard.js'
-import { basicCredentials, hex, pbkdf2, same } from './passwords.js'
+import { basicCredentials, same } from './passwords.js'
 import { createBandAccountStore } from './host/bandAccountStore.js'
 import { createBandAccounts, type BandAccounts } from './host/bandAccounts.js'
 import { createWriteGuard, inList, isServerAdmin, type SecurityDoc, type UserCtx } from './writeGuard.js'
 
 /**
- * A small CouchDB for StageBoard's own needs (docs/25, Host step 1, 2026-11-07): what core-backend's
- * `couch.ts` and the devices ask of a CouchDB, over PouchDB databases - so a laptop (and later an
- * Android tablet) can be the host without Docker. On top of the replication protocol (index.ts):
- * the server admin, user accounts with hashed passwords, the login check (`_session`), each band's
- * access rules (`_security`), the validation functions stored in a band (`_design/…`), and making,
- * listing and deleting databases. Plain WebCrypto, no Node API.
+ * The database host of a Stage-Server (docs/25, #960): what core-backend's database client and the devices ask of a
+ * database, over PouchDB databases - so a laptop, a Linux box and an Android tablet can all be the host with the same
+ * code. On top of the replication protocol (index.ts): the server admin, the login of a device (an `account:` document of
+ * the band's own database, `createBandAccounts`), each band's access rules (`_security`), the validation functions stored
+ * in a band (`_design/…`), and making, listing and deleting databases. Plain WebCrypto, no Node API.
  */
 
-export interface CouchHostOptions {
+export interface DatabaseHostOptions {
   /** Opens (creating if `create`) the stored database of this name - the host keeps the list. */
   storage: (name: string) => SyncDatabase
   /** The names of the databases that exist, and their bookkeeping. */
   catalog: Catalog
-  /** The server admin - core-backend's own account (COUCHDB_USER / COUCHDB_PASSWORD). */
+  /** The server admin - core-backend's own login (STAGEBOARD_DB_USER / STAGEBOARD_DB_PASSWORD). */
   admin: { user: string; password: string }
   longpollMaxMs?: number
 }
@@ -33,29 +32,17 @@ export interface Catalog {
 }
 
 
-const USERS = '_users'
 const SECURITY_ID = '_local/_security'
-const ITERATIONS = 10_000
 
 const json = (status: number, body: unknown): SyncResponse => ({ status, body })
 const error = (status: number, name: string, reason: string): SyncResponse => json(status, { error: name, reason })
 
-async function hashUser(doc: Record<string, unknown>): Promise<Record<string, unknown>> {
-  if (typeof doc.password !== 'string') return doc
-  const salt = hex(crypto.getRandomValues(new Uint8Array(16)).buffer)
-  const derived_key = await pbkdf2(doc.password, salt, ITERATIONS)
-  const { password: _plain, ...rest } = doc
-  void _plain
-  return { ...rest, password_scheme: 'pbkdf2', pbkdf2_prf: 'sha256', iterations: ITERATIONS, salt, derived_key }
-}
-
-
-export interface CouchHostRequest extends SyncRequest {
+export interface DatabaseHostRequest extends SyncRequest {
   /** The `Authorization` header as received. */
   authorization?: string
 }
 
-export function createCouchHost(options: CouchHostOptions) {
+export function createDatabaseHost(options: DatabaseHostOptions) {
   const opened = new Map<string, SyncDatabase>()
   const db = (name: string) => {
     let d = opened.get(name)
@@ -65,13 +52,10 @@ export function createCouchHost(options: CouchHostOptions) {
     }
     return d
   }
-  const exists = async (name: string) => name === USERS || (await options.catalog.list()).includes(name)
+  const exists = async (name: string) => (await options.catalog.list()).includes(name)
 
-  // A checked login is remembered for a while, like CouchDB does: an account copied from CouchDB has
-  // 600,000 PBKDF2 rounds - every sync request would otherwise wait for them. Forgotten when any
-  // account changes.
-  const verified = new Map<string, { ctx: UserCtx; until: number }>()
-  const VERIFIED_MS = 5 * 60_000
+  // The server admin's login is checked in constant time and needs no remembering; a device's login is remembered by
+  // its band's accounts (below) - PBKDF2 is slow, and every sync request would otherwise wait for it.
 
   // The accounts of each band, kept in the band's own database (#960). One instance per band: it keeps its own
   // remembered logins, so a login of one band is never taken for another's.
@@ -85,30 +69,17 @@ export function createCouchHost(options: CouchHostOptions) {
     return accounts
   }
 
-  /** Who is asking: the server admin, a user whose password checks out, a device login of the band whose database
-   * this is, or nobody. */
+  /** Who is asking: the server admin, a device login of the band whose database this is, anybody without a login (an
+   * anonymous request - it gets into nothing), or nobody (a login that does not check out). */
   const whoIs = async (authorization: string | undefined, dbName?: string): Promise<UserCtx | null> => {
-    const known = authorization ? verified.get(authorization) : undefined
-    if (known && known.until > Date.now()) return known.ctx
-    const ctx = await checkLogin(authorization)
-    if (ctx && ctx.name !== null && authorization) verified.set(authorization, { ctx, until: Date.now() + VERIFIED_MS })
-    if (ctx || !dbName?.startsWith('stageboard-') || !(await exists(dbName))) return ctx
-    return accountsOf(dbName).login(authorization)
-  }
-
-  const checkLogin = async (authorization: string | undefined): Promise<UserCtx | null> => {
     const creds = basicCredentials(authorization)
     if (!creds) return { name: null, roles: [] }
     if (creds.user === options.admin.user) return same(creds.password, options.admin.password) ? { name: creds.user, roles: ['_admin'] } : null
-    const doc = (await db(USERS)
-      .get(`org.couchdb.user:${creds.user}`)
-      .catch(() => null)) as { derived_key?: string; salt?: string; iterations?: number; pbkdf2_prf?: string; roles?: string[] } | null
-    if (!doc?.derived_key || !doc.salt) return null
-    const derived = await pbkdf2(creds.password, doc.salt, doc.iterations ?? ITERATIONS, doc.pbkdf2_prf)
-    return same(derived, doc.derived_key) ? { name: creds.user, roles: doc.roles ?? [] } : null
+    if (!dbName?.startsWith('stageboard-') || !(await exists(dbName))) return null
+    return accountsOf(dbName).login(authorization)
   }
 
-  /** The band's access rules as CouchDB gives them: `admins` and `members` only - the document they are kept in
+  /** The band's access rules as the database gives them: `admins` and `members` only - the document they are kept in
    * (its id and revision) is this host's own business and must not leak, or a backup could not put them back. */
   const security = async (name: string): Promise<SecurityDoc> => {
     const stored = (await db(name).get(SECURITY_ID).catch(() => null)) as (SecurityDoc & { _id?: string; _rev?: string }) | null
@@ -119,10 +90,9 @@ export function createCouchHost(options: CouchHostOptions) {
     return rules
   }
 
-  /** CouchDB 3: a database without members is for admins only. */
+  /** the database 3: a database without members is for admins only. */
   const access = async (name: string, ctx: UserCtx): Promise<'admin' | 'member' | null> => {
     if (isServerAdmin(ctx)) return 'admin'
-    if (name === USERS) return null
     const sec = await security(name)
     if (inList(ctx, sec.admins)) return 'admin'
     if (inList(ctx, sec.members)) return 'member'
@@ -132,7 +102,7 @@ export function createCouchHost(options: CouchHostOptions) {
   const guard = createWriteGuard({ open: (name) => db(name), security })
   const sync = createSyncHost({ open: (name) => db(name), longpollMaxMs: options.longpollMaxMs })
 
-  const handle = async (request: CouchHostRequest): Promise<SyncResponse> => {
+  const handle = async (request: DatabaseHostRequest): Promise<SyncResponse> => {
     const method = request.method.toUpperCase()
     const parts = request.path.split('/').filter((p) => p !== '')
     const [first, second] = parts
@@ -140,7 +110,6 @@ export function createCouchHost(options: CouchHostOptions) {
     if (!ctx) return error(401, 'unauthorized', 'Name or password is incorrect.')
 
     if (first === undefined) return sync(request)
-    if (first === '_session') return json(200, { ok: true, userCtx: ctx, info: { authenticated: ctx.name ? 'default' : undefined } })
     if (first === '_all_dbs') {
       if (!isServerAdmin(ctx)) return error(403, 'forbidden', 'Server admin only.')
       return json(200, (await options.catalog.list()).sort())
@@ -164,19 +133,6 @@ export function createCouchHost(options: CouchHostOptions) {
       return json(200, { ok: true })
     }
     if (!(await exists(name))) return error(404, 'not_found', 'Database does not exist.')
-
-    // Accounts: only the server admin reads and writes them; passwords are stored hashed.
-    if (name === USERS) {
-      if (!isServerAdmin(ctx)) return error(403, 'forbidden', 'Server admin only.')
-      if (method !== 'GET' && method !== 'HEAD') verified.clear()
-      if (method === 'PUT' && second?.startsWith('org.couchdb.user:')) {
-        const doc = await hashUser({ ...(request.body as Record<string, unknown>), _id: decodeURIComponent(second) })
-        const existing = await db(USERS).get(String(doc._id)).catch(() => null)
-        if (existing && doc._rev === undefined) return error(409, 'conflict', 'Document update conflict.')
-        return json(201, await db(USERS).put(doc as PouchDB.Core.PutDocument<object>))
-      }
-      return sync(request)
-    }
 
     const role = await access(name, ctx)
     if (!role) return ctx.name === null ? error(401, 'unauthorized', 'You are not authorized to access this db.') : error(403, 'forbidden', 'You are not allowed to access this db.')

@@ -14,7 +14,7 @@
  */
 import { randomInt } from 'node:crypto'
 import { pathToFileURL } from 'node:url'
-import { serverCouchConfig } from './serviceEnv.js'
+import { serverDatabaseConfig } from './serviceEnv.js'
 
 export interface Band {
   workspaceId: string
@@ -62,15 +62,15 @@ export function findMember(members: Member[], query: string, makeAdmin: boolean)
 }
 
 async function main(): Promise<void> {
-  const couch = serverCouchConfig()
+  const database = serverDatabaseConfig()
   // Imported after the environment is set, like the server itself.
   const { listWorkspaces, workspaceDbName } = await import('../workspaceProvisioning.js')
   const { createBandAccountsFor } = await import('../bandAccounts.js')
-  const { allDocs, putDocWithRetry } = await import('../couch.js')
+  const { allDocs, putDocWithRetry } = await import('../database.js')
   type ProfileDoc = { _id: string; _rev?: string; id?: string; name?: string; stageRoles?: string[] }
 
   const request = parseArgs(process.argv.slice(2))
-  const bands = await listWorkspaces(couch)
+  const bands = await listWorkspaces(database)
   if (request.kind === 'bands') {
     console.log('Bands auf diesem Stage-Server:')
     for (const band of bands) console.log(`  ${band.workspaceId}  ${band.workspaceName}`)
@@ -80,7 +80,7 @@ async function main(): Promise<void> {
   const band = findBand(bands, request.band)
   if (typeof band === 'string') throw new Error(band)
   const db = workspaceDbName(band.workspaceId)
-  const profiles = await allDocs<ProfileDoc>(couch, db, { startkey: 'profiles:', endkey: 'profiles:￰' })
+  const profiles = await allDocs<ProfileDoc>(database, db, { startkey: 'profiles:', endkey: 'profiles:￰' })
   const members: Member[] = profiles.map((p) => ({ profileId: p.id!, name: p.name ?? '?', isAdmin: (p.stageRoles ?? []).includes('admin') }))
 
   if (request.kind === 'members') {
@@ -93,16 +93,16 @@ async function main(): Promise<void> {
 
   const member = findMember(members, request.member, request.makeAdmin)
   if (typeof member === 'string') throw new Error(member)
-  const accounts = createBandAccountsFor(couch)(band.workspaceId)
+  const accounts = createBandAccountsFor(database)(band.workspaceId)
   const pin = randomInt(0, 10_000).toString().padStart(4, '0')
   await accounts.setPin(member.profileId, pin)
   if (!member.isAdmin) {
     await accounts.setAdmin(member.profileId, true)
     // The roster entry gets the admin role too, so the app shows it. Written with the server's
-    // own CouchDB admin login (the roster validator lets `_admin` through) and re-read on a
+    // own database admin login (the roster validator lets `_admin` through) and re-read on a
     // conflict - a plain putDoc ignored a 409 and the roster silently stayed non-admin while this
     // still said "ist jetzt Admin" (#421 review).
-    await putDocWithRetry<ProfileDoc>(couch, db, `profiles:${member.profileId}`, (profile) => {
+    await putDocWithRetry<ProfileDoc>(database, db, `profiles:${member.profileId}`, (profile) => {
       if (!profile) throw new Error(`Roster-Eintrag von ${member.name} fehlt - Rechte gesetzt, aber in der App nicht als Admin sichtbar.`)
       return { ...profile, stageRoles: [...new Set([...(profile.stageRoles ?? []), 'admin'])] }
     })

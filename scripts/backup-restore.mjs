@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Restores CouchDB databases from a backup generation written by scripts/backup.mjs (#363).
+ * Restores databases from a backup generation written by scripts/backup.mjs (#363).
  *
  *   node scripts/backup-restore.mjs <generation-dir> <db|--all>
  *
@@ -8,9 +8,9 @@
  * `new_edits: false` - the stored revisions (and their history) come back exactly, so devices
  * that still have the band replicate against it as if nothing happened. Refuses to write into a
  * database that already has documents unless `--force` is given (merging revision trees is
- * what CouchDB does then, but it should be a deliberate step).
+ * what the database does then, but it should be a deliberate step).
  *
- * Target CouchDB like core-backend: COUCHDB_URL / COUCHDB_USER / COUCHDB_PASSWORD.
+ * Target the database like core-backend: STAGEBOARD_DB_URL / STAGEBOARD_DB_USER / STAGEBOARD_DB_PASSWORD.
  * Backing tracks etc.: unpack `data.tar.gz` next to the old data folder (see docs/03).
  */
 import { readFileSync, readdirSync } from 'node:fs'
@@ -18,15 +18,15 @@ import { join } from 'node:path'
 
 const [generation, which, ...flags] = process.argv.slice(2)
 const force = flags.includes('--force')
-const couch = {
-  url: (process.env.COUCHDB_URL ?? 'http://localhost:5984').replace(/\/$/, ''),
-  auth: 'Basic ' + Buffer.from(`${process.env.COUCHDB_USER ?? 'admin'}:${process.env.COUCHDB_PASSWORD ?? 'admin'}`).toString('base64'),
+const database = {
+  url: (process.env.STAGEBOARD_DB_URL ?? 'http://localhost:5984').replace(/\/$/, ''),
+  auth: 'Basic ' + Buffer.from(`${process.env.STAGEBOARD_DB_USER ?? 'admin'}:${process.env.STAGEBOARD_DB_PASSWORD ?? 'admin'}`).toString('base64'),
 }
 
 async function request(method, path, body) {
-  const res = await fetch(`${couch.url}${path}`, {
+  const res = await fetch(`${database.url}${path}`, {
     method,
-    headers: { Authorization: couch.auth, 'Content-Type': 'application/json' },
+    headers: { Authorization: database.auth, 'Content-Type': 'application/json' },
     body: body === undefined ? undefined : JSON.stringify(body),
   })
   const json = await res.json().catch(() => ({}))
@@ -38,7 +38,7 @@ async function restore(file) {
   const db = encodeURIComponent(dump.db)
   const created = await request('PUT', `/${db}`)
   if (created.status !== 201 && created.status !== 412) throw new Error(`Could not create ${dump.db}: HTTP ${created.status}`)
-  if (created.status === 412 && !force && dump.db !== '_users') {
+  if (created.status === 412 && !force) {
     const info = await request('GET', `/${db}`)
     if (info.json.doc_count > 0) throw new Error(`${dump.db} already has ${info.json.doc_count} documents - add --force to merge`)
   }
@@ -68,7 +68,7 @@ async function restore(file) {
 
 async function main() {
   if (!generation || !which) throw new Error('Usage: backup-restore.mjs <generation-dir> <db|--all> [--force]')
-  const dir = join(generation, 'couchdb')
+  const dir = join(generation, 'databases')
   const files = which === '--all' ? readdirSync(dir).filter((f) => f.endsWith('.json')) : [`${which}.json`]
   for (const file of files) await restore(join(dir, file))
 }

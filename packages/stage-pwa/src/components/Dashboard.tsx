@@ -180,7 +180,7 @@ export function Dashboard() {
   // Persisting from onDragStop/onResizeStop themselves, not from the grid's general
   // onLayoutChange - that fires for ANY layout-prop change, including ones this component
   // caused itself (e.g. Zurücksetzen rewriting the active dashboard while still in edit
-  // mode). Writing those back too created a loop: our own write became a CouchDB change,
+  // mode). Writing those back too created a loop: our own write became a database change,
   // which updated the layouts prop, which the grid dutifully "changed" again, which got
   // written back again - editing had to stop or the dashboard had to switch to break it.
   // onDragStop/onResizeStop only fire once, at the true end of an actual gesture.
@@ -409,7 +409,7 @@ export function Dashboard() {
               // document, and that write's echo back through the local changes() feed hands
               // Dashboard a fresh `layouts` object for the *same* active.id - previously not
               // a remount at all, just a bare prop change on an already-mounted instance,
-              // which is exactly the class of bug above. A remote CouchDB pull landing
+              // which is exactly the class of bug above. A remote the database pull landing
               // moments after initial load hits the identical shape (found live, 2026-09-15:
               // "widgets jumping and resizing", specifically right after initial load or
               // right after adding a widget - never during otherwise-idle normal use).

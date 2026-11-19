@@ -1,8 +1,8 @@
-/** CouchDB's password keys (PBKDF2, salt used as text) - WebCrypto, so the same code runs in Node and in the app. */
+/** the database's password keys (PBKDF2, salt used as text) - WebCrypto, so the same code runs in Node and in the app. */
 
 export const hex = (bytes: ArrayBuffer) => [...new Uint8Array(bytes)].map((b) => b.toString(16).padStart(2, '0')).join('')
 
-/** `prf` as CouchDB names it: 'sha256' (CouchDB 3.4+) or 'sha' (SHA-1, older accounts). */
+/** `prf` as the database names it: 'sha256' (the database 3.4+) or 'sha' (SHA-1, older accounts). */
 export async function pbkdf2(password: string, salt: string, iterations: number, prf: string = 'sha256'): Promise<string> {
   const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveBits'])
   const hash = prf === 'sha' ? 'SHA-1' : 'SHA-256'

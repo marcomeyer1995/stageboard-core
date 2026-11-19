@@ -1,5 +1,5 @@
 import { createBandAccounts, type AccountDoc, type AccountStore, type BandAccounts } from 'sync-host'
-import { allDocs, getDoc, putDocWithRetry, type CouchConfig, type CouchDoc } from './couch.js'
+import { allDocs, getDoc, putDocWithRetry, type DatabaseConfig, type DatabaseDoc } from './database.js'
 import { workspaceDbName } from './workspaceProvisioning.js'
 
 /**
@@ -8,20 +8,20 @@ import { workspaceDbName } from './workspaceProvisioning.js'
  * database host signs devices in with, and the tablet writes. One instance per band, so the remembered logins
  * of one band are never another's, and a change made here is forgotten at once.
  */
-type AccountCouchDoc = AccountDoc & CouchDoc
+type AccountDatabaseDoc = AccountDoc & DatabaseDoc
 
-function storeFor(config: CouchConfig, db: string): AccountStore {
+function storeFor(config: DatabaseConfig, db: string): AccountStore {
   return {
     // A database error is an error, never "no such account": it must not look like a person without a PIN.
-    get: (id) => getDoc<AccountCouchDoc>(config, db, id),
-    put: (doc) => putDocWithRetry<AccountCouchDoc>(config, db, doc._id, (existing) => ({ ...doc, ...(existing?._rev ? { _rev: existing._rev } : {}) })),
+    get: (id) => getDoc<AccountDatabaseDoc>(config, db, id),
+    put: (doc) => putDocWithRetry<AccountDatabaseDoc>(config, db, doc._id, (existing) => ({ ...doc, ...(existing?._rev ? { _rev: existing._rev } : {}) })),
     list: (prefix) => allDocs<AccountDoc>(config, db, { startkey: prefix, endkey: `${prefix}￰` }).catch(() => []),
   }
 }
 
 export type BandAccountsFor = (workspaceId: string) => BandAccounts
 
-export function createBandAccountsFor(config: CouchConfig, options: { iterations?: number } = {}): BandAccountsFor {
+export function createBandAccountsFor(config: DatabaseConfig, options: { iterations?: number } = {}): BandAccountsFor {
   const perBand = new Map<string, BandAccounts>()
   return (workspaceId) => {
     let accounts = perBand.get(workspaceId)

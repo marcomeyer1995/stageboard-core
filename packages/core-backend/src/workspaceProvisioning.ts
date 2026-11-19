@@ -8,9 +8,9 @@ import {
   putDoc,
   putDocWithRetry,
   putSecurity,
-  type CouchConfig,
-  type CouchDoc,
-} from './couch.js'
+  type DatabaseConfig,
+  type DatabaseDoc,
+} from './database.js'
 import { saveDeletedBand } from './deletedBand.js'
 import { recordDeletedWorkspace } from './provisioningAuth.js'
 
@@ -21,15 +21,12 @@ import { workspaceDbName } from 'sync-host'
 const PROFILE_ID_PREFIX = 'profiles:'
 
 /**
- * `_design/roster`'s validator, set at workspace founding and brought up to date at every server
- * start (`updateRosterValidators`, for rules added later) - a role check, not a name check, so it never needs to change as
- * members are added/removed/promoted. `userCtx.roles` reflects the authenticated user's own
- * CouchDB roles (whatever `createUser`/`setUserRoles` gave them), the same mechanism a true
- * CouchDB server admin's `_admin` role is exposed through (verified live against a real
- * instance - a *database*-level `_security.admins` entry, unlike a server admin, is NOT
- * automatically exempt from validate_doc_update, so this still has to check explicitly - it
- * just checks a role now instead of one hardcoded username). Deliberately plain ES5 - runs
- * inside CouchDB's own sandboxed JS engine, not Node.
+ * `_design/roster`'s validator, set at workspace founding and brought up to date at every server start
+ * (`updateRosterValidators`, for rules added later) - a role check, not a name check, so it never needs to change as
+ * members are added, removed or promoted. `userCtx.roles` carries the roles of the login that makes the write: the
+ * `member` / `admin` roles of a device's `account:` document, or `_admin` for the Stage-Server itself. A database-level
+ * `_security.admins` entry is not exempt from a validator, so every rule checks its role explicitly. Deliberately plain
+ * ES5 - the host runs it in a sandbox of its own, not as Node code.
  */
 export const ROSTER_VALIDATOR_SOURCE = `function(newDoc, oldDoc, userCtx) {
   var isAdmin = userCtx.roles.indexOf('admin') !== -1 || userCtx.roles.indexOf('_admin') !== -1;
@@ -64,15 +61,15 @@ export const ROSTER_VALIDATOR_SOURCE = `function(newDoc, oldDoc, userCtx) {
  * written once at founding only, so bands founded before a rule was added (protected dashboard
  * templates, #16) would never get it. Returns the bands whose validator was replaced.
  */
-export async function updateRosterValidators(config: CouchConfig, onError?: (db: string, err: unknown) => void): Promise<string[]> {
+export async function updateRosterValidators(config: DatabaseConfig, onError?: (db: string, err: unknown) => void): Promise<string[]> {
   const updated: string[] = []
   for (const db of await listDbs(config)) {
     if (!db.startsWith('stageboard-')) continue
     // One band's database failing must not leave every band after it on the old rules (#401 review).
     try {
-      const current = await getDoc<CouchDoc & { validate_doc_update?: string }>(config, db, '_design/roster')
+      const current = await getDoc<DatabaseDoc & { validate_doc_update?: string }>(config, db, '_design/roster')
       if (current === null || current.validate_doc_update === ROSTER_VALIDATOR_SOURCE) continue
-      await putDocWithRetry<CouchDoc & { validate_doc_update?: string }>(config, db, '_design/roster', (existing) => ({
+      await putDocWithRetry<DatabaseDoc & { validate_doc_update?: string }>(config, db, '_design/roster', (existing) => ({
         ...(existing ?? { _id: '_design/roster' }),
         validate_doc_update: ROSTER_VALIDATOR_SOURCE,
       }))
@@ -98,11 +95,11 @@ export interface WorkspaceCredentialPair {
 
 /**
  * Creates a workspace: its database, a `_security` doc, a `_design/roster` validator, the
- * founding device's own personal CouchDB account (`roles: ['member', 'admin']` - the founder is
+ * founding device's own personal account (`roles: ['member', 'admin']` - the founder is
  * this band's first admin, same "first profile is admin" rule `useProfilesStore.ts`'s `create`
  * already applies to the roster doc itself), and its standing access code (`workspace:access`
  * doc, see `getOrCreateAccessCode` below - 2026-09-01 WiFi-style redesign). `config` must carry
- * admin credentials - only core-backend's own trusted `couch` config is ever passed here, never
+ * admin credentials - only core-backend's own trusted `database` config is ever passed here, never
  * anything reachable from a tablet.
  *
  * `_security` and the roster validator are role-based (see `ROSTER_VALIDATOR_SOURCE` above) - every
@@ -115,7 +112,7 @@ export interface WorkspaceCredentialPair {
  * instead, since silently changing it would lock out a tablet that already paired with it.
  */
 export async function provisionWorkspace(
-  config: CouchConfig,
+  config: DatabaseConfig,
   workspaceId: string,
   founderId: string,
   workspaceName: string,
@@ -142,7 +139,7 @@ export async function provisionWorkspace(
 
 const ACCESS_CODE_DOC_ID = 'workspace:access'
 
-interface AccessCodeDoc extends CouchDoc {
+interface AccessCodeDoc extends DatabaseDoc {
   code: string
   name: string
   /** #85 - absent means 'device'. */
@@ -160,12 +157,12 @@ function generateAccessCode(): string {
 /** Always writes a fresh code, overwriting any existing doc's - the initial creation at
  * `provisionWorkspace` time, and the "lazy backfill" fallback in `getOrCreateAccessCode` below
  * share this. Not exported: every real caller goes through one of those two, which know exactly
- * when a fresh doc is actually warranted. Uses `putDocWithRetry` (couch.ts) rather than a plain
- * fetch-then-put - CouchDB rejects a PUT to an existing doc with no `_rev` as a 409 (confirmed
+ * when a fresh doc is actually warranted. Uses `putDocWithRetry` (database.ts) rather than a plain
+ * fetch-then-put - the database rejects a PUT to an existing doc with no `_rev` as a 409 (confirmed
  * against a real instance; the mocked tests here don't catch this on their own), and unlike
  * `rotateAccessCode`/`renameWorkspace` below there's no separate earlier read whose `_rev` this
  * could reuse, so `putDocWithRetry`'s own fetch-then-put is exactly what's needed here too. */
-async function createAccessCodeDoc(config: CouchConfig, workspaceId: string, name: string): Promise<string> {
+async function createAccessCodeDoc(config: DatabaseConfig, workspaceId: string, name: string): Promise<string> {
   const code = generateAccessCode()
   await putDocWithRetry<AccessCodeDoc>(config, workspaceDbName(workspaceId), ACCESS_CODE_DOC_ID, (existing) => ({
     _id: ACCESS_CODE_DOC_ID,
@@ -180,7 +177,7 @@ async function createAccessCodeDoc(config: CouchConfig, workspaceId: string, nam
 /** Reads a workspace's standing access code and display name - `null` if this workspace
  * predates the 2026-09-01 redesign and has never had one created (see `getOrCreateAccessCode`
  * below for the lazy-backfill path that actually every real caller uses). */
-export async function getAccessCode(config: CouchConfig, workspaceId: string): Promise<{ code: string; name: string } | null> {
+export async function getAccessCode(config: DatabaseConfig, workspaceId: string): Promise<{ code: string; name: string } | null> {
   const doc = await getDoc<AccessCodeDoc>(config, workspaceDbName(workspaceId), ACCESS_CODE_DOC_ID)
   return doc ? { code: doc.code, name: doc.name } : null
 }
@@ -199,7 +196,7 @@ export async function getAccessCode(config: CouchConfig, workspaceId: string): P
  * by ID even if the display name isn't pretty.
  */
 export async function getOrCreateAccessCode(
-  config: CouchConfig,
+  config: DatabaseConfig,
   workspaceId: string,
   fallbackName: string,
 ): Promise<{ code: string; name: string }> {
@@ -215,7 +212,7 @@ export async function getOrCreateAccessCode(
  * Reads the existing name from the same fetch `putDocWithRetry` already needs for `_rev` -
  * rather than a separate `getAccessCode` call first - so this costs exactly one round trip per
  * attempt, not two. */
-export async function rotateAccessCode(config: CouchConfig, workspaceId: string): Promise<string> {
+export async function rotateAccessCode(config: DatabaseConfig, workspaceId: string): Promise<string> {
   const code = generateAccessCode()
   await putDocWithRetry<AccessCodeDoc>(config, workspaceDbName(workspaceId), ACCESS_CODE_DOC_ID, (existing) => ({
     _id: ACCESS_CODE_DOC_ID,
@@ -236,7 +233,7 @@ export async function rotateAccessCode(config: CouchConfig, workspaceId: string)
  * old, client-only `renameWorkspace`. A workspace with no `workspace:access` doc yet
  * (pre-2026-09-01, never backfilled) gets one created on the spot, same lazy-backfill approach
  * as `getOrCreateAccessCode`. */
-export async function renameWorkspace(config: CouchConfig, workspaceId: string, name: string): Promise<void> {
+export async function renameWorkspace(config: DatabaseConfig, workspaceId: string, name: string): Promise<void> {
   await putDocWithRetry<AccessCodeDoc>(config, workspaceDbName(workspaceId), ACCESS_CODE_DOC_ID, (existing) => ({
     _id: ACCESS_CODE_DOC_ID,
     _rev: existing?._rev,
@@ -247,7 +244,7 @@ export async function renameWorkspace(config: CouchConfig, workspaceId: string, 
 }
 
 /** Sets who holds the Master-Token (#85) on the band's access doc, keeping code and name. */
-export async function setMasterMode(config: CouchConfig, workspaceId: string, masterMode: 'device' | 'account'): Promise<void> {
+export async function setMasterMode(config: DatabaseConfig, workspaceId: string, masterMode: 'device' | 'account'): Promise<void> {
   await putDocWithRetry<AccessCodeDoc>(config, workspaceDbName(workspaceId), ACCESS_CODE_DOC_ID, (existing) => ({
     _id: ACCESS_CODE_DOC_ID,
     _rev: existing?._rev,
@@ -261,8 +258,8 @@ export async function setMasterMode(config: CouchConfig, workspaceId: string, ma
  * `GET /workspaces`, the WiFi "which networks are in range" listing, public/no auth by design
  * (see `WorkspaceSummarySchema`'s doc comment - a band's name alone isn't sensitive on a LAN
  * the Stage-Server itself controls). Filters `_all_dbs` down to `stageboard-*` databases
- * (matching `workspaceDbName`), excluding CouchDB's own system databases. */
-export async function listWorkspaces(config: CouchConfig): Promise<Array<{ workspaceId: string; workspaceName: string }>> {
+ * (matching `workspaceDbName`), excluding the database's own system databases. */
+export async function listWorkspaces(config: DatabaseConfig): Promise<Array<{ workspaceId: string; workspaceName: string }>> {
   const dbs = await listDbs(config)
   const workspaceIds = dbs.filter((db) => db.startsWith('stageboard-')).map((db) => db.slice('stageboard-'.length))
 
@@ -280,7 +277,7 @@ export async function listWorkspaces(config: CouchConfig): Promise<Array<{ works
  * (`saveDeletedBand`, #362) - the database host destroys what it deletes - and a band whose copy could not be made is
  * not deleted.
  */
-export async function deprovisionWorkspace(config: CouchConfig, workspaceId: string): Promise<void> {
+export async function deprovisionWorkspace(config: DatabaseConfig, workspaceId: string): Promise<void> {
   await saveDeletedBand(config, workspaceId, process.env.STAGEBOARD_STATE_DIR ?? './data')
   await deleteDb(config, workspaceDbName(workspaceId))
   recordDeletedWorkspace(workspaceId)

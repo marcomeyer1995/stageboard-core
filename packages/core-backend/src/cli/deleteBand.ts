@@ -1,18 +1,18 @@
 /**
  * Server-local command to delete a band (#70 break-glass, first piece). Deleting through the
  * app needs that band's admin login - useless for leftovers nobody can log into any more (test
- * bands from development). This runs on the Stage-Server itself, with the server's own CouchDB
+ * bands from development). This runs on the Stage-Server itself, with the server's own the database
  * configuration, and never prints any credential.
  *
  *   npm run band:delete -w core-backend                                 # list bands
  *   npm run band:delete -w core-backend -- <band-id> --confirm "<name>" # delete one
  *
  * Guards: the exact band name has to be typed (like "Band für alle löschen" in the app), and the
- * band whose hardware the server currently serves can't be deleted. CouchDB keeps deleted
+ * band whose hardware the server currently serves can't be deleted. the database keeps deleted
  * databases recoverable (docs/03 §0b).
  */
 import { pathToFileURL } from 'node:url'
-import { serverCouchConfig } from './serviceEnv.js'
+import { serverDatabaseConfig } from './serviceEnv.js'
 
 export interface Band {
   workspaceId: string
@@ -49,12 +49,12 @@ export function planDeletion(args: string[], bands: Band[], activeWorkspaceId: s
 }
 
 async function main(): Promise<void> {
-  const couch = serverCouchConfig()
+  const database = serverDatabaseConfig()
   // Imported after the environment is set, like the server itself.
   const { listWorkspaces, deprovisionWorkspace } = await import('../workspaceProvisioning.js')
   const { readPersistedActiveWorkspace } = await import('../activeWorkspaceStateStore.js')
 
-  const bands = await listWorkspaces(couch)
+  const bands = await listWorkspaces(database)
   const active = readPersistedActiveWorkspace()
   const plan = planDeletion(process.argv.slice(2), bands, active)
 
@@ -71,9 +71,9 @@ async function main(): Promise<void> {
     process.exitCode = 1
     return
   }
-  await deprovisionWorkspace(couch, plan.band.workspaceId)
+  await deprovisionWorkspace(database, plan.band.workspaceId)
   console.log(`Gelöscht: "${plan.band.workspaceName}" (${plan.band.workspaceId}).`)
-  console.log('CouchDB hält die Datenbank wiederherstellbar - Ablauf in docs/03 §0b.')
+  console.log('the database hält die Datenbank wiederherstellbar - Ablauf in docs/03 §0b.')
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {

@@ -72,7 +72,7 @@ export function SwitchServerBandWizard({
     }
 
     const cached = useWorkspaceStore.getState().workspaces.find((w) => w.id === targetBand.workspaceId)
-    if (cached?.username && cached.couchPassword) {
+    if (cached?.username && cached.password) {
       await activateProfile(targetBand.workspaceId, admin.profileId, admin.pin)
       setActiveWorkspace(targetBand.workspaceId)
     } else if (admin.code) {

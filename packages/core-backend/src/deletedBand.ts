@@ -1,16 +1,16 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { dbUrl, type CouchConfig } from './couch.js'
+import { dbUrl, type DatabaseConfig } from './database.js'
 import { workspaceDbName } from 'sync-host'
 
 /**
- * Keeps a band that is about to be deleted (#362: a deleted band stays recoverable). The old CouchDB kept deleted
+ * Keeps a band that is about to be deleted (#362: a deleted band stays recoverable). The old the database kept deleted
  * databases as files; the built-in database host destroys them, so every delete writes a copy first - all documents and
  * the access rules - in the format of `scripts/backup.mjs`, so `scripts/backup-restore.mjs <dir> <db>` brings the band
  * back. Without revision history (the current documents only). The copy holds logins and the access code: owner only.
  * Returns the file, or null when there is no such database (nothing to keep).
  */
-export async function saveDeletedBand(config: CouchConfig, workspaceId: string, stateDir: string, now: () => Date = () => new Date()): Promise<string | null> {
+export async function saveDeletedBand(config: DatabaseConfig, workspaceId: string, stateDir: string, now: () => Date = () => new Date()): Promise<string | null> {
   const db = workspaceDbName(workspaceId)
   const authorization = `Basic ${Buffer.from(`${config.user}:${config.password}`).toString('base64')}`
   const get = (path: string) => fetch(`${dbUrl(config, db)}${path}`, { headers: { Authorization: authorization } })
@@ -23,7 +23,7 @@ export async function saveDeletedBand(config: CouchConfig, workspaceId: string, 
 
   const stamp = now().toISOString().slice(0, 16).replace('T', '_').replace(':', '')
   const generation = join(stateDir, 'deleted-bands', `${db}-${stamp}`)
-  const dir = join(generation, 'couchdb')
+  const dir = join(generation, 'databases')
   mkdirSync(dir, { recursive: true, mode: 0o700 })
   const file = join(dir, `${db}.json`)
   writeFileSync(file, JSON.stringify({ db, security, docs }), { mode: 0o600 })

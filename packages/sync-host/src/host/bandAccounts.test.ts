@@ -67,7 +67,7 @@ describe('a device login', () => {
     expect([...store.docs.keys()].sort()).toEqual(['account:stageboard-band-p1~d1', 'account:stageboard-band-p1~d2'])
   })
 
-  it('also works with a login made by an older CouchDB (SHA-1)', async () => {
+  it('also works with a login made by an older the database (SHA-1)', async () => {
     const { pbkdf2Sync } = await import('node:crypto')
     const salt = 'a1b2c3d4e5f60718293a4b5c6d7e8f90'
     store.docs.set('account:stageboard-band-p1~old', {

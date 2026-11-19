@@ -81,7 +81,7 @@ export function VerifyWorkspaceAdmin({
         return
       }
       const local = useWorkspaceStore.getState().workspaces.find((w) => w.id === workspaceId)
-      if (local?.isAdmin && local.couchPassword && local.username) {
+      if (local?.isAdmin && local.password && local.username) {
         const accessCode = await getAccessCode(workspaceId)
         const fetchedRoster = accessCode ? await fetchRoster(workspaceId, accessCode.code) : null
         if (accessCode && fetchedRoster) {

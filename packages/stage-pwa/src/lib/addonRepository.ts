@@ -39,12 +39,12 @@ const sources = createWorkspaceCollection<AddonSource>('addon-sources')
 async function callHost<T>(workspaceId: string, action: 'preview' | 'install', body: object): Promise<T> {
   const base = getStageServerUrl()
   const workspace = useWorkspaceStore.getState().workspaces.find((w) => w.id === workspaceId)
-  if (!base || !workspace?.username || !workspace.couchPassword) throw new RepositoryAddonError('offline')
+  if (!base || !workspace?.username || !workspace.password) throw new RepositoryAddonError('offline')
   let response: Response
   try {
     response = await fetch(`${base.replace(/\/$/, '')}/workspaces/${encodeURIComponent(workspaceId)}/addons/${action}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Basic ${btoa(`${workspace.username}:${workspace.couchPassword}`)}` },
+      headers: { 'Content-Type': 'application/json', Authorization: `Basic ${btoa(`${workspace.username}:${workspace.password}`)}` },
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(action === 'install' ? 180_000 : 30_000),
     })

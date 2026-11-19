@@ -3,13 +3,13 @@ import { getStageServerUrl } from './stageServer'
 import { trackedSync, type TrackedSync } from './trackedSync'
 
 /**
- * One CouchDB database per workspace, holding every document kind (songs, setlists,
- * dashboards, ...) discriminated by an `id:` prefix on each doc's CouchDB `_id` (see
+ * One database per workspace, holding every document kind (songs, setlists,
+ * dashboards, ...) discriminated by an `id:` prefix on each doc's the database `_id` (see
  * workspaceCollection.ts). Replaces the previous one-database-per-collection model: every
  * collection used to run its own independent live `.sync()`, and once caught up, a live
- * PouchDB pull holds a permanently-open `_changes` long-poll connection to CouchDB. Chrome
- * caps concurrent connections per origin at 6 under HTTP/1.1 - which is all CouchDB can ever
- * speak, confirmed via TLS ALPN negotiation (no HTTP/2 support planned by the CouchDB
+ * PouchDB pull holds a permanently-open `_changes` long-poll connection to the database. Chrome
+ * caps concurrent connections per origin at 6 under HTTP/1.1 - which is all the database can ever
+ * speak, confirmed via TLS ALPN negotiation (no HTTP/2 support planned by the database
  * project) - so 8 independently-synced collections meant at least one was always starved of
  * a connection, permanently stuck reporting "active" (this is what caused the sync-status
  * indicator to get stuck on "Synchronisiere…" and never resolve). One database, one sync,
@@ -26,7 +26,7 @@ export function localDbName(workspaceId: string): string {
  * "remove this band from my device without deleting it for everyone" (BandManagementView.tsx's
  * "Von diesem Gerät entfernen", 2026-09-02 thirteenth follow-up, at Marco's explicit request:
  * "welche Möglichkeit gibt es, gerade einen Band-Workspace von seinem Gerät zu löschen, aber
- * nicht den kompletten Workspace auf dem Server"). Never touches the remote CouchDB database at
+ * nicht den kompletten Workspace auf dem Server"). Never touches the remote database at
  * all - `deleteWorkspace` (useWorkspaceStore.ts) is the separate, admin-only, actually-
  * destructive-for-everyone action for that. Re-joining later just re-pulls everything fresh
  * from the server, so this is fully recoverable, not a real "delete." A fresh `PouchDB(name)`
@@ -39,14 +39,14 @@ export async function destroyLocalWorkspaceDb(workspaceId: string): Promise<void
 }
 
 /**
- * The workspace's remote CouchDB database URL, reached through core-backend's own origin
- * rather than CouchDB's own port directly (2026-09-02 fourth follow-up, at Marco's explicit
+ * The workspace's remote database URL, reached through core-backend's own origin
+ * rather than the database's own port directly (2026-09-02 fourth follow-up, at Marco's explicit
  * request). Browsers trust a self-signed cert per *origin*, not per-certificate - pointing
- * PouchDB at a *separate* CouchDB port meant every new device needed a second manual
+ * PouchDB at a *separate* the database port meant every new device needed a second manual
  * "trotzdem fortfahren" tap beyond the one for the Stage-Server API/PWA itself
  * (docs/03 section 0a). core-backend's `/db` prefix (`index.ts`, `@fastify/http-proxy`) is a
  * pure passthrough - this device's own per-person Basic Auth (`startWorkspaceSync`'s `auth`
- * below) travels straight through to real CouchDB unmodified, so nothing about who can read or
+ * below) travels straight through to real the database unmodified, so nothing about who can read or
  * write what changes; only the network hop does. `null` when no Stage-Server is configured at
  * all (Tier-A local-only-founding follow-up) - same as before.
  */
@@ -91,7 +91,7 @@ export function getWorkspaceDb<T extends object = Record<string, unknown>>(
  * why this replaced 8 independent per-collection syncs. Called once from App.tsx, gated
  * there on the active workspace's stored credentials already being present.
  *
- * `auth` is the workspace-scoped CouchDB user's credentials (see #12) - this device never
+ * `auth` is the workspace-scoped database login's credentials (see #12) - this device never
  * holds admin credentials, so unlike the old admin-authenticated version, it can no longer
  * create the remote database itself (that needs the database's admin login): the database
  * only ever comes into existence via core-backend's `POST /workspaces` route, which runs with it.

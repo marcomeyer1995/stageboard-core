@@ -9,7 +9,7 @@ import {
   type HardwareId,
   type LogicalDevice,
 } from 'shared-types'
-import { putDoc, putDocWithRetry, type CouchConfig } from './couch.js'
+import { putDoc, putDocWithRetry, type DatabaseConfig } from './database.js'
 import * as discoverySessionStore from './discoverySessionStore.js'
 import { workspaceDbName } from './workspaceProvisioning.js'
 
@@ -21,7 +21,7 @@ const DEVICE_TRANSPORT_CONFIG_PREFIX = 'device-transport-config:'
 const LOGICAL_DEVICE_PREFIX = 'logical-devices:'
 
 export interface MidiWatcherOptions {
-  couch: CouchConfig
+  database: DatabaseConfig
   workspaceId: string
   log: { info: (msg: string, meta?: Record<string, unknown>) => void; error: (msg: string, meta?: Record<string, unknown>) => void }
 }
@@ -46,7 +46,7 @@ function detectedFor(portName: string): DetectedHardware {
  * tablet's useDiscoveryTrigger.ts would.
  */
 export function createMidiWatcher(options: MidiWatcherOptions): MidiWatcherHandle {
-  const { couch, workspaceId, log } = options
+  const { database, workspaceId, log } = options
   let stopped = false
   let triggerListener: { input: Input; hardwareKey: string } | null = null
   const written = new Set<string>() // hardwareKeys already written, so a role only gets written once
@@ -114,7 +114,7 @@ export function createMidiWatcher(options: MidiWatcherOptions): MidiWatcherHandl
           transportId: null,
           values: { midiOutputId: output.getPortName(outputIndex) },
         })
-        void putDoc(couch, workspaceDbName(workspaceId), { ...doc, _id: `${DEVICE_TRANSPORT_CONFIG_PREFIX}${doc.id}` }).catch((err) =>
+        void putDoc(database, workspaceDbName(workspaceId), { ...doc, _id: `${DEVICE_TRANSPORT_CONFIG_PREFIX}${doc.id}` }).catch((err) =>
           log.error('Failed to write DeviceTransportConfig for a Stage-Server-plugged device', { error: String(err) }),
         )
 
@@ -127,7 +127,7 @@ export function createMidiWatcher(options: MidiWatcherOptions): MidiWatcherHandl
         // through it (a bare zod object schema silently strips unknown keys).
         const logicalDeviceDocId = `${LOGICAL_DEVICE_PREFIX}${logicalDeviceId}`
         void putDocWithRetry<LogicalDevice & { _id: string; _rev?: string }>(
-          couch,
+          database,
           workspaceDbName(workspaceId),
           logicalDeviceDocId,
           (existing) => {

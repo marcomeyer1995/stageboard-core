@@ -19,7 +19,7 @@ type CameraStatus = 'idle' | 'requesting' | 'scanning' | 'denied' | 'insecure-co
 
 /**
  * Shown by App.tsx instead of the Dashboard whenever the active workspace has no stored
- * CouchDB credentials yet (see #21) - replaces the old bare `window.prompt()`
+ * database credentials yet (see #21) - replaces the old bare `window.prompt()`
  * (`useEnsureWorkspaceCredentials.ts`, removed) with a real join screen.
  *
  * 2026-09-01 WiFi-style redesign, at Marco's explicit request after losing every device's
@@ -639,7 +639,7 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
                 </Button>
               </div>
               {/* Self-declared, not verified here - a wrong guess only mis-shows admin UI,
-                  CouchDB's roster validator is what actually enforces admin-only writes. */}
+                  the database's roster validator is what actually enforces admin-only writes. */}
               <Switch label={t('join.isAdmin')} checked={isAdmin} onChange={setIsAdmin} />
             </form>
           )}

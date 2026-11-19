@@ -4,13 +4,13 @@ import { basicCredentials, hex, pbkdf2, same } from '../passwords.js'
  * The accounts of a band, kept in the band's own database (host module, #960): who may sign in with which
  * device, and the verifier of each admin's PIN. Every host - laptop or tablet - reads and writes the same
  * documents with this one code, and they travel between hosts with the rest of the band. There is no second
- * account store (CouchDB's `_users`) to keep in step.
+ * account store to keep in step.
  *
  * One document per login (`account:<username>`) and one per PIN (`anchor:<profileId>`), never a shared list:
  * two hosts that each add a device while apart never edit the same document, so nothing is lost when they meet.
  * Taking someone out keeps the document as `revoked` (without its verifier) so the removal replicates too.
  *
- * Only verifiers are stored (PBKDF2, CouchDB's own fields), never a password. A PIN is 4 digits - its verifier
+ * Only verifiers are stored (PBKDF2, the database's own fields), never a password. A PIN is 4 digits - its verifier
  * is only as strong as the band's trust in its devices (docs/25 §6h).
  */
 
@@ -28,7 +28,7 @@ export interface AccountDoc {
   revoked?: boolean
 }
 
-/** The band database, as far as accounts need it. The host adapts its own store (PouchDB, CouchDB-compatible). */
+/** The band database, as far as accounts need it. The host adapts its own store (PouchDB, the database-compatible). */
 export interface AccountStore {
   get(id: string): Promise<AccountDoc | null>
   /** Writes the document, replacing whatever is stored under that id. */

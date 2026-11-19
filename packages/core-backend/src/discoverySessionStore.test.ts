@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SERVER_EXECUTION_TARGET, type DetectedHardware, type LogicalDevice, type PluginInstallation } from 'shared-types'
-import type { CouchConfig } from './couch.js'
+import type { DatabaseConfig } from './database.js'
 
 const allDocs = vi.hoisted(() => vi.fn())
-vi.mock('./couch.js', () => ({ allDocs }))
+vi.mock('./database.js', () => ({ allDocs }))
 
 const { __resetDiscoverySessionStoreForTests, assign, getPlugin, getSnapshot, reportCandidate, reportTriggered, start, stop } = await import(
   './discoverySessionStore.js'
@@ -13,7 +13,7 @@ const { __resetDiscoverySessionStoreForTests, assign, getPlugin, getSnapshot, re
 // know it's finite and advance past it).
 const SETTLE_MS = 2001
 
-const COUCH: CouchConfig = { url: 'http://couch.local', user: 'admin', password: 'x' }
+const DATABASE: DatabaseConfig = { url: 'http://database.local', user: 'admin', password: 'x' }
 
 const GENERIC_MIDI: PluginInstallation = {
   id: 'generic-webmidi',
@@ -67,10 +67,10 @@ function kemperPort(portId: string, name = 'Kemper Profiler Emulator'): Detected
 }
 
 async function startWith(plugins: PluginInstallation[], logicalDevices: LogicalDevice[]): Promise<void> {
-  allDocs.mockImplementation((_couch: CouchConfig, _db: string, opts: { startkey: string }) =>
+  allDocs.mockImplementation((_database: DatabaseConfig, _db: string, opts: { startkey: string }) =>
     Promise.resolve(opts.startkey.startsWith('plugins:') ? plugins : logicalDevices),
   )
-  await start(COUCH, 'band-a', 'marco')
+  await start(DATABASE, 'band-a', 'marco')
 }
 
 beforeEach(() => {

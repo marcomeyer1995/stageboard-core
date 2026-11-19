@@ -1,5 +1,5 @@
 import { API_VERSION_MISMATCH_CODE, apiVersionFits, HEALTH_TIMEOUT_MS, PluginInstallationSchema, type PluginInstallation } from 'shared-types'
-import { allDocs, ensureDb, waitForChange, type CouchConfig } from '../couch.js'
+import { allDocs, ensureDb, waitForChange, type DatabaseConfig } from '../database.js'
 import { PLUGIN_CATALOG } from './catalog.js'
 import * as healthStore from './healthStore.js'
 import { hasPluginBundle, writePluginBundle } from './pluginBundleStore.js'
@@ -10,7 +10,7 @@ const HEARTBEAT_INTERVAL_MS = Math.floor(HEALTH_TIMEOUT_MS / 3)
 const CHANGES_TIMEOUT_MS = 30_000
 
 export interface PluginSyncOptions {
-  couch: CouchConfig
+  database: DatabaseConfig
   workspaceId: string
   registry: PluginRegistry
   log: { info: (msg: string, meta?: Record<string, unknown>) => void
@@ -25,7 +25,7 @@ export interface PluginSyncHandle {
 }
 
 /** Plugin installations now live in the one shared per-workspace database (see #49
- * follow-up: consolidating away from one CouchDB database per collection), alongside every
+ * follow-up: consolidating away from one database per collection), alongside every
  * other document kind - `readInstallations`'s id-prefix range query below is what scopes
  * this read to just the installation docs. */
 function workspaceDbName(workspaceId: string): string {
@@ -59,7 +59,7 @@ export function splitByApiVersion(installations: PluginInstallation[]): { fits: 
 /**
  * Decides which plugins to start and stop, given what the band installed, what is already
  * running, and what this server build can actually construct. Pure, so the interesting
- * part of the sync needs no CouchDB to test.
+ * part of the sync needs no the database to test.
  */
 export function reconcile(
   installations: PluginInstallation[],
@@ -105,11 +105,11 @@ export function installationsNeedingBundleDownload(
  * Reconciles the plugins the band installed (replicated to us over the stage mesh) with the
  * plugins actually running in this server's registry, and writes a heartbeat into
  * healthStore.ts so every tablet can tell "installed" from "reachable right now" (docs/07) -
- * pushed out over `GET /plugin-health/:workspaceId/stream` (index.ts), not CouchDB sync
+ * pushed out over `GET /plugin-health/:workspaceId/stream` (index.ts), not the database sync
  * (see #49 follow-up: a heartbeat has no offline/multi-master value).
  */
 export function createPluginSync(options: PluginSyncOptions): PluginSyncHandle {
-  const { couch, workspaceId, registry, log } = options
+  const { database, workspaceId, registry, log } = options
   const workspaceDb = workspaceDbName(workspaceId)
   let stopped = false
 
@@ -118,7 +118,7 @@ export function createPluginSync(options: PluginSyncOptions): PluginSyncHandle {
   async function syncOnce(): Promise<void> {
     const { fits: installations, mismatched } = splitByApiVersion(
       readInstallations(
-        await allDocs<unknown>(couch, workspaceDb, {
+        await allDocs<unknown>(database, workspaceDb, {
           startkey: INSTALLATION_PREFIX,
           endkey: `${INSTALLATION_PREFIX}￰`,
         }),
@@ -187,11 +187,11 @@ export function createPluginSync(options: PluginSyncOptions): PluginSyncHandle {
         // often than strictly necessary. Its own reconcile logic is cheap and idempotent
         // (a no-op unless the installation list actually changed), so this is a minor
         // efficiency note, not a correctness problem.
-        const { lastSeq, changed } = await waitForChange(couch, workspaceDb, since, CHANGES_TIMEOUT_MS)
+        const { lastSeq, changed } = await waitForChange(database, workspaceDb, since, CHANGES_TIMEOUT_MS)
         since = lastSeq
         if (changed && !stopped) await syncOnce()
       } catch (err) {
-        // CouchDB restarting or unreachable: back off, then keep watching.
+        // the database restarting or unreachable: back off, then keep watching.
         log.error('Plugin changes feed failed, retrying', { error: String(err) })
         await new Promise((resolve) => setTimeout(resolve, 5_000))
       }
@@ -203,7 +203,7 @@ export function createPluginSync(options: PluginSyncOptions): PluginSyncHandle {
   }, HEARTBEAT_INTERVAL_MS)
 
   async function start(): Promise<void> {
-    await ensureDb(couch, workspaceDb)
+    await ensureDb(database, workspaceDb)
     await syncOnce()
     await writeHeartbeat()
     void watchChanges()

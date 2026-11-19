@@ -41,7 +41,7 @@ export type DiscoveryIdentifying = z.infer<typeof DiscoveryIdentifyingSchema>
 
 /**
  * A workspace-wide, admin-initiated hardware-discovery session - deliberately **not** a
- * CouchDB-replicated document (same reasoning as presence/plugin-health: a live coordination
+ * replicated document (same reasoning as presence/plugin-health: a live coordination
  * session has no offline/multi-master value and shouldn't outlive a server restart). Lives only
  * in the Stage-Server's memory (core-backend's discoverySessionStore.ts) and is broadcast to
  * every connected tablet over SSE, the same pattern presenceStore.ts already uses.

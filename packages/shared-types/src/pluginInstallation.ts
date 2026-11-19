@@ -58,7 +58,7 @@ export type Helpers = z.infer<typeof HelpersSchema>
 /**
  * A plugin the band has installed. This document is replicated per workspace, so
  * installing a plugin on one tablet distributes it across the whole stage mesh -
- * every other tablet and the Stage-Server pick it up through CouchDB replication.
+ * every other tablet and the Stage-Server pick it up through the database replication.
  *
  * It carries the plugin's *manifest*, not its code; loading plugin code from a
  * GitHub repository (docs/01) is a later step.

@@ -126,7 +126,7 @@ describe('revoke', () => {
   beforeEach(() => {
     vi.stubEnv('VITE_STAGE_SERVER_URL', 'https://stage-server:3001')
     useWorkspaceStore.setState({
-      workspaces: [{ id: 'band-a', name: 'Band A', couchPassword: 'admin-pw', username: 'stageboard-band-a-p1', isAdmin: true }],
+      workspaces: [{ id: 'band-a', name: 'Band A', password: 'admin-pw', username: 'stageboard-band-a-p1', isAdmin: true }],
     })
   })
 
@@ -143,7 +143,7 @@ describe('revoke', () => {
 
   it('returns false without calling the Stage-Server when this device is not the workspace admin', async () => {
     useWorkspaceStore.setState({
-      workspaces: [{ id: 'band-a', name: 'Band A', couchPassword: 'member-pw', username: 'stageboard-band-a-p2', isAdmin: false }],
+      workspaces: [{ id: 'band-a', name: 'Band A', password: 'member-pw', username: 'stageboard-band-a-p2', isAdmin: false }],
     })
     const fetchMock = stubFetch({ ok: true, status: 204 })
 

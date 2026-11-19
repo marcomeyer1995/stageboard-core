@@ -35,7 +35,7 @@ export function StageMessengerWidget({ config }: { config: StageMessengerConfig 
   async function send(message: string) {
     const trimmed = message.trim()
     if (!trimmed) return
-    const result = await sendFlash(workspaceId, trimmed.slice(0, 120), from, { username: workspace?.username, password: workspace?.couchPassword }, to)
+    const result = await sendFlash(workspaceId, trimmed.slice(0, 120), from, { username: workspace?.username, password: workspace?.password }, to)
     setStatus(
       result === 'sent'
         ? t('msg.sentTo', { to: recipients, text: trimmed })

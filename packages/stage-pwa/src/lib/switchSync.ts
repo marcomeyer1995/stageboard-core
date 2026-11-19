@@ -19,10 +19,10 @@ function url(workspaceId: string, path: string): string | null {
 function send(workspaceId: string, event: SwitchStateEvent): void {
   const target = url(workspaceId, 'push')
   const workspace = useWorkspaceStore.getState().workspaces.find((w) => w.id === workspaceId)
-  if (!target || !workspace?.username || !workspace.couchPassword) return
+  if (!target || !workspace?.username || !workspace.password) return
   void fetch(target, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Basic ${btoa(`${workspace.username}:${workspace.couchPassword}`)}` },
+    headers: { 'Content-Type': 'application/json', Authorization: `Basic ${btoa(`${workspace.username}:${workspace.password}`)}` },
     body: JSON.stringify(event),
   }).catch(() => {})
 }

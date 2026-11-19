@@ -1,9 +1,9 @@
 /**
- * The CouchDB replication protocol over a PouchDB database (docs/25, Marco 2026-11-07): what a
+ * The database replication protocol over a PouchDB database (docs/25, Marco 2026-11-07): what a
  * StageBoard device's PouchDB asks of its host when it syncs - database info, the change feed
  * (also long-polled), revision comparison, bulk write and read, checkpoints, single documents and
  * attachments. One implementation for every host: Fastify on a laptop (PouchDB in Node instead of
- * CouchDB in Docker) and later a small native web server in the Android app over the PouchDB it
+ * the database in Docker) and later a small native web server in the Android app over the PouchDB it
  * already holds. No server library, no Node API - plain requests in, plain responses out.
  */
 
@@ -33,7 +33,7 @@ export interface SyncHostOptions {
   open: (name: string) => SyncDatabase | null
   /** Creates a database on `PUT /<db>` - absent: databases are made by the host, not by clients. */
   create?: (name: string) => SyncDatabase | null
-  /** How long a long-polled change feed waits for a change, ms (CouchDB: 60 s). */
+  /** How long a long-polled change feed waits for a change, ms (the database: 60 s). */
   longpollMaxMs?: number
 }
 
@@ -79,7 +79,7 @@ export function createSyncHost(options: SyncHostOptions): (request: SyncRequest)
 
   return async (request) => {
     const method = request.method.toUpperCase()
-    if (request.path === '/' || request.path === '') return json(200, { couchdb: 'Welcome', version: '3.3.3', vendor: { name: 'StageBoard sync-host' } })
+    if (request.path === '/' || request.path === '') return json(200, { welcome: 'StageBoard database host', vendor: { name: 'StageBoard sync-host' } })
     const r = route(request.path)
     if (!r) return error(400, 'bad_request', 'no database')
     if (r.rest.length === 0 && method === 'PUT') {
@@ -245,7 +245,6 @@ async function changes(db: SyncDatabase, method: string, request: SyncRequest, l
   return json(200, { results: next, last_seq: lastSeq })
 }
 
-export { createHostLogin, HOST_ACCOUNTS_DOC_ID, type HostAccount, type HostLogin, type HostLoginOptions } from './hostLogin.js'
 export { createWriteGuard, type SecurityDoc, type UserCtx, type WriteGuardOptions } from './writeGuard.js'
 
 // The host module (#949, step 1 of #932): what every host shares, whatever it runs on - the laptop's Stage-Server,
@@ -264,3 +263,4 @@ export { createPinThrottle, type PinThrottle, type PinThrottleOptions } from './
 export { createBandJoin, type BandJoin, type BandJoinDeps, type BandJoinResponse } from './host/bandJoin.js'
 export { createBandMembers, type BandMembers, type BandMembersDeps } from './host/bandMembers.js'
 export { createBandAccountStore } from './host/bandAccountStore.js'
+export { createReplicationAccountIssuer, type ReplicationAccountIssuer } from './host/replicationAccount.js'

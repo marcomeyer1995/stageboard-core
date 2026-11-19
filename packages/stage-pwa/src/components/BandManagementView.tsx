@@ -26,7 +26,7 @@ import { useTranslation } from 'react-i18next'
  * *management* action lives here now: create a band (open to everyone, matches
  * `addWorkspace`'s existing rules), delete a band, invite people to it, and
  * create/rename/adjust-stage-roles/delete a roster member (all admin-only, enforced
- * server-side already by #56's CouchDB validation - the `isAdmin` checks here are just the UI
+ * server-side already by #56's the database validation - the `isAdmin` checks here are just the UI
  * not offering a control that would fail).
  *
  * 2026-09-02 follow-up, at Marco's explicit request: this is now also where switching *which*
@@ -62,7 +62,7 @@ import { useTranslation } from 'react-i18next'
  *
  * Per-person-accounts follow-up (2026-08-30): "Admin" lives right in `stageRoles` alongside the
  * others, same checkbox dialog - but unlike the others it's not just a label. Every roster
- * member now has their own real CouchDB account (not a shared one - see useWorkspaceStore.ts's
+ * member now has their own real account (not a shared one - see useWorkspaceStore.ts's
  * doc comment on `Workspace.username`), and toggling 'admin' in `useProfilesStore.ts`'s
  * `updateStageRoles` actually changes that account's role server-side first, which is what
  * `_design/roster`'s validator really checks. "Löschen" is disabled for the sole remaining admin

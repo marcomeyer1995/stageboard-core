@@ -416,8 +416,8 @@ describe('JoinBandView - opened voluntarily with onClose (#68: joining a second 
     const onClose = vi.fn()
     useWorkspaceStore.setState({
       workspaces: [
-        { id: 'band-a', name: 'Band A', couchPassword: 'pw-a' },
-        { id: 'band-b', name: 'Band B', couchPassword: 'pw-b' },
+        { id: 'band-a', name: 'Band A', password: 'pw-a' },
+        { id: 'band-b', name: 'Band B', password: 'pw-b' },
       ],
       activeWorkspaceId: 'band-a',
       listWorkspaces: vi.fn().mockResolvedValue([]),
@@ -437,8 +437,8 @@ describe('JoinBandView - opened voluntarily with onClose (#68: joining a second 
     // JoinBandView still renders it unconditionally when onClose is absent.
     useWorkspaceStore.setState({
       workspaces: [
-        { id: 'band-a', name: 'Band A', couchPassword: 'pw-a' },
-        { id: 'band-b', name: 'Band B', couchPassword: 'pw-b' },
+        { id: 'band-a', name: 'Band A', password: 'pw-a' },
+        { id: 'band-b', name: 'Band B', password: 'pw-b' },
       ],
       activeWorkspaceId: 'band-a',
       listWorkspaces: vi.fn().mockResolvedValue([]),

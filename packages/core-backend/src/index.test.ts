@@ -11,7 +11,7 @@ import type { ILookupPlugin, IShowControlPlugin, PluginContext } from 'shared-ty
 
 // The activate-hardware route (below) reaches real createPluginSync/createMidiWatcher through
 // workspaceHardwareController.ts - mocked here so activating a workspace in a test never tries
-// real CouchDB network calls or real MIDI port enumeration on whatever machine runs the suite.
+// real the database network calls or real MIDI port enumeration on whatever machine runs the suite.
 vi.mock('./plugins/pluginSync.js', () => ({
   createPluginSync: vi.fn(() => ({ stop: vi.fn(), syncOnce: vi.fn(), writeHeartbeat: vi.fn() })),
 }))
@@ -88,7 +88,7 @@ describe('/db proxy - a band database only for that band\'s accounts', () => {
     expect(bandDbProxyRefusal('/db/stageboard-band-a%2Fx', basic('stageboard-band-b-p1'))).toBe('bad path')
   })
 
-  it('leaves CouchDB\'s own endpoints to CouchDB', () => {
+  it('leaves the database\'s own endpoints to the database', () => {
     expect(bandDbProxyRefusal('/db/_session', undefined)).toBeNull()
     expect(bandDbProxyRefusal('/db/', undefined)).toBeNull()
   })
@@ -1008,7 +1008,7 @@ describe('Fastify routes', () => {
     })
   })
 
-  it('master mode: only an admin of this band, never one of another band (no CouchDB login tried)', async () => {
+  it('master mode: only an admin of this band, never one of another band (no database login tried)', async () => {
     const fetchMock = vi.fn()
     vi.stubGlobal('fetch', fetchMock)
     try {
@@ -1042,7 +1042,7 @@ describe('Fastify routes', () => {
     }
   })
 
-  it('the /db proxy refuses another band\'s account before the request reaches CouchDB', async () => {
+  it('the /db proxy refuses another band\'s account before the request reaches the database', async () => {
     const response = await app.inject({
       method: 'GET',
       url: '/db/stageboard-band-a/_all_docs',
@@ -1295,7 +1295,7 @@ describe('Fastify routes', () => {
 
     it('refuses a band id that extends another band id - its accounts would look like that band\'s', async () => {
       for (const workspaceId of ['band-a-evil', 'band']) {
-        stubFetch([{ ok: true, status: 200, json: async () => ['_users', 'stageboard-band-a'] }])
+        stubFetch([{ ok: true, status: 200, json: async () => ['stageboard-band-a'] }])
         const response = await app.inject({ method: 'POST', url: '/workspaces', payload: { workspaceId, founderId: 'p1', workspaceName: 'X' } })
         expect(response.statusCode).toBe(400)
       }
@@ -1310,7 +1310,7 @@ describe('Fastify routes', () => {
   describe('POST /workspaces - who may provision (#364)', () => {
     const fromLan = { remoteAddress: '192.168.178.50' }
     const provisionResponses = [
-      { ok: true, status: 200, json: async () => ['_users', 'stageboard-band-a'] }, // _all_dbs (is the id taken?)
+      { ok: true, status: 200, json: async () => ['stageboard-band-a'] }, // _all_dbs (is the id taken?)
       { ok: true, status: 201 }, // ensureDb
       { ok: true, status: 200 }, // putSecurity
       { ok: true, status: 201 }, // putDoc (_design/roster)
@@ -1331,8 +1331,8 @@ describe('Fastify routes', () => {
       vi.unstubAllGlobals()
     })
 
-    const someBands = { ok: true, status: 200, json: async () => ['_users', 'stageboard-band-a'] } // _all_dbs
-    const noBands = { ok: true, status: 200, json: async () => ['_users', '_replicator'] }
+    const someBands = { ok: true, status: 200, json: async () => ['stageboard-band-a'] } // _all_dbs
+    const noBands = { ok: true, status: 200, json: async () => ['_replicator'] }
 
     it('refuses a LAN request without an admin login once a band exists', async () => {
       const fetchMock = stubFetch([someBands])
@@ -1398,7 +1398,7 @@ describe('Fastify routes', () => {
 
     it('lists every stageboard-* database with its display name, no auth required', async () => {
       stubFetch([
-        { ok: true, status: 200, json: async () => ['_users', '_replicator', 'stageboard-band-a', 'stageboard-band-c'] }, // _all_dbs
+        { ok: true, status: 200, json: async () => ['stageboard-band-a', 'stageboard-band-c'] }, // _all_dbs
         { ok: true, status: 200, json: async () => ({ code: '11111111', name: 'Band A' }) }, // band-a access code
         { ok: true, status: 200, json: async () => ({ code: '22222222', name: 'Band C' }) }, // band-c access code
       ])
@@ -1711,10 +1711,10 @@ describe('Fastify routes', () => {
   })
 
   describe('verify-admin-pin, activate-hardware and GET /server/active-workspace', () => {
-    /** Routes CouchDB calls by URL instead of by call order, so these tests don't depend on how
+    /** Routes the database calls by URL instead of by call order, so these tests don't depend on how
      * many round trips verifyAdminPin happens to make. `bands` maps a workspace id to its roster
      * (profileId -> isAdmin), its access code, and optionally each admin's own PIN. */
-    function stubCouch(bands: Record<string, { roster: Record<string, boolean>; code: string; pins?: Record<string, string> }>) {
+    function stubDatabase(bands: Record<string, { roster: Record<string, boolean>; code: string; pins?: Record<string, string> }>) {
       const fetchMock = vi.fn(async (input: string | URL, init?: { headers?: Record<string, string> }) => {
         const url = String(input)
         const json = (body: unknown) => ({ ok: true, status: 200, json: async () => body }) as Response
@@ -1786,7 +1786,7 @@ describe('Fastify routes', () => {
       })
 
       it('locks an admin after 5 wrong PINs - even the right PIN is refused, with how long to wait', async () => {
-        stubCouch({ 'band-c': bandC })
+        stubDatabase({ 'band-c': bandC })
         await wrong(5)
 
         const locked = await verify('band-c', 'p1', '4242')
@@ -1799,7 +1799,7 @@ describe('Fastify routes', () => {
 
       it('only for a dedicated time: the lock lifts by itself and the right PIN works again', async () => {
         vi.useFakeTimers({ toFake: ['Date'] })
-        stubCouch({ 'band-c': bandC })
+        stubDatabase({ 'band-c': bandC })
         await wrong(5)
         expect((await verify('band-c', 'p1', '4242')).statusCode).toBe(429)
 
@@ -1810,7 +1810,7 @@ describe('Fastify routes', () => {
 
       it('after the lock ends the full budget is back, not a single strike', async () => {
         vi.useFakeTimers({ toFake: ['Date'] })
-        stubCouch({ 'band-c': bandC })
+        stubDatabase({ 'band-c': bandC })
         await wrong(5)
         vi.setSystemTime(Date.now() + 5 * 60_000 + 1000)
 
@@ -1820,7 +1820,7 @@ describe('Fastify routes', () => {
       })
 
       it('a correct PIN resets the count', async () => {
-        stubCouch({ 'band-c': bandC })
+        stubDatabase({ 'band-c': bandC })
         await wrong(4)
         expect((await verify('band-c', 'p1', '4242')).statusCode).toBe(200)
 
@@ -1830,7 +1830,7 @@ describe('Fastify routes', () => {
       })
 
       it('locks one admin, not the band - another admin of the same band still works', async () => {
-        stubCouch({ 'band-c': bandC })
+        stubDatabase({ 'band-c': bandC })
         await wrong(5)
 
         expect((await verify('band-c', 'p1', '4242')).statusCode).toBe(429)
@@ -1838,7 +1838,7 @@ describe('Fastify routes', () => {
       })
 
       it('verify-admin-pin and activate-hardware share one budget, so neither is a way around the other', async () => {
-        stubCouch({ 'band-c': bandC })
+        stubDatabase({ 'band-c': bandC })
         await wrong(3)
         for (let i = 0; i < 2; i++) {
           expect((await activate('band-c', { opening: { profileId: 'p1', pin: '0000' } })).statusCode).toBe(403)
@@ -1848,7 +1848,7 @@ describe('Fastify routes', () => {
       })
 
       it('activate-hardware refuses a locked opening admin even with the right PIN, activating nothing', async () => {
-        stubCouch({ 'band-c': bandC })
+        stubDatabase({ 'band-c': bandC })
         await wrong(5)
 
         const response = await activate('band-c', { opening: { profileId: 'p1', pin: '4242' } })
@@ -1858,7 +1858,7 @@ describe('Fastify routes', () => {
       })
 
       it('a locked closing admin blocks the switch away from that band too', async () => {
-        stubCouch({ 'band-c': bandC, 'band-b': bandB })
+        stubDatabase({ 'band-c': bandC, 'band-b': bandB })
         await activate('band-c', { opening: { profileId: 'p1', pin: '4242' } })
         await wrong(5)
 
@@ -1879,7 +1879,7 @@ describe('Fastify routes', () => {
       })
 
       it('lists only the admins (id + name) of the band the server is serving, with no code', async () => {
-        stubCouch({ 'band-a': bandA, 'band-b': bandB })
+        stubDatabase({ 'band-a': bandA, 'band-b': bandB })
         await activate('band-a', { opening: { profileId: 'p1', pin: '4242' } })
 
         const response = await app.inject({ method: 'GET', url: '/server/active-workspace/admins' })
@@ -1889,7 +1889,7 @@ describe('Fastify routes', () => {
       })
 
       it('follows the switch - after switching, it lists the new active band\'s admins, never the old one\'s', async () => {
-        stubCouch({ 'band-a': bandA, 'band-b': bandB })
+        stubDatabase({ 'band-a': bandA, 'band-b': bandB })
         await activate('band-a', { opening: { profileId: 'p1', pin: '4242' } })
         await activate('band-b', { opening: { profileId: 'q1', pin: '4444' }, closing: { profileId: 'p1', pin: '4242' } })
 
@@ -1906,7 +1906,7 @@ describe('Fastify routes', () => {
     })
 
     it('activates on a first activation (nothing to close) with just the opening admin\'s PIN', async () => {
-      stubCouch({ 'band-a': bandA })
+      stubDatabase({ 'band-a': bandA })
 
       const response = await activate('band-a', { opening: { profileId: 'p1', pin: '4242' } })
 
@@ -1915,7 +1915,7 @@ describe('Fastify routes', () => {
     })
 
     it('returns 403 for a wrong opening PIN and activates nothing', async () => {
-      stubCouch({ 'band-a': bandA })
+      stubDatabase({ 'band-a': bandA })
 
       const response = await activate('band-a', { opening: { profileId: 'p1', pin: '0000' } })
 
@@ -1924,7 +1924,7 @@ describe('Fastify routes', () => {
     })
 
     it('returns 403 for an admin of a *different* workspace (opening proof is checked against the target\'s own roster)', async () => {
-      stubCouch({ 'band-a': bandA, 'band-b': bandB })
+      stubDatabase({ 'band-a': bandA, 'band-b': bandB })
 
       const response = await activate('band-a', { opening: { profileId: 'q1', pin: '4444' } })
 
@@ -1938,7 +1938,7 @@ describe('Fastify routes', () => {
 
     describe('switching away from a currently active workspace', () => {
       beforeEach(async () => {
-        stubCouch({ 'band-a': bandA, 'band-b': bandB })
+        stubDatabase({ 'band-a': bandA, 'band-b': bandB })
         await activate('band-a', { opening: { profileId: 'p1', pin: '4242' } })
       })
 

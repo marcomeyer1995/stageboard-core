@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ROSTER_VALIDATOR_SOURCE, updateRosterValidators } from './workspaceProvisioning.js'
 
-const config = { url: 'http://couch', user: 'admin', password: 'pw' }
+const config = { url: 'http://database', user: 'admin', password: 'pw' }
 
 afterEach(() => vi.unstubAllGlobals())
 
@@ -12,7 +12,7 @@ describe('updateRosterValidators (#16)', () => {
       'fetch',
       vi.fn(async (url: string, init?: RequestInit) => {
         const json = (body: unknown) => new Response(JSON.stringify(body), { status: 200 })
-        if (url.endsWith('/_all_dbs')) return json(['_users', 'stageboard-old', 'stageboard-new', 'other'])
+        if (url.endsWith('/_all_dbs')) return json(['stageboard-old', 'stageboard-new', 'other'])
         if (init?.method === 'PUT') {
           writes.push(url)
           return new Response('{}', { status: 201 })
@@ -23,7 +23,7 @@ describe('updateRosterValidators (#16)', () => {
       }),
     )
     expect(await updateRosterValidators(config)).toEqual(['stageboard-old'])
-    expect(writes).toEqual(['http://couch/stageboard-old/_design%2Froster'])
+    expect(writes).toEqual(['http://database/stageboard-old/_design%2Froster'])
   })
 
   it('one failing band does not stop the others - it is reported (#401 review)', async () => {
@@ -44,7 +44,7 @@ describe('updateRosterValidators (#16)', () => {
 })
 
 describe('roster validator - band settings', () => {
-  // The validator is plain ES5 source for CouchDB; evaluated here the same way.
+  // The validator is plain ES5 source for the database; evaluated here the same way.
   const validate = new Function(`return ${ROSTER_VALIDATOR_SOURCE}`)() as (doc: { _id: string }, old: unknown, ctx: { roles: string[] }) => void
 
   it('only a band admin may change the band settings (Geprobt period, 2026-10-07)', () => {

@@ -37,7 +37,7 @@ const DEVICE_INFO_ENTRY = {
 
 beforeEach(() => {
   useWorkspaceStore.setState({
-    workspaces: [{ id: 'band-a', name: 'Band A', couchPassword: 'admin-pw', username: 'stageboard-band-a-p1', isAdmin: true }],
+    workspaces: [{ id: 'band-a', name: 'Band A', password: 'admin-pw', username: 'stageboard-band-a-p1', isAdmin: true }],
     activeWorkspaceId: 'band-a',
     // useStageServerStatus.ts fires all three on every mount (the new "Stage-Server" row) -
     // same "every test needs some stub for it" reasoning as JoinBandView.test.tsx's default
@@ -135,7 +135,7 @@ describe('DeviceLedgerView', () => {
 
   it('hides the ⋯ menu for a non-admin session', () => {
     useWorkspaceStore.setState({
-      workspaces: [{ id: 'band-a', name: 'Band A', couchPassword: 'member-pw', username: 'stageboard-band-a-p2', isAdmin: false }],
+      workspaces: [{ id: 'band-a', name: 'Band A', password: 'member-pw', username: 'stageboard-band-a-p2', isAdmin: false }],
       activeWorkspaceId: 'band-a',
     })
     render(<DeviceLedgerView />)

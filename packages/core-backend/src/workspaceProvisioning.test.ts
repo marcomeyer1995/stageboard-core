@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createBandAccountsFor } from './bandAccounts.js'
-import type { CouchConfig } from './couch.js'
+import type { DatabaseConfig } from './database.js'
 import {
   deprovisionWorkspace,
   deviceUsername,
@@ -16,7 +16,7 @@ import {
   workspaceDbName,
 } from './workspaceProvisioning.js'
 
-const config: CouchConfig = { url: 'http://localhost:5984', user: 'admin', password: 'admin' }
+const config: DatabaseConfig = { url: 'http://localhost:5984', user: 'admin', password: 'admin' }
 
 function stubFetch(responses: Array<Partial<Response>>) {
   const fetchMock = vi.fn()
@@ -211,7 +211,7 @@ describe('access code (2026-09-01 WiFi-style redesign)', () => {
 
   it('listWorkspaces filters _all_dbs to stageboard-* databases and resolves each one\'s display name', async () => {
     const fetchMock = stubFetch([
-      { ok: true, status: 200, json: async () => ['_users', '_replicator', 'stageboard-band-a', 'stageboard-band-c'] }, // _all_dbs
+      { ok: true, status: 200, json: async () => ['stageboard-band-a', 'stageboard-band-c'] }, // _all_dbs
       { ok: true, status: 200, json: async () => ({ _id: 'workspace:access', code: '11111111', name: 'Band A' }) }, // band-a access code
       { ok: true, status: 200, json: async () => ({ _id: 'workspace:access', code: '22222222', name: 'Band C' }) }, // band-c access code
     ])

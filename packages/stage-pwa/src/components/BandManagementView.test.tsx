@@ -45,7 +45,7 @@ beforeEach(() => {
     // pre-Tier-A-local-only-founding, already-established behavior) - the local-only "Verbinden"
     // banner and PIN-field omission get their own dedicated tests further below.
     workspaces: [
-      { id: 'band-a', name: 'Band A', isAdmin: true, username: 'stageboard-band-a-p1', couchPassword: 'admin-pw' },
+      { id: 'band-a', name: 'Band A', isAdmin: true, username: 'stageboard-band-a-p1', password: 'admin-pw' },
       { id: 'band-b', name: 'Band B', isAdmin: false },
     ],
     activeWorkspaceId: 'band-a',
@@ -453,7 +453,7 @@ describe('BandManagementView', () => {
   describe('per-member "⋮" actions popup (2026-09-02 tenth follow-up: replaces a row of inline text links that ran out of room on a phone)', () => {
     it('is not visible until "⋮" is clicked, and offers no popup at all for a viewer with nothing to do here', () => {
       useWorkspaceStore.setState({
-        workspaces: [{ id: 'band-a', name: 'Band A', isAdmin: false, username: 'stageboard-band-a-p1', couchPassword: 'admin-pw' }],
+        workspaces: [{ id: 'band-a', name: 'Band A', isAdmin: false, username: 'stageboard-band-a-p1', password: 'admin-pw' }],
       })
       useProfilesStore.setState({ profiles: [{ id: 'p1', name: 'Marco', stageRoles: [] }] })
       useActiveProfileStore.setState({ byWorkspace: { 'band-a': 'p2' } })
@@ -677,7 +677,7 @@ describe('BandManagementView', () => {
   describe('"Von diesem Gerät entfernen" (2026-09-02 thirteenth follow-up: the non-destructive, non-admin-gated counterpart to "Löschen")', () => {
     it('is offered even to a non-admin member of a server-connected band', () => {
       useWorkspaceStore.setState({
-        workspaces: [{ id: 'band-a', name: 'Band A', isAdmin: false, username: 'stageboard-band-a-p1', couchPassword: 'pw' }],
+        workspaces: [{ id: 'band-a', name: 'Band A', isAdmin: false, username: 'stageboard-band-a-p1', password: 'pw' }],
       })
       render(<BandManagementView />)
 

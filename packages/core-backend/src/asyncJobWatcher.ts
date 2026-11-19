@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { extname, join } from 'node:path'
 import { AsyncJobSchema, isYoutubeUrl, messageFieldsOf, ServerMessageError, type ServerMessageCode, type AsyncJob, type OpusConvertJob, type StemRole, type StemSeparationJob, type TrackMeta, type YoutubeExtractJob } from 'shared-types'
-import { allDocs, getDoc, putDocWithRetry, waitForChange, type CouchConfig, type CouchDoc } from './couch.js'
+import { allDocs, getDoc, putDocWithRetry, waitForChange, type DatabaseConfig, type DatabaseDoc } from './database.js'
 import { workspaceDbName } from './workspaceProvisioning.js'
 import { runYtDlpExtract, toTrackFormat } from './ytDlp.js'
 import { deleteAudioFile, isSafeAudioId, readAudioFile, writeAudioFile } from './audioStore.js'
@@ -17,7 +17,7 @@ const ASYNC_JOB_PREFIX = 'async-jobs:'
 const SONG_VARIANT_PREFIX = 'song-variants:'
 
 /** Progress writes are throttled to this often - a raw yt-dlp stdout feed reports several times
- * a second, and every one of those as its own CouchDB PUT would be a needless write storm for
+ * a second, and every one of those as its own the database PUT would be a needless write storm for
  * a number only the job's own creator is watching. */
 const PROGRESS_WRITE_INTERVAL_MS = 1_500
 
@@ -62,7 +62,7 @@ async function youtubeTrack(filePath: string, ext: string, jobId: string, log: A
 }
 
 export interface AsyncJobWatcherOptions {
-  couch: CouchConfig
+  database: DatabaseConfig
   workspaceId: string
   log: { info: (msg: string, meta?: Record<string, unknown>) => void; error: (msg: string, meta?: Record<string, unknown>) => void }
 }
@@ -86,7 +86,7 @@ export function readAsyncJobs(docs: unknown[]): AsyncJob[] {
 
 /** The oldest still-`queued` job, or undefined when there is none - a plain FIFO, one job
  * processed at a time per workspace. Pure, so the interesting part of the sync needs no
- * CouchDB to test (same split pluginSync.ts's `reconcile` makes). */
+ * the database to test (same split pluginSync.ts's `reconcile` makes). */
 export function pickNextQueuedJob(jobs: readonly AsyncJob[]): AsyncJob | undefined {
   // A device's own job (`runner`), and a conversion only devices can do (#822), are not the Stage-Server's.
   return jobs.filter((job) => job.status === 'queued' && !job.runner && job.type !== 'opus-convert').sort((a, b) => a.createdAt - b.createdAt)[0]
@@ -116,7 +116,7 @@ function jobDocId(id: string): string {
  * practice-track extraction needs to be concurrent.
  */
 export function createAsyncJobWatcher(options: AsyncJobWatcherOptions): AsyncJobWatcherHandle {
-  const { couch, workspaceId, log } = options
+  const { database, workspaceId, log } = options
   const workspaceDb = workspaceDbName(workspaceId)
   let stopped = false
   let currentJobId: string | null = null
@@ -131,7 +131,7 @@ export function createAsyncJobWatcher(options: AsyncJobWatcherOptions): AsyncJob
   }
 
   async function patchJob(id: string, patch: JobPatch): Promise<void> {
-    await putDocWithRetry<Record<string, unknown> & CouchDoc>(couch, workspaceDb, jobDocId(id), (existing) => {
+    await putDocWithRetry<Record<string, unknown> & DatabaseDoc>(database, workspaceDb, jobDocId(id), (existing) => {
       const base = existing ?? { id, type: 'youtube-extract', status: 'queued', progress: 0, createdAt: Date.now(), updatedAt: Date.now(), variantId: '', url: '', label: '' }
       return { ...base, ...patch, updatedAt: Date.now(), _id: jobDocId(id), _rev: existing?._rev }
     })
@@ -143,7 +143,7 @@ export function createAsyncJobWatcher(options: AsyncJobWatcherOptions): AsyncJob
    * loss). A variant deleted mid-download throws instead of being recreated as a stub. */
   async function appendTrack(variantId: string, meta: TrackMeta): Promise<void> {
     const docId = `${SONG_VARIANT_PREFIX}${variantId}`
-    await putDocWithRetry<Record<string, unknown> & CouchDoc>(couch, workspaceDb, docId, (existing) => {
+    await putDocWithRetry<Record<string, unknown> & DatabaseDoc>(database, workspaceDb, docId, (existing) => {
       if (!existing) throw new ServerMessageError('job.variantGone')
       const tracks: unknown[] = Array.isArray(existing.tracks) ? existing.tracks : []
       return { ...existing, tracks: [...tracks, meta] }
@@ -154,11 +154,11 @@ export function createAsyncJobWatcher(options: AsyncJobWatcherOptions): AsyncJob
   async function queueOpusConvert(variantId: string, trackId: string, label: string): Promise<void> {
     const now = Date.now()
     const job: OpusConvertJob = { id: randomUUID(), type: 'opus-convert', status: 'queued', progress: 0, createdAt: now, updatedAt: now, variantId, trackId, label }
-    await putDocWithRetry<Record<string, unknown> & CouchDoc>(couch, workspaceDb, jobDocId(job.id), (existing) => ({ ...job, _id: jobDocId(job.id), _rev: existing?._rev }))
+    await putDocWithRetry<Record<string, unknown> & DatabaseDoc>(database, workspaceDb, jobDocId(job.id), (existing) => ({ ...job, _id: jobDocId(job.id), _rev: existing?._rev }))
   }
 
   async function variantExists(variantId: string): Promise<boolean> {
-    return (await getDoc<CouchDoc>(couch, workspaceDb, `${SONG_VARIANT_PREFIX}${variantId}`)) !== null
+    return (await getDoc<DatabaseDoc>(database, workspaceDb, `${SONG_VARIANT_PREFIX}${variantId}`)) !== null
   }
 
   /** The change event for a job's own final write can arrive while currentJobId is still set
@@ -194,7 +194,7 @@ export function createAsyncJobWatcher(options: AsyncJobWatcherOptions): AsyncJob
   }
 
   async function stemPluginInstalled(): Promise<boolean> {
-    const installations = readInstallations(await allDocs<unknown>(couch, workspaceDb, { startkey: 'plugins:', endkey: 'plugins:￰' }))
+    const installations = readInstallations(await allDocs<unknown>(database, workspaceDb, { startkey: 'plugins:', endkey: 'plugins:￰' }))
     return installations.some((i) => i.id === STEM_SEPARATION_PLUGIN_ID && i.enabled)
   }
 
@@ -202,7 +202,7 @@ export function createAsyncJobWatcher(options: AsyncJobWatcherOptions): AsyncJob
    * array, as in `appendTrack`. Returns the replaced stems' ids (their files go after). */
   async function replaceStems(variantId: string, sourceTrackId: string, stems: TrackMeta[]): Promise<string[]> {
     let replaced: string[] = []
-    await putDocWithRetry<Record<string, unknown> & CouchDoc>(couch, workspaceDb, `${SONG_VARIANT_PREFIX}${variantId}`, (existing) => {
+    await putDocWithRetry<Record<string, unknown> & DatabaseDoc>(database, workspaceDb, `${SONG_VARIANT_PREFIX}${variantId}`, (existing) => {
       if (!existing) throw new ServerMessageError('job.variantGone')
       const tracks = (Array.isArray(existing.tracks) ? existing.tracks : []) as Record<string, unknown>[]
       const isOldStem = (t: Record<string, unknown>) => t.kind === 'stem' && t.parentTrackId === sourceTrackId
@@ -228,7 +228,7 @@ export function createAsyncJobWatcher(options: AsyncJobWatcherOptions): AsyncJob
       if (!isSafeAudioId(job.variantId) || !isSafeAudioId(job.sourceTrackId)) throw new ServerMessageError('job.invalidIds')
       if (!(await stemPluginInstalled())) throw new ServerMessageError('job.stemPluginMissing')
       await patchJob(job.id, { status: 'running', progress: 0 })
-      const variant = await getDoc<Record<string, unknown> & CouchDoc>(couch, workspaceDb, `${SONG_VARIANT_PREFIX}${job.variantId}`)
+      const variant = await getDoc<Record<string, unknown> & DatabaseDoc>(database, workspaceDb, `${SONG_VARIANT_PREFIX}${job.variantId}`)
       if (!variant) throw new ServerMessageError('job.variantGone')
       const source = ((Array.isArray(variant.tracks) ? variant.tracks : []) as Record<string, unknown>[]).find((t) => t.id === job.sourceTrackId)
       if (!source) throw new ServerMessageError('job.trackGone')
@@ -287,7 +287,7 @@ export function createAsyncJobWatcher(options: AsyncJobWatcherOptions): AsyncJob
     // on isYoutubeUrl); the variant id becomes a path segment under the audio store, the same
     // check the upload route applies.
     // Only for a band with the YouTube-Download add-on (#546) - checked here, not only in the app.
-    const rejection: ServerMessageCode | null = !(await bandHasAddon(couch, workspaceId, YOUTUBE_DOWNLOAD_PLUGIN_ID).catch(() => false))
+    const rejection: ServerMessageCode | null = !(await bandHasAddon(database, workspaceId, YOUTUBE_DOWNLOAD_PLUGIN_ID).catch(() => false))
       ? 'youtube.addonMissing'
       : !isYoutubeUrl(job.url)
         ? 'youtube.urlOnly'
@@ -363,7 +363,7 @@ export function createAsyncJobWatcher(options: AsyncJobWatcherOptions): AsyncJob
 
   async function loadJobs(): Promise<AsyncJob[]> {
     return readAsyncJobs(
-      await allDocs<unknown>(couch, workspaceDb, { startkey: ASYNC_JOB_PREFIX, endkey: `${ASYNC_JOB_PREFIX}￰` }),
+      await allDocs<unknown>(database, workspaceDb, { startkey: ASYNC_JOB_PREFIX, endkey: `${ASYNC_JOB_PREFIX}￰` }),
     )
   }
 
@@ -389,7 +389,7 @@ export function createAsyncJobWatcher(options: AsyncJobWatcherOptions): AsyncJob
     let since = 'now'
     while (!stopped) {
       try {
-        const { lastSeq, changed } = await waitForChange(couch, workspaceDb, since, CHANGES_TIMEOUT_MS)
+        const { lastSeq, changed } = await waitForChange(database, workspaceDb, since, CHANGES_TIMEOUT_MS)
         since = lastSeq
         if (changed && !stopped) await syncOnce()
       } catch (err) {
