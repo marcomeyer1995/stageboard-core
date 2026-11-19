@@ -80,7 +80,7 @@ export async function answerHostRequest(request: AppHostRequest, deps: AppHostDe
 
   const hit = matchHostRoute(tableOf(deps), method, path)
   if (hit) {
-    const answer = await hit.route.handle({ method, path, params: hit.params, query: request.query, body: bodyOf(request.body) })
+    const answer = await hit.route.handle({ method, path, params: hit.params, query: request.query, body: bodyOf(request.body), ...(request.authorization ? { authorization: request.authorization } : {}) })
     return { status: answer.status, body: answer.body ?? null, ...(answer.binary ? { binary: answer.binary } : {}) }
   }
 

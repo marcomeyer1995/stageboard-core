@@ -29,11 +29,9 @@ import {
 import { bandDbProxyRefusal, buildApp } from './index.js'
 import { LookupError } from './plugins/lookupError.js'
 import { __resetHealthStoreForTests, getSnapshot, setEntry } from './plugins/healthStore.js'
-import {
-  __resetPresenceStoreForTests,
-  getSnapshot as getPresenceSnapshot,
-  setEntry as setPresenceEntry,
-} from './presenceStore.js'
+import { __resetPresenceStoreForTests, presence } from './presenceStore.js'
+
+const getPresenceSnapshot = (workspaceId: string) => presence().snapshot(workspaceId)
 import { recordDeletedWorkspace } from './provisioningAuth.js'
 
 function testContext(): PluginContext {
@@ -760,7 +758,7 @@ describe('Fastify routes', () => {
 
   describe('GET /workspaces/:workspaceId/presence/stream', () => {
     beforeEach(() => {
-      __resetPresenceStoreForTests()
+      __resetPresenceStoreForTests(() => 123)
     })
 
     it('streams the current snapshot immediately, then pushes updates as they happen', async () => {
@@ -795,7 +793,7 @@ describe('Fastify routes', () => {
       const first = await chunks.next()
       expect(Buffer.from(first.value as Buffer).toString()).toBe('data: {"devices":{}}\n\n')
 
-      setPresenceEntry('band-a', 'device-1', { profileId: 'p1', lastSeenAt: 123 })
+      presence().setEntry('band-a', 'device-1', 'p1') // stamped 123 by the clock this describe resets the store with
 
       const second = await chunks.next()
       expect(Buffer.from(second.value as Buffer).toString()).toBe(

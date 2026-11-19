@@ -19,6 +19,7 @@ export function registerHostRoutes(app: FastifyInstance, routes: readonly HostRo
           path,
           params: hit?.params ?? {},
           query: (request.query ?? {}) as Record<string, string>,
+          ...(request.headers.authorization ? { authorization: request.headers.authorization } : {}),
           // JSON as parsed; an upload as the Buffer Fastify's catch-all parser hands over (a Uint8Array).
           body: request.body,
         })

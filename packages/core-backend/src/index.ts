@@ -85,7 +85,7 @@ import { bandHasAddon, ULTIMATE_GUITAR_PLUGIN_ID, ULTIMATE_GUITAR_PROVIDER, YOUT
 import { runYtDlpSearch } from './ytDlp.js'
 import { LookupRegistry } from './plugins/lookupRegistry.js'
 import { lookupErrorBody } from './plugins/lookupError.js'
-import * as presenceStore from './presenceStore.js'
+import { presence as presenceStore } from './presenceStore.js'
 import { registerHostRoutes } from './hostRoutes.js'
 import { createHostRoutes } from 'sync-host'
 import * as showStatePushHub from './showStatePushHub.js'
@@ -553,30 +553,10 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
     const { workspaceId } = request.params as { workspaceId: string }
     beginSseStream(request, reply)
 
-    const unsubscribe = presenceStore.subscribe(workspaceId, (snapshot) => {
+    const unsubscribe = presenceStore().subscribe(workspaceId, (snapshot) => {
       reply.raw.write(`data: ${JSON.stringify(snapshot)}\n\n`)
     })
     request.raw.on('close', unsubscribe)
-  })
-
-  // Stage-Messenger (#26): a flash message for every tablet of the band, pushed on the presence
-  // stream like the Ready Check. In memory only - a message is only meaningful for seconds.
-  app.post('/workspaces/:workspaceId/flash', async (request, reply) => {
-    const { workspaceId } = request.params as { workspaceId: string }
-    const parsed = FlashReportSchema.safeParse(request.body)
-    if (!parsed.success) {
-      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
-    }
-    // Unlike the presence reports, a flash *pushes* text onto every tablet of the band - so only a
-    // device signed in to this band may send one (its own CouchDB login, as Basic auth).
-    const login = basicAuthCredentials(request.headers.authorization)
-    if (!login || !login.username.startsWith(`${workspaceDbName(workspaceId)}-`) || (await verifyUser(couch, login.username, login.password)) === null) {
-      app.log.warn({ workspaceId, remoteAddress: request.ip }, 'Flash message refused - not signed in to this band')
-      return reply.status(401).send({ status: 'error', message: 'Only a device of this band can send flash messages' })
-    }
-    const flash = presenceStore.setFlash(workspaceId, parsed.data.text, parsed.data.from, parsed.data.to)
-    app.log.info({ workspaceId, flashId: flash.id, from: flash.from, to: flash.to ?? 'all', remoteAddress: request.ip }, 'Flash message sent')
-    return reply.status(201).send(flash)
   })
 
   // Fast lane for the master's show-state changes (#468): Play, Pause, Stop, Weiter reach every
@@ -661,16 +641,6 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
 
   // Ready Check answers (#60): a tablet says "this profile is ready" for the check the Master opened
   // (ShowState.readyCheckId). In memory and pushed on the presence stream, like the master heartbeat.
-  app.post('/workspaces/:workspaceId/ready-check/report', async (request, reply) => {
-    const { workspaceId } = request.params as { workspaceId: string }
-    const parsed = ReadyReportSchema.safeParse(request.body)
-    if (!parsed.success) {
-      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
-    }
-
-    presenceStore.setReady(workspaceId, parsed.data.checkId, parsed.data.profileId)
-    return reply.status(204).send()
-  })
 
   // Device Ledger's live diagnostic data (DeviceLedgerView.tsx, Marco's explicit request) -
   // deliberately a plain one-shot GET, NOT an SSE push like plugin-health/presence above, and
@@ -1118,16 +1088,8 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
       acceptInvite: acceptJoinInvite,
       issueAccount: (body) => replicationAccounts.issue(body),
       audio: { get: readAudioFile, put: (variantId, trackId, data) => writeAudioFile(variantId, trackId, Buffer.from(data)), remove: deleteAudioFile },
-      presence: {
-        report: (workspaceId, report) => {
-          presenceStore.setEntry(workspaceId, report.deviceId, { profileId: report.profileId, lastSeenAt: Date.now() })
-          return true
-        },
-        heartbeat: (workspaceId, deviceId) => {
-          presenceStore.setMasterHeartbeat(workspaceId, deviceId)
-          return true
-        },
-      },
+      presence: presenceStore(),
+      isBandDevice,
     }),
   )
 

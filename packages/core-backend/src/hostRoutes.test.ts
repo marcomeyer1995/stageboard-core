@@ -1,6 +1,6 @@
 import Fastify from 'fastify'
 import { describe, expect, it, vi } from 'vitest'
-import { createHostRoutes, type HostRoutesDeps } from 'sync-host'
+import { createHostPresence, createHostRoutes, type HostRoutesDeps } from 'sync-host'
 import { registerHostRoutes } from './hostRoutes.js'
 
 function build(over: Partial<HostRoutesDeps> = {}) {
@@ -25,7 +25,8 @@ function build(over: Partial<HostRoutesDeps> = {}) {
       put: async (v, t, d) => void files.set(`${v}/${t}`, d),
       remove: async (v, t) => void files.delete(`${v}/${t}`),
     },
-    presence: { report: vi.fn(() => true), heartbeat: vi.fn(() => true) },
+    presence: createHostPresence({ now: () => 1_000, newId: () => 'f1' }),
+    isBandDevice: async (_ws: string, authorization: string | undefined) => authorization === 'Basic good',
     ...over,
   }
   const app = Fastify()
@@ -71,9 +72,17 @@ describe('the shared host routes on Fastify (#949)', () => {
   it('passes the band of a presence report on as the path names it, and says 400 for a bad body', async () => {
     const { app, deps } = build()
     await app.inject({ method: 'POST', url: '/workspaces/band-a/presence/report', payload: { deviceId: 'd', profileId: 'p' } })
-    expect(deps.presence.report).toHaveBeenCalledWith('band-a', { deviceId: 'd', profileId: 'p' })
+    expect(deps.presence.snapshot('band-a').devices).toEqual({ d: { profileId: 'p', lastSeenAt: 1_000 } })
     const bad = await app.inject({ method: 'POST', url: '/workspaces/band-a/presence/report', payload: { deviceId: 'd' } })
     expect(bad.statusCode).toBe(400)
     expect(bad.json().status).toBe('error')
+  })
+
+  it('reads the login from the Authorization header: a flash message from a stranger is 401, from a device of the band 201', async () => {
+    const { app } = build()
+    expect((await app.inject({ method: 'POST', url: '/workspaces/band-a/flash', payload: { text: 'Pause' } })).statusCode).toBe(401)
+    const sent = await app.inject({ method: 'POST', url: '/workspaces/band-a/flash', headers: { authorization: 'Basic good' }, payload: { text: 'Pause', from: 'Anna' } })
+    expect(sent.statusCode).toBe(201)
+    expect(sent.json()).toMatchObject({ id: 'f1', text: 'Pause', from: 'Anna' })
   })
 })
