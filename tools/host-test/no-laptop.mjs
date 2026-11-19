@@ -109,6 +109,45 @@ try {
 const noLogin = await fetch(`${host}/db/stageboard-${bandA}/_all_docs`)
 check('the band database refuses a request without a login', noLogin.status === 401, `status=${noLogin.status}`)
 
+// ---- live channels (#962, step 2) --------------------------------------------------------------------------------------------
+const health = await call('POST', `/plugin-health/${bandA}/report`, { pluginName: 'midi', status: 'online' })
+check('a plugin-health report is taken', health.status === 204, `status=${health.status}`)
+check('plugin-health report for a band the host does not serve is 404', (await call('POST', '/plugin-health/not-a-band-here/report', { pluginName: 'midi', status: 'online' })).status === 404)
+check('a bad plugin-health report is 400', (await call('POST', `/plugin-health/${bandA}/report`, { nonsense: 1 })).status === 400)
+const trigger = await call('POST', `/workspaces/${bandA}/devices/nobody/trigger`, { capability: 'lighting', event: { type: 'cue' } })
+check('a device trigger for a device that is not connected says so (200 error), not 404', trigger.status === 200 && trigger.body?.status === 'error', brief(trigger.body))
+check('Discovery starts', (await call('POST', `/workspaces/${bandA}/discovery/start`, { startedBy: 'nolaptop' })).status === 200)
+check('Discovery stops', (await call('POST', `/workspaces/${bandA}/discovery/stop`, {})).status === 200)
+const push = { deviceId: 'phone-1', issuedAt: Date.now(), patch: { playbackStatus: 'playing' } }
+check('a show-state push without a login is refused', (await call('POST', `/workspaces/${bandA}/show-state/push`, push)).status === 401)
+// A device listening on the stream gets what another pushes - relayed by the tablet's native server.
+const abort = new AbortController()
+const received = []
+const listening = (async () => {
+  try {
+    const response = await fetch(`${host}/workspaces/${bandA}/show-state/stream`, { signal: abort.signal, headers: auth })
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+    for (;;) {
+      const { value, done } = await reader.read()
+      if (done) break
+      received.push(decoder.decode(value))
+      if (received.join('').includes('playing')) break
+    }
+  } catch {
+    // aborted
+  }
+})()
+await new Promise((resolve) => setTimeout(resolve, 800))
+const pushed = await call('POST', `/workspaces/${bandA}/show-state/push`, push, auth)
+check('a show-state push with the band login is taken', pushed.status === 204, `status=${pushed.status}`)
+await Promise.race([listening, new Promise((resolve) => setTimeout(resolve, 3000))])
+abort.abort()
+check('a device listening on the stream receives it', received.join('').includes('playing'), `got ${received.join('').length} bytes`)
+const discoveryStream = await fetch(`${host}/workspaces/${bandA}/discovery/stream`, { headers: auth }).catch(() => null)
+check('a stream the tablet does not relay yet says which capability is missing (501), not 404', discoveryStream?.status === 501, `status=${discoveryStream?.status}`)
+await discoveryStream?.body?.cancel().catch(() => undefined)
+
 // ---- a second band: refused without proof, accepted with an admin of the first --------------------------------------------
 const without = await call('POST', '/workspaces', { workspaceId: bandB, founderId: 'f2', workspaceName: 'No laptop B', deviceId: 'phone-1' })
 check('a second band needs an admin proof (403)', without.status === 403, `status=${without.status}`)

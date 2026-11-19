@@ -52,7 +52,7 @@ interface LocalHostPlugin {
   stop: () => Promise<void>
   /** The clock answer and the live channels are answered natively - they need the epoch and whether
    * this host serves the band, never the WebView. */
-  setState: (options: { hostId: string; epoch: number; active: boolean; offsetMs: number; origins: string[] }) => Promise<void>
+  setState: (options: { hostId: string; epoch: number; active: boolean; offsetMs: number; origins: string[]; servedBands: string[] }) => Promise<void>
   /** Hands the native server the latest snapshot of a live channel; every open stream gets it, a new one gets it on connecting. */
   publish: (options: { channel: string; text: string }) => Promise<void>
   respond: (options: { id: string; status: number; contentType: string; text?: string; body?: string }) => Promise<void>
@@ -139,6 +139,13 @@ let catchUp: CatchUp | null = null
 /** One native publish per served band (the presence store keys by band). */
 const presenceSubscriptions = new Map<string, () => void>()
 let catchingUp = false
+/** The bands this tablet founded: its native server relays their live channels whatever the lease says (#962). */
+let servedBands: string[] = []
+/** Tells the native server at once - a band founded a moment ago must not wait for the next tick. */
+const setServedBands = (bands: Iterable<string>) => {
+  servedBands = [...bands].sort()
+  lastPushed = ''
+}
 
 function pushState(machine: TabletHost) {
   const state = machine.state()
@@ -150,10 +157,10 @@ function pushState(machine: TabletHost) {
       return []
     }
   })
-  const key = `${state.hostId}|${state.epoch}|${state.active}|${Math.round(machine.clockOffsetMs())}|${origins.join(',')}`
+  const key = `${state.hostId}|${state.epoch}|${state.active}|${Math.round(machine.clockOffsetMs())}|${origins.join(',')}|${servedBands.join(',')}`
   if (key === lastPushed) return
   lastPushed = key
-  void LocalHost.setState({ hostId: state.hostId, epoch: state.epoch, active: state.active, offsetMs: machine.clockOffsetMs(), origins }).catch(() => undefined)
+  void LocalHost.setState({ hostId: state.hostId, epoch: state.epoch, active: state.active, offsetMs: machine.clockOffsetMs(), origins, servedBands }).catch(() => undefined)
 }
 
 function publish(machine: TabletHost, url: string | null, error: string | null = null) {
@@ -382,6 +389,7 @@ export async function startAndroidHost(): Promise<void> {
         const credentials = await bandStore.create(band, name, founder)
         localBands.add(band)
         founded.add(band)
+        setServedBands(founded)
         subscribePresence(band)
         return credentials
       },
@@ -389,6 +397,7 @@ export async function startAndroidHost(): Promise<void> {
         await bandStore.remove(band)
         localBands.delete(band)
         founded.delete(band)
+        setServedBands(founded)
         handles.get(band)?.close?.()
         handles.delete(band)
       },
@@ -531,6 +540,7 @@ export async function startAndroidHost(): Promise<void> {
       subscribePresence(band)
     }
   }
+  setServedBands(founded)
 
   await listener?.remove()
   listener = await LocalHost.addListener('request', (req) => {
@@ -618,6 +628,7 @@ export async function stopAndroidHost(): Promise<void> {
   catchUp = null
   for (const unsubscribe of presenceSubscriptions.values()) unsubscribe()
   presenceSubscriptions.clear()
+  servedBands = []
   if (isNativeApp()) await LocalHost.stop().catch(() => undefined)
   useAndroidHostStore.getState().reset()
 }

@@ -86,7 +86,9 @@ describe('a device login', () => {
 describe('an admin PIN', () => {
   it('is kept as a verifier only, and only the right PIN passes', async () => {
     await accounts.setPin('p1', '4711')
-    expect(JSON.stringify([...store.docs.values()])).not.toContain('4711')
+    // Exact JSON strings, not a substring search: the salt and the hash are random hex and contain "4711" by chance about
+    // once in 500 runs - what must never appear is the PIN as a value of its own.
+    expect(JSON.stringify([...store.docs.values()])).not.toContain('"4711"')
     expect(await accounts.checkPin('p1', '4711')).toBe(true)
     expect(await accounts.checkPin('p1', '4712')).toBe(false)
   })

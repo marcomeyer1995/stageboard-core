@@ -58,6 +58,8 @@ public class LocalHostPlugin extends Plugin {
     private volatile String hostId = "";
     private volatile int epoch = 1;
     private volatile boolean active = false;
+    /** Bands this host serves whatever the lease says (#962): the ones it founded. The live channels of any other band follow `active`. */
+    private volatile java.util.Set<String> servedBands = java.util.Collections.emptySet();
     private volatile long clockOffsetMs = 0;
     /** Pages that may talk to this host from a browser or the app's WebView: the app itself (Capacitor's
      * origin) and the other hosts of the band, whose pages open the band (the app pushes them). A page of
@@ -149,6 +151,15 @@ public class LocalHostPlugin extends Plugin {
             }
         }
         allowedOrigins = origins;
+        java.util.Set<String> served = new java.util.HashSet<>();
+        com.getcapacitor.JSArray bands = call.getArray("servedBands");
+        if (bands != null) {
+            for (int i = 0; i < bands.length(); i++) {
+                String b = bands.optString(i, "");
+                if (!b.isEmpty()) served.add(b);
+            }
+        }
+        servedBands = served;
         if (!active) allowed.clear();
         call.resolve();
     }
@@ -286,8 +297,9 @@ public class LocalHostPlugin extends Plugin {
         String authorization = headers.get("authorization");
         java.util.regex.Matcher live = LIVE.matcher(path);
         if (live.matches()) {
-            // A passive backup serves no band: only once the app says this host has taken over.
-            if (!active) {
+            // A passive backup serves no band: only once the app says this host has taken over - or for a band it
+            // founded itself (#962), which no lease decides.
+            if (!active && !servedBands.contains(live.group(1))) {
                 write(out, 503, "application/json", "{\"error\":\"passive\",\"reason\":\"This host is the backup and is not serving the band.\"}".getBytes(StandardCharsets.UTF_8), keepAlive);
                 return keepAlive;
             }
