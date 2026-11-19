@@ -15,7 +15,7 @@ import { fileURLToPath } from 'node:url'
 import cors from '@fastify/cors'
 import httpProxy from '@fastify/http-proxy'
 import { startBuiltinDatabase } from './builtinDatabase.js'
-import { hostCapabilities } from './hostCapabilities.js'
+import { addonHostNeeds, hostCapabilities } from './hostCapabilities.js'
 import { createHostLeaseService, getFromHost, postJsonToHost } from './hostLeaseService.js'
 import { createHostRoleStore } from './hostRoleStore.js'
 import { makeLocalBandDb, makeRemoteBandDb } from './bandPouch.js'
@@ -65,7 +65,7 @@ import { LookupRegistry } from './plugins/lookupRegistry.js'
 import { lookupErrorBody } from './plugins/lookupError.js'
 import { presence as presenceStore } from './presenceStore.js'
 import { registerHostRoutes } from './hostRoutes.js'
-import { createBandCatalog, createHostChannels } from 'sync-host'
+import { addonRefusal, createBandCatalog, createHostChannels } from 'sync-host'
 import { createLaptopBandStore } from './bandStore.js'
 import { createBandJoin, createBandMembers, createHostRoutes, createReplicationAccountIssuer, type BandJoin } from 'sync-host'
 import { PluginRegistry } from './plugins/registry.js'
@@ -793,7 +793,8 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
     if (!parsed.success) return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
     try {
       const { preview } = await previewAddon(parsed.data.repository, { apiBase: process.env.STAGEBOARD_GITHUB_API })
-      return preview
+      // What this machine lacks to host the add-on's server part (#962): the admin sees it before installing.
+      return { ...preview, hostNeeds: addonHostNeeds(preview.manifest) }
     } catch (err) {
       if (err instanceof AddonError) return reply.status(422).send({ status: 'error', code: err.code, message: err.message })
       throw err
@@ -815,6 +816,12 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
       const { preview, release } = await previewAddon(parsed.data.repository, deps)
       if (preview.manifest.version !== parsed.data.expectedVersion) {
         return reply.status(409).send({ status: 'error', code: 'version-changed', message: `The repository now offers ${preview.manifest.version}`, version: preview.manifest.version })
+      }
+      const needs = addonHostNeeds(preview.manifest)
+      if (needs) {
+        app.log.warn({ workspaceId, addon: preview.manifest.id, needs }, 'Add-on refused - this machine cannot host its server part')
+        const refused = addonRefusal(preview.manifest.id, needs)
+        return reply.status(refused.status).send(refused.body)
       }
       await installAddonVersion(preview.manifest, release, addonRoot(), deps)
       const keep = [preview.manifest.version, ...(parsed.data.previousVersion ? [parsed.data.previousVersion] : [])]

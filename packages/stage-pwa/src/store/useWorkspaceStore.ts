@@ -6,6 +6,7 @@ import { getDeviceId } from '../lib/deviceId'
 import { randomId } from '../lib/id'
 import { isNativeApp } from '../lib/native'
 import { getStageServerUrl } from '../lib/stageServer'
+import { capabilityRefusal } from '../lib/capabilityRefusal'
 import { destroyLocalWorkspaceDb } from '../lib/workspaceDb'
 import { getWorkspaceAccessDoc, watchWorkspaceAccessDoc } from '../lib/workspaceAccessDoc'
 import { persist } from 'zustand/middleware'
@@ -853,7 +854,10 @@ export const useWorkspaceStore = create<WorkspaceState>()(
             body: JSON.stringify({ opening, closing }),
           })
           if (!response.ok) {
-            if (response.status === 403) {
+            const refusal = await capabilityRefusal(response)
+            if (refusal) {
+              void useDialogStore.getState().alert(refusal)
+            } else if (response.status === 403) {
               void useDialogStore.getState().alert(i18n.t('band:err.proofRejected'))
             } else if (response.status === 429) {
               void useDialogStore.getState().alert(pinLockoutMessage(response))

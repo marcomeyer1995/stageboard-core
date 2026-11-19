@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs'
 import { cpus, totalmem } from 'node:os'
-import { JOB_IDS } from 'sync-host'
-import type { HostCapabilities } from 'shared-types'
+import { JOB_IDS, unmetRequirement } from 'sync-host'
+import type { AddonReleaseManifest, HostCapabilities } from 'shared-types'
 import { PLUGIN_CATALOG } from './plugins/catalog.js'
 import { serverSpeech, PIPER_SPEECH_PLUGIN_ID } from './plugins/piperSpeechPlugin.js'
 import { STEM_SEPARATION_PLUGIN_ID } from './plugins/stemSeparationPlugin.js'
@@ -63,4 +63,12 @@ export function hostCapabilities(checks: Record<string, PluginCheck> = PLUGIN_CH
         return { id, available: needs === null, needs }
       }),
   }
+}
+
+/**
+ * What this machine lacks to host an add-on's server part (#962, step 4) - null when it can, or when the add-on has no server
+ * part (the client bundle runs in every device's page, wherever the add-on was installed).
+ */
+export function addonHostNeeds(manifest: Pick<AddonReleaseManifest, 'serverFile' | 'runsOn'>, capabilities: HostCapabilities = hostCapabilities()): string | null {
+  return manifest.serverFile ? unmetRequirement(manifest.runsOn, capabilities) : null
 }

@@ -782,6 +782,18 @@ describe('fetchActiveWorkspaceHardware / activateWorkspaceHardware', () => {
     expect(JSON.parse(init.body)).toEqual({ opening: { profileId: 'q1', pin: '4444' } })
   })
 
+  it('activateWorkspaceHardware tells what the host lacks when it is a device that cannot switch hardware (#962)', async () => {
+    const body = { error: 'capability_missing', capability: 'hardware', needs: 'a desktop machine' }
+    stubFetch({ ok: false, status: 501, json: async () => body, clone: () => ({ json: async () => body }) as unknown as Response })
+    const alertMock = vi.fn().mockResolvedValue(undefined)
+    useDialogStore.setState({ alert: alertMock })
+
+    expect(await useWorkspaceStore.getState().activateWorkspaceHardware('band-b', { profileId: 'q1', pin: '4444' })).toBe(false)
+
+    expect(alertMock).toHaveBeenCalledTimes(1)
+    expect(alertMock.mock.calls[0][0]).toContain('a desktop machine')
+  })
+
   it('activateWorkspaceHardware also posts the closing admin proof when given', async () => {
     const fetchMock = stubFetch({ ok: true, status: 200, json: async () => ({ status: 'ok' }) })
 

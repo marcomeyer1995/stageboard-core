@@ -107,3 +107,28 @@ export const parseCapabilities = (raw: unknown): HostCapabilities | null => {
   const parsed = HostCapabilitiesSchema.safeParse(raw)
   return parsed.success ? parsed.data : null
 }
+
+/** What an add-on's server part needs from a device (`AddonReleaseManifest.runsOn`). */
+export interface RunsOn {
+  platforms?: string[]
+  minCpuCores?: number
+  minMemoryMb?: number
+}
+
+/**
+ * What this device lacks to run an add-on's server part, as words for the person - or null when it can (#962, step 4).
+ * Only what the device tells counts: a power it did not report is not held against it (it is not invented either way).
+ */
+export function unmetRequirement(runsOn: RunsOn | undefined, capabilities: HostCapabilities): string | null {
+  if (!runsOn) return null
+  const platform = capabilities.kind === 'android' ? 'android' : capabilities.platform
+  if (runsOn.platforms && !runsOn.platforms.includes(platform)) return `one of ${runsOn.platforms.join(', ')} (this device is ${platform})`
+  if (runsOn.minCpuCores !== undefined && capabilities.cpuCores !== undefined && capabilities.cpuCores < runsOn.minCpuCores) return `${runsOn.minCpuCores} CPU cores (this device has ${capabilities.cpuCores})`
+  if (runsOn.minMemoryMb !== undefined && capabilities.memoryMb !== undefined && capabilities.memoryMb < runsOn.minMemoryMb) return `${runsOn.minMemoryMb} MB of memory (this device has ${capabilities.memoryMb})`
+  return null
+}
+
+/** The 501 for an add-on this device cannot host. */
+export function addonRefusal(addonId: string, needs: string): { status: 501; body: unknown } {
+  return { status: 501, body: { status: 'error', error: 'capability_missing', capability: `plugin:${addonId}`, needs, reason: `This device cannot host the add-on "${addonId}" - it needs ${needs}. Install it on a host that can.` } }
+}

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { HostCapabilities } from 'shared-types'
 import { HostCapabilitiesSchema } from 'shared-types'
-import { JOB_IDS, JOB_ROUTES, jobOfRequest, refusalFor, unavailableJobs } from './capabilities.js'
+import { JOB_IDS, JOB_ROUTES, addonRefusal, jobOfRequest, refusalFor, unavailableJobs, unmetRequirement } from './capabilities.js'
 
 const tablet: HostCapabilities = {
   kind: 'android',
@@ -43,5 +43,34 @@ describe('jobs a host can be asked for (#962)', () => {
     expect(JOB_IDS).toEqual(expect.arrayContaining(['backup', 'measure-inputs', 'calibration', 'speech', 'lookup', 'youtube-download', 'plugin-runtime', 'hardware', 'osc-in', 'host-lookup']))
     expect(new Set(JOB_ROUTES.map((r) => `${r.method} ${r.pattern}`)).size).toBe(JOB_ROUTES.length)
     expect(HostCapabilitiesSchema.parse(tablet)).toEqual(tablet)
+  })
+})
+
+describe('what an add-on needs from the device that hosts it (#962)', () => {
+  const linux: HostCapabilities = { ...tablet, kind: 'desktop', platform: 'linux', cpuCores: 16, memoryMb: 32768 }
+
+  it('an add-on without requirements runs anywhere', () => {
+    expect(unmetRequirement(undefined, tablet)).toBeNull()
+    expect(unmetRequirement({}, tablet)).toBeNull()
+  })
+
+  it('an add-on for Windows or Linux does not run on Android, and says what is missing', () => {
+    const needs = unmetRequirement({ platforms: ['win32', 'linux'] }, tablet)
+    expect(needs).toContain('win32, linux')
+    expect(needs).toContain('android')
+    expect(unmetRequirement({ platforms: ['win32', 'linux'] }, linux)).toBeNull()
+  })
+
+  it('power is checked only where the device told it - never invented', () => {
+    expect(unmetRequirement({ minMemoryMb: 8192 }, tablet)).toContain('8192 MB')
+    expect(unmetRequirement({ minCpuCores: 12 }, tablet)).toContain('12 CPU cores')
+    expect(unmetRequirement({ minMemoryMb: 8192, minCpuCores: 12 }, linux)).toBeNull()
+    const unknown: HostCapabilities = { ...tablet }
+    delete unknown.memoryMb
+    expect(unmetRequirement({ minMemoryMb: 8192 }, unknown)).toBeNull()
+  })
+
+  it('refuses with 501 and the capability of the add-on', () => {
+    expect(addonRefusal('stem-separation', '16 GB')).toMatchObject({ status: 501, body: { error: 'capability_missing', capability: 'plugin:stem-separation', needs: '16 GB' } })
   })
 })

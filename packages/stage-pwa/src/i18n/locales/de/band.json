@@ -219,6 +219,7 @@
     "pinCheckServer": "PIN konnte nicht geprüft werden - Fehler beim Stage-Server.",
     "pinCheckOffline": "PIN konnte nicht geprüft werden - Stage-Server nicht erreichbar.",
     "proofRejected": "Admin-Nachweis abgelehnt - Wechsel nicht möglich.",
+    "capabilityMissing": "Dieses Gerät kann das nicht ({{capability}}) - es fehlt: {{needs}}. Nimm einen Host, der es kann.",
     "switchFailedAny": "Wechsel fehlgeschlagen - Stage-Server nicht erreichbar oder Fehler.",
     "switchOffline": "Wechsel fehlgeschlagen - Stage-Server nicht erreichbar.",
     "wrongCode": "Falscher Code.",

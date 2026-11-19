@@ -219,6 +219,7 @@
     "pinCheckServer": "The PIN could not be checked - error on the Stage server.",
     "pinCheckOffline": "The PIN could not be checked - Stage server not reachable.",
     "proofRejected": "Admin proof rejected - switching not possible.",
+    "capabilityMissing": "This device cannot do that ({{capability}}) - it lacks {{needs}}. Use a host that can.",
     "switchFailedAny": "Switching failed - Stage server not reachable or an error.",
     "switchOffline": "Switching failed - Stage server not reachable.",
     "wrongCode": "Wrong code.",
