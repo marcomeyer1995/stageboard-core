@@ -19,10 +19,10 @@ function streamUrl(workspaceId: string, path: string): string | null {
 export function pushShowState(workspaceId: string, push: ShowStatePush): void {
   const url = streamUrl(workspaceId, 'push')
   const workspace = useWorkspaceStore.getState().workspaces.find((w) => w.id === workspaceId)
-  if (!url || !workspace?.username || !workspace.couchPassword) return
+  if (!url || !workspace?.username || !workspace.password) return
   void fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Basic ${btoa(`${workspace.username}:${workspace.couchPassword}`)}` },
+    headers: { 'Content-Type': 'application/json', Authorization: `Basic ${btoa(`${workspace.username}:${workspace.password}`)}` },
     body: JSON.stringify(push),
   }).catch(() => {})
 }

@@ -38,7 +38,7 @@ function seedStores(options: { connected?: boolean; profiles?: Array<{ id: strin
         name: 'Band A',
         ownProfileId: 'founder-id',
         isAdmin: true,
-        ...(connected ? { username: 'stageboard-band-a-founder-id', couchPassword: 'random-founding-pw' } : {}),
+        ...(connected ? { username: 'stageboard-band-a-founder-id', password: 'random-founding-pw' } : {}),
       },
     ],
     activeWorkspaceId: 'band-a',

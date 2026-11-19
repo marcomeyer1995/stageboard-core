@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, beforeAll } from 'vitest'
 import type { BandHostEntry } from 'shared-types'
+import { leaseKey, signAccountRequest } from './leaseAuth.js'
 import { createReplicationAccountIssuer } from './replicationAccount.js'
-import { leaseKey, signAccountRequest } from 'sync-host'
 
 const primary: BandHostEntry = { hostId: 'laptop', url: 'https://10.0.0.1:8443', priority: 1 }
 const backup: BandHostEntry = { hostId: 'stage-pc', url: 'https://10.0.0.2:8443', priority: 2 }
@@ -49,6 +49,14 @@ describe('replication account issuer (#919)', () => {
 
   it('refuses without a band, and when the account cannot be made', async () => {
     expect(await issuer('laptop', [primary, backup], { workspaceId: () => null }).i.issue(await request())).toBeNull()
-    expect(await issuer('laptop', [primary, backup], { mint: vi.fn().mockRejectedValue(new Error('couch down')) }).i.issue(await request())).toBeNull()
+    expect(await issuer('laptop', [primary, backup], { mint: vi.fn().mockRejectedValue(new Error('database down')) }).i.issue(await request())).toBeNull()
+  })
+
+  it('keeps the highest sentAt where it is told to - a restart does not make a recorded request good again', async () => {
+    const seen = new Map<string, number>()
+    const sentAt = { get: (hostId: string) => seen.get(hostId), set: (hostId: string, at: number) => void seen.set(hostId, at) }
+    expect(await issuer('laptop', [primary, backup], { sentAt }).i.issue(await request({ sentAt: 10 }))).not.toBeNull()
+    expect(seen.get('stage-pc')).toBe(10)
+    expect(await issuer('laptop', [primary, backup], { sentAt }).i.issue(await request({ sentAt: 10 }))).toBeNull() // a new instance, same record
   })
 })

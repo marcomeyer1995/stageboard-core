@@ -11,7 +11,7 @@ const calls: { path: string; body: Record<string, unknown> }[] = []
 
 beforeEach(() => {
   calls.length = 0
-  useWorkspaceStore.setState({ workspaces: [{ id: 'w', name: 'Band', isAdmin: true, username: 'band-marco', couchPassword: 'pw' }] as never, activeWorkspaceId: 'w' })
+  useWorkspaceStore.setState({ workspaces: [{ id: 'w', name: 'Band', isAdmin: true, username: 'band-marco', password: 'pw' }] as never, activeWorkspaceId: 'w' })
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url: string, init: { body: string }) => {

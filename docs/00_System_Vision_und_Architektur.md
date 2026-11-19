@@ -26,10 +26,10 @@ A standalone offline mode where musicians prepare setlists, edit songs, and prac
 * **Cosmetic Preferences:** Musicians can swap visual themes (e.g., from "Klassisch" to "Neon Live") and test them under different local lighting conditions.
 
 #### The Reconnection Phase
-* **Seamless Merging:** Everything done in the sandbox is saved to the local PouchDB instance. When connected to the Stage-Server, PouchDB quietly syncs all offline edits back to the central CouchDB database, instantly propagating updates to the rest of the band.
+* **Seamless Merging:** Everything done in the sandbox is saved to the local PouchDB instance. When connected to the Stage-Server, PouchDB quietly syncs all offline edits back to the host's database, instantly propagating updates to the rest of the band.
 
 ### Stage Mesh
-The full live experience relies on a dedicated physical Stage-Server (Linux/Docker) running Fastify and CouchDB. This central unit handles low-latency event routing, central database synchronization, and multi-device coordination.
+The full live experience relies on a Stage-Server (a dedicated Linux box, or the laptop or tablet that is the band host - docs/25) running Fastify and the built-in database host. This central unit handles low-latency event routing, central database synchronization, and multi-device coordination.
 
 ## 2. Onboarding & Network Discovery
 

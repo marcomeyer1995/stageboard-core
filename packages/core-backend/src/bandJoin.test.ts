@@ -66,7 +66,7 @@ describe('joinBand (#933)', () => {
   })
 
   it('does not throw when the database cannot be made, and stores nothing', async () => {
-    const { deps, store } = setup({ ensureLocalDb: vi.fn().mockRejectedValue(new Error('couch down')) })
+    const { deps, store } = setup({ ensureLocalDb: vi.fn().mockRejectedValue(new Error('database down')) })
     expect(await joinBand(deps, input)).toMatchObject({ ok: false, status: 500 })
     expect(deps.activate).not.toHaveBeenCalled()
     expect(store.load()).toBeNull()

@@ -2,18 +2,18 @@ import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AsyncJob, YoutubeExtractJob } from 'shared-types'
-import type { CouchDoc } from './couch.js'
+import type { DatabaseDoc } from './database.js'
 
-// In-memory stand-in for the one workspace db the watcher touches - enough of couch.ts's
-// surface to run the real processJob/queue logic end to end without a CouchDB.
+// In-memory stand-in for the one workspace db the watcher touches - enough of database.ts's
+// surface to run the real processJob/queue logic end to end without a database.
 const store = new Map<string, Record<string, unknown>>()
-vi.mock('./couch.js', () => ({
+vi.mock('./database.js', () => ({
   allDocs: vi.fn(async (_config: unknown, _db: string, { startkey }: { startkey: string }) =>
     [...store.entries()].filter(([id]) => id.startsWith(startkey)).map(([, doc]) => structuredClone(doc)),
   ),
   getDoc: vi.fn(async (_config: unknown, _db: string, id: string) => (store.has(id) ? structuredClone(store.get(id)) : null)),
-  putDocWithRetry: vi.fn(async (_config: unknown, _db: string, id: string, build: (existing: CouchDoc | null) => CouchDoc) => {
-    const existing = store.has(id) ? (structuredClone(store.get(id)) as CouchDoc) : null
+  putDocWithRetry: vi.fn(async (_config: unknown, _db: string, id: string, build: (existing: DatabaseDoc | null) => DatabaseDoc) => {
+    const existing = store.has(id) ? (structuredClone(store.get(id)) as DatabaseDoc) : null
     store.set(id, build(existing) as Record<string, unknown>)
   }),
   // Never fires - the tests drive the watcher through its startup pass and its own
@@ -108,7 +108,7 @@ describe('stuckRunningJobs', () => {
 
 describe('createAsyncJobWatcher', () => {
   const log = { info: vi.fn(), error: vi.fn() }
-  const couch = { url: 'http://couch', user: 'u', password: 'p' }
+  const database = { url: 'http://database', user: 'u', password: 'p' }
 
   /** Fakes a successful yt-dlp run: writes a real file where yt-dlp would, so the watcher's own
    * readFile/stat run for real. */
@@ -142,7 +142,7 @@ describe('createAsyncJobWatcher', () => {
   it('refuses a YouTube job when the band has no YouTube-Download add-on (#546) - no download', async () => {
     store.delete('plugins:youtube-download')
     putJob({})
-    const watcher = createAsyncJobWatcher({ couch, workspaceId: 'ws', log })
+    const watcher = createAsyncJobWatcher({ database, workspaceId: 'ws', log })
     await vi.waitFor(() => expect(storedJob('job-1')?.status).toBe('error'))
     watcher.stop()
     expect(storedJob('job-1')?.error).toContain('YouTube-Download')
@@ -157,7 +157,7 @@ describe('createAsyncJobWatcher', () => {
     store.set('song-variants:variant-1', { _id: 'song-variants:variant-1', tracks: [existingTrack], somethingElse: 42 })
     putJob({})
 
-    const watcher = createAsyncJobWatcher({ couch, workspaceId: 'ws', log })
+    const watcher = createAsyncJobWatcher({ database, workspaceId: 'ws', log })
     await vi.waitFor(() => expect(storedJob('job-1')?.status).toBe('done'))
     watcher.stop()
 
@@ -180,7 +180,7 @@ describe('createAsyncJobWatcher', () => {
     })
     store.set('song-variants:variant-1', { _id: 'song-variants:variant-1', tracks: [] })
     putJob({})
-    const watcher = createAsyncJobWatcher({ couch, workspaceId: 'ws', log })
+    const watcher = createAsyncJobWatcher({ database, workspaceId: 'ws', log })
     await vi.waitFor(() => expect(storedJob('job-1')?.status).toBe('done'))
     watcher.stop()
     const variant = store.get('song-variants:variant-1') as { tracks: Array<{ mimeType?: string; sizeBytes?: number }> }
@@ -193,7 +193,7 @@ describe('createAsyncJobWatcher', () => {
     ytDlpSucceeds()
     store.set('song-variants:variant-1', { _id: 'song-variants:variant-1', tracks: [] })
     putJob({})
-    const watcher = createAsyncJobWatcher({ couch, workspaceId: 'ws', log })
+    const watcher = createAsyncJobWatcher({ database, workspaceId: 'ws', log })
     await vi.waitFor(() => expect(storedJob('job-1')?.status).toBe('done'))
     watcher.stop()
     const trackId = storedJob('job-1')?.trackId
@@ -207,7 +207,7 @@ describe('createAsyncJobWatcher', () => {
     ytDlpSucceeds()
     putJob({})
 
-    const watcher = createAsyncJobWatcher({ couch, workspaceId: 'ws', log })
+    const watcher = createAsyncJobWatcher({ database, workspaceId: 'ws', log })
     await vi.waitFor(() => expect(storedJob('job-1')?.status).toBe('error'))
     watcher.stop()
 
@@ -226,7 +226,7 @@ describe('createAsyncJobWatcher', () => {
     store.set('song-variants:variant-1', { _id: 'song-variants:variant-1', tracks: [] })
     putJob({})
 
-    const watcher = createAsyncJobWatcher({ couch, workspaceId: 'ws', log })
+    const watcher = createAsyncJobWatcher({ database, workspaceId: 'ws', log })
     await vi.waitFor(() => expect(storedJob('job-1')?.status).toBe('error'))
     watcher.stop()
 
@@ -238,7 +238,7 @@ describe('createAsyncJobWatcher', () => {
     ytDlpSucceeds()
     putJob({ variantId: '../../etc' })
 
-    const watcher = createAsyncJobWatcher({ couch, workspaceId: 'ws', log })
+    const watcher = createAsyncJobWatcher({ database, workspaceId: 'ws', log })
     await vi.waitFor(() => expect(storedJob('job-1')?.status).toBe('error'))
     watcher.stop()
 
@@ -251,7 +251,7 @@ describe('createAsyncJobWatcher', () => {
     store.set('song-variants:variant-1', { _id: 'song-variants:variant-1', tracks: [] })
     putJob({})
 
-    const watcher = createAsyncJobWatcher({ couch, workspaceId: 'ws', log })
+    const watcher = createAsyncJobWatcher({ database, workspaceId: 'ws', log })
     await vi.waitFor(() => expect(storedJob('job-1')?.status).toBe('error'))
     watcher.stop()
 
@@ -265,7 +265,7 @@ describe('createAsyncJobWatcher', () => {
     putJob({ id: 'second', createdAt: 2000 })
     putJob({ id: 'first', createdAt: 1000 })
 
-    const watcher = createAsyncJobWatcher({ couch, workspaceId: 'ws', log })
+    const watcher = createAsyncJobWatcher({ database, workspaceId: 'ws', log })
     await vi.waitFor(() => expect(storedJob('second')?.status).toBe('done'))
     watcher.stop()
 
@@ -276,7 +276,7 @@ describe('createAsyncJobWatcher', () => {
   it('marks a job left running by a previous process as failed at startup', async () => {
     putJob({ status: 'running', progress: 0.4 })
 
-    const watcher = createAsyncJobWatcher({ couch, workspaceId: 'ws', log })
+    const watcher = createAsyncJobWatcher({ database, workspaceId: 'ws', log })
     await vi.waitFor(() => expect(storedJob('job-1')?.status).toBe('error'))
     watcher.stop()
 
@@ -295,7 +295,7 @@ describe('createAsyncJobWatcher', () => {
     it('refuses without the plugin installed - heavy, so only for bands that want it', async () => {
       store.set('song-variants:variant-1', { _id: 'song-variants:variant-1', tracks: [{ id: 'mix-1', kind: 'band-mix' }] })
       store.set('async-jobs:stem-1', { ...stemJob, _id: 'async-jobs:stem-1' })
-      const watcher = createAsyncJobWatcher({ couch, workspaceId: 'ws', log })
+      const watcher = createAsyncJobWatcher({ database, workspaceId: 'ws', log })
       await vi.waitFor(() => expect(storedJob('stem-1')?.status).toBe('error'))
       watcher.stop()
       expect(storedJob('stem-1')?.error).toMatch(/nicht installiert/)
@@ -317,7 +317,7 @@ describe('createAsyncJobWatcher', () => {
           { key: 'guitar-left', path: `${outDir}/guitar-left.opus` },
         ]
       })
-      const watcher = createAsyncJobWatcher({ couch, workspaceId: 'ws', log })
+      const watcher = createAsyncJobWatcher({ database, workspaceId: 'ws', log })
       await vi.waitFor(() => expect(storedJob('stem-1')?.status).toBe('done'))
       watcher.stop()
       const tracks = (store.get('song-variants:variant-1') as { tracks: Array<Record<string, unknown>> }).tracks

@@ -1,5 +1,5 @@
 import { CAPABILITIES, serverMessage, PluginInstallationSchema, type IShowControlPlugin, type PluginContext, type ShowControlEvent, type ShowControlResult } from 'shared-types'
-import { allDocs, type CouchConfig } from '../couch.js'
+import { allDocs, type DatabaseConfig } from '../database.js'
 import { workspaceDbName } from '../workspaceProvisioning.js'
 
 /**
@@ -42,8 +42,8 @@ export const createYoutubeDownloadPlugin = addonPlugin(YOUTUBE_DOWNLOAD_PLUGIN_I
 
 /** Whether the band has the add-on installed and switched on - read from its replicated
  * PluginInstallation documents, like the stem-separation check. */
-export async function bandHasAddon(couch: CouchConfig, workspaceId: string, pluginId: string): Promise<boolean> {
-  const docs = await allDocs<unknown>(couch, workspaceDbName(workspaceId), { startkey: 'plugins:', endkey: 'plugins:\ufff0' })
+export async function bandHasAddon(database: DatabaseConfig, workspaceId: string, pluginId: string): Promise<boolean> {
+  const docs = await allDocs<unknown>(database, workspaceDbName(workspaceId), { startkey: 'plugins:', endkey: 'plugins:\ufff0' })
   return docs.some((doc) => {
     const parsed = PluginInstallationSchema.safeParse(doc)
     return parsed.success && parsed.data.id === pluginId && parsed.data.enabled

@@ -32,7 +32,7 @@ export function BackToWorkingBandLink() {
   // tests). The filter itself is cheap enough to just redo per render via useMemo instead.
   const workspaces = useWorkspaceStore((state) => state.workspaces)
   const otherReadyWorkspaces = useMemo(
-    () => workspaces.filter((w) => w.id !== activeWorkspaceId && w.couchPassword),
+    () => workspaces.filter((w) => w.id !== activeWorkspaceId && w.password),
     [workspaces, activeWorkspaceId],
   )
 

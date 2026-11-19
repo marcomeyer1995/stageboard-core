@@ -1,6 +1,6 @@
 import { registerPlugin, type PluginListenerHandle } from '@capacitor/core'
 import { AccessCodeSchema, HostJoinInviteSchema } from 'shared-types'
-import { createHostLogin, createHostPresence, leaseKey, signAccountRequest, startCatchUp, type CatchUp, createSyncHost, createWriteGuard, HOST_ACCOUNTS_DOC_ID, type HostAccount, type SyncDatabase, type SyncRequest } from 'sync-host'
+import { BAND_SETTINGS_DOC_ID, createBandAccounts, createBandAccountStore, listedHostIds, createBandJoin, createBandMembers, createPinThrottle, createReplicationAccountIssuer, createHostPresence, leaseKey, signAccountRequest, startCatchUp, type CatchUp, createSyncHost, createWriteGuard, type SyncDatabase, type SyncRequest } from 'sync-host'
 import { useBandSettingsStore } from '../store/useBandSettingsStore'
 import { useAndroidHostStore } from '../store/useAndroidHostStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
@@ -8,7 +8,6 @@ import { getDeviceId } from '../lib/deviceId'
 import { answerHostRequest, loginCheckOf, type AppHostDeps } from '../host/hostHttp'
 import { createTabletHost, type TabletHost } from '../host/tabletHost'
 import PouchDB from 'pouchdb-browser'
-import { createAccountIssuer } from '../host/replicationAccount'
 import { getAudioStorageBackend } from '../lib/audioStorageBackend'
 import { createHostAudio } from './hostAudio'
 import { isNativeApp, pinListedHosts } from '../lib/native'
@@ -26,7 +25,7 @@ import { getWorkspaceDb, localDbName } from '../lib/workspaceDb'
 const SWITCH_KEY = 'stageboard-android-host'
 const ROLE_KEY = 'stageboard-android-host-role'
 const CODE_KEY = 'stageboard-android-host-code'
-const ACCOUNTS_KEY = 'stageboard-android-host-accounts'
+const SENT_AT_KEY = 'stageboard-android-account-requests'
 const INVITE_KEY = 'stageboard-android-host-invite-at'
 const PORT = 8443
 const TICK_MS = 1_000
@@ -222,23 +221,50 @@ export async function startAndroidHost(): Promise<void> {
   const open = (name: string) => (name === dbName ? (getWorkspaceDb(workspaceId) as unknown as SyncDatabase) : null)
   const syncHost = createSyncHost({ open })
   const guard = createWriteGuard({ open, security: async () => ({ admins: { roles: ['admin'] }, members: { roles: ['member', 'admin'] } }) })
-  // Logins handed to the returned primary so it can copy what was written while the tablet was host (#947).
-  const issuer = createAccountIssuer({
-    selfHostId: hostId,
+  // The band's own accounts (#960): logins and PIN verifiers as documents of the band database, the same code the
+  // Stage-Server runs.
+  const accounts = createBandAccounts({
+    store: createBandAccountStore(getWorkspaceDb(workspaceId) as never),
     workspaceId,
-    hosts: hostsNow,
-    key: async () => (await keys())[0] ?? null,
-    load: () => readJson(ACCOUNTS_KEY),
-    save: (state) => localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(state)),
+    // The devices the band lists as hosts have the role `host`: they write the band's accounts with their own sync.
+    hostDevices: async () => listedHostIds(await getWorkspaceDb(workspaceId).get(BAND_SETTINGS_DOC_ID).catch(() => null)),
   })
-  const login = createHostLogin({
-    accounts: async (db) => {
-      const store = db === dbName ? open(db) : null
-      if (!store) return []
-      const doc = (await store.get(HOST_ACCOUNTS_DOC_ID).catch(() => null)) as { accounts?: HostAccount[] } | null
-      return [...(doc?.accounts ?? []), ...issuer.accounts()]
+  // The login the returned primary copies what was written while the tablet was host with (#947): the same issuer the
+  // Stage-Server runs, a login document of the band like every other.
+  const issuer = createReplicationAccountIssuer({
+    selfHostId: hostId,
+    workspaceId: () => workspaceId,
+    readHosts: async () => hostsNow() ?? null,
+    readAccessCode: accessCodeNow,
+    mint: (_band, askingHostId) => accounts.provisionDevice('host', askingHostId, false),
+    // Kept across a restart: a recorded request must not become good again.
+    sentAt: {
+      get: (askingHostId) => readJson<Record<string, number>>(SENT_AT_KEY)?.[askingHostId],
+      set: (askingHostId, at) => localStorage.setItem(SENT_AT_KEY, JSON.stringify({ ...readJson<Record<string, number>>(SENT_AT_KEY), [askingHostId]: at })),
     },
   })
+  const joinBand = createBandJoin({
+    accounts,
+    throttle: createPinThrottle(),
+    workspaceId,
+    accessCode: accessCodeNow,
+    profile: async (profileId) => (await getWorkspaceDb(workspaceId).get(`profiles:${profileId}`).catch(() => null)) as { stageRoles?: string[] } | null,
+  })
+  const members = createBandMembers({
+    accounts,
+    join: joinBand,
+    workspaceId,
+    loginThrottle: createPinThrottle(),
+    profile: async (profileId) => (await getWorkspaceDb(workspaceId).get(`profiles:${profileId}`).catch(() => null)) as { stageRoles?: string[] } | null,
+    adminProfileIds: async () => {
+      const rows = await getWorkspaceDb(workspaceId).allDocs({ startkey: 'profiles:', endkey: 'profiles:\ufff0', include_docs: true })
+      return rows.rows.flatMap((row) => {
+        const doc = row.doc as { id?: string; stageRoles?: string[] } | undefined
+        return doc?.id && (doc.stageRoles ?? []).includes('admin') ? [doc.id] : []
+      })
+    },
+  })
+  const login = async (authorization: string | undefined, db: string) => (db === dbName ? accounts.login(authorization) : null)
 
   const acceptInvite = async (raw: unknown) => {
     const invite = HostJoinInviteSchema.safeParse(raw)
@@ -305,6 +331,8 @@ export async function startAndroidHost(): Promise<void> {
     activeWorkspaceId: () => workspaceId,
     acceptInvite,
     audio: hostAudio,
+    joinBand: (band) => (band === workspaceId ? joinBand : null),
+    members: (band) => (band === workspaceId ? members : null),
     presence: {
       report: (band, report) => band === workspaceId && presence.report(report),
       heartbeat: (band, deviceId) => band === workspaceId && presence.heartbeat({ deviceId }),

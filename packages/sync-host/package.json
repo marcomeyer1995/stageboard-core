@@ -25,9 +25,9 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
-    "./couch-host": {
-      "types": "./dist/couchHost.d.ts",
-      "default": "./dist/couchHost.js"
+    "./database-host": {
+      "types": "./dist/databaseHost.d.ts",
+      "default": "./dist/databaseHost.js"
     }
   },
   "dependencies": {

@@ -4,18 +4,18 @@ import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import PouchDB from 'pouchdb-core'
 import LevelAdapter from 'pouchdb-adapter-leveldb'
-import { createCouchHost, type Catalog, type CouchHostRequest } from 'sync-host/couch-host'
+import { createDatabaseHost, type Catalog, type DatabaseHostRequest } from 'sync-host/database-host'
 
 PouchDB.plugin(LevelAdapter)
 
 /**
- * The built-in database host (docs/25, Host step 1, 2026-11-07): instead of CouchDB in Docker, the
- * Stage-Server runs sync-host's small CouchDB itself, its databases in LevelDB files. It listens
- * where CouchDB would (127.0.0.1:5984 by default), so `couch.ts`, the `/db` proxy for the devices
- * and the command-line tools (PIN reset, delete a band) talk to it exactly as to CouchDB - and only
+ * The built-in database host (docs/25, Host step 1, 2026-11-07): instead of the database in Docker, the
+ * Stage-Server runs sync-host's small the database itself, its databases in LevelDB files. It listens
+ * where the database would (127.0.0.1:5984 by default), so `database.ts`, the `/db` proxy for the devices
+ * and the command-line tools (PIN reset, delete a band) talk to it exactly as to the database - and only
  * this one process opens the files.
  */
-export interface BuiltinCouch {
+export interface BuiltinDatabase {
   url: string
   close: () => Promise<void>
 }
@@ -68,10 +68,10 @@ async function readBody(req: IncomingMessage): Promise<unknown> {
   return { data: new Uint8Array(raw), contentType: type }
 }
 
-export async function startBuiltinCouch(options: { dataDir: string; user: string; password: string; port?: number; host?: string }): Promise<BuiltinCouch> {
+export async function startBuiltinDatabase(options: { dataDir: string; user: string; password: string; port?: number; host?: string }): Promise<BuiltinDatabase> {
   const dbDir = join(options.dataDir, 'db')
   await mkdir(dbDir, { recursive: true })
-  const handler = createCouchHost({
+  const handler = createDatabaseHost({
     storage: (name) => new PouchDB(join(dbDir, encodeURIComponent(name)), { adapter: 'leveldb' }),
     catalog: fileCatalog(join(options.dataDir, 'databases.json')),
     admin: { user: options.user, password: options.password },
@@ -81,7 +81,7 @@ export async function startBuiltinCouch(options: { dataDir: string; user: string
       const url = new URL(req.url ?? '/', 'http://localhost')
       const abort = new AbortController()
       res.on('close', () => abort.abort())
-      const request: CouchHostRequest = {
+      const request: DatabaseHostRequest = {
         method: req.method ?? 'GET',
         path: url.pathname,
         query: Object.fromEntries(url.searchParams),

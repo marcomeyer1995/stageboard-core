@@ -2,7 +2,7 @@
  * Server-local command: converts the existing track library once to the track format - Ogg Opus,
  * 48 kHz, 160 kbit/s (docs/30 §8h; Marco, 2026-11-13: "einmal am Server", the original kept as an
  * archive on the Stage-Server only, YouTube's Opus re-encoded too). Runs on the Stage-Server
- * itself with the service's own CouchDB login and never prints a credential.
+ * itself with the service's own database login and never prints a credential.
  *
  *   npm run tracks:convert -w core-backend                 # dry run: convert into a temp dir, check, report
  *   npm run tracks:convert -w core-backend -- --apply      # replace the files, archive the originals
@@ -24,8 +24,8 @@ import { homedir, tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { promisify } from 'node:util'
-import type { CouchConfig, CouchDoc } from '../couch.js'
-import { serverCouchConfig } from './serviceEnv.js'
+import type { DatabaseConfig, DatabaseDoc } from '../database.js'
+import { serverDatabaseConfig } from './serviceEnv.js'
 
 const run = promisify(execFile)
 
@@ -52,7 +52,7 @@ interface TrackFields {
   archive?: { mimeType: string; sizeBytes: number }
 }
 
-interface VariantDoc extends CouchDoc {
+interface VariantDoc extends DatabaseDoc {
   tracks?: TrackFields[]
 }
 
@@ -151,17 +151,17 @@ async function main(): Promise<void> {
     if (!(await exists(path))) throw new Error(`${what} not found: ${path}`)
   }
 
-  const couch: CouchConfig = serverCouchConfig()
+  const database: DatabaseConfig = serverDatabaseConfig()
   // Imported after the environment is set, like the server itself.
-  const { allDocs, listDbs, putDocWithRetry } = await import('../couch.js')
+  const { allDocs, listDbs, putDocWithRetry } = await import('../database.js')
   const audioDir = process.env.AUDIO_STORAGE_DIR ?? './data/audio'
   const archiveDir = process.env.AUDIO_ARCHIVE_DIR ?? join(process.env.STAGEBOARD_STATE_DIR ?? './data', 'audio-archive')
   const work = join(tmpdir(), `sb-convert-${process.pid}`)
   await mkdir(work, { recursive: true })
 
   const refs: TrackRef[] = []
-  for (const db of (await listDbs(couch)).filter((name) => name.startsWith('stageboard-'))) {
-    refs.push(...tracksOf(db, await allDocs<VariantDoc>(couch, db, { startkey: 'song-variants:', endkey: 'song-variants:￰' })))
+  for (const db of (await listDbs(database)).filter((name) => name.startsWith('stageboard-'))) {
+    refs.push(...tracksOf(db, await allDocs<VariantDoc>(database, db, { startkey: 'song-variants:', endkey: 'song-variants:￰' })))
   }
   const wanted = only ? refs.filter((r) => `${r.variantId}:${r.trackId}` === only) : refs
   console.log(`${wanted.length} tracks${apply ? '' : ' - dry run, nothing is changed (--apply to convert)'}`)
@@ -217,7 +217,7 @@ async function main(): Promise<void> {
       await rename(staged, stored)
       await rm(out, { force: true })
     }
-    await putDocWithRetry<VariantDoc>(couch, ref.db, ref.docId, (existing) => {
+    await putDocWithRetry<VariantDoc>(database, ref.db, ref.docId, (existing) => {
       if (!existing) throw new Error(`${ref.docId} is gone`)
       return {
         ...existing,

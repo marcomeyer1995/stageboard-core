@@ -1,12 +1,12 @@
 import { createAsyncJobWatcher, type AsyncJobWatcherHandle } from './asyncJobWatcher.js'
-import type { CouchConfig } from './couch.js'
+import type { DatabaseConfig } from './database.js'
 import { createMidiWatcher, type MidiWatcherHandle } from './midiWatcher.js'
 import { createPluginSync, type PluginSyncHandle } from './plugins/pluginSync.js'
 import type { PluginRegistry } from './plugins/registry.js'
 import { writePersistedActiveWorkspace } from './activeWorkspaceStateStore.js'
 
 export interface WorkspaceHardwareControllerOptions {
-  couch: CouchConfig
+  database: DatabaseConfig
   registry: PluginRegistry
   log: {
     info: (msg: string, meta?: Record<string, unknown>) => void
@@ -34,7 +34,7 @@ export interface WorkspaceHardwareController {
 export function createWorkspaceHardwareController(
   options: WorkspaceHardwareControllerOptions,
 ): WorkspaceHardwareController {
-  const { couch, registry, log } = options
+  const { database, registry, log } = options
 
   let current: { workspaceId: string; sync: PluginSyncHandle; midiWatcher: MidiWatcherHandle; asyncJobs: AsyncJobWatcherHandle } | null = null
 
@@ -58,11 +58,11 @@ export function createWorkspaceHardwareController(
   async function activate(workspaceId: string): Promise<void> {
     await deactivate()
 
-    const sync = createPluginSync({ couch, workspaceId, registry, log })
-    const midiWatcher = createMidiWatcher({ couch, workspaceId, log })
+    const sync = createPluginSync({ database, workspaceId, registry, log })
+    const midiWatcher = createMidiWatcher({ database, workspaceId, log })
     // #5: practice-track extraction only ever runs for whichever band's hardware is currently
     // active on this box - same one-workspace-at-a-time model everything else here already uses.
-    const asyncJobs = createAsyncJobWatcher({ couch, workspaceId, log })
+    const asyncJobs = createAsyncJobWatcher({ database, workspaceId, log })
     current = { workspaceId, sync, midiWatcher, asyncJobs }
 
     writePersistedActiveWorkspace(workspaceId)

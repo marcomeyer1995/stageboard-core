@@ -10,7 +10,7 @@ const dialogs = vi.hoisted(() => ({ confirm: vi.fn(async () => true), alert: vi.
 vi.mock('../lib/hostActions', () => ({ hostAction: action.run }))
 vi.mock('../store/useWorkspaceStore', () => ({
   useWorkspaceStore: (select: (s: unknown) => unknown) =>
-    select({ activeWorkspaceId: 'w', workspaces: [{ id: 'w', isAdmin: session.isAdmin, username: 'stageboard-w-a~d', couchPassword: 'secret' }] }),
+    select({ activeWorkspaceId: 'w', workspaces: [{ id: 'w', isAdmin: session.isAdmin, username: 'stageboard-w-a~d', password: 'secret' }] }),
 }))
 vi.mock('../store/useShowStateStore', () => ({ useShowStateStore: (select: (s: unknown) => unknown) => select({ state: { playbackStatus: session.playing ? 'playing' : 'stopped' } }) }))
 vi.mock('../store/useDialogStore', () => ({ useDialogStore: (select: (s: unknown) => unknown) => select(dialogs) }))

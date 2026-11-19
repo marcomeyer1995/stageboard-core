@@ -30,7 +30,7 @@ beforeEach(() => {
   putProfile.mockReset().mockResolvedValue(undefined)
   removeProfileDb.mockReset().mockResolvedValue(undefined)
   useWorkspaceStore.setState({
-    // username/couchPassword set: these tests exercise the already-server-connected roster
+    // username/password set: these tests exercise the already-server-connected roster
     // path by default (this is the pre-Tier-A-follow-up, already-established behavior) - the
     // "local-only" branch (no server yet) gets its own dedicated tests further below.
     workspaces: [
@@ -40,7 +40,7 @@ beforeEach(() => {
         ownProfileId: 'founder-id',
         isAdmin: true,
         username: 'stageboard-band-a-founder-id',
-        couchPassword: 'founder-pw',
+        password: 'founder-pw',
       },
     ],
     activeWorkspaceId: 'band-a',

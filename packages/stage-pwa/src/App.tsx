@@ -136,7 +136,7 @@ function App() {
   const activeWorkspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
   const hasAnyWorkspace = useWorkspaceStore((state) => state.workspaces.length > 0)
   const activeWorkspacePassword = useWorkspaceStore(
-    (state) => state.workspaces.find((w) => w.id === state.activeWorkspaceId)?.couchPassword,
+    (state) => state.workspaces.find((w) => w.id === state.activeWorkspaceId)?.password,
   )
   const activeWorkspaceIsAdmin = useWorkspaceStore(
     (state) => state.workspaces.find((w) => w.id === state.activeWorkspaceId)?.isAdmin ?? false,
@@ -176,7 +176,7 @@ function App() {
   useRigCheckReporter()
   useRigCheckMeasurer()
 
-  // The one and only live CouchDB sync for the whole app (see workspaceDb.ts) - every store
+  // The one and only live the database sync for the whole app (see workspaceDb.ts) - every store
   // below still runs its own init (loading + a local, filtered change listener for just its
   // own document kind), but none of them starts an independent remote sync anymore. No
   // credentials stored yet (JoinBandView below hasn't been completed) just means no sync

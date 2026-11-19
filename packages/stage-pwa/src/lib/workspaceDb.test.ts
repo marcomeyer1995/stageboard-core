@@ -44,7 +44,7 @@ describe('localDbName', () => {
 })
 
 describe('remoteDbUrl', () => {
-  it('2026-09-02 fourth follow-up: builds the workspace database URL through the Stage-Server\'s own /db proxy, not CouchDB\'s own port', () => {
+  it('2026-09-02 fourth follow-up: builds the workspace database URL through the Stage-Server\'s own /db proxy, not the database\'s own port', () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     ;(import.meta.env as any).VITE_STAGE_SERVER_URL = 'https://stage-server:3001'
     expect(remoteDbUrl('band-b')).toBe('https://stage-server:3001/db/stageboard-band-b')

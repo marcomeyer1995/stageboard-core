@@ -65,7 +65,7 @@ function activeWorkspace() {
 
 /** Whether this workspace has ever been provisioned against a real Stage-Server - see the
  * Tier-A local-only-founding follow-up. Until then, every roster edit here (create, admin
- * toggle, remove) stays a plain local write: there's no CouchDB account or validator yet for
+ * toggle, remove) stays a plain local write: there's no account or validator yet for
  * useWorkspaceStore.ts's backend calls to act on. */
 function isServerConnected(workspace: ReturnType<typeof activeWorkspace>): boolean {
   return !!workspace?.username
@@ -92,7 +92,7 @@ export const useProfilesStore = create<ProfilesState>((set, get) => ({
   // plain local write, nothing new to provision, auto-admin (so "at least one admin" holds
   // from the moment a band exists). Tier-A local-only-founding follow-up: every profile after
   // that stays a plain local write too, for as long as the workspace itself has never been
-  // connected to a server (`isServerConnected`) - once it has, a brand-new personal CouchDB
+  // connected to a server (`isServerConnected`) - once it has, a brand-new personal the database
   // account is provisioned first (`useWorkspaceStore`'s `createMember`), same as before.
   create: async (name, options = {}) => {
     const workspace = activeWorkspace()
@@ -129,7 +129,7 @@ export const useProfilesStore = create<ProfilesState>((set, get) => ({
   },
   // If this change adds or removes 'admin', that's not just a label edit - it has to go
   // through core-backend first (see useWorkspaceStore.ts's setMemberAdmin) to actually change
-  // that person's CouchDB account role, which is what the roster validator really checks. Only
+  // that person's account role, which is what the roster validator really checks. Only
   // writes the roster doc (with whatever the *rest* of the requested stageRoles are too, not
   // just the admin bit) once that backend call succeeds - the backend, not this store, is the
   // authority on "at least one admin must remain" (it can see the real current admin count;
@@ -142,7 +142,7 @@ export const useProfilesStore = create<ProfilesState>((set, get) => ({
     const wasAdmin = existing.stageRoles.includes('admin')
     const willBeAdmin = stageRoles.includes('admin')
     const workspace = activeWorkspace()
-    // Local-only workspace (see the Tier-A follow-up): no CouchDB account or validator exists
+    // Local-only workspace (see the Tier-A follow-up): no account or validator exists
     // yet for the backend call below to act on - this stays a plain local edit.
     if (wasAdmin !== willBeAdmin && isServerConnected(workspace)) {
       const ok = await useWorkspaceStore.getState().setMemberAdmin(workspace?.id ?? '', id, willBeAdmin)
@@ -157,7 +157,7 @@ export const useProfilesStore = create<ProfilesState>((set, get) => ({
     await putProfile({ ...existing, stageRoles })
     return true
   },
-  // Deprovisions the member's CouchDB account first (see useWorkspaceStore.ts's removeMember -
+  // Deprovisions the member's account first (see useWorkspaceStore.ts's removeMember -
   // also where "at least one admin must remain" is actually enforced), only removing the
   // roster doc itself if that succeeds. Local-only workspace (Tier-A follow-up): no account
   // exists yet to deprovision, so this is just a local removal.

@@ -8,10 +8,10 @@ export interface TrackedSync {
 }
 
 /**
- * Gates when each of the ~9 independent live PouchDB<->CouchDB streams (songs, setlists,
+ * Gates when each of the ~9 independent live PouchDB<->the database streams (songs, setlists,
  * dashboards, ...) actually calls `.sync()`. Starting all of them at once means their
  * initial provisioning + first-changes-check requests all fire simultaneously against the
- * same CouchDB host - easily more than the browser's ~6-connections-per-host limit for
+ * same the database host - easily more than the browser's ~6-connections-per-host limit for
  * plain HTTP/1.1, so several streams never even get a response and sit reporting 'active'
  * forever (see #33's follow-up: the sync indicator never left "Synchronisiere…"). Each
  * queued stream now waits for the previous one to reach its first settled state (paused,
@@ -134,7 +134,7 @@ export function trackedSync<T extends object>(
               )
             }
 
-            // CouchDB (2.0+) reports how many changes are still left on every batch of its
+            // the database (2.0+) reports how many changes are still left on every batch of its
             // `_changes` feed - not in @types/pouchdb-replication's declarations, but present
             // at runtime (pouchdb-browser's http adapter attaches it when the server sends
             // one). Only meaningful for pull: push reads from the local IndexedDB adapter,

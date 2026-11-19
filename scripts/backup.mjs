@@ -5,7 +5,7 @@
  *   node scripts/backup.mjs <target-dir>          (or STAGEBOARD_BACKUP_TARGET=<dir>)
  *
  * Writes one dated generation `<target>/stageboard-YYYY-MM-DD_HHMM/` with
- * - `couchdb/<db>.json`: every document of every StageBoard database (and `_users`) with its
+ * - `databases/<db>.json`: every document of every StageBoard database with its
  *   revision history and attachments (`_bulk_get?revs=true&attachments=true`), deleted ones as
  *   tombstones, so a restore with `new_edits: false` keeps the revisions (scripts/backup-restore.mjs,
  *   docs/03 "Backup & Wiederherstellung");
@@ -23,7 +23,7 @@
  * disk ends with exit code 1, a JSON error line on stderr (journal) and `ok: false` in
  * `<STAGEBOARD_STATE_DIR>/backup-status.json`, which the app shows (Geräte → Stage-Server).
  *
- * CouchDB access like core-backend: COUCHDB_URL / COUCHDB_USER / COUCHDB_PASSWORD, otherwise the
+ * the database access like core-backend: STAGEBOARD_DB_URL / STAGEBOARD_DB_USER / STAGEBOARD_DB_PASSWORD, otherwise the
  * same defaults. No credential is ever printed.
  */
 import { execFileSync } from 'node:child_process'
@@ -43,9 +43,9 @@ const stateDir = process.env.STAGEBOARD_STATE_DIR ?? dataDir
 // generations share unchanged backing tracks through hard links).
 const statusFile = process.env.STAGEBOARD_BACKUP_STATUS_FILE ?? join(stateDir, 'backup-status.json')
 const skipData = process.env.STAGEBOARD_BACKUP_SKIP_DATA === '1'
-const couch = {
-  url: (process.env.COUCHDB_URL ?? 'http://localhost:5984').replace(/\/$/, ''),
-  auth: 'Basic ' + Buffer.from(`${process.env.COUCHDB_USER ?? 'admin'}:${process.env.COUCHDB_PASSWORD ?? 'admin'}`).toString('base64'),
+const database = {
+  url: (process.env.STAGEBOARD_DB_URL ?? 'http://localhost:5984').replace(/\/$/, ''),
+  auth: 'Basic ' + Buffer.from(`${process.env.STAGEBOARD_DB_USER ?? 'admin'}:${process.env.STAGEBOARD_DB_PASSWORD ?? 'admin'}`).toString('base64'),
 }
 
 function log(level, msg, extra = {}) {
@@ -63,19 +63,19 @@ function writeStatus(status) {
   }
 }
 
-async function couchGet(path) {
-  const res = await fetch(`${couch.url}${path}`, { headers: { Authorization: couch.auth } })
-  if (!res.ok) throw new Error(`CouchDB GET ${path.split('?')[0]} -> HTTP ${res.status}`)
+async function dbGet(path) {
+  const res = await fetch(`${database.url}${path}`, { headers: { Authorization: database.auth } })
+  if (!res.ok) throw new Error(`the database GET ${path.split('?')[0]} -> HTTP ${res.status}`)
   return res.json()
 }
 
-async function couchPost(path, body) {
-  const res = await fetch(`${couch.url}${path}`, {
+async function dbPost(path, body) {
+  const res = await fetch(`${database.url}${path}`, {
     method: 'POST',
-    headers: { Authorization: couch.auth, 'Content-Type': 'application/json', Accept: 'application/json' },
+    headers: { Authorization: database.auth, 'Content-Type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify(body),
   })
-  if (!res.ok) throw new Error(`CouchDB POST ${path.split('?')[0]} -> HTTP ${res.status}`)
+  if (!res.ok) throw new Error(`the database POST ${path.split('?')[0]} -> HTTP ${res.status}`)
   return res.json()
 }
 
@@ -83,20 +83,20 @@ async function couchPost(path, body) {
 async function dumpDb(db) {
   // The changes feed, not _all_docs: it also lists deleted documents, whose tombstones must come
   // back on a restore - otherwise a device with an old copy would bring a deleted entry back.
-  const changes = await couchGet(`/${encodeURIComponent(db)}/_changes?style=all_docs`)
+  const changes = await dbGet(`/${encodeURIComponent(db)}/_changes?style=all_docs`)
   const docs = []
   const ids = [...new Set(changes.results.map((r) => r.id))]
   for (let i = 0; i < ids.length; i += 200) {
     const batch = ids.slice(i, i + 200).map((id) => ({ id }))
-    const res = await couchPost(`/${encodeURIComponent(db)}/_bulk_get?revs=true&attachments=true`, { docs: batch })
+    const res = await dbPost(`/${encodeURIComponent(db)}/_bulk_get?revs=true&attachments=true`, { docs: batch })
     for (const result of res.results) {
       for (const entry of result.docs) {
         if (entry.ok) docs.push(entry.ok)
-        else throw new Error(`CouchDB _bulk_get ${db}/${result.id}: ${entry.error?.error ?? 'unknown'}`)
+        else throw new Error(`the database _bulk_get ${db}/${result.id}: ${entry.error?.error ?? 'unknown'}`)
       }
     }
   }
-  const security = await couchGet(`/${encodeURIComponent(db)}/_security`).catch(() => ({}))
+  const security = await dbGet(`/${encodeURIComponent(db)}/_security`).catch(() => ({}))
   return { db, security, docs }
 }
 
@@ -139,14 +139,14 @@ async function main() {
   }
   const stamp = startedAt.toISOString().slice(0, 16).replace('T', '_').replace(':', '')
   const dir = join(target, `stageboard-${stamp}`)
-  mkdirSync(join(dir, 'couchdb'), { recursive: true, mode: 0o700 })
+  mkdirSync(join(dir, 'databases'), { recursive: true, mode: 0o700 })
   chmodSync(dir, 0o700)
 
-  const dbs = (await couchGet('/_all_dbs')).filter((db) => db.startsWith('stageboard-') || db === '_users')
+  const dbs = (await dbGet('/_all_dbs')).filter((db) => db.startsWith('stageboard-'))
   const databases = []
   for (const db of dbs) {
     const dump = await dumpDb(db)
-    const file = join(dir, 'couchdb', `${db}.json`)
+    const file = join(dir, 'databases', `${db}.json`)
     writeFileSync(file, JSON.stringify(dump), { mode: 0o600 })
     databases.push({ db, docs: dump.docs.length, bytes: statSync(file).size })
   }

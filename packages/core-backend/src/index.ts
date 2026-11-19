@@ -14,12 +14,11 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import cors from '@fastify/cors'
 import httpProxy from '@fastify/http-proxy'
-import { startBuiltinCouch } from './builtinCouch.js'
+import { startBuiltinDatabase } from './builtinDatabase.js'
 import { hostCapabilities } from './hostCapabilities.js'
 import { createHostLeaseService, getFromHost, postJsonToHost } from './hostLeaseService.js'
 import { createHostRoleStore } from './hostRoleStore.js'
 import { makeLocalBandDb, makeRemoteBandDb } from './bandPouch.js'
-import { createReplicationAccountIssuer } from './replicationAccount.js'
 import { createReplicationRunner } from './replicationRunner.js'
 import { createAudioMirror } from './audioMirror.js'
 import { createBandBootstrapStore, joinBandInvite, effectiveHosts, joinBand } from './bandJoin.js'
@@ -29,7 +28,7 @@ import { createPinnedFetch } from './pinnedFetch.js'
 import { corsOriginAllowed } from './corsOrigin.js'
 import { HostLookupQuerySchema, lookUpHost } from './hostLookup.js'
 import { configuredHostEpoch } from './hostEpochConfig.js'
-import { importHostAccounts, watchHostAccounts } from './hostAccounts.js'
+import { createBandAccountsFor } from './bandAccounts.js'
 import fastifyStatic from '@fastify/static'
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify'
 import {
@@ -51,7 +50,6 @@ import {
   RemoveMemberRequestSchema,
   RenameWorkspaceRequestSchema,
   SetMasterModeRequestSchema,
-  ResetMemberPasswordRequestSchema,
   RevokeDeviceRequestSchema,
   ForgetDeviceRequestSchema,
   RosterRequestSchema,
@@ -70,7 +68,7 @@ import { createBackupService, realBackupDeps, type BackupService } from './backu
 import { deleteAudioFile, readAudioFile, writeAudioFile } from './audioStore.js'
 import { readPersistedActiveWorkspace } from './activeWorkspaceStateStore.js'
 import { isSafePluginId, readPluginBundle } from './plugins/pluginBundleStore.js'
-import { allDocs, deleteDocUnless, getDoc, putDoc, putDocWithRetry, userExists, verifyUser, type CouchConfig, type CouchDoc } from './couch.js'
+import { allDocs, deleteDocUnless, getDoc, putDoc, putDocWithRetry, type DatabaseConfig, type DatabaseDoc } from './database.js'
 import * as deviceInfoStore from './deviceInfoStore.js'
 import * as deviceRelay from './deviceRelay.js'
 import * as discoverySessionStore from './discoverySessionStore.js'
@@ -87,35 +85,28 @@ import { LookupRegistry } from './plugins/lookupRegistry.js'
 import { lookupErrorBody } from './plugins/lookupError.js'
 import * as presenceStore from './presenceStore.js'
 import { registerHostRoutes } from './hostRoutes.js'
-import { createHostRoutes } from 'sync-host'
+import { createBandJoin, createBandMembers, createHostRoutes, createReplicationAccountIssuer, type BandJoin } from 'sync-host'
 import * as showStatePushHub from './showStatePushHub.js'
 import * as switchStateHub from './switchStateHub.js'
 import { PluginRegistry } from './plugins/registry.js'
-import { createPinThrottle } from './pinThrottle.js'
+import { createPinThrottle } from 'sync-host'
 import { isLoopback, readDeletedWorkspaces } from './provisioningAuth.js'
-import { listDbs } from './couch.js'
+import { listDbs } from './database.js'
 import { decodeOscPacket, oscTargetFromConfig, setOscTargetResolver } from './plugins/oscPlugin.js'
 import * as oscInHub from './oscInHub.js'
 import { createWorkspaceHardwareController } from './workspaceHardwareController.js'
 import {
-  deprovisionMember,
   deprovisionWorkspace,
-  generateMemberPassword,
   deviceUsername,
   getOrCreateAccessCode,
   listWorkspaces,
   memberUsername,
-  provisionDevice,
-  provisionMember,
   provisionWorkspace,
   updateRosterValidators,
   renameWorkspace,
   setMasterMode,
-  resetAdminPin,
   rotateAccessCode,
-  setMemberAdmin,
   getAccessCode,
-  setMemberPassword,
   workspaceDbName,
   WorkspaceAlreadyProvisionedError,
 } from './workspaceProvisioning.js'
@@ -141,10 +132,10 @@ const DEFAULT_FRONTEND_ORIGINS = [
 ].join(',')
 
 /**
- * Why a request through the `/db` proxy must not reach CouchDB, or null if it may: a path into a
+ * Why a request through the `/db` proxy must not reach the database, or null if it may: a path into a
  * band's database (`/db/stageboard-<band>/…`) needs Basic auth with an account of that band
- * (`stageboard-<band>-<profile>[~<device>]`). Everything else (`_session`, `_users`, …) is left to
- * CouchDB. Band ids never extend each other (checked at provisioning), so the prefix is unambiguous.
+ * (`stageboard-<band>-<profile>[~<device>]`). Everything else (`_security`, `_all_dbs`, …) is left to
+ * the database. Band ids never extend each other (checked at provisioning), so the prefix is unambiguous.
  */
 export function bandDbProxyRefusal(url: string, authorization: string | undefined): string | null {
   const path = url.slice('/db'.length).split('?')[0] ?? ''
@@ -175,28 +166,17 @@ export function basicAuthCredentials(header: string | undefined): { username: st
  * QR code carries it, so a self-signed certificate is trusted without any CA on the device. */
 const CERT_FINGERPRINT = CERTS_AVAILABLE ? certFingerprint(readFileSync(certFile, 'utf8')) : null
 
-/** True if `username`/`password` authenticate as a genuine admin *of this specific workspace*
- * (see per-person-accounts follow-up) - every admin-gated route below uses this instead of
- * comparing against one fixed, derivable username. `verifyUser` already confirms the
- * credentials are real; this just adds the role check. */
-async function verifyAdmin(couch: CouchConfig, username: string, password: string): Promise<boolean> {
-  const verified = await verifyUser(couch, username, password)
-  return verified !== null && verified.roles.includes('admin')
-}
-
 const PROFILE_ID_PREFIX = 'profiles:'
 
-/** How many roster members other than `excludingProfileId` currently have `stageRoles`
- * including `'admin'` - the source of truth for the "at least one admin must remain" checks
- * below. Reads the roster itself (not CouchDB `_users`) since the roster's `stageRoles` field
- * and each account's actual CouchDB role are meant to always move together (the frontend
- * updates both in the same action) - the roster is the simpler, single query. */
-async function countOtherAdmins(couch: CouchConfig, workspaceId: string, excludingProfileId: string): Promise<number> {
-  const profiles = await allDocs<CouchDoc & { id?: string; stageRoles?: string[] }>(couch, workspaceDbName(workspaceId), {
+/** The ids of the roster members whose `stageRoles` include `'admin'` - the source of truth for the "at least one
+ * admin must remain" checks. Reads the roster itself: its `stageRoles` and each login's role are meant to always move
+ * together (the app updates both in the same action), and the roster is the simpler, single query. */
+async function adminProfileIds(database: DatabaseConfig, workspaceId: string): Promise<string[]> {
+  const profiles = await allDocs<DatabaseDoc & { id?: string; stageRoles?: string[] }>(database, workspaceDbName(workspaceId), {
     startkey: PROFILE_ID_PREFIX,
     endkey: `${PROFILE_ID_PREFIX}￰`,
   })
-  return profiles.filter((profile) => profile.id !== excludingProfileId && (profile.stageRoles ?? []).includes('admin')).length
+  return profiles.flatMap((profile) => (profile.id && (profile.stageRoles ?? []).includes('admin') ? [profile.id] : []))
 }
 
 /** The roster as shown to a device mid-join (`POST /workspaces/:id/roster`, 2026-09-01
@@ -204,9 +184,9 @@ async function countOtherAdmins(couch: CouchConfig, workspaceId: string, excludi
  * (2026-09-02 second follow-up): only `isAdmin` decides whether the joining device needs to
  * prompt for a code at all, see `RosterMemberSchema`'s doc comment in shared-types for the
  * full reasoning. */
-async function readRoster(couch: CouchConfig, workspaceId: string) {
-  const profiles = await allDocs<CouchDoc & { id?: string; name?: string; stageRoles?: string[] }>(
-    couch,
+async function readRoster(database: DatabaseConfig, workspaceId: string) {
+  const profiles = await allDocs<DatabaseDoc & { id?: string; name?: string; stageRoles?: string[] }>(
+    database,
     workspaceDbName(workspaceId),
     { startkey: PROFILE_ID_PREFIX, endkey: `${PROFILE_ID_PREFIX}￰` },
   )
@@ -222,112 +202,6 @@ async function readRoster(couch: CouchConfig, workspaceId: string) {
  * (below) returns, shared by both routes that can resolve "who is this profile, really" (the
  * public band-code-gated join route and the caller-credential-gated activate route) so the
  * admin/non-admin rules below live in exactly one place. */
-type ResolveOutcome =
-  | { ok: true; code: 200 | 201; body: { username: string; password: string; isAdmin: boolean } }
-  | { ok: false; code: 400 | 403 | 404; message: string }
-
-/**
- * The shared second half of both "become this roster member" routes, once each has already
- * checked its own proof of trust (the join route: the workspace's standing code; the activate
- * route: the calling device's own existing credentials for this workspace).
- *
- * 2026-09-02 second follow-up, at Marco's explicit request (after getting locked out testing
- * the *first* follow-up's design, twice in one day): only admin accounts have any password
- * concept at all now.
- *
- * 2026-09-04 follow-up, found live: every successful path here now hands back `deviceId`'s *own*
- * account (`provisionDevice`) rather than the profile's shared one - the whole point being that
- * several tablets can hold the same roster identity at once without one's (re-)join silently
- * rotating a password every other tablet had already cached (see `deviceUsername`'s doc comment,
- * workspaceProvisioning.ts). `memberUsername`'s account still exists per profile, but purely as
- * an *anchor* now: for an admin it's just where the human PIN lives for `verifyUser` to check,
- * never itself returned to a client; a non-admin's anchor is created once and never looked at
- * again, purely so `exists` below has something durable to test.
- *
- * - **Non-admin target**: no password check, ever - `password` is ignored entirely. Mints (or
- *   reissues, if this exact device already has one) that device's own account
- *   (`provisionDevice`) - nobody, including whoever created the roster entry, ever sets or knows
- *   a non-admin's password anyway.
- * - **Admin target, account exists**: `password` must equal either that admin's own current PIN
- *   (`verifyUser` against the anchor) *or* `accessCodeSuffix` - the workspace's own standing
- *   access code's last 4 digits, which always works for *any* admin account here. Either way,
- *   the anchor itself is never touched - only `deviceId`'s own account is minted/reissued.
- * - **Admin target, no account yet**: a valid 4-digit `password` becomes that admin's own
- *   initial self-assigned PIN, written to a freshly-created anchor (`provisionMember`) - then
- *   `deviceId` still gets its own separate account for actual syncing, same as every other path.
- *   In practice every roster entry already gets an anchor the moment it's created
- *   (`provisionMember`/`provisionWorkspace`), admin or not, so this only exists as a defensive
- *   fallback, not a path real traffic is expected to hit.
- */
-async function resolveOutcome(
-  couch: CouchConfig,
-  workspaceId: string,
-  profileId: string,
-  deviceId: string,
-  password: string | undefined,
-  accessCodeSuffix: string,
-): Promise<ResolveOutcome> {
-  const profile = await getDoc<CouchDoc & { stageRoles?: string[] }>(couch, workspaceDbName(workspaceId), `${PROFILE_ID_PREFIX}${profileId}`)
-  if (!profile) {
-    return { ok: false, code: 404, message: 'Unknown roster member' }
-  }
-  const profileIsAdmin = (profile.stageRoles ?? []).includes('admin')
-  const anchorUsername = memberUsername(workspaceId, profileId)
-  const exists = await userExists(couch, anchorUsername)
-
-  if (!profileIsAdmin) {
-    if (!exists) {
-      await provisionMember(couch, workspaceId, profileId, generateMemberPassword(), false)
-    }
-    const credentials = await provisionDevice(couch, workspaceId, profileId, deviceId, false)
-    return { ok: true, code: exists ? 200 : 201, body: { ...credentials, isAdmin: false } }
-  }
-
-  if (!exists) {
-    if (!password || !/^\d{4}$/.test(password)) {
-      return { ok: false, code: 400, message: 'Admin accounts need a 4-digit PIN' }
-    }
-    await provisionMember(couch, workspaceId, profileId, password, true)
-    const credentials = await provisionDevice(couch, workspaceId, profileId, deviceId, true)
-    return { ok: true, code: 201, body: { ...credentials, isAdmin: true } }
-  }
-
-  if (!password) {
-    return { ok: false, code: 403, message: 'Admin accounts require a code' }
-  }
-  if (password === accessCodeSuffix) {
-    const credentials = await provisionDevice(couch, workspaceId, profileId, deviceId, true)
-    return { ok: true, code: 200, body: { ...credentials, isAdmin: true } }
-  }
-  const verified = await verifyUser(couch, anchorUsername, password)
-  if (!verified) {
-    return { ok: false, code: 403, message: 'Wrong code' }
-  }
-  const isAdmin = verified.roles.includes('admin')
-  const credentials = await provisionDevice(couch, workspaceId, profileId, deviceId, isAdmin)
-  return { ok: true, code: 200, body: { ...credentials, isAdmin } }
-}
-
-/**
- * True if `profileId` is a real roster admin of `workspaceId` and `pin` is either their own PIN
- * or the workspace's universal recovery code (its access code's last 4 digits) - the exact
- * proof `resolveOutcome`'s admin path accepts, but as a pure check: nothing is provisioned,
- * rotated, or handed back. Used by the hardware-switch wizard, which only needs to know "is this
- * genuinely that band's admin", not to become them on any device.
- *
- * Deliberately not `activateProfile`'s route: that one short-circuits (no PIN check at all) when
- * a device re-picks its own already-active profile, so it can't prove anything about a PIN.
- */
-async function verifyAdminPin(couch: CouchConfig, workspaceId: string, profileId: string, pin: string): Promise<boolean> {
-  const profile = await getDoc<CouchDoc & { stageRoles?: string[] }>(couch, workspaceDbName(workspaceId), `${PROFILE_ID_PREFIX}${profileId}`)
-  if (!profile || !(profile.stageRoles ?? []).includes('admin')) return false
-
-  const accessCode = await getOrCreateAccessCode(couch, workspaceId, workspaceId)
-  if (pin === accessCode.code.slice(-4)) return true
-
-  const verified = await verifyUser(couch, memberUsername(workspaceId, profileId), pin)
-  return verified !== null && verified.roles.includes('admin')
-}
 
 /**
  * Hijacks `reply` and opens it as a push SSE stream - shared by every subscription route below
@@ -342,10 +216,6 @@ async function verifyAdminPin(couch: CouchConfig, workspaceId: string, profileId
  * (#129's `http2: true` + `allowHTTP1: true`) - `request.raw.httpVersionMajor` tells us which
  * protocol this particular request actually negotiated.
  */
-/** Band logins already verified (key: workspace + Authorization header), until when (ms). */
-const verifiedBandLogins = new Map<string, number>()
-const BAND_LOGIN_CACHE_MS = 10 * 60 * 1000
-
 function beginSseStream(request: FastifyRequest, reply: FastifyReply): void {
   reply.hijack()
   for (const [name, value] of Object.entries(reply.getHeaders())) {
@@ -359,7 +229,7 @@ function beginSseStream(request: FastifyRequest, reply: FastifyReply): void {
 
 /**
  * Wires up the Fastify instance and every route, with fresh, empty plugin registries - no
- * CouchDB sync, no LOOKUP_CATALOG registration, no `listen()`. Split out from `main()` so
+ * the database sync, no LOOKUP_CATALOG registration, no `listen()`. Split out from `main()` so
  * tests can exercise real routes via `.inject()` without any of that I/O; `main()` is the
  * only caller that goes on to populate the registries and actually start the server.
  */
@@ -367,7 +237,7 @@ function beginSseStream(request: FastifyRequest, reply: FastifyReply): void {
 const OSC_IN_PORT = Number(process.env.STAGEBOARD_OSC_IN_PORT ?? 8000)
 
 export async function buildApp(options: { backupService?: BackupService } = {}) {
-  // Same shared cert as Vite and CouchDB (see #34, scripts/generate-dev-certs.sh) - the
+  // Same shared cert as Vite and the database (see #34, scripts/generate-dev-certs.sh) - the
   // tablet's WebMIDI/getUserMedia calls need the *page* origin to be secure, not this
   // server, but WSS/HTTPS here still matters once the PWA itself is HTTPS: an HTTPS page
   // fetching a plain-HTTP API is mixed content and gets blocked. Falls back to plain HTTP
@@ -380,34 +250,70 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
   // this is a LAN-only server (docs/01), so a generous ceiling costs nothing real.
   const bodyLimit = Number(process.env.MAX_AUDIO_UPLOAD_BYTES ?? 200 * 1024 * 1024)
 
-  // Admin CouchDB credentials - core-backend is the trusted, physically-secured Stage-Server
+  // Admin database credentials - core-backend is the trusted, physically-secured Stage-Server
   // process, so unlike the PWA (see #12) it keeps using these directly, both for its own
   // plugin-sync data access and for the /workspaces provisioning route below, which needs
-  // admin rights to create CouchDB users and databases.
-  const couch: CouchConfig = {
-    url: process.env.COUCHDB_URL ?? 'http://localhost:5984',
-    user: process.env.COUCHDB_USER ?? 'admin',
-    password: process.env.COUCHDB_PASSWORD ?? 'admin',
+  // admin rights to create the database users and databases.
+  const database: DatabaseConfig = {
+    url: process.env.STAGEBOARD_DB_URL ?? 'http://localhost:5984',
+    user: process.env.STAGEBOARD_DB_USER ?? 'admin',
+    password: process.env.STAGEBOARD_DB_PASSWORD ?? 'admin',
   }
-  /** Whether `authorization` is a login of this band (its CouchDB user) - remembered for
-   * BAND_LOGIN_CACHE_MS, so a Play doesn't wait for a database round trip each time. */
+  // The accounts of every band: documents of the band's own database, the same ones the built-in database host signs
+  // devices in with and the tablet writes (#960). One instance per band, with its own remembered logins.
+  // The devices a band lists as its hosts have the role `host`, which lets them write the band's accounts with their own
+  // sync (#960); the list is read when a login is checked, so `readBandHosts` (below) is there by then.
+  const accountsFor = createBandAccountsFor(database, { hostDevices: async (workspaceId) => ((await readBandHosts(workspaceId)) ?? []).map((host) => host.hostId) })
+  // Wrong tries at an admin's PIN, one count per workspace + profile - shared by joining, the PIN check and
+  // activate-hardware, so none of them gives a fresh set of guesses (only 10,000 possibilities).
+  const pinThrottle = createPinThrottle()
+  // Wrong tries at a login on the admin routes and the database proxy, one count per login name.
+  const adminLoginThrottle = createPinThrottle()
+  const basicHeader = (username: string, password: string) => `Basic ${Buffer.from(`${username}:${password}`).toString('base64')}`
+
+  /** Whether `authorization` is a login of this band - remembered by the accounts for a few minutes, so a Play
+   * doesn't wait for a database round trip each time. */
   async function isBandDevice(workspaceId: string, authorization: string | undefined): Promise<boolean> {
-    const key = `${workspaceId}|${authorization ?? ''}`
-    if ((verifiedBandLogins.get(key) ?? 0) > Date.now()) return true
     const login = basicAuthCredentials(authorization)
     if (!login || !login.username.startsWith(`${workspaceDbName(workspaceId)}-`)) return false
-    if ((await verifyUser(couch, login.username, login.password)) === null) return false
-    verifiedBandLogins.set(key, Date.now() + BAND_LOGIN_CACHE_MS)
-    return true
+    return (await accountsFor(workspaceId).login(authorization)) !== null
   }
 
   /** A device login of this band with the admin role (docs/32 §12a: only the admin installs add-ons). */
   async function isBandAdmin(workspaceId: string, authorization: string | undefined): Promise<boolean> {
     const login = basicAuthCredentials(authorization)
     if (!login || !login.username.startsWith(`${workspaceDbName(workspaceId)}-`)) return false
-    const verified = await verifyUser(couch, login.username, login.password)
-    return verified !== null && verified.roles.includes('admin')
+    return ((await accountsFor(workspaceId).login(authorization))?.roles ?? []).includes('admin')
   }
+
+  // How a device becomes a member and an admin PIN is checked, and who manages the members: the rules of
+  // sync-host, once for every host (#960) - the Stage-Server only brings its database, its code and its counts.
+  const bandJoinDeps = (workspaceId: string) => ({
+    accounts: accountsFor(workspaceId),
+    throttle: pinThrottle,
+    workspaceId,
+    accessCode: async (): Promise<string | null> => {
+      try {
+        return (await getOrCreateAccessCode(database, workspaceId, workspaceId)).code
+      } catch (err) {
+        // A band whose database does not exist cannot be given a code: "no such band", answered like a wrong code.
+        if (err instanceof Error && /: HTTP 404$/.test(err.message)) return null
+        throw err
+      }
+    },
+    profile: (profileId: string) => getDoc<DatabaseDoc & { stageRoles?: string[] }>(database, workspaceDbName(workspaceId), `${PROFILE_ID_PREFIX}${profileId}`),
+  })
+  const bandJoins = new Map<string, BandJoin>()
+  const bandJoinFor = (workspaceId: string): BandJoin => {
+    let join = bandJoins.get(workspaceId)
+    if (!join) {
+      join = createBandJoin(bandJoinDeps(workspaceId))
+      bandJoins.set(workspaceId, join)
+    }
+    return join
+  }
+  const bandMembersFor = (workspaceId: string) =>
+    createBandMembers({ ...bandJoinDeps(workspaceId), join: bandJoinFor(workspaceId), adminProfileIds: () => adminProfileIds(database, workspaceId), loginThrottle: adminLoginThrottle })
 
 
   // HTTP/2 (#129): browsers only ever negotiate h2 over TLS (ALPN), so this only applies to the
@@ -426,8 +332,7 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
         }) as unknown as FastifyInstance)
       : Fastify({ logger: true, bodyLimit })
 
-  // Tablets fetch this cross-origin (their own dev-server or PWA origin, not this server's) -
-  // same FRONTEND_ORIGIN convention as scripts/setup-couchdb.sh's CouchDB CORS setup.
+  // Tablets fetch this cross-origin (their own dev-server or PWA origin, not this server's).
   //
   // `methods` isn't derived from whatever routes actually exist - @fastify/cors defaults it to
   // the static string 'GET,HEAD,POST' if left unset, silently CORS-blocking every cross-origin
@@ -445,7 +350,7 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
     // needs that for its own Basic Auth header) - without this, @fastify/cors never sends
     // Access-Control-Allow-Credentials at all, so the browser blocks the preflight outright
     // ("the value of the 'Access-Control-Allow-Credentials' header ... is '' which must be
-    // 'true'"), and every live PouchDB<->CouchDB sync fails forever, retrying with backoff
+    // 'true'"), and every live PouchDB<->the database sync fails forever, retrying with backoff
     // (Marco, 2026-09-14).
     credentials: true,
   })
@@ -518,7 +423,7 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
   // route above - this is a different concept (per-plugin reachability, not "is this
   // process up"). SSE, not WebSocket: the traffic is one-directional broadcast plus
   // occasional one-shot reports, which fits a kept-open Fastify reply and a plain POST with
-  // no new dependency (see #49 follow-up - this replaces the old CouchDB `plugin-health` doc).
+  // no new dependency (see #49 follow-up - this replaces the old the database `plugin-health` doc).
   app.get('/plugin-health/:workspaceId/stream', (request, reply) => {
     const { workspaceId } = request.params as { workspaceId: string }
     beginSseStream(request, reply)
@@ -568,9 +473,8 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
       return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
     }
     // Unlike the presence reports, a flash *pushes* text onto every tablet of the band - so only a
-    // device signed in to this band may send one (its own CouchDB login, as Basic auth).
-    const login = basicAuthCredentials(request.headers.authorization)
-    if (!login || !login.username.startsWith(`${workspaceDbName(workspaceId)}-`) || (await verifyUser(couch, login.username, login.password)) === null) {
+    // device signed in to this band may send one (its own database login, as Basic auth).
+    if (!(await isBandDevice(workspaceId, request.headers.authorization))) {
       app.log.warn({ workspaceId, remoteAddress: request.ip }, 'Flash message refused - not signed in to this band')
       return reply.status(401).send({ status: 'error', message: 'Only a device of this band can send flash messages' })
     }
@@ -597,7 +501,7 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
     if (!parsed.success) {
       return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
     }
-    // Only a device of this band may change what every tablet plays - its own CouchDB login, as for
+    // Only a device of this band may change what every tablet plays - its own database login, as for
     // flash messages. Checked logins are remembered for a while: this is on the Play path.
     if (!(await isBandDevice(workspaceId, request.headers.authorization))) {
       app.log.warn({ workspaceId, remoteAddress: request.ip }, 'Show-state push refused - not signed in to this band')
@@ -730,11 +634,11 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
     }
 
     const docId = `devices:${deviceId}`
-    const existing = await getDoc<Device & CouchDoc>(couch, workspaceDbName(workspaceId), docId)
+    const existing = await getDoc<Device & DatabaseDoc>(database, workspaceDbName(workspaceId), docId)
     if (!existing) {
       return reply.status(404).send({ status: 'error', message: 'Unknown device' })
     }
-    await putDocWithRetry<Device & CouchDoc>(couch, workspaceDbName(workspaceId), docId, (current) => ({
+    await putDocWithRetry<Device & DatabaseDoc>(database, workspaceDbName(workspaceId), docId, (current) => ({
       ...(current ?? existing),
       revoked: parsed.data.revoked,
       _id: docId,
@@ -761,7 +665,7 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
     }
     const db = workspaceDbName(workspaceId)
     const docId = `devices:${deviceId}`
-    const existing = await getDoc<Device & CouchDoc>(couch, db, docId)
+    const existing = await getDoc<Device & DatabaseDoc>(database, db, docId)
     if (!existing) {
       request.log.info({ workspaceId, deviceId }, 'device forget: unknown device')
       return reply.status(404).send({ status: 'error', message: 'Unknown device' })
@@ -770,7 +674,7 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
       request.log.info({ workspaceId, deviceId }, 'device forget refused: blocked')
       return reply.status(409).send({ status: 'error', message: 'blocked' })
     }
-    const hardware = await allDocs<CouchDoc & { name?: string; executionTarget?: string | null }>(couch, db, {
+    const hardware = await allDocs<DatabaseDoc & { name?: string; executionTarget?: string | null }>(database, db, {
       startkey: 'logical-devices:',
       endkey: 'logical-devices:\ufff0',
     })
@@ -782,7 +686,7 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
     // Checked and deleted against the same revision; a write in between (the device's own
     // lastSeenAt, a rename, a block) is a conflict - read again and check again instead of
     // answering 204 for a delete that never happened (#426 review).
-    const result = await deleteDocUnless<Device & CouchDoc, 'blocked'>(couch, db, docId, (existing) => (existing.revoked ? 'blocked' : null))
+    const result = await deleteDocUnless<Device & DatabaseDoc, 'blocked'>(database, db, docId, (existing) => (existing.revoked ? 'blocked' : null))
     if (result === 'missing') {
       request.log.info({ workspaceId, deviceId }, 'device forget: unknown device')
       return reply.status(404).send({ status: 'error', message: 'Unknown device' })
@@ -845,7 +749,7 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
     if (!parsed.success) {
       return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
     }
-    await discoverySessionStore.start(couch, workspaceId, parsed.data.startedBy)
+    await discoverySessionStore.start(database, workspaceId, parsed.data.startedBy)
     return { status: 'ok' }
   })
 
@@ -942,16 +846,16 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
   // box currently serves - lives here, not in main(), so the activate-hardware route below can
   // reach the same instance main() activates at boot. deactivate() on close covers both a real
   // shutdown and every test's afterEach(() => app.close()).
-  const workspaceHardware = createWorkspaceHardwareController({ couch, registry, log: pluginLog })
+  const workspaceHardware = createWorkspaceHardwareController({ database, registry, log: pluginLog })
   app.addHook('onClose', async () => workspaceHardware.deactivate())
 
   // A fresh backup has neither the band's host list nor its code in its own database yet: until the
   // copy brings them, the join file (#933) stands in; the database wins once it has two hosts.
   const bootstrapStore = createBandBootstrapStore(process.env.STAGEBOARD_STATE_DIR ?? './data')
   const readBandHosts = async (workspaceId: string) =>
-    effectiveHosts(workspaceId, (await getDoc<CouchDoc & { hosts?: BandHostEntry[] }>(couch, workspaceDbName(workspaceId), 'band-settings:band'))?.hosts ?? null, bootstrapStore.load())
+    effectiveHosts(workspaceId, (await getDoc<DatabaseDoc & { hosts?: BandHostEntry[] }>(database, workspaceDbName(workspaceId), 'band-settings:band'))?.hosts ?? null, bootstrapStore.load())
   const readBandCode = async (workspaceId: string) => {
-    const own = (await getAccessCode(couch, workspaceId))?.code
+    const own = (await getAccessCode(database, workspaceId))?.code
     const boot = bootstrapStore.load()
     return own ?? (boot && boot.workspaceId === workspaceId ? boot.accessCode : null)
   }
@@ -979,7 +883,7 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
       const workspaceId = workspaceHardware.getActiveWorkspaceId()
       if (!workspaceId) throw new Error('no band')
       // A band that never played has no show-state yet: not running. A database that cannot be read throws: cannot tell.
-      return (await getDoc<CouchDoc & { playbackStatus?: string }>(couch, workspaceDbName(workspaceId), 'show-state'))?.playbackStatus === 'playing'
+      return (await getDoc<DatabaseDoc & { playbackStatus?: string }>(database, workspaceDbName(workspaceId), 'show-state'))?.playbackStatus === 'playing'
     },
   })
   listedHostOrigins = hostLease.listedOrigins
@@ -990,7 +894,7 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
     workspaceId: () => workspaceHardware.getActiveWorkspaceId(),
     readHosts: (workspaceId) => readBandHosts(workspaceId),
     readAccessCode: (workspaceId) => readBandCode(workspaceId),
-    mint: (workspaceId, backupHostId) => provisionDevice(couch, workspaceId, 'host', backupHostId, false),
+    mint: (workspaceId, backupHostId) => accountsFor(workspaceId).provisionDevice('host', backupHostId, false),
   })
   // A fresh backup is told once which band it backs up and where the primary is (#933). Only from the
   // host machine itself, like the other provisioning routes: the admin on a tablet has no way here.
@@ -1005,7 +909,7 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
           const answer = HostTimeAnswerSchema.safeParse(await getFromHost(`${url}/time`, fingerprint, 3_000))
           return answer.success ? (answer.data.hostId ?? null) : null
         },
-        ensureLocalDb: async (workspaceId) => void (await makeLocalBandDb(couch, workspaceId)),
+        ensureLocalDb: async (workspaceId) => void (await makeLocalBandDb(database, workspaceId)),
         activate: (workspaceId) => workspaceHardware.activate(workspaceId),
         store: bootstrapStore,
       },
@@ -1051,7 +955,7 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
       const time = await getFromHost(`${primaryUrl.replace(/\/+$/, '')}/time`, fingerprint, 3_000)
       return HostTimeAnswerSchema.safeParse(time).data?.hostId ?? null
     },
-    ensureLocalDb: async (workspaceId) => void (await makeLocalBandDb(couch, workspaceId)),
+    ensureLocalDb: async (workspaceId) => void (await makeLocalBandDb(database, workspaceId)),
     activate: (workspaceId) => workspaceHardware.activate(workspaceId),
     store: bootstrapStore,
     now: () => Date.now(),
@@ -1074,7 +978,7 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
     readAccessCode: (workspaceId) => readBandCode(workspaceId),
     requestAccount: (url, body, fingerprint) => postJsonToHost(url, body, fingerprint),
     makeRemote: makeRemoteBandDb,
-    makeLocal: (workspaceId) => makeLocalBandDb(couch, workspaceId),
+    makeLocal: (workspaceId) => makeLocalBandDb(database, workspaceId),
     now: () => Date.now(),
   })
   app.addHook('onClose', async () => replication.stop())
@@ -1087,7 +991,7 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
     readAccessCode: (workspaceId) => readBandCode(workspaceId),
     requestAccount: (url, body, fingerprint) => postJsonToHost(url, body, fingerprint),
     makeRemote: makeRemoteBandDb,
-    makeLocal: (workspaceId) => makeLocalBandDb(couch, workspaceId),
+    makeLocal: (workspaceId) => makeLocalBandDb(database, workspaceId),
     now: () => Date.now(),
     copyFrom: (hosts, selfId) => (hostLease.outdated() ? (hosts.find((h) => h.hostId !== selfId) ?? null) : null),
   })
@@ -1099,7 +1003,7 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
     workspaceId: () => workspaceHardware.getActiveWorkspaceId(),
     readHosts: (workspaceId) => readBandHosts(workspaceId),
     passive: () => hostLease.passiveBackup(),
-    listTracks: async (workspaceId) => tracksOfVariantDocs(await allDocs<CouchDoc & Record<string, unknown>>(couch, workspaceDbName(workspaceId), { startkey: 'song-variants:', endkey: 'song-variants:\ufff0'})),
+    listTracks: async (workspaceId) => tracksOfVariantDocs(await allDocs<DatabaseDoc & Record<string, unknown>>(database, workspaceDbName(workspaceId), { startkey: 'song-variants:', endkey: 'song-variants:\ufff0'})),
     heldKeys: listHeldKeys,
     fetchFile: async (baseUrl, fingerprint, variantId, trackId) => {
       const response = await createPinnedFetch(fingerprint)(`${baseUrl}/audio/${variantId}/${trackId}`)
@@ -1117,6 +1021,8 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
       hostLeaseExtra: () => ({ replication: replication.status(), catchUp: catchUp.status(), audio: audioMirror.status() }),
       acceptInvite: acceptJoinInvite,
       issueAccount: (body) => replicationAccounts.issue(body),
+      joinBand: (workspaceId) => bandJoinFor(workspaceId),
+      members: (workspaceId) => bandMembersFor(workspaceId),
       audio: { get: readAudioFile, put: (variantId, trackId, data) => writeAudioFile(variantId, trackId, Buffer.from(data)), remove: deleteAudioFile },
       presence: {
         report: (workspaceId, report) => {
@@ -1136,18 +1042,8 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
   setOscTargetResolver(async (logicalDeviceId) => {
     const workspaceId = workspaceHardware.getActiveWorkspaceId()
     if (!workspaceId || !logicalDeviceId) return null
-    return oscTargetFromConfig(await getDoc<CouchDoc>(couch, workspaceDbName(workspaceId), `device-transport-config:${SERVER_EXECUTION_TARGET}:${logicalDeviceId}`))
+    return oscTargetFromConfig(await getDoc<DatabaseDoc>(database, workspaceDbName(workspaceId), `device-transport-config:${SERVER_EXECUTION_TARGET}:${logicalDeviceId}`))
   })
-
-  // Temporary lockout for guessing an admin PIN (only 10,000 possibilities) - shared by every route
-  // that checks one, so verify-admin-pin and activate-hardware can't each be used to get a fresh
-  // set of guesses. Keyed per workspace + profile.
-  const pinThrottle = createPinThrottle()
-
-  // Admin logins on the admin routes below: the anchor account's password is the admin's 4-digit
-  // PIN, so it gets the same lockout per account. And the account must belong to *this* band -
-  // the CouchDB role `admin` alone is shared by the admins of every band on the server.
-  const adminLoginThrottle = createPinThrottle()
 
   async function isWorkspaceAdmin(request: FastifyRequest, workspaceId: string, username: string, password: string): Promise<boolean> {
     if (!username.startsWith(`${workspaceDbName(workspaceId)}-`)) {
@@ -1155,7 +1051,8 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
       return false
     }
     if (adminLoginThrottle.lockedForSeconds(username) > 0) return false
-    if (await verifyAdmin(couch, username, password)) {
+    const ctx = await accountsFor(workspaceId).login(basicHeader(username, password))
+    if (ctx?.roles.includes('admin')) {
       adminLoginThrottle.recordSuccess(username)
       return true
     }
@@ -1167,15 +1064,10 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
 
   type PinCheck = { ok: true } | { ok: false; retryAfterSeconds?: number }
   async function checkAdminPin(request: FastifyRequest, workspaceId: string, profileId: string, pin: string): Promise<PinCheck> {
-    const key = `${workspaceId}:${profileId}`
-    const retryAfterSeconds = pinThrottle.lockedForSeconds(key)
-    if (retryAfterSeconds > 0) return { ok: false, retryAfterSeconds }
-
-    if (await verifyAdminPin(couch, workspaceId, profileId, pin)) {
-      pinThrottle.recordSuccess(key)
-      return { ok: true }
-    }
-    if (pinThrottle.recordFailure(key)) {
+    const answer = await bandJoinFor(workspaceId).verifyPin({ profileId, pin })
+    if (answer.status === 200) return { ok: true }
+    if (answer.status === 429) return { ok: false, retryAfterSeconds: (answer.body as { retryAfterSeconds: number }).retryAfterSeconds }
+    if (pinThrottle.lockedForSeconds(`${workspaceId}:${profileId}`) > 0) {
       app.log.warn({ workspaceId, profileId, remoteAddress: request.ip }, 'Too many wrong admin PINs - locked out temporarily')
     }
     return { ok: false }
@@ -1299,7 +1191,7 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
   async function lookupRefusal(provider: string, workspace: string | undefined): Promise<ServerMessage | null> {
     if (provider !== ULTIMATE_GUITAR_PROVIDER) return null
     if (!workspace || !/^[a-z0-9_-]+$/i.test(workspace)) return serverMessage('ug.bandMissing')
-    const installed = await bandHasAddon(couch, workspace, ULTIMATE_GUITAR_PLUGIN_ID).catch(() => false)
+    const installed = await bandHasAddon(database, workspace, ULTIMATE_GUITAR_PLUGIN_ID).catch(() => false)
     return installed ? null : serverMessage('ug.addonMissing')
   }
 
@@ -1352,7 +1244,7 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
   /** The YouTube add-on (#546) for this band, or the refusal - like `lookupRefusal` for UG. */
   async function youtubeRefusal(workspace: string | undefined): Promise<ServerMessage | null> {
     if (!workspace || !/^[a-z0-9_-]+$/i.test(workspace)) return serverMessage('youtube.bandMissing')
-    const installed = await bandHasAddon(couch, workspace, YOUTUBE_DOWNLOAD_PLUGIN_ID).catch(() => false)
+    const installed = await bandHasAddon(database, workspace, YOUTUBE_DOWNLOAD_PLUGIN_ID).catch(() => false)
     return installed ? null : serverMessage('youtube.addonMissing')
   }
 
@@ -1389,7 +1281,7 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
   })
 
   // Provisions a brand-new workspace: its database, `_security` doc, roster validation doc, and
-  // the founding device's own personal CouchDB account (see per-person-accounts follow-up -
+  // the founding device's own personal account (see per-person-accounts follow-up -
   // every roster member gets their own account, the founder is just the first one, auto-admin).
   // Who may found a band (#364, Marco 2026-10-05): the first band on a fresh server anyone; every
   // further one only an admin of a band on this server (or the server machine itself).
@@ -1400,7 +1292,10 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
   async function isAnyBandAdmin(request: FastifyRequest, username: string, password: string): Promise<boolean> {
     const key = `admin:${username}`
     if (adminProofThrottle.lockedForSeconds(key) > 0) return false
-    if (await verifyAdmin(couch, username, password)) {
+    // The login names its band (`stageboard-<band>-<profile>[~<device>]`): the band whose database name it extends.
+    const band = (await listDbs(database)).find((db) => db.startsWith('stageboard-') && username.startsWith(`${db}-`))
+    const ctx = band ? await accountsFor(band.slice('stageboard-'.length)).login(basicHeader(username, password)) : null
+    if (ctx?.roles.includes('admin')) {
       adminProofThrottle.recordSuccess(key)
       return true
     }
@@ -1415,7 +1310,7 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
     }
     const { workspaceId, adminUsername, adminPassword } = parsed.data
 
-    // A deleted band comes back only through the documented CouchDB recovery (docs/03 §0b) -
+    // A deleted band comes back only through the documented the database recovery (docs/03 §0b) -
     // this route handed its admin account to anyone before (#364, 2026-10-04).
     if (readDeletedWorkspaces().includes(workspaceId)) {
       app.log.warn({ workspaceId, remoteAddress: request.ip }, 'Refused to provision a deleted band again')
@@ -1424,7 +1319,7 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
 
     // Accounts are tied to their band by name (`stageboard-<band>-<profile>`), so no band id may
     // extend another one - band "x-y" would otherwise own names that look like band "x"'s.
-    const bandDbs = (await listDbs(couch)).filter((db) => db.startsWith('stageboard-'))
+    const bandDbs = (await listDbs(database)).filter((db) => db.startsWith('stageboard-'))
     const newDb = workspaceDbName(workspaceId)
     if (bandDbs.some((db) => db !== newDb && (newDb.startsWith(`${db}-`) || db.startsWith(`${newDb}-`)))) {
       app.log.warn({ workspaceId, remoteAddress: request.ip }, 'Refused a band id that extends another band id')
@@ -1441,7 +1336,10 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
     }
 
     try {
-      const credentials = await provisionWorkspace(couch, workspaceId, parsed.data.founderId, parsed.data.workspaceName)
+      const credentials = await provisionWorkspace(database, workspaceId, parsed.data.founderId, parsed.data.workspaceName, {
+        accounts: accountsFor(workspaceId),
+        deviceId: parsed.data.deviceId ?? 'founding-device',
+      })
       app.log.info({ workspaceId, proof, remoteAddress: request.ip }, 'Band provisioned')
       return reply.status(201).send(credentials)
     } catch (err) {
@@ -1453,157 +1351,8 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
     }
   })
 
-  // Provisions one additional roster member's personal CouchDB account (see
-  // per-person-accounts follow-up) - the roster doc itself is a separate, ordinary write the
-  // calling (already-admin) device does itself right after this returns, not something
-  // core-backend does. `password` is the admin's optional PIN choice; omitted means a long
-  // random one is generated here and returned (it can never be read back out again later).
-  app.post('/workspaces/:workspaceId/members', async (request, reply) => {
-    const { workspaceId } = request.params as { workspaceId: string }
-    const parsed = CreateMemberRequestSchema.safeParse(request.body)
-    if (!parsed.success) {
-      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
-    }
-
-    if (!(await isWorkspaceAdmin(request, workspaceId, parsed.data.adminUsername, parsed.data.adminPassword))) {
-      return reply.status(403).send({ status: 'error', message: 'Not this workspace\'s admin' })
-    }
-
-    const password = parsed.data.password ?? generateMemberPassword()
-    const credentials = await provisionMember(couch, workspaceId, parsed.data.profileId, password, parsed.data.isAdmin ?? false)
-    return reply.status(201).send(credentials)
-  })
-
-  // Grants or revokes admin for one already-provisioned member - rejects a revoke that would
-  // leave zero admins (see countOtherAdmins above): unlike before, there's no shared fallback
-  // admin account to fall back on if the last one is removed, so this has to be enforced here,
-  // not just disabled in the UI.
-  app.post('/workspaces/:workspaceId/members/:profileId/admin', async (request, reply) => {
-    const { workspaceId, profileId } = request.params as { workspaceId: string; profileId: string }
-    const parsed = SetMemberAdminRequestSchema.safeParse(request.body)
-    if (!parsed.success) {
-      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
-    }
-
-    if (!(await isWorkspaceAdmin(request, workspaceId, parsed.data.adminUsername, parsed.data.adminPassword))) {
-      return reply.status(403).send({ status: 'error', message: 'Not this workspace\'s admin' })
-    }
-
-    if (!parsed.data.isAdmin && (await countOtherAdmins(couch, workspaceId, profileId)) === 0) {
-      return reply.status(400).send({ status: 'error', message: 'At least one admin must remain' })
-    }
-    // No admin takes away their own admin rights (Marco, 2026-10-07) - only another admin can.
-    // The caller's profile is in its username: `<band db>-<profileId>` or `…-<profileId>~<deviceId>`.
-    const callerProfileId = parsed.data.adminUsername.slice(workspaceDbName(workspaceId).length + 1).split('~')[0]
-    if (!parsed.data.isAdmin && callerProfileId === profileId) {
-      return reply.status(400).send({ status: 'error', message: 'An admin cannot revoke their own admin rights' })
-    }
-
-    await setMemberAdmin(couch, workspaceId, profileId, parsed.data.isAdmin)
-    return reply.status(204).send()
-  })
-
-  // Deprovisions one member's personal CouchDB account - same last-admin rejection as the
-  // admin-toggle route above (removing the sole remaining admin is just as terminal as
-  // demoting them). The roster doc itself is removed separately by the calling device, as
-  // always.
-  app.delete('/workspaces/:workspaceId/members/:profileId', async (request, reply) => {
-    const { workspaceId, profileId } = request.params as { workspaceId: string; profileId: string }
-    const parsed = RemoveMemberRequestSchema.safeParse(request.body)
-    if (!parsed.success) {
-      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
-    }
-
-    if (!(await isWorkspaceAdmin(request, workspaceId, parsed.data.adminUsername, parsed.data.adminPassword))) {
-      return reply.status(403).send({ status: 'error', message: 'Not this workspace\'s admin' })
-    }
-
-    // Only actually blocks removing the sole remaining *admin* - deleting a plain member never
-    // changes the admin count, so this only rejects when the target itself is that one admin.
-    // No admin removes their own profile - only another admin can (Marco, 2026-10-08), like
-    // taking away one's own admin rights below. Checked before any CouchDB read.
-    if (parsed.data.adminUsername.slice(workspaceDbName(workspaceId).length + 1).split('~')[0] === profileId) {
-      return reply.status(400).send({ status: 'error', message: 'An admin cannot remove their own profile' })
-    }
-
-    if ((await countOtherAdmins(couch, workspaceId, profileId)) === 0) {
-      return reply.status(400).send({ status: 'error', message: 'At least one admin must remain' })
-    }
-
-    await deprovisionMember(couch, workspaceId, profileId)
-    return reply.status(204).send()
-  })
-
-  // Resets another admin's PIN to a fresh, human-relayable 4-digit one (2026-08-31,
-  // BandManagementView.tsx's "Passwort zurücksetzen" - the "another admin's session is
-  // available" escape hatch for a locked-out admin). 2026-09-02 second follow-up: only
-  // meaningful for an admin target now - a non-admin has no PIN at all
-  // (`RosterMemberSchema`'s doc comment in shared-types), so this rejects a non-admin target
-  // outright rather than silently doing nothing useful. No last-admin check needed - unlike
-  // remove/demote, a PIN reset can't reduce the admin count.
-  app.post('/workspaces/:workspaceId/members/:profileId/reset-password', async (request, reply) => {
-    const { workspaceId, profileId } = request.params as { workspaceId: string; profileId: string }
-    const parsed = ResetMemberPasswordRequestSchema.safeParse(request.body)
-    if (!parsed.success) {
-      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
-    }
-
-    if (!(await isWorkspaceAdmin(request, workspaceId, parsed.data.adminUsername, parsed.data.adminPassword))) {
-      return reply.status(403).send({ status: 'error', message: 'Not this workspace\'s admin' })
-    }
-
-    const profile = await getDoc<CouchDoc & { stageRoles?: string[] }>(couch, workspaceDbName(workspaceId), `${PROFILE_ID_PREFIX}${profileId}`)
-    if (!profile) {
-      return reply.status(404).send({ status: 'error', message: 'Unknown roster member' })
-    }
-    if (!(profile.stageRoles ?? []).includes('admin')) {
-      return reply.status(400).send({ status: 'error', message: 'Only admin accounts have a PIN to reset' })
-    }
-
-    const credentials = await resetAdminPin(couch, workspaceId, profileId)
-    return reply.status(200).send(credentials)
-  })
-
-  // 2026-09-02 second follow-up, at Marco's explicit request: an admin self-assigning or
-  // changing *their own* 4-digit PIN ("Bei Admins ... [ein] 4 stelliger Code, der selbst
-  // vergeben werden kann") - strictly self-service, checked by requiring `callerUsername` to be
-  // the *exact* account being changed, not just any admin of this workspace (that's what
-  // "Passwort zurücksetzen" above is for instead, when it's someone *else's* PIN).
-  //
-  // Found live, 2026-09-10: this predates the per-device-account migration (`resolveOutcome`'s
-  // doc comment) and was never updated for it - `callerUsername` is always this device's own
-  // `deviceUsername` now (`stageboard-<workspaceId>-<profileId>~<deviceId>`), never the bare
-  // anchor `memberUsername` this route compared it against, so the exact-match check 403'd
-  // every admin unconditionally. Now accepts either shape, as long as it's *this* profile's own
-  // account (some other device, or a different profile's device, still correctly 403s).
-  app.post('/workspaces/:workspaceId/members/:profileId/set-pin', async (request, reply) => {
-    const { workspaceId, profileId } = request.params as { workspaceId: string; profileId: string }
-    const parsed = SetOwnPinRequestSchema.safeParse(request.body)
-    if (!parsed.success) {
-      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
-    }
-
-    const targetUsername = memberUsername(workspaceId, profileId)
-    const isOwnAccount = parsed.data.callerUsername === targetUsername || parsed.data.callerUsername.startsWith(`${targetUsername}~`)
-    if (!isOwnAccount) {
-      return reply.status(403).send({ status: 'error', message: 'Can only set your own PIN' })
-    }
-    const caller = await verifyUser(couch, parsed.data.callerUsername, parsed.data.callerPassword)
-    if (!caller || !caller.roles.includes('admin')) {
-      return reply.status(403).send({ status: 'error', message: 'Invalid credentials or not an admin account' })
-    }
-
-    await setMemberPassword(couch, workspaceId, profileId, parsed.data.newPin)
-    // The PIN itself lives on the anchor account just updated above, never on the calling
-    // device's own account - reissuing this device's own credentials here (rather than handing
-    // back the anchor's) keeps every device's real sync login private to itself, same as every
-    // other join/activate path (see this schema's own doc comment, shared-types/workspace.ts).
-    const credentials = await provisionDevice(couch, workspaceId, profileId, parsed.data.deviceId, true)
-    return reply.status(200).send({ ...credentials, isAdmin: true })
-  })
-
   // Irreversibly destroys a workspace - same admin-verification pattern as the routes above.
-  // Deletes the CouchDB database and every member's personal account
+  // Deletes the band's database - and with it every login and PIN, which are documents of it
   // (workspaceProvisioning.ts's deprovisionWorkspace); does not, and can't, notify any other
   // device that already joined.
   app.delete('/workspaces/:workspaceId', async (request, reply) => {
@@ -1617,7 +1366,7 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
       return reply.status(403).send({ status: 'error', message: 'Not this workspace\'s admin' })
     }
 
-    await deprovisionWorkspace(couch, workspaceId)
+    await deprovisionWorkspace(database, workspaceId)
     return reply.status(204).send()
   })
 
@@ -1627,7 +1376,7 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
   // workspaceProvisioning.ts's `listWorkspaces` for the lazy-backfill behavior on a workspace
   // that predates this redesign.
   app.get('/workspaces', async (_request, reply) => {
-    const workspaces = await listWorkspaces(couch)
+    const workspaces = await listWorkspaces(database)
     return reply.status(200).send(workspaces)
   })
 
@@ -1644,86 +1393,13 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
       return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
     }
 
-    const accessCode = await getOrCreateAccessCode(couch, workspaceId, workspaceId)
+    const accessCode = await getOrCreateAccessCode(database, workspaceId, workspaceId)
     if (parsed.data.code !== accessCode.code) {
       return reply.status(403).send({ status: 'error', message: 'Wrong code' })
     }
 
-    const members = await readRoster(couch, workspaceId)
+    const members = await readRoster(database, workspaceId)
     return reply.status(200).send({ workspaceId, workspaceName: accessCode.name, members })
-  })
-
-  // Public, no auth - the second half of the self-service join (2026-09-01 redesign). Requires
-  // the workspace's current standing code, then defers to `resolveOutcome` above for the actual
-  // per-role decision - including passing the code's own last 4 digits along as the universal
-  // admin recovery suffix (2026-09-02 second follow-up), since a device reaching this route has
-  // necessarily already typed the full code.
-  app.post('/workspaces/:workspaceId/join/:profileId', async (request, reply) => {
-    const { workspaceId, profileId } = request.params as { workspaceId: string; profileId: string }
-    const parsed = JoinAsMemberRequestSchema.safeParse(request.body)
-    if (!parsed.success) {
-      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
-    }
-
-    const accessCode = await getOrCreateAccessCode(couch, workspaceId, workspaceId)
-    if (parsed.data.code !== accessCode.code) {
-      return reply.status(403).send({ status: 'error', message: 'Wrong code' })
-    }
-
-    const result = await resolveOutcome(couch, workspaceId, profileId, parsed.data.deviceId, parsed.data.password, accessCode.code.slice(-4))
-    if (!result.ok) {
-      return reply.status(result.code).send({ status: 'error', message: result.message })
-    }
-    return reply.status(result.code).send(result.body)
-  })
-
-  // 2026-09-02 follow-up, at Marco's explicit request: lets an already-connected device become
-  // a *different* roster member within the *same* workspace it's already joined - consolidates
-  // switching bands/profiles into BandManagementView.tsx's "Band" tab, replacing the removed
-  // `ProfileSwitcher.tsx` (which let any device silently display as anyone, no credential check
-  // at all). The proof of trust here is the caller's own current credentials for *this*
-  // workspace (checked by username prefix, so a credential from a different workspace can't be
-  // reused) - the same trust level as knowing the workspace's own access code, since both really
-  // just mean "already inside this band". Everything past that is identical to the join route
-  // above (`resolveOutcome`), including fetching the access code purely to derive the universal
-  // admin recovery suffix from it (the caller here never had to type the code itself at all).
-  app.post('/workspaces/:workspaceId/members/:profileId/activate', async (request, reply) => {
-    const { workspaceId, profileId } = request.params as { workspaceId: string; profileId: string }
-    const parsed = ActivateProfileRequestSchema.safeParse(request.body)
-    if (!parsed.success) {
-      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
-    }
-
-    if (!parsed.data.callerUsername.startsWith(`${workspaceDbName(workspaceId)}-`)) {
-      return reply.status(403).send({ status: 'error', message: 'Caller is not a member of this workspace' })
-    }
-    const caller = await verifyUser(couch, parsed.data.callerUsername, parsed.data.callerPassword)
-    if (!caller) {
-      return reply.status(403).send({ status: 'error', message: 'Invalid caller credentials' })
-    }
-
-    // Re-picking this exact device's own already-active profile (BandManagementView.tsx's
-    // profile list has no guard against tapping the current one) - found live, 2026-09-09: this
-    // used to fall through to resolveOutcome/provisionDevice below, which unconditionally mints
-    // a *new* random password even though the one just verified two lines up already works.
-    // CouchDB never returns a plaintext password once hashed, so "leave it unchanged" has to be
-    // handled here, before any rotation happens, not by reading anything back afterward. Any
-    // other caller (a different device, or a different target profile/deviceId) still goes
-    // through the normal path below and gets a real, freshly-provisioned account as before.
-    if (parsed.data.callerUsername === deviceUsername(workspaceId, profileId, parsed.data.deviceId)) {
-      return reply.status(200).send({
-        username: parsed.data.callerUsername,
-        password: parsed.data.callerPassword,
-        isAdmin: caller.roles.includes('admin'),
-      })
-    }
-
-    const accessCode = await getOrCreateAccessCode(couch, workspaceId, workspaceId)
-    const result = await resolveOutcome(couch, workspaceId, profileId, parsed.data.deviceId, parsed.data.password, accessCode.code.slice(-4))
-    if (!result.ok) {
-      return reply.status(result.code).send({ status: 'error', message: result.message })
-    }
-    return reply.status(result.code).send(result.body)
   })
 
   // Admin-only: fetches a workspace's *current* standing code, to display/re-display (e.g.
@@ -1742,7 +1418,7 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
       return reply.status(403).send({ status: 'error', message: 'Not this workspace\'s admin' })
     }
 
-    const { code } = await getOrCreateAccessCode(couch, workspaceId, workspaceId)
+    const { code } = await getOrCreateAccessCode(database, workspaceId, workspaceId)
     return reply.status(200).send({ code })
   })
 
@@ -1759,7 +1435,7 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
       return reply.status(403).send({ status: 'error', message: 'Not this workspace\'s admin' })
     }
 
-    const code = await rotateAccessCode(couch, workspaceId)
+    const code = await rotateAccessCode(database, workspaceId)
     return reply.status(200).send({ code })
   })
 
@@ -1778,7 +1454,7 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
       return reply.status(403).send({ status: 'error', message: 'Not this workspace\'s admin' })
     }
 
-    await renameWorkspace(couch, workspaceId, parsed.data.name)
+    await renameWorkspace(database, workspaceId, parsed.data.name)
     return reply.status(200).send({ status: 'ok' })
   })
 
@@ -1795,7 +1471,7 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
       return reply.status(403).send({ status: 'error', message: "Not this workspace's admin" })
     }
     try {
-      await setMasterMode(couch, workspaceId, parsed.data.masterMode)
+      await setMasterMode(database, workspaceId, parsed.data.masterMode)
     } catch (err) {
       app.log.error({ err, workspaceId, masterMode: parsed.data.masterMode }, 'Setting the master mode failed')
       return reply.status(500).send({ status: 'error', message: 'Could not save the master mode' })
@@ -1818,7 +1494,7 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
 
     // Opening proof: an admin of the workspace being activated. Checked against *that*
     // workspace's own roster and PIN (verifyAdminPin), so it can't be satisfied by an admin of
-    // some other workspace - unlike a bare verifyAdmin(), the flat 'admin' CouchDB role is never
+    // some other workspace - unlike a bare verifyAdmin(), the flat 'admin' the database role is never
     // what decides this.
     const { opening, closing } = parsed.data
     const openingCheck = await checkAdminPin(request, workspaceId, opening.profileId, opening.pin)
@@ -1845,22 +1521,6 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
     return reply.status(200).send({ status: 'ok' })
   })
 
-  // Stateless "is this roster admin + PIN valid for this workspace" - lets the hardware-switch
-  // wizard reject a wrong PIN at the step it was typed, rather than only when the switch is
-  // finally committed (activate-hardware re-verifies both proofs itself; nothing here is a
-  // token). No side effects beyond the shared PIN lockout (pinThrottle).
-  app.post('/workspaces/:workspaceId/verify-admin-pin', async (request, reply) => {
-    const { workspaceId } = request.params as { workspaceId: string }
-    const parsed = VerifyAdminPinRequestSchema.safeParse(request.body)
-    if (!parsed.success) {
-      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
-    }
-
-    const check = await checkAdminPin(request, workspaceId, parsed.data.profileId, parsed.data.pin)
-    if (!check.ok) return rejectPin(reply, check, 'Wrong admin or PIN')
-    return reply.status(200).send({ status: 'ok' })
-  })
-
   // Which workspace (if any) this specific box's hardware currently serves - not scoped under
   // /workspaces/:workspaceId since it describes the server, not a workspace, and needs no auth
   // for the same reason /server-info needs none: not new information beyond what's already
@@ -1873,7 +1533,7 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
       realBackupDeps(async () => {
         const workspaceId = workspaceHardware.getActiveWorkspaceId()
         if (!workspaceId) return false
-        const state = await getDoc<CouchDoc & { playbackStatus?: string }>(couch, workspaceDbName(workspaceId), 'show-state').catch(() => null)
+        const state = await getDoc<DatabaseDoc & { playbackStatus?: string }>(database, workspaceDbName(workspaceId), 'show-state').catch(() => null)
         return state?.playbackStatus === 'playing'
       }, app.log),
     )
@@ -1982,7 +1642,7 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
     if (!workspaceId) {
       return reply.status(404).send({ status: 'error', message: 'No workspace is active on this server' })
     }
-    const members = await readRoster(couch, workspaceId)
+    const members = await readRoster(database, workspaceId)
     return reply.status(200).send({
       workspaceId,
       admins: members.filter((m) => m.isAdmin).map(({ profileId, name }) => ({ profileId, name })),
@@ -1990,24 +1650,24 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
   })
 
   // 2026-09-02 fourth follow-up, at Marco's explicit request: consolidates the PWA, this API,
-  // and CouchDB onto this one origin, so a new device only ever has to accept one self-signed
+  // and the database onto this one origin, so a new device only ever has to accept one self-signed
   // certificate exception - browsers trust per *origin* (scheme+host+port), not per-certificate,
-  // so serving all three from three different ports (Vite, Fastify, CouchDB) meant every new
+  // so serving all three from three different ports (Vite, Fastify, the database) meant every new
   // tablet needed up to three separate manual "trotzdem fortfahren" taps (docs/03 section 0a).
   //
   // Pure passthrough proxy, not a real integration: whatever Basic Auth header the client (a
-  // real PouchDB instance, using that specific person's own CouchDB account) already sends
-  // travels straight through to real CouchDB unmodified - this server's own trusted admin
-  // `couch` credentials above are never injected here, and CouchDB itself still does every bit
+  // real PouchDB instance, using that specific person's own account) already sends
+  // travels straight through to real the database unmodified - this server's own trusted admin
+  // `database` credentials above are never injected here, and the database itself still does every bit
   // of the actual authentication/authorization exactly as if the client had connected to it
   // directly. `stage-pwa`'s `workspaceDb.ts` now builds its remote database URL from this
   // server's own origin plus this `/db` prefix (`VITE_STAGE_SERVER_URL`) instead of a separate
-  // `VITE_COUCHDB_URL` pointing at CouchDB's own port - one address to configure, not two.
+  // `VITE_DB_URL` pointing at the database's own port - one address to configure, not two.
   await app.register(httpProxy, {
-    upstream: couch.url,
+    upstream: database.url,
     prefix: '/db',
     rewritePrefix: '',
-    // A band's database only for that band's own accounts. CouchDB's `_security` grants access by
+    // A band's database only for that band's own accounts. the database's `_security` grants access by
     // role, and the roles (`member`, `admin`) are the same in every band - without this, any
     // band's device login could read and write every other band's database through here.
     preHandler: (request, reply, done) => {
@@ -2017,7 +1677,7 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
         void reply.status(403).send({ error: 'forbidden', reason: 'Not an account of this band' })
         return
       }
-      // CouchDB itself never locks a login - an admin's password is their 4-digit PIN, so guessing
+      // the database itself never locks a login - an admin's password is their 4-digit PIN, so guessing
       // it here had no limit (#396 review). Same lock as the admin routes, shared per account.
       const login = basicAuthCredentials(request.headers.authorization)
       const lockedFor = login ? adminLoginThrottle.lockedForSeconds(login.username) : 0
@@ -2057,7 +1717,7 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
     await app.register(fastifyStatic, { root: pwaDist })
   }
 
-  return { app, registry, lookupRegistry, couch, workspaceHardware, pluginLog, backups, hostLease, replication, audioMirror, catchUp }
+  return { app, registry, lookupRegistry, database, workspaceHardware, pluginLog, backups, hostLease, replication, audioMirror, catchUp }
 }
 
 const port = Number(process.env.PORT ?? 3001)
@@ -2080,21 +1740,18 @@ function detectLanIp(): string | null {
 }
 
 async function main() {
-  // Without CouchDB (docs/25, Host step 1): STAGEBOARD_DB=builtin runs the small CouchDB from
-  // sync-host in this process, its data in LevelDB files, where CouchDB would listen - everything
-  // below talks to it as to CouchDB. Default: CouchDB as before.
-  const builtinDb =
-    process.env.STAGEBOARD_DB === 'builtin'
-      ? await startBuiltinCouch({
-          dataDir: process.env.STAGEBOARD_DB_DIR ?? join(process.env.STAGEBOARD_STATE_DIR ?? './data', 'database'),
-          user: process.env.COUCHDB_USER ?? 'admin',
-          password: process.env.COUCHDB_PASSWORD ?? 'admin',
-          port: Number(process.env.STAGEBOARD_DB_PORT ?? 5984),
-        })
-      : null
-  if (builtinDb) process.env.COUCHDB_URL = builtinDb.url
-  const { app, lookupRegistry, workspaceHardware, pluginLog, couch, backups, hostLease, replication, audioMirror, catchUp } = await buildApp()
-  if (builtinDb) app.log.info({ url: builtinDb.url }, 'Built-in database host (no CouchDB)')
+  // The one database (docs/25, #960): the small host from sync-host runs in this process, its data in
+  // LevelDB files, where the database used to listen - everything below talks to it over HTTP. The band's logins and PINs are
+  // documents of each band database, so there is nothing else to keep: no the database, no account list of its own.
+  const builtinDb = await startBuiltinDatabase({
+    dataDir: process.env.STAGEBOARD_DB_DIR ?? join(process.env.STAGEBOARD_STATE_DIR ?? './data', 'database'),
+    user: process.env.STAGEBOARD_DB_USER ?? 'admin',
+    password: process.env.STAGEBOARD_DB_PASSWORD ?? 'admin',
+    port: Number(process.env.STAGEBOARD_DB_PORT ?? 5984),
+  })
+  process.env.STAGEBOARD_DB_URL = builtinDb.url
+  const { app, lookupRegistry, workspaceHardware, pluginLog, database, backups, hostLease, replication, audioMirror, catchUp } = await buildApp()
+  app.log.info({ url: builtinDb.url }, 'Built-in database host')
   // Scheduled backups (daily time, USB medium plugged in) - checked every 30 s.
   backups.start()
 
@@ -2102,17 +1759,14 @@ async function main() {
     // Validator rules added after a band was founded (protected dashboard templates, #16) reach
     // its database here. A failure must not keep the server from starting.
     try {
-      const updated = await updateRosterValidators(couch, (db, err) => app.log.error({ err, db }, 'Could not update the roster validator of this band'))
+      const updated = await updateRosterValidators(database, (db, err) => app.log.error({ err, db }, 'Could not update the roster validator of this band'))
       if (updated.length > 0) app.log.info({ databases: updated }, 'Roster validator updated')
     } catch (err) {
       app.log.error({ err }, 'Could not update roster validators')
     }
-    // Device logins in every band's data, so any device can be the host (docs/25 §6b, "C").
-    // A passive backup does not publish: the primary's list reaches it by replication (#919).
-    watchHostAccounts(couch, app.log, { enabled: () => !hostLease.passiveBackup() })
 
     // Which plugins run is not configured here: the band installs them in the PWA, and the
-    // installation documents replicate to this server over CouchDB (docs/01, mesh).
+    // installation documents replicate to this server over the database (docs/01, mesh).
     //
     // 2026-09-02 fourteenth follow-up, at Marco's explicit request, after finding a phantom
     // empty "band-a" workspace kept reappearing in "Verfügbare Bands" no matter how often he
@@ -2135,7 +1789,7 @@ async function main() {
     }
 
     // Device Ledger's background reachability/hostname refresh (pingLoop.ts, Marco's explicit
-    // request) - purely in-memory (deviceInfoStore.ts), no CouchDB access, so unlike
+    // request) - purely in-memory (deviceInfoStore.ts), no the database access, so unlike
     // pluginSync/midiWatcher above it needs no configured STAGEBOARD_WORKSPACE and just runs
     // unconditionally for whichever workspaces happen to have reported devices.
     const pingLoop = startPingLoop()
@@ -2148,13 +1802,8 @@ async function main() {
     // ... and takes over when the primary is gone (#920); one check a second.
     // The backup's copy of the primary's database (#919), checked every 5 s until it runs.
     const replicationTimer = setInterval(() => void replication.tick(), 5_000)
-    // ... and signs the primary's device logins in, so a tablet can use this host after a takeover (#919).
     // ... and its audio (#919), every 15 s: a track fetch can take a while, the mirror runs one at a time.
     const audioTimer = setInterval(() => void audioMirror.tick(), 15_000)
-    const accountsTimer = setInterval(() => {
-      const workspaceId = workspaceHardware.getActiveWorkspaceId()
-      if (workspaceId && hostLease.passiveBackup()) void importHostAccounts(couch, workspaceDbName(workspaceId)).catch((err) => app.log.error({ err }, 'Could not import the host accounts'))
-    }, 10_000)
     // A returned primary copies the backup's data and, when it is safe, takes the host role back (#935).
     const catchUpTimer = setInterval(() => void catchUp.tick(), 5_000)
     const handbackTimer = setInterval(() => void hostLease.handbackCheck().then((r) => r === 'handed-back' && pluginLog.info('host handback: this host is the band host again', { epoch: hostLease.epoch() })), 1_000)
@@ -2166,7 +1815,6 @@ async function main() {
       clearInterval(catchUpTimer)
       clearInterval(handbackTimer)
       clearInterval(replicationTimer)
-      clearInterval(accountsTimer)
       clearInterval(audioTimer)
     })
 

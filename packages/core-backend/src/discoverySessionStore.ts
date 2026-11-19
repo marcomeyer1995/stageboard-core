@@ -9,7 +9,7 @@ import {
   type LogicalDevice,
   type PluginInstallation,
 } from 'shared-types'
-import { allDocs, type CouchConfig } from './couch.js'
+import { allDocs, type DatabaseConfig } from './database.js'
 import { workspaceDbName } from './workspaceProvisioning.js'
 
 type Subscriber = (snapshot: DiscoverySession) => void
@@ -67,13 +67,13 @@ export function subscribe(workspaceId: string, subscriber: Subscriber): () => vo
   return () => subscribers.delete(subscriber)
 }
 
-async function readLogicalDevices(couch: CouchConfig, db: string): Promise<LogicalDevice[]> {
-  const docs = await allDocs<unknown>(couch, db, { startkey: LOGICAL_DEVICE_PREFIX, endkey: `${LOGICAL_DEVICE_PREFIX}￰` })
+async function readLogicalDevices(database: DatabaseConfig, db: string): Promise<LogicalDevice[]> {
+  const docs = await allDocs<unknown>(database, db, { startkey: LOGICAL_DEVICE_PREFIX, endkey: `${LOGICAL_DEVICE_PREFIX}￰` })
   return docs.map((doc) => LogicalDeviceSchema.safeParse(doc)).filter((r) => r.success).map((r) => r.data)
 }
 
-async function readPlugins(couch: CouchConfig, db: string): Promise<PluginInstallation[]> {
-  const docs = await allDocs<unknown>(couch, db, { startkey: PLUGIN_PREFIX, endkey: `${PLUGIN_PREFIX}￰` })
+async function readPlugins(database: DatabaseConfig, db: string): Promise<PluginInstallation[]> {
+  const docs = await allDocs<unknown>(database, db, { startkey: PLUGIN_PREFIX, endkey: `${PLUGIN_PREFIX}￰` })
   return docs.map((doc) => PluginInstallationSchema.safeParse(doc)).filter((r) => r.success).map((r) => r.data)
 }
 
@@ -83,9 +83,9 @@ async function readPlugins(couch: CouchConfig, db: string): Promise<PluginInstal
  * already uses for its own reconcile pass. A session started mid-gig doesn't need to react to
  * someone editing Logical Devices while it's running; stop and start again for that.
  */
-export async function start(couch: CouchConfig, workspaceId: string, startedBy: string | null): Promise<void> {
+export async function start(database: DatabaseConfig, workspaceId: string, startedBy: string | null): Promise<void> {
   const db = workspaceDbName(workspaceId)
-  const [plugins, logicalDevices] = await Promise.all([readPlugins(couch, db), readLogicalDevices(couch, db)])
+  const [plugins, logicalDevices] = await Promise.all([readPlugins(database, db), readLogicalDevices(database, db)])
   contextByWorkspace.set(workspaceId, { plugins: plugins.filter((p) => p.enabled), logicalDevices })
   stateByWorkspace.set(workspaceId, { active: true, startedAt: Date.now(), startedBy, candidates: [], identifying: null })
   clearPendingTimeout(workspaceId)

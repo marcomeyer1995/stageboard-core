@@ -23,6 +23,7 @@ export function registerHostRoutes(app: FastifyInstance, routes: readonly HostRo
           body: request.body,
         })
         reply.status(answer.status)
+        for (const [name, value] of Object.entries(answer.headers ?? {})) reply.header(name, value)
         if (answer.binary) return reply.type(answer.binary.contentType).send(Buffer.from(answer.binary.data))
         return answer.body === undefined ? reply.send() : reply.send(answer.body)
       },

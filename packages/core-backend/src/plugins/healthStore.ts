@@ -3,7 +3,7 @@ import type { PluginHealth, PluginHealthEntry } from 'shared-types'
 type Subscriber = (snapshot: PluginHealth) => void
 
 /**
- * In-memory, per-workspace plugin/hardware liveness state - replaces the CouchDB
+ * In-memory, per-workspace plugin/hardware liveness state - replaces the database
  * `plugin-health` doc pluginSync.ts used to write (see #49 follow-up). A heartbeat has no
  * offline/multi-master value, so it doesn't belong in a synced database at all; this module
  * is the shared source of truth both the Stage-Server's own heartbeat (pluginSync.ts) and a

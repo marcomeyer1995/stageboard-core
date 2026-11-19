@@ -1,3 +1,4 @@
+import { getDeviceId } from '../lib/deviceId'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // This store now imports workspaceDb.ts (removeWorkspaceLocally's destroyLocalWorkspaceDb),
@@ -22,7 +23,7 @@ vi.mock('../lib/workspaceAccessDoc', () => ({
 }))
 
 const { useDialogStore } = await import('./useDialogStore')
-const { useWorkspaceStore, deriveOwnProfileId } = await import('./useWorkspaceStore')
+const { useWorkspaceStore, deriveOwnProfileId, migrateWorkspaceState } = await import('./useWorkspaceStore')
 
 function stubFetch(response: Partial<Response> | null) {
   const fetchMock = response ? vi.fn().mockResolvedValue(response as Response) : vi.fn().mockRejectedValue(new Error('network down'))
@@ -61,7 +62,7 @@ describe('addWorkspace', () => {
 
     expect(workspace).not.toBeNull()
     expect(workspace?.name).toBe('Band C')
-    expect(workspace?.couchPassword).toBe('founder-pw')
+    expect(workspace?.password).toBe('founder-pw')
     expect(workspace?.username).toBe('stageboard-new-id-p1')
     expect(workspace?.isAdmin).toBe(true)
     expect(typeof workspace?.ownProfileId).toBe('string')
@@ -108,7 +109,7 @@ describe('addWorkspace', () => {
     expect(workspace?.name).toBe('Band C')
     expect(workspace?.isAdmin).toBe(true)
     expect(workspace?.username).toBeUndefined()
-    expect(workspace?.couchPassword).toBeUndefined()
+    expect(workspace?.password).toBeUndefined()
     expect(typeof workspace?.ownProfileId).toBe('string')
     expect(useWorkspaceStore.getState().workspaces).toContainEqual(workspace)
     expect(useWorkspaceStore.getState().activeWorkspaceId).toBe(workspace?.id)
@@ -132,11 +133,12 @@ describe('connectWorkspace', () => {
     expect(ok).toBe(true)
     const workspace = useWorkspaceStore.getState().workspaces.find((w) => w.id === 'band-a')
     expect(workspace?.username).toBe('stageboard-band-a-founder-id')
-    expect(workspace?.couchPassword).toBe('founder-pw')
+    expect(workspace?.password).toBe('founder-pw')
 
     const [url, init] = fetchMock.mock.calls[0]
     expect(url).toBe('https://stage-server:3001/workspaces')
-    expect(JSON.parse(init.body)).toEqual({ workspaceId: 'band-a', founderId: 'founder-id', workspaceName: 'Band A' })
+    // The founding device gets its own login, like every device (#960).
+    expect(JSON.parse(init.body)).toEqual({ workspaceId: 'band-a', founderId: 'founder-id', workspaceName: 'Band A', deviceId: getDeviceId() })
   })
 
   it('alerts and returns false, leaving the workspace local-only, when the server call fails', async () => {
@@ -162,10 +164,10 @@ describe('joinWithPassword', () => {
 
     const state = useWorkspaceStore.getState()
     const joined = state.workspaces.find((w) => w.id === 'band-b')
-    expect(joined?.couchPassword).toBe('joined-pw')
+    expect(joined?.password).toBe('joined-pw')
     expect(joined?.username).toBe('stageboard-band-b-p1')
     expect(joined?.isAdmin).toBe(true)
-    expect(state.workspaces.find((w) => w.id === 'band-a')?.couchPassword).toBeUndefined()
+    expect(state.workspaces.find((w) => w.id === 'band-a')?.password).toBeUndefined()
     expect(state.activeWorkspaceId).toBe('band-b')
   })
 
@@ -177,7 +179,7 @@ describe('joinWithPassword', () => {
     expect(added).toEqual({
       id: 'band-c',
       name: 'band-c',
-      couchPassword: 'raw-pw',
+      password: 'raw-pw',
       username: 'stageboard-band-c-p1',
       isAdmin: false,
     })
@@ -198,7 +200,7 @@ describe('deleteWorkspace', () => {
   it('deletes the workspace via the Stage-Server, removes it locally, and picks a new active workspace', async () => {
     useWorkspaceStore.setState({
       workspaces: [
-        { id: 'band-a', name: 'Band A', couchPassword: 'admin-pw', username: 'stageboard-band-a-p1', isAdmin: true },
+        { id: 'band-a', name: 'Band A', password: 'admin-pw', username: 'stageboard-band-a-p1', isAdmin: true },
         { id: 'band-b', name: 'Band B' },
       ],
       activeWorkspaceId: 'band-a',
@@ -220,7 +222,7 @@ describe('deleteWorkspace', () => {
 
   it('returns false without calling the Stage-Server for a non-admin workspace', async () => {
     useWorkspaceStore.setState({
-      workspaces: [{ id: 'band-a', name: 'Band A', couchPassword: 'member-pw', username: 'stageboard-band-a-p2', isAdmin: false }],
+      workspaces: [{ id: 'band-a', name: 'Band A', password: 'member-pw', username: 'stageboard-band-a-p2', isAdmin: false }],
       activeWorkspaceId: 'band-a',
     })
     const fetchMock = stubFetch({ ok: true, status: 204 })
@@ -249,7 +251,7 @@ describe('deleteWorkspace', () => {
 
   it('alerts and returns false, keeping the workspace, when the Stage-Server call fails', async () => {
     useWorkspaceStore.setState({
-      workspaces: [{ id: 'band-a', name: 'Band A', couchPassword: 'admin-pw', username: 'stageboard-band-a-p1', isAdmin: true }],
+      workspaces: [{ id: 'band-a', name: 'Band A', password: 'admin-pw', username: 'stageboard-band-a-p1', isAdmin: true }],
       activeWorkspaceId: 'band-a',
     })
     stubFetch(null)
@@ -268,7 +270,7 @@ describe('removeWorkspaceLocally (2026-09-02 thirteenth follow-up: the non-destr
   it('drops the workspace locally and picks a new active workspace, with no network call at all', async () => {
     useWorkspaceStore.setState({
       workspaces: [
-        { id: 'band-a', name: 'Band A', couchPassword: 'member-pw', username: 'stageboard-band-a-p2', isAdmin: false },
+        { id: 'band-a', name: 'Band A', password: 'member-pw', username: 'stageboard-band-a-p2', isAdmin: false },
         { id: 'band-b', name: 'Band B' },
       ],
       activeWorkspaceId: 'band-a',
@@ -300,7 +302,7 @@ describe('removeWorkspaceLocally (2026-09-02 thirteenth follow-up: the non-destr
 
   it('works regardless of isAdmin - unlike deleteWorkspace, this is not an admin-only action', async () => {
     useWorkspaceStore.setState({
-      workspaces: [{ id: 'band-a', name: 'Band A', couchPassword: 'member-pw', username: 'stageboard-band-a-p2', isAdmin: false }],
+      workspaces: [{ id: 'band-a', name: 'Band A', password: 'member-pw', username: 'stageboard-band-a-p2', isAdmin: false }],
       activeWorkspaceId: 'band-a',
     })
 
@@ -322,7 +324,7 @@ describe('createMember', () => {
 
   it('posts this workspace\'s own credential plus the new member\'s chosen options, and returns the provisioned credential', async () => {
     useWorkspaceStore.setState({
-      workspaces: [{ id: 'band-a', name: 'Band A', couchPassword: 'admin-pw', username: 'stageboard-band-a-p1', isAdmin: true }],
+      workspaces: [{ id: 'band-a', name: 'Band A', password: 'admin-pw', username: 'stageboard-band-a-p1', isAdmin: true }],
     })
     const fetchMock = stubFetch({
       ok: true,
@@ -346,7 +348,7 @@ describe('createMember', () => {
 
   it('returns null without calling the Stage-Server for a non-admin workspace', async () => {
     useWorkspaceStore.setState({
-      workspaces: [{ id: 'band-a', name: 'Band A', couchPassword: 'member-pw', username: 'stageboard-band-a-p2', isAdmin: false }],
+      workspaces: [{ id: 'band-a', name: 'Band A', password: 'member-pw', username: 'stageboard-band-a-p2', isAdmin: false }],
     })
     const fetchMock = stubFetch({ ok: true, status: 201, json: async () => ({}) })
 
@@ -356,7 +358,7 @@ describe('createMember', () => {
 
   it('alerts with a distinct "no longer admin" message on a 403 (not the generic unreachable one), and returns null', async () => {
     useWorkspaceStore.setState({
-      workspaces: [{ id: 'band-a', name: 'Band A', couchPassword: 'admin-pw', username: 'stageboard-band-a-p1', isAdmin: true }],
+      workspaces: [{ id: 'band-a', name: 'Band A', password: 'admin-pw', username: 'stageboard-band-a-p1', isAdmin: true }],
     })
     stubFetch({ ok: false, status: 403 })
     const alertMock = vi.fn().mockResolvedValue(undefined)
@@ -372,7 +374,7 @@ describe('setMemberAdmin', () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     ;(import.meta.env as any).VITE_STAGE_SERVER_URL = 'https://stage-server:3001'
     useWorkspaceStore.setState({
-      workspaces: [{ id: 'band-a', name: 'Band A', couchPassword: 'admin-pw', username: 'stageboard-band-a-p1', isAdmin: true }],
+      workspaces: [{ id: 'band-a', name: 'Band A', password: 'admin-pw', username: 'stageboard-band-a-p1', isAdmin: true }],
     })
   })
 
@@ -425,7 +427,7 @@ describe('renameWorkspace (#58)', () => {
 
   it('posts to the Stage-Server for a server-connected admin workspace, then updates the name locally', async () => {
     useWorkspaceStore.setState({
-      workspaces: [{ id: 'band-a', name: 'Band A', couchPassword: 'admin-pw', username: 'stageboard-band-a-p1', isAdmin: true }],
+      workspaces: [{ id: 'band-a', name: 'Band A', password: 'admin-pw', username: 'stageboard-band-a-p1', isAdmin: true }],
     })
     const fetchMock = stubFetch({ ok: true, status: 200 })
 
@@ -441,7 +443,7 @@ describe('renameWorkspace (#58)', () => {
 
   it('returns false without calling the Stage-Server for a non-admin workspace', async () => {
     useWorkspaceStore.setState({
-      workspaces: [{ id: 'band-a', name: 'Band A', couchPassword: 'pw', username: 'stageboard-band-a-p2', isAdmin: false }],
+      workspaces: [{ id: 'band-a', name: 'Band A', password: 'pw', username: 'stageboard-band-a-p2', isAdmin: false }],
     })
     const fetchMock = stubFetch({ ok: true, status: 200 })
 
@@ -451,7 +453,7 @@ describe('renameWorkspace (#58)', () => {
 
   it('alerts with a distinct "no longer admin" message on a 403, and returns false', async () => {
     useWorkspaceStore.setState({
-      workspaces: [{ id: 'band-a', name: 'Band A', couchPassword: 'admin-pw', username: 'stageboard-band-a-p1', isAdmin: true }],
+      workspaces: [{ id: 'band-a', name: 'Band A', password: 'admin-pw', username: 'stageboard-band-a-p1', isAdmin: true }],
     })
     stubFetch({ ok: false, status: 403 })
     const alertMock = vi.fn().mockResolvedValue(undefined)
@@ -521,7 +523,7 @@ describe('removeMember', () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     ;(import.meta.env as any).VITE_STAGE_SERVER_URL = 'https://stage-server:3001'
     useWorkspaceStore.setState({
-      workspaces: [{ id: 'band-a', name: 'Band A', couchPassword: 'admin-pw', username: 'stageboard-band-a-p1', isAdmin: true }],
+      workspaces: [{ id: 'band-a', name: 'Band A', password: 'admin-pw', username: 'stageboard-band-a-p1', isAdmin: true }],
     })
   })
 
@@ -558,7 +560,7 @@ describe('resetMemberPassword', () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     ;(import.meta.env as any).VITE_STAGE_SERVER_URL = 'https://stage-server:3001'
     useWorkspaceStore.setState({
-      workspaces: [{ id: 'band-a', name: 'Band A', couchPassword: 'admin-pw', username: 'stageboard-band-a-p1', isAdmin: true }],
+      workspaces: [{ id: 'band-a', name: 'Band A', password: 'admin-pw', username: 'stageboard-band-a-p1', isAdmin: true }],
     })
   })
 
@@ -592,7 +594,7 @@ describe('resetMemberPassword', () => {
 
   it('returns null without calling the Stage-Server for a non-admin workspace', async () => {
     useWorkspaceStore.setState({
-      workspaces: [{ id: 'band-a', name: 'Band A', couchPassword: 'member-pw', username: 'stageboard-band-a-p2', isAdmin: false }],
+      workspaces: [{ id: 'band-a', name: 'Band A', password: 'member-pw', username: 'stageboard-band-a-p2', isAdmin: false }],
     })
     const fetchMock = stubFetch({ ok: true, status: 200, json: async () => ({}) })
 
@@ -615,7 +617,7 @@ describe('setOwnPin (2026-09-02 second follow-up: admin self-service PIN assignm
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     ;(import.meta.env as any).VITE_STAGE_SERVER_URL = 'https://stage-server:3001'
     useWorkspaceStore.setState({
-      workspaces: [{ id: 'band-a', name: 'Band A', couchPassword: 'old-pin', username: 'stageboard-band-a-p1', isAdmin: true }],
+      workspaces: [{ id: 'band-a', name: 'Band A', password: 'old-pin', username: 'stageboard-band-a-p1', isAdmin: true }],
     })
   })
 
@@ -642,7 +644,7 @@ describe('setOwnPin (2026-09-02 second follow-up: admin self-service PIN assignm
       deviceId: expect.any(String),
     })
     expect(useWorkspaceStore.getState().workspaces).toContainEqual(
-      expect.objectContaining({ id: 'band-a', couchPassword: 'fresh-device-pw', username: 'stageboard-band-a-p1~device-1' }),
+      expect.objectContaining({ id: 'band-a', password: 'fresh-device-pw', username: 'stageboard-band-a-p1~device-1' }),
     )
   })
 
@@ -687,7 +689,7 @@ describe('getAccessCode / rotateAccessCode (2026-09-01 WiFi-style redesign)', ()
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     ;(import.meta.env as any).VITE_STAGE_SERVER_URL = 'https://stage-server:3001'
     useWorkspaceStore.setState({
-      workspaces: [{ id: 'band-a', name: 'Band A', couchPassword: 'admin-pw', username: 'stageboard-band-a-p1', isAdmin: true }],
+      workspaces: [{ id: 'band-a', name: 'Band A', password: 'admin-pw', username: 'stageboard-band-a-p1', isAdmin: true }],
     })
   })
 
@@ -708,7 +710,7 @@ describe('getAccessCode / rotateAccessCode (2026-09-01 WiFi-style redesign)', ()
 
   it('getAccessCode returns null without calling the Stage-Server for a non-admin workspace', async () => {
     useWorkspaceStore.setState({
-      workspaces: [{ id: 'band-a', name: 'Band A', couchPassword: 'member-pw', username: 'stageboard-band-a-p2', isAdmin: false }],
+      workspaces: [{ id: 'band-a', name: 'Band A', password: 'member-pw', username: 'stageboard-band-a-p2', isAdmin: false }],
     })
     const fetchMock = stubFetch({ ok: true, status: 200, json: async () => ({}) })
 
@@ -1023,7 +1025,7 @@ describe('joinAsMember', () => {
     expect(workspace).toEqual({
       id: 'band-c',
       name: 'Band C',
-      couchPassword: 'member-pw',
+      password: 'member-pw',
       username: 'stageboard-band-c-p2',
       isAdmin: false,
     })
@@ -1056,7 +1058,7 @@ describe('joinAsMember', () => {
 
     const workspace = await useWorkspaceStore.getState().joinAsMember('band-c', 'Band C', '11112222', 'p1')
 
-    expect(workspace?.couchPassword).toBe('fresh-recovered-pw')
+    expect(workspace?.password).toBe('fresh-recovered-pw')
     const [, init] = fetchMock.mock.calls[0]
     expect(JSON.parse(init.body)).toEqual({ code: '11112222', password: undefined, deviceId: expect.any(String) })
   })
@@ -1186,7 +1188,7 @@ describe('activateProfile', () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     ;(import.meta.env as any).VITE_STAGE_SERVER_URL = 'https://stage-server:3001'
     useWorkspaceStore.setState({
-      workspaces: [{ id: 'band-a', name: 'Band A', username: 'stageboard-band-a-p1~device-1', couchPassword: 'old-pw', isAdmin: false }],
+      workspaces: [{ id: 'band-a', name: 'Band A', username: 'stageboard-band-a-p1~device-1', password: 'old-pw', isAdmin: false }],
     })
   })
 
@@ -1207,7 +1209,7 @@ describe('activateProfile', () => {
       id: 'band-a',
       name: 'Band A',
       username: 'stageboard-band-a-p1~device-1',
-      couchPassword: 'fresh-pw',
+      password: 'fresh-pw',
       isAdmin: false,
     })
     const [url, init] = fetchMock.mock.calls[0]
@@ -1279,7 +1281,7 @@ describe('addWorkspace - proof for the Stage-Server (#364)', () => {
 
   it('sends an admin login of another band on this device as proof - no question', async () => {
     useWorkspaceStore.setState({
-      workspaces: [{ id: 'band-a', name: 'Band A', isAdmin: true, username: 'stageboard-band-a-p1', couchPassword: 'pw-a' }],
+      workspaces: [{ id: 'band-a', name: 'Band A', isAdmin: true, username: 'stageboard-band-a-p1', password: 'pw-a' }],
     })
     const fetchMock = stubFetch({ ok: true, status: 201, json: async () => ({ username: 'u', password: 'p' }) })
     const promptText = vi.fn()
@@ -1293,7 +1295,7 @@ describe('addWorkspace - proof for the Stage-Server (#364)', () => {
   it('never hands this server\'s admin login to another server typed in by hand (#396 review)', async () => {
     useWorkspaceStore.setState({
       workspaces: [
-        { id: 'band-a', name: 'Band A', isAdmin: true, username: 'stageboard-band-a-p1', couchPassword: 'pw-a' },
+        { id: 'band-a', name: 'Band A', isAdmin: true, username: 'stageboard-band-a-p1', password: 'pw-a' },
         { id: 'solo', name: 'Solo', ownProfileId: 'me', isAdmin: true },
       ],
     })
@@ -1316,3 +1318,17 @@ describe('addWorkspace - proof for the Stage-Server (#364)', () => {
   })
 })
 
+describe('what a device saved before the database was renamed (#960)', () => {
+  it('keeps its login: the password saved as `couchPassword` becomes `password`, everything else stays', () => {
+    const saved = { activeWorkspaceId: 'band-a', workspaces: [{ id: 'band-a', name: 'A', username: 'stageboard-band-a-p1~d1', couchPassword: 'secret', isAdmin: true }, { id: 'band-b', name: 'B' }] }
+    expect(migrateWorkspaceState(saved, 0)).toEqual({
+      activeWorkspaceId: 'band-a',
+      workspaces: [{ id: 'band-a', name: 'A', username: 'stageboard-band-a-p1~d1', password: 'secret', isAdmin: true }, { id: 'band-b', name: 'B' }],
+    })
+  })
+
+  it('leaves what is already current alone', () => {
+    const current = { activeWorkspaceId: 'a', workspaces: [{ id: 'a', name: 'A', password: 'x' }] }
+    expect(migrateWorkspaceState(current, 1)).toEqual(current)
+  })
+})

@@ -5,7 +5,7 @@ import { getStageServerUrl } from './stageServer'
 /**
  * Server-Sent Events stream of plugin/hardware health for one workspace - replaces the old
  * PouchDB-synced 'plugin-health' doc (see #49 follow-up: a heartbeat has no offline/
- * multi-master value, so smuggling it through CouchDB sync was the wrong tool, and it broke
+ * multi-master value, so smuggling it through the database sync was the wrong tool, and it broke
  * the sync-status indicator's noise filtering in the process). The Stage-Server pushes the
  * *full* snapshot on every change, so there is no merge logic here - just replace.
  *

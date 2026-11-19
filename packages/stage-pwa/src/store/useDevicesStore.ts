@@ -102,7 +102,7 @@ export const useDevicesStore = create<DevicesState>((set, get) => ({
   revoke: async (workspaceId, id, revoked) => {
     const base = getStageServerUrl()
     const workspace = useWorkspaceStore.getState().workspaces.find((w) => w.id === workspaceId)
-    if (!base || !workspace?.isAdmin || !workspace.couchPassword || !workspace.username) {
+    if (!base || !workspace?.isAdmin || !workspace.password || !workspace.username) {
       return false
     }
 
@@ -110,7 +110,7 @@ export const useDevicesStore = create<DevicesState>((set, get) => ({
       const response = await fetch(`${base}/workspaces/${encodeURIComponent(workspaceId)}/devices/${encodeURIComponent(id)}/revoke`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ adminUsername: workspace.username, adminPassword: workspace.couchPassword, revoked }),
+        body: JSON.stringify({ adminUsername: workspace.username, adminPassword: workspace.password, revoked }),
       })
       if (!response.ok) throw new Error(`HTTP ${response.status}`)
       return true
@@ -123,12 +123,12 @@ export const useDevicesStore = create<DevicesState>((set, get) => ({
   forget: async (workspaceId, id) => {
     const base = getStageServerUrl()
     const workspace = useWorkspaceStore.getState().workspaces.find((w) => w.id === workspaceId)
-    if (!base || !workspace?.isAdmin || !workspace.couchPassword || !workspace.username) return 'failed'
+    if (!base || !workspace?.isAdmin || !workspace.password || !workspace.username) return 'failed'
     try {
       const response = await fetch(`${base}/workspaces/${encodeURIComponent(workspaceId)}/devices/${encodeURIComponent(id)}/forget`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ adminUsername: workspace.username, adminPassword: workspace.couchPassword }),
+        body: JSON.stringify({ adminUsername: workspace.username, adminPassword: workspace.password }),
       })
       // 404: already gone (another admin, or a second tap before the list synced) - that's done.
       if (response.status === 204 || response.status === 404) return 'removed'

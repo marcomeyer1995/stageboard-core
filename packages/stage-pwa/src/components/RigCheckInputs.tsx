@@ -24,17 +24,17 @@ function useServerCall() {
   return useCallback(
     async <T,>(path: string, extra: object = {}): Promise<T> => {
       const base = getStageServerUrl()
-      if (!base || !workspace?.username || !workspace.couchPassword) throw new Error(t('inputs.noAdmin'))
+      if (!base || !workspace?.username || !workspace.password) throw new Error(t('inputs.noAdmin'))
       const res = await fetch(`${base}/server/measure-inputs/${path}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ adminUsername: workspace.username, adminPassword: workspace.couchPassword, ...extra }),
+        body: JSON.stringify({ adminUsername: workspace.username, adminPassword: workspace.password, ...extra }),
       })
       const body = (await res.json().catch(() => null)) as (T & { message?: string }) | null
       if (!res.ok) throw new Error(serverText(body) ?? t('inputs.http', { status: res.status }))
       return body as T
     },
-    [workspace?.username, workspace?.couchPassword, t],
+    [workspace?.username, workspace?.password, t],
   )
 }
 

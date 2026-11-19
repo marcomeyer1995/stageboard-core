@@ -9,7 +9,7 @@ import { join } from 'node:path'
  * - every further band: an admin of a band on this server (the app sends that login
  *   automatically) - or a request from the Stage-Server machine itself (emergency exit).
  * Ids of deleted bands can't be provisioned again this way - restoring a deleted band goes
- * through the documented CouchDB recovery (docs/03 §0b).
+ * through the documented the database recovery (docs/03 §0b).
  */
 
 const LOOPBACK = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1'])

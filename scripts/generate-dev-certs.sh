@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Generates one self-signed TLS cert/key pair, shared by Vite, Fastify, and CouchDB - all
-# three need to present the same origin (localhost, and optionally a LAN IP for tablets) as
+# Generates one self-signed TLS cert/key pair, shared by Vite and Fastify - both
+# need to present the same origin (localhost, and optionally a LAN IP for tablets) as
 # a secure context so getUserMedia()/WebMIDI work, without a real CA (docs/02: "Zero-Friction
 # Stage Requirement", offline routers can't renew Let's Encrypt certs anyway).
 #
@@ -19,8 +19,7 @@ fi
 
 mkdir -p "$CERTS_DIR"
 
-# LAN_IP: same convention as scripts/setup-couchdb.sh's FRONTEND_ORIGIN - set it to the
-# Stage-Server's LAN address so tablets trust the same cert the dev machine does.
+# LAN_IP: set it to the Stage-Server's LAN address so tablets trust the same cert the dev machine does.
 #
 # stageboard.local (2026-09-02, at Marco's explicit request): the mDNS name a joining device
 # can use instead of a raw IP+port - see docs/00's "Server Discovery" (mDNS auto-discovery) and
@@ -34,12 +33,9 @@ if [ -n "${LAN_IP:-}" ]; then
 fi
 
 echo "Generating self-signed dev cert (SAN: ${SAN}) ..."
-# Writes to temp names, then renames over the final ones - not in place. CouchDB's
-# container entrypoint chowns everything under its bind-mounted /opt/couchdb tree
-# (including this shared certs/ dir) to its own container user, on the *host* files too.
-# A plain overwrite would need write permission on the existing file, which that leaves
-# this script without; rename() only needs write+execute on the directory, which it still
-# has - so regenerating (FORCE=1) keeps working regardless of who owns the previous certs.
+# Writes to temp names, then renames over the final ones - not in place: rename() only needs
+# write+execute on the directory, so regenerating (FORCE=1) keeps working regardless of who
+# owns the previous certs.
 openssl req -x509 -newkey rsa:2048 -nodes \
   -keyout "${KEY_FILE}.tmp" -out "${CERT_FILE}.tmp" \
   -days 825 \
@@ -48,8 +44,7 @@ openssl req -x509 -newkey rsa:2048 -nodes \
 mv -f "${CERT_FILE}.tmp" "$CERT_FILE"
 mv -f "${KEY_FILE}.tmp" "$KEY_FILE"
 # Owner-only: the native app pins this certificate (#348), so whoever has the key could pose as
-# this Stage-Server. Only core-backend and Vite read it, both as this user (CouchDB no longer
-# does - docker-compose.yml, 2026-10-09).
+# this Stage-Server. Only core-backend and Vite read it, both as this user.
 chmod 600 "$KEY_FILE"
 
 echo "Wrote ${CERT_FILE} and ${KEY_FILE}."

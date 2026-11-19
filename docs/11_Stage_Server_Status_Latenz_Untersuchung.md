@@ -112,7 +112,7 @@ jedes Mal, keine Timeouts; die Server-Log-Auswertung bestätigt, dass immer nur 
 1,1-1,5 s statt ~0,15 s im Leerlauf. Der Server beantwortet `/server-info` und
 `/server/active-workspace` dabei in 0-1 ms, die Anfragen kommen ohne Verzögerung an - das Tablet meldet
 trotzdem `server 1235ms` bis zum ersten Byte. `/workspaces` braucht serverseitig zusätzlich 330-445 ms
-(9 ms zwischen zwei Tracks), vermutlich weil es mehrere CouchDB-Aufrufe nacheinander macht, während der
+(9 ms zwischen zwei Tracks), vermutlich weil es mehrere Datenbank-Aufrufe nacheinander macht, während der
 Server Audio sendet.
 
 **Erklärung (Vermutung, nicht direkt gemessen):** Alle Antworten teilen sich eine TCP-Verbindung

@@ -28,7 +28,7 @@ const rosterFor = (id: string) => ({
     { profileId: `${id}-member`, name: `Member ${id}`, isAdmin: false },
   ],
 })
-const cachedAdmin = (id: string) => ({ id, name: id, isAdmin: true, username: `${id}-user`, couchPassword: `${id}-pw` })
+const cachedAdmin = (id: string) => ({ id, name: id, isAdmin: true, username: `${id}-user`, password: `${id}-pw` })
 
 const verifyAdminPin = vi.fn()
 const activateWorkspaceHardware = vi.fn()

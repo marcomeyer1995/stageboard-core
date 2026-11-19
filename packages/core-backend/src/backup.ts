@@ -10,7 +10,7 @@ import { BackupTargetSchema, serverMessage, type BackupOverview, type BackupTarg
  * Backup) instead of a hand-edited systemd timer. Each target is a folder (USB stick, second disk,
  * ZFS dataset, OS-mounted NAS share) or a NAS over SSH/rsync. Runs daily at the target's time and
  * when its USB medium is plugged in (last success over a day ago), never while a song plays, one
- * backup at a time. The writing itself is scripts/backup.mjs (CouchDB with revisions, data, certs,
+ * backup at a time. The writing itself is scripts/backup.mjs (the database with revisions, data, certs,
  * generations); restoring is scripts/backup-restore.mjs (docs/03 "Backup & Wiederherstellung").
  */
 
