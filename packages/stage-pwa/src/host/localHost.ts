@@ -142,6 +142,9 @@ const presenceSubscriptions = new Map<string, () => void>()
 let catchingUp = false
 /** The bands this tablet founded: its native server relays their live channels whatever the lease says (#962). */
 let servedBands: string[] = []
+/** Follows the app's active band while the host runs: the host is set up for one band at start (#962). */
+let unwatchBand: (() => void) | null = null
+let restarting = false
 /** Tells the native server at once - a band founded a moment ago must not wait for the next tick. */
 const setServedBands = (bands: Iterable<string>) => {
   servedBands = [...bands].sort()
@@ -567,6 +570,12 @@ export async function startAndroidHost(): Promise<void> {
   startedFingerprint = started.certFingerprint
   urlNow = `https://${started.address ?? '127.0.0.1'}:${started.port}`
   running = true
+  // The band the host is set up for is the app's active one, read once above. When the person joins or switches to another
+  // band while the host is on, set it up again - otherwise it would keep serving the old band (or none) until a restart.
+  unwatchBand?.()
+  unwatchBand = useWorkspaceStore.subscribe((state, previous) => {
+    if (state.activeWorkspaceId !== previous.activeWorkspaceId && running) void restartAndroidHost()
+  })
   const refresh = () => {
     publish(machine, urlNow, null)
     pushState(machine)
@@ -618,6 +627,8 @@ export async function startAndroidHost(): Promise<void> {
 export async function stopAndroidHost(): Promise<void> {
   localStorage.setItem(SWITCH_KEY, 'off')
   running = false
+  unwatchBand?.()
+  unwatchBand = null
   if (tick !== null) clearInterval(tick)
   if (sample !== null) clearInterval(sample)
   tick = null
@@ -632,6 +643,20 @@ export async function stopAndroidHost(): Promise<void> {
   servedBands = []
   if (isNativeApp()) await LocalHost.stop().catch(() => undefined)
   useAndroidHostStore.getState().reset()
+}
+
+/** The host stops and starts again for the band the app has now; the switch stays on. */
+async function restartAndroidHost(): Promise<void> {
+  if (restarting) return
+  restarting = true
+  try {
+    await stopAndroidHost()
+    await startAndroidHost()
+  } catch {
+    // The host stays off; the settings show it and the person can switch it on again.
+  } finally {
+    restarting = false
+  }
 }
 
 /** App start: the switch was on - bring the host back up with the epoch it had. */
