@@ -1,5 +1,5 @@
 import { getSharedAudioContext } from './sharedAudioContext'
-import { getHostUrl } from './hostUrl'
+import { resolveHostFor } from './jobHost'
 import { sourceOutput } from './audioMix'
 
 /**
@@ -47,8 +47,10 @@ export function loadSpeechClip(text: string, voice: ClipVoice = {}): Promise<Aud
 }
 
 async function fetchClip(text: string, { voice, speed }: ClipVoice): Promise<AudioBuffer | null> {
-  const base = getHostUrl()
-  if (!base) return null
+  // The host that can speak (#962): a tablet host without Piper hands this to a laptop host of the band.
+  const resolved = await resolveHostFor('GET', '/speech')
+  if (resolved.base === null) return null
+  const base = resolved.base
   try {
     const response = await fetch(
       `${base}/speech?text=${encodeURIComponent(text)}${voice ? `&voice=${encodeURIComponent(voice)}` : ''}${speed && speed !== 1 ? `&speed=${speed}` : ''}`,

@@ -1,7 +1,6 @@
 import type { HostCapabilities } from 'shared-types'
 import { jobOfRequest } from 'sync-host'
 import { getHostUrl } from './hostUrl'
-import { useBandSettingsStore } from '../store/useBandSettingsStore'
 
 export { chooseHostForJob, type HostCandidate, type JobHostChoice } from './jobChoice'
 import { chooseHostForJob } from './jobChoice'
@@ -33,6 +32,8 @@ export async function resolveHostFor(method: string, path: string): Promise<{ ba
   const job = jobOfRequest(method, path)
   if (!current) return { base: null, message: 'no-host' }
   if (job === null) return { base: current }
+  // Loaded when needed: the band's settings pull in the database, which a plain request to the current host does not need.
+  const { useBandSettingsStore } = await import('../store/useBandSettingsStore')
   const listed = (useBandSettingsStore.getState().settings.hosts ?? []).map((h) => h.url).filter((url) => url.replace(/\/+$/, '') !== current.replace(/\/+$/, ''))
   const choice = chooseHostForJob(job, { url: current, capabilities: await capabilitiesOf(current) }, await Promise.all(listed.map(async (url) => ({ url, capabilities: await capabilitiesOf(url) }))))
   if (choice.url !== null) return { base: choice.url }
