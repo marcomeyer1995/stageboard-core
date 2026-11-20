@@ -9,7 +9,15 @@ import type { helperRunnerFor } from './helpers.js'
  */
 export type CapabilityResult = { ok: true; body: unknown } | { ok: false; error: AddonError }
 /** `onProgress(request, fraction)`: a helper's progress, for the host request (`forRequest`) the add-on is serving. */
-export type Capabilities = (method: string, body: unknown, hooks?: { onProgress?: (request: number, fraction: number) => void }) => Promise<CapabilityResult>
+export type Capabilities = (
+  method: string,
+  body: unknown,
+  hooks?: {
+    onProgress?: (request: number, fraction: number) => void
+    /** Permissions for the one host request the add-on is serving (`forRequest`) - StageBoard's own, for this call only: the target a device's settings name. */
+    grants?: readonly string[]
+  },
+) => Promise<CapabilityResult>
 
 const MAX_HTTP_BODY = 8 * 1024 * 1024
 const MAX_REDIRECTS = 5
@@ -18,7 +26,7 @@ const fail = (code: string, message: string, params?: AddonError['params']): Cap
 const denied = (capability: string, target: string): CapabilityResult => fail('permission.denied', `The add-on has no permission for ${capability} ${target}`, { capability, origin: target })
 
 const HttpRequest = z.object({ url: z.string(), method: z.enum(['GET', 'POST', 'PUT', 'DELETE']).optional(), headers: z.record(z.string(), z.string()).optional(), body: z.string().optional() })
-const UdpRequest = z.object({ host: z.string().min(1), port: z.number().int().min(1).max(65535), bytes: z.instanceof(Uint8Array).refine((b) => b.length <= 8192, 'at most 8192 bytes') })
+const UdpRequest = z.object({ forRequest: z.number().int().optional(), host: z.string().min(1), port: z.number().int().min(1).max(65535), bytes: z.instanceof(Uint8Array).refine((b) => b.length <= 8192, 'at most 8192 bytes') })
 const HelperRequest = z.object({ helper: z.string().min(1), args: z.array(z.string()), forRequest: z.number().int().optional(), files: z.array(z.object({ name: z.string(), bytes: z.instanceof(Uint8Array) })).default([]) })
 
 /** The body of a response, or `null` as soon as it is larger than `max` bytes - the rest is never read. */
@@ -96,11 +104,13 @@ export function createCapabilities(options: {
     return fail('http.too-many-redirects', 'Too many redirects')
   }
 
-  async function sendUdp(raw: unknown): Promise<CapabilityResult> {
+  async function sendUdp(raw: unknown, hooks?: Parameters<Capabilities>[2]): Promise<CapabilityResult> {
     const parsed = UdpRequest.safeParse(raw)
     if (!parsed.success) return fail('capability.invalid', 'capability.udp needs {host, port, bytes (<= 8192)}')
     const { host, port, bytes } = parsed.data
-    if (!udpTargets.has(`${host}:${port}`)) return denied('udp', `${host}:${port}`)
+    // The manifest's targets, and the one a grant of THIS call names - a device's own settings, handed over by StageBoard, never chosen by the add-on.
+    const granted = (hooks?.grants ?? []).filter((p) => p.startsWith('udp:')).map((p) => p.slice('udp:'.length))
+    if (!udpTargets.has(`${host}:${port}`) && !granted.includes(`${host}:${port}`)) return denied('udp', `${host}:${port}`)
     udp ??= createSocket('udp4')
     const socket = udp
     return new Promise((resolve) => socket.send(bytes, port, host, (err) => resolve(err ? fail('udp.failed', err.message) : { ok: true, body: {} })))
@@ -119,7 +129,7 @@ export function createCapabilities(options: {
 
   return async (method, body, hooks) => {
     if (method === 'capability.http') return http(body)
-    if (method === 'capability.udp') return sendUdp(body)
+    if (method === 'capability.udp') return sendUdp(body, hooks)
     if (method === 'capability.helper') return helper(body, hooks)
     return fail('capability.unknown', `Unknown capability ${method}`)
   }

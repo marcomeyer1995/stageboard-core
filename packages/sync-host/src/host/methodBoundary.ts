@@ -16,7 +16,7 @@ export const METHOD_TIMEOUT_MS = 10_000
  */
 export interface MethodSandbox {
   /** Sends a `request` and resolves with the add-on's response envelope; rejects when the add-on does not answer in time. */
-  request(method: string, body: unknown, timeoutMs: number, onProgress?: (fraction: number) => void): Promise<Envelope>
+  request(method: string, body: unknown, timeoutMs: number, onProgress?: (fraction: number) => void, grants?: readonly string[]): Promise<Envelope>
 }
 
 export type MethodResult = { ok: true; body: unknown } | { ok: false; error: AddonError }
@@ -51,7 +51,7 @@ function validationErrorText(validate: ValidateFunction): string {
  * - `method.output` - the answer violates the declared `out` schema (or is not a response at all).
  * A rejection from the sandbox (a timeout kills the add-on, docs/36 §9) becomes `timeout`.
  */
-export async function callMethod(sandbox: MethodSandbox, contributes: Contributes, method: string, body: unknown, options: { onProgress?: (fraction: number) => void } = {}): Promise<MethodResult> {
+export async function callMethod(sandbox: MethodSandbox, contributes: Contributes, method: string, body: unknown, options: { onProgress?: (fraction: number) => void; grants?: readonly string[] } = {}): Promise<MethodResult> {
   const declared = declaredMethod(contributes, method)
   if (!declared) {
     return { ok: false, error: { code: 'method.undeclared', message: `The add-on declared no method "${method}".`, params: { method } } }
@@ -89,7 +89,7 @@ export async function callMethod(sandbox: MethodSandbox, contributes: Contribute
 
   let answer: Envelope
   try {
-    answer = await sandbox.request(method, body, timeoutMs, declared.progress ? options.onProgress : undefined)
+    answer = await sandbox.request(method, body, timeoutMs, declared.progress ? options.onProgress : undefined, options.grants)
   } catch {
     // The add-on did not answer in time or its process died: from the caller's side that is one thing, a call that will not complete.
     return {

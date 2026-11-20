@@ -1,5 +1,5 @@
-// The OSC add-on's jobs file (docs/32 §6, #964): a classic Worker script, no imports, in a sandbox. One call, `send`: the cue's address and values
-// become one OSC 1.0 packet, which the device's helper `udp-send` puts on the network (an add-on has no socket and starts no program). OSC itself -
+// The OSC add-on's work script (docs/32 §6, #964): a classic script, no imports, in a sandbox. One call, `send`: the cue's address and values
+// become one OSC 1.0 packet, which StageBoard's `capability.udp` puts on the network (an add-on has no socket and starts no program). OSC itself -
 // the address rules, the typed arguments, the byte layout - is this add-on's knowledge. The words the musician reads when it fails are this add-on's too.
 // Where to send is the device's own network setting; StageBoard hands it over with the cue (`host`, `port`, absent when the device has none).
 var LANG = 'de'
@@ -62,11 +62,13 @@ function encode(address, args) {
   return out
 }
 
-function helper(args, files) {
+// The datagram goes out through StageBoard's `capability.udp`. The add-on has NO permission of its own to send anywhere: StageBoard grants, for this one
+// call, exactly the target the device's own settings name (`forRequest` says which call it serves) - a target of the add-on's choosing is refused.
+function sendUdp(host, port, bytes, forRequest) {
   return new Promise(function (resolve, reject) {
     var id = nextId++
     waiting[id] = { resolve: resolve, reject: reject }
-    self.postMessage({ kind: 'request', id: id, method: 'capability.helper', body: { helper: 'udp-send', args: args, files: files } })
+    self.postMessage({ kind: 'request', id: id, method: 'capability.udp', body: { host: host, port: port, bytes: bytes, forRequest: forRequest } })
   })
 }
 
@@ -83,7 +85,7 @@ self.onmessage = function (e) {
     if (!/^\/[^\s#*,?[\]{}]*$/.test(address)) return refuse(m.id, 'osc.address', 'address', { address: address })
     if (!m.body.host || !m.body.port) return refuse(m.id, 'osc.no-target', 'noTarget')
     var packet = encode(address, parseArgs(String(m.body.args || '')))
-    helper([String(m.body.host), String(m.body.port)], [{ name: 'packet', bytes: packet }]).then(
+    sendUdp(String(m.body.host), Number(m.body.port), packet, m.id).then(
       function () { self.postMessage({ kind: 'response', id: m.id, ok: true, body: { sent: true } }) },
       function (err) { refuse(m.id, 'osc.failed', 'failed', { host: m.body.host, port: m.body.port, error: err.message }) },
     )

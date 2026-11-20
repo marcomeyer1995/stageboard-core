@@ -58,7 +58,7 @@ function loadEntries(root: string, dirs: readonly string[]): Map<string, Entry> 
 
 /** `callMethod`'s view of a Node sandbox: the contract's request with a timeout and progress. */
 export function asMethodSandbox(sandbox: NodeSandbox): MethodSandbox {
-  return { request: (method, body, timeoutMs, onProgress) => sandbox.request(method, body, { timeoutMs, ...(onProgress ? { onProgress } : {}) }) }
+  return { request: (method, body, timeoutMs, onProgress, grants) => sandbox.request(method, body, { timeoutMs, ...(onProgress ? { onProgress } : {}), ...(grants ? { grants } : {}) }) }
 }
 
 export interface AddonMethods {
@@ -66,7 +66,8 @@ export interface AddonMethods {
   has(addonId: string): boolean
   /** What the add-on declared, for the slot and the checks around it. */
   contributes(addonId: string): Contributes | null
-  call(addonId: string, method: string, body: unknown, options?: { onProgress?: (fraction: number) => void }): Promise<MethodResult>
+  /** `grants`: permissions for this one call only, StageBoard's own (a device's own target) - never the add-on's choice. */
+  call(addonId: string, method: string, body: unknown, options?: { onProgress?: (fraction: number) => void; grants?: readonly string[] }): Promise<MethodResult>
 }
 
 export interface AddonMethodsOptions {

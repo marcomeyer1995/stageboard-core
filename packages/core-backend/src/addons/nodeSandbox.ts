@@ -34,7 +34,7 @@ export interface NodeSandbox {
    * is stopped - it cannot be trusted further - and the answer is a response with `{code: 'timeout'}`. `onProgress` gets what a helper reports for
    * the request.
    */
-  request(method: string, body: unknown, options?: { timeoutMs?: number; onProgress?: (fraction: number) => void }): Promise<Envelope>
+  request(method: string, body: unknown, options?: { timeoutMs?: number; onProgress?: (fraction: number) => void; grants?: readonly string[] }): Promise<Envelope>
   /** Whether the add-on's process is still alive. */
   alive(): boolean
   /** The add-on's last health message. */
@@ -65,6 +65,8 @@ export async function startNodeSandbox(options: NodeSandboxOptions): Promise<Nod
   const requests = new Map<number, (envelope: Envelope) => void>()
   /** Progress callbacks of the requests we sent: a helper's progress reaches the request the add-on says it serves (`forRequest`). */
   const requestProgress = new Map<number, (fraction: number) => void>()
+  /** Permissions StageBoard gave one request only (`grants`): what the add-on may do while serving THAT request, e.g. send to the target a device names. */
+  const requestGrants = new Map<number, readonly string[]>()
   let nextId = 1
   const send = (message: unknown) => {
     if (!exited && child.connected) child.send(message as never)
@@ -113,7 +115,8 @@ export async function startNodeSandbox(options: NodeSandboxOptions): Promise<Nod
         case 'request': {
           if (!envelope.method.startsWith('capability.')) break // an add-on asks the world only through capabilities
           const id = envelope.id
-          const hooks = { onProgress: (request: number, fraction: number) => requestProgress.get(request)?.(Math.min(1, Math.max(0, fraction))) }
+          const served = (envelope.body as { forRequest?: unknown } | null)?.forRequest
+          const hooks = { onProgress: (request: number, fraction: number) => requestProgress.get(request)?.(Math.min(1, Math.max(0, fraction))), ...(typeof served === 'number' && requestGrants.has(served) ? { grants: requestGrants.get(served)! } : {}) }
           const answer = options.capabilities ? options.capabilities(envelope.method, envelope.body, hooks) : Promise.resolve({ ok: false as const, error: { code: 'permission.denied', message: 'This device gives no capabilities to add-ons' } })
           void answer.then((result) => send(result.ok ? { kind: 'response', id, ok: true, body: result.body } : { kind: 'response', id, ok: false, error: result.error }))
           break
@@ -145,11 +148,13 @@ export async function startNodeSandbox(options: NodeSandboxOptions): Promise<Nod
           // An add-on that does not answer cannot be trusted further (docs/36, Review Focus).
           requests.delete(id)
           requestProgress.delete(id)
+          requestGrants.delete(id)
           child.kill('SIGKILL')
           resolve({ kind: 'response', id, ok: false, error: { code: 'timeout', message: `The add-on did not answer within ${Math.round(timeoutMs / 1000)} s and was stopped`, params: { method, timeoutMs } } })
         }, timeoutMs)
         if (requestOptions.onProgress) requestProgress.set(id, requestOptions.onProgress)
-        requests.set(id, (envelope) => (clearTimeout(timer), requestProgress.delete(id), resolve(envelope)))
+        if (requestOptions.grants?.length) requestGrants.set(id, requestOptions.grants)
+        requests.set(id, (envelope) => (clearTimeout(timer), requestProgress.delete(id), requestGrants.delete(id), resolve(envelope)))
         send({ kind: 'request', id, method, body })
       })
     },

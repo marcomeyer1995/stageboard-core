@@ -1,4 +1,3 @@
-import { createSocket, type Socket } from 'node:dgram'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { extname, join } from 'node:path'
@@ -105,21 +104,7 @@ const ugPage: HelperRun = async (args) => {
   }
 }
 
-/** `udp-send <host> <port>` with the datagram as the file `packet`: one UDP packet (the OSC add-on's way to the network). One socket for the device. */
-let udpSocket: Socket | null = null
-const udpSend: HelperRun = async (args, _onProgress, files) => {
-  const packet = files.find((f) => f.name === 'packet')
-  const host = args[0]
-  const port = Number(args[1])
-  if (!packet || !host || !Number.isInteger(port) || port < 1 || port > 65535) throw new Error('The udp-send helper needs a host, a port (1-65535) and the file "packet"')
-  if (packet.bytes.length > 8192) throw new Error('The udp-send helper sends at most 8192 bytes')
-  udpSocket ??= createSocket('udp4')
-  const socket = udpSocket
-  await new Promise<void>((resolve, reject) => socket.send(packet.bytes, port, host, (err) => (err ? reject(err) : resolve())))
-  return { result: {}, files: [] }
-}
-
-export const HELPERS: Record<string, HelperRun> = { 'yt-dlp': ytDlp, stems, piper, 'ug-page': ugPage, 'udp-send': udpSend }
+export const HELPERS: Record<string, HelperRun> = { 'yt-dlp': ytDlp, stems, piper, 'ug-page': ugPage }
 
 /** The `runHelper` a sandbox gets: only what its manifest declared, and only what this device has. */
 export function helperRunnerFor(declared: readonly string[]): (helper: string, args: string[], onProgress: (f: number) => void, files: { name: string; bytes: Uint8Array }[]) => Promise<HelperOutput> {

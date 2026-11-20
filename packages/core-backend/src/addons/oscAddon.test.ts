@@ -1,9 +1,9 @@
+import { join } from 'node:path'
 import { createSocket, type Socket } from 'node:dgram'
 import type { AddressInfo } from 'node:net'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { createOscAddonPlugin } from './oscAddon.js'
 import { setOscTargetResolver } from '../plugins/oscPlugin.js'
-import { helperRunnerFor } from './helpers.js'
 
 let receiver: Socket
 let port: number
@@ -83,11 +83,49 @@ describe('what the add-on says when it cannot send - its own words, nothing sent
   })
 })
 
-describe('the udp-send helper (#964)', () => {
-  it('refuses what is no datagram, and only a declared helper may be asked for', async () => {
-    const run = helperRunnerFor(['udp-send'])
-    await expect(run('udp-send', ['127.0.0.1', '0'], () => {}, [{ name: 'packet', bytes: new Uint8Array(4) }])).rejects.toThrow(/port/)
-    await expect(run('udp-send', ['127.0.0.1', '9'], () => {}, [{ name: 'packet', bytes: new Uint8Array(9000) }])).rejects.toThrow(/8192/)
-    await expect(helperRunnerFor(['stems'])('udp-send', [], () => {}, [])).rejects.toThrow('No helper')
+describe('OSC sends only where StageBoard says (#964, docs/36 §5, review)', () => {
+  it('a hostile add-on cannot send to a target of its own choosing - only the target granted for THIS call goes out', async () => {
+    const { createAddonMethods } = await import('./addonMethods.js')
+    const { mkdirSync, writeFileSync } = await import('node:fs')
+    const { mkdtempSync } = await import('node:fs')
+    const { tmpdir } = await import('node:os')
+    const root = mkdtempSync(join(tmpdir(), 'sb-udp-'))
+    mkdirSync(join(root, 'evil'))
+    writeFileSync(join(root, 'evil', 'manifest.json'), JSON.stringify({ id: 'evil', permissions: [], contributes: { methods: { go: { in: { type: 'object' }, out: { type: 'object' }, timeoutMs: 5000 } } } }))
+    // It is told a target, but asks for a different port - and for a different host.
+    writeFileSync(join(root, 'evil', 'work.js'), `
+      var out = {}, pending = 0
+      function ask(host, port, id, key, done) { pending++; var rid = 100 + pending; waiting[rid] = function (m) { out[key] = m.ok ? 'SENT' : m.error.code; if (--pending === 0) done() }; self.postMessage({ kind: 'request', id: rid, method: 'capability.udp', body: { host: host, port: port, bytes: new Uint8Array([1]), forRequest: id } }) }
+      var waiting = {}
+      self.onmessage = function (e) { var m = e.data
+        if (m.kind === 'response') { var w = waiting[m.id]; if (w) w(m); return }
+        if (m.kind !== 'request') return
+        var finish = function () { self.postMessage({ kind: 'response', id: m.id, ok: true, body: out }) }
+        ask(m.body.host, m.body.port, m.id, 'granted', finish)
+        ask(m.body.host, m.body.port + 1, m.id, 'otherPort', finish)
+        ask('127.0.0.2', m.body.port, m.id, 'otherHost', finish)
+        ask(m.body.host, m.body.port, undefined, 'noRequestId', finish)
+      }`)
+    const methods = createAddonMethods({ root, dirs: ['evil'] })
+    const answer = await methods.call('evil', 'go', { host: '127.0.0.1', port }, { grants: [`udp:127.0.0.1:${port}`] })
+    expect(answer).toMatchObject({ ok: true, body: { granted: 'SENT', otherPort: 'permission.denied', otherHost: 'permission.denied', noRequestId: 'permission.denied' } })
+    // And without a grant at all it sends nothing: the add-on has no permission of its own.
+    const none = await methods.call('evil', 'go', { host: '127.0.0.1', port })
+    expect(none).toMatchObject({ ok: true, body: { granted: 'permission.denied', otherPort: 'permission.denied' } })
+  })
+
+  it('a grant belongs to the call it was given for: a later call does not inherit it', async () => {
+    received.length = 0
+    expect(await createOscAddonPlugin().trigger(cue({ address: '/once' }))).toEqual({ status: 'ok' })
+    await waitFor(1)
+    setOscTargetResolver(async () => null)
+    expect(await createOscAddonPlugin().trigger(cue({ address: '/two' }, 'no-target'))).toMatchObject({ status: 'error' })
+    setOscTargetResolver(async (id) => (id === 'lights' ? { host: '127.0.0.1', port } : null))
+    expect(received).toHaveLength(1)
+  })
+
+  it('the old udp-send helper is gone: no helper sends to a free target any more', async () => {
+    const { HELPERS } = await import('./helpers.js')
+    expect(Object.keys(HELPERS)).not.toContain('udp-send')
   })
 })
