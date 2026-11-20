@@ -140,16 +140,18 @@ const backupHasBand = await (async () => {
 check('the backup tablet holds a local copy of the band', backupHasBand)
 
 // ---- 4. before: the primary is the band host, the backup is passive and receives the lease ------------------------------------------------
-let pNow, bNow
-for (let i = 0; i < 12; i++) {
+// The backup only takes over from a primary it has heard: wait until the first lease has really arrived (it needs the band synced
+// to know the code), instead of stopping the primary too early - the first version of this test did, and the backup rightly stayed passive.
+let pNow, bNow, lease
+for (let i = 0; i < 40; i++) {
   pNow = (await call(P, '/time').catch(() => null))?.body
   bNow = (await call(B, '/time').catch(() => null))?.body
-  if (pNow?.active === true) break
+  lease = (await call(B, '/server/host-lease').catch(() => null))?.body
+  if (pNow?.active === true && lease?.lease?.hostId === pId && lease?.lease?.alive === true) break
   await sleep(3000)
 }
 check('before: the primary tablet is the band host (active)', pNow?.active === true, JSON.stringify(pNow))
 check('before: the backup tablet is passive', bNow?.active === false, JSON.stringify(bNow))
-const lease = (await call(B, '/server/host-lease').catch(() => null))?.body
 check('before: the backup has received the primary\'s lease', lease?.lease?.hostId === pId && lease?.lease?.alive === true, JSON.stringify(lease?.lease))
 check('before: the backup refuses the band\'s data while passive (503)', (await call(B, `/db/stageboard-${band}/_all_docs`, { headers: adminAuth })).status === 503)
 const epochBefore = bNow?.epoch
