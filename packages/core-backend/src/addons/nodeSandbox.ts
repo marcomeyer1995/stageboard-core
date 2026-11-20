@@ -55,7 +55,7 @@ export interface NodeSandbox {
    * Sends one contract `request` and resolves with the add-on's response envelope (docs/36 §4) - what a protocol 3 script speaks directly. An add-on
    * that does not answer within `timeoutMs` is stopped, like a `call`, and the answer is a response with `{code: 'timeout'}`.
    */
-  request(method: string, body: unknown, options?: { timeoutMs?: number }): Promise<Envelope>
+  request(method: string, body: unknown, options?: { timeoutMs?: number; onProgress?: (fraction: number) => void }): Promise<Envelope>
   /** Runs a job; the add-on reports progress and ends with `job-result`. A job without an end by `timeoutMs` kills the add-on. */
   runJob(job: AddonJob, options?: { onProgress?: (fraction: number) => void; timeoutMs?: number }): Promise<JobOutcome>
   /** Whether the add-on's process is still alive. */
@@ -89,6 +89,8 @@ export async function startNodeSandbox(options: NodeSandboxOptions): Promise<Nod
   const calls = new Map<number, (o: CallOutcome) => void>()
   /** Contract `request`s waiting for their `response` (docs/36 §4). A response is answered exactly once, by id. */
   const requests = new Map<number, (envelope: Envelope) => void>()
+  /** Progress callbacks of the requests we sent: a helper's progress reaches the request the add-on says it serves (`forRequest`). */
+  const requestProgress = new Map<number, (fraction: number) => void>()
   let nextId = 1
   let nextRequest = 1
   const send = (message: ToAddon | Envelope) => {
@@ -129,7 +131,7 @@ export async function startNodeSandbox(options: NodeSandboxOptions): Promise<Nod
       if (envelope === 'invalid') return
       if (envelope && envelope.kind === 'request' && envelope.method.startsWith('capability.')) {
         const id = envelope.id
-        const answer = options.capabilities ? options.capabilities(envelope.method, envelope.body) : Promise.resolve({ ok: false as const, error: { code: 'permission.denied', message: 'This device gives no capabilities to add-ons' } })
+        const answer = options.capabilities ? options.capabilities(envelope.method, envelope.body, { onProgress: (request, fraction) => requestProgress.get(request)?.(Math.min(1, Math.max(0, fraction))) }) : Promise.resolve({ ok: false as const, error: { code: 'permission.denied', message: 'This device gives no capabilities to add-ons' } })
         void answer.then((result) => send(result.ok ? { kind: 'response', id, ok: true, body: result.body } : { kind: 'response', id, ok: false, error: result.error }))
         return
       }
@@ -228,6 +230,7 @@ export async function startNodeSandbox(options: NodeSandboxOptions): Promise<Nod
         const timer = setTimeout(() => {
           // Same rule as a call: an add-on that does not answer cannot be trusted further (docs/36, Review Focus).
           requests.delete(id)
+          requestProgress.delete(id)
           child.kill('SIGKILL')
           resolve({
             kind: 'response',
@@ -236,7 +239,8 @@ export async function startNodeSandbox(options: NodeSandboxOptions): Promise<Nod
             error: { code: 'timeout', message: `The add-on did not answer within ${Math.round(timeoutMs / 1000)} s and was stopped`, params: { method, timeoutMs } },
           })
         }, timeoutMs)
-        requests.set(id, (envelope) => (clearTimeout(timer), resolve(envelope)))
+        if (requestOptions.onProgress) requestProgress.set(id, requestOptions.onProgress)
+        requests.set(id, (envelope) => (clearTimeout(timer), requestProgress.delete(id), resolve(envelope)))
         send({ kind: 'request', id, method, body })
       })
     },

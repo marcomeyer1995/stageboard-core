@@ -8,7 +8,8 @@ import type { helperRunnerFor } from './helpers.js'
  * `request` for a capability, and this decides - against the `permissions` the band confirmed - and does it. A denied request sends nothing.
  */
 export type CapabilityResult = { ok: true; body: unknown } | { ok: false; error: AddonError }
-export type Capabilities = (method: string, body: unknown) => Promise<CapabilityResult>
+/** `onProgress(request, fraction)`: a helper's progress, for the host request (`forRequest`) the add-on is serving. */
+export type Capabilities = (method: string, body: unknown, hooks?: { onProgress?: (request: number, fraction: number) => void }) => Promise<CapabilityResult>
 
 const MAX_HTTP_BODY = 8 * 1024 * 1024
 const MAX_REDIRECTS = 5
@@ -18,7 +19,7 @@ const denied = (capability: string, target: string): CapabilityResult => fail('p
 
 const HttpRequest = z.object({ url: z.string(), method: z.enum(['GET', 'POST', 'PUT', 'DELETE']).optional(), headers: z.record(z.string(), z.string()).optional(), body: z.string().optional() })
 const UdpRequest = z.object({ host: z.string().min(1), port: z.number().int().min(1).max(65535), bytes: z.instanceof(Uint8Array).refine((b) => b.length <= 8192, 'at most 8192 bytes') })
-const HelperRequest = z.object({ helper: z.string().min(1), args: z.array(z.string()), files: z.array(z.object({ name: z.string(), bytes: z.instanceof(Uint8Array) })).default([]) })
+const HelperRequest = z.object({ helper: z.string().min(1), args: z.array(z.string()), forRequest: z.number().int().optional(), files: z.array(z.object({ name: z.string(), bytes: z.instanceof(Uint8Array) })).default([]) })
 
 /** The origin of `url` when it is a plain http(s) URL without credentials; otherwise null - `user@host` is how an allowed-looking URL points elsewhere. */
 function originOf(url: string): string | null {
@@ -78,21 +79,21 @@ export function createCapabilities(options: {
     return new Promise((resolve) => socket.send(bytes, port, host, (err) => resolve(err ? fail('udp.failed', err.message) : { ok: true, body: {} })))
   }
 
-  async function helper(raw: unknown): Promise<CapabilityResult> {
+  async function helper(raw: unknown, hooks?: Parameters<Capabilities>[2]): Promise<CapabilityResult> {
     const parsed = HelperRequest.safeParse(raw)
     if (!parsed.success) return fail('capability.invalid', 'capability.helper needs {helper, args, files?}')
     if (!declaredHelpers.has(parsed.data.helper)) return denied('helper', parsed.data.helper)
     try {
-      return { ok: true, body: await options.helpers(parsed.data.helper, parsed.data.args, () => undefined, parsed.data.files) }
+      return { ok: true, body: await options.helpers(parsed.data.helper, parsed.data.args, (fraction) => (parsed.data.forRequest !== undefined ? hooks?.onProgress?.(parsed.data.forRequest, fraction) : undefined), parsed.data.files) }
     } catch (err) {
       return fail('helper.error', err instanceof Error ? err.message : String(err))
     }
   }
 
-  return async (method, body) => {
+  return async (method, body, hooks) => {
     if (method === 'capability.http') return http(body)
     if (method === 'capability.udp') return sendUdp(body)
-    if (method === 'capability.helper') return helper(body)
+    if (method === 'capability.helper') return helper(body, hooks)
     return fail('capability.unknown', `Unknown capability ${method}`)
   }
 }

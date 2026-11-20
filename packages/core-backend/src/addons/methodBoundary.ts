@@ -16,7 +16,7 @@ export const METHOD_TIMEOUT_MS = 10_000
  */
 export interface MethodSandbox {
   /** Sends a `request` and resolves with the add-on's response envelope; rejects when the add-on does not answer in time. */
-  request(method: string, body: unknown, timeoutMs: number): Promise<Envelope>
+  request(method: string, body: unknown, timeoutMs: number, onProgress?: (fraction: number) => void): Promise<Envelope>
 }
 
 export type MethodResult = { ok: true; body: unknown } | { ok: false; error: AddonError }
@@ -34,7 +34,7 @@ function validatorFor(schema: JsonSchema): ValidateFunction {
   return validator
 }
 
-function declaredMethod(contributes: Contributes, method: string): { in: JsonSchema; out: JsonSchema } | undefined {
+function declaredMethod(contributes: Contributes, method: string): { in: JsonSchema; out: JsonSchema; timeoutMs?: number; progress?: boolean } | undefined {
   // `Object.hasOwn`: `methods.toString` or `methods.__proto__` must be undeclared, not inherited from Object.prototype.
   return Object.hasOwn(contributes.methods, method) ? contributes.methods[method] : undefined
 }
@@ -51,11 +51,13 @@ function validationErrorText(validate: ValidateFunction): string {
  * - `method.output` - the answer violates the declared `out` schema (or is not a response at all).
  * A rejection from the sandbox (a timeout kills the add-on, docs/36 §9) becomes `timeout`.
  */
-export async function callMethod(sandbox: MethodSandbox, contributes: Contributes, method: string, body: unknown): Promise<MethodResult> {
+export async function callMethod(sandbox: MethodSandbox, contributes: Contributes, method: string, body: unknown, options: { onProgress?: (fraction: number) => void } = {}): Promise<MethodResult> {
   const declared = declaredMethod(contributes, method)
   if (!declared) {
     return { ok: false, error: { code: 'method.undeclared', message: `The add-on declared no method "${method}".`, params: { method } } }
   }
+
+  const timeoutMs = declared.timeoutMs ?? METHOD_TIMEOUT_MS
 
   let validateInput: ValidateFunction
   let validateOutput: ValidateFunction
@@ -87,12 +89,12 @@ export async function callMethod(sandbox: MethodSandbox, contributes: Contribute
 
   let answer: Envelope
   try {
-    answer = await sandbox.request(method, body, METHOD_TIMEOUT_MS)
+    answer = await sandbox.request(method, body, timeoutMs, declared.progress ? options.onProgress : undefined)
   } catch {
     // The add-on did not answer in time or its process died: from the caller's side that is one thing, a call that will not complete.
     return {
       ok: false,
-      error: { code: 'timeout', message: `The add-on did not answer "${method}" within ${METHOD_TIMEOUT_MS} ms.`, params: { method, timeoutMs: METHOD_TIMEOUT_MS } },
+      error: { code: 'timeout', message: `The add-on did not answer "${method}" within ${timeoutMs} ms.`, params: { method, timeoutMs } },
     }
   }
 

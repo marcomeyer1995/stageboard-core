@@ -11,7 +11,7 @@ self.onmessage = function (e) {
     var request = nextRequest++
     pending[request] = m.id
     console.log('downloading ' + m.job.input.url)
-    self.postMessage({ type: 'helper-run', id: m.id, request: request, helper: 'yt-dlp', args: [String(m.job.input.url)] })
+    self.postMessage({ type: 'helper-run', id: m.id, request: request, helper: 'yt-dlp', args: ['download', String(m.job.input.url)] })
   } else if (m.type === 'helper-result') {
     var id = pending[m.request]
     delete pending[m.request]

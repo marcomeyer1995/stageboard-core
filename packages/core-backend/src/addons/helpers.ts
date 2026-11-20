@@ -3,7 +3,8 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { extname, join } from 'node:path'
 import { runStemSeparation } from '../stems/stemSeparation.js'
-import { runYtDlpExtract } from '../ytDlp.js'
+import { messageFieldsOf } from 'shared-types'
+import { runYtDlpExtract, runYtDlpSearch } from '../ytDlp.js'
 import { BrowserError, createBrowserReader } from './browserHelper.js'
 import { runPiperProgram } from '../speech/piperSpeech.js'
 
@@ -29,15 +30,31 @@ async function inWorkFolder<T>(prefix: string, run: (dir: string) => Promise<T>)
   }
 }
 
-/** `yt-dlp <url>`: yt-dlp's own best audio of one video; the file comes back with its extension. */
-const ytDlp: HelperRun = (args, onProgress) => {
-  const url = args[0]
-  if (!url) return Promise.reject(new Error('No link given to the helper'))
-  return inWorkFolder('stageboard-yt-', async (dir) => {
-    const { filePath } = await runYtDlpExtract(url, join(dir, 'track.%(ext)s'), onProgress)
-    const ext = extname(filePath).replace(/^\./, '')
-    return { result: { ext }, files: [{ name: `track.${ext}`, bytes: new Uint8Array(await readFile(filePath)) }] }
-  })
+/**
+ * `yt-dlp download <url>` or `yt-dlp search <query>` (the device's yt-dlp; the add-on picks the subcommand, never a flag - an add-on that could pass its
+ * own arguments could make yt-dlp run any program). `download`: yt-dlp's own best audio of one video, the file comes back with its extension. `search`:
+ * the hits as `{id, title, channel, durationSec, url}`. A failure the person should be told about (too large, no audio, timed out) comes back as
+ * `result.error` with a code and parameters; the add-on that asked says it in words.
+ */
+const ytDlp: HelperRun = async (args, onProgress) => {
+  try {
+    if (args[0] === 'search') {
+      const query = args[1]
+      if (!query || query.length > 200) throw new Error('The yt-dlp helper needs a search text of 1-200 characters')
+      return { result: { hits: await runYtDlpSearch(query) }, files: [] }
+    }
+    const url = args[0] === 'download' ? args[1] : undefined
+    if (!url || !/^https?:\/\//.test(url)) throw new Error('The yt-dlp helper downloads one http(s) link: yt-dlp download <url>')
+    return await inWorkFolder('stageboard-yt-', async (dir) => {
+      const { filePath } = await runYtDlpExtract(url, join(dir, 'track.%(ext)s'), onProgress)
+      const ext = extname(filePath).replace(/^\./, '')
+      return { result: { ext }, files: [{ name: `track.${ext}`, bytes: new Uint8Array(await readFile(filePath)) }] }
+    })
+  } catch (err) {
+    const { messageCode, messageParams } = messageFieldsOf(err)
+    if (messageCode) return { result: { error: { code: messageCode, params: messageParams ?? {} } }, files: [] }
+    throw err
+  }
 }
 
 /** `stems <model> [--split-guitar]` with the audio as the file `input`: Demucs through the stems script; one file per stem. */

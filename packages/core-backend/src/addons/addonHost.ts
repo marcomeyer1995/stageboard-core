@@ -26,6 +26,7 @@ export const BUILTIN_ADDONS = {
   metadataLookup: { id: 'metadata-lookup', file: addonFile('musicbrainz-lookup'), helpers: [], permissions: ['http:https://musicbrainz.org'] },
   ultimateGuitarLookup: { id: 'ultimate-guitar-scraper', file: addonFile('ultimate-guitar-lookup'), helpers: ['ug-page'], permissions: ['helper:ug-page'] },
   oscSend: { id: 'osc', file: addonFile('osc-send'), helpers: ['udp-send'], permissions: ['helper:udp-send'] },
+  youtube: { id: 'youtube-download', file: addonFile('youtube/work'), helpers: ['yt-dlp'], permissions: ['helper:yt-dlp'] },
   stemSeparation: { id: 'stem-separation', file: addonFile('stem-separation'), helpers: ['stems'], permissions: ['helper:stems'] },
 } as const satisfies Record<string, AddonManifest>
 

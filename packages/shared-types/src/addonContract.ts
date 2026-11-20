@@ -166,7 +166,8 @@ export type DeviceContribution = z.infer<typeof DeviceContributionSchema>
  * settings schema. Additive across protocol versions - `parseContributes` keeps kinds this StageBoard does not know in `unknown` instead of failing.
  */
 export const ContributesSchema = z.object({
-  methods: z.record(z.string(), z.object({ in: JsonSchema, out: JsonSchema })).default({}),
+  // `timeoutMs`: how long the method may take (a download takes minutes, a look-up seconds); absent = the boundary's default. `progress: true`: it reports 0-1 as it goes.
+  methods: z.record(z.string(), z.object({ in: JsonSchema, out: JsonSchema, timeoutMs: z.number().int().min(1000).max(30 * 60_000).optional(), progress: z.boolean().optional() })).default({}),
   jobs: z
     .record(z.string(), z.object({ input: JsonSchema, needs: z.object({ helper: z.string().min(1).optional() }).optional() }))
     .default({}),
