@@ -37,6 +37,7 @@ export const SERVER_MESSAGES_DE = {
   'plugin.unknownEvent': '{{plugin}}: unbekannter Event-Typ "{{type}}".',
   'stems.demucsMissing': 'Demucs ist auf dem Host nicht installiert (docs/03).',
   'job.interrupted': 'Durch einen Neustart des Hosts unterbrochen.',
+  'addon.notInstalled': 'Das Add-on „{{addon}}“ ist für diese Band nicht installiert.',
   'job.variantGone': 'Die Song-Variante existiert nicht mehr.',
   'job.trackGone': 'Der Track existiert nicht mehr.',
   'job.audioMissing': 'Die Audiodatei des Tracks liegt nicht auf dem Host.',

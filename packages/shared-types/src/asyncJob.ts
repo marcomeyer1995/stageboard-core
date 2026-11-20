@@ -81,9 +81,29 @@ export const OpusConvertJobSchema = z.object({
   label: z.string().min(1),
 })
 
-export const AsyncJobSchema = z.discriminatedUnion('type', [YoutubeExtractJobSchema, StemSeparationJobSchema, OpusConvertJobSchema])
+/**
+ * Audio that an add-on fetches (docs/36 §7, #964): "get this audio and make it a track of the song". The core knows nothing of where the audio comes
+ * from - YouTube, a stock library, a recorder: the add-on named by `addonId` answers `method` (`fetchAudio`) with `{audio, ext}`, and StageBoard
+ * stores it, attaches it as a track and queues the Opus conversion when needed. The job is a band document like any other, so every device sees its
+ * progress. A host that has the add-on's helpers takes it (`plugin:<addonId>`).
+ */
+export const AudioImportJobSchema = z.object({
+  ...AsyncJobBase,
+  type: z.literal('audio-import'),
+  /** The add-on that fetches the audio. */
+  addonId: z.string().min(1).max(100),
+  /** The method of that add-on that answers with `{audio, ext}`. */
+  method: z.string().min(1).max(100),
+  /** What the method is asked (the add-on's own schema, docs/36 §3): a link, an id. */
+  args: z.record(z.string(), z.unknown()),
+  label: z.string().min(1),
+  trackId: z.string().min(1).optional(),
+})
+
+export const AsyncJobSchema = z.discriminatedUnion('type', [YoutubeExtractJobSchema, AudioImportJobSchema, StemSeparationJobSchema, OpusConvertJobSchema])
 export type AsyncJob = z.infer<typeof AsyncJobSchema>
 export type YoutubeExtractJob = z.infer<typeof YoutubeExtractJobSchema>
+export type AudioImportJob = z.infer<typeof AudioImportJobSchema>
 export type StemSeparationJob = z.infer<typeof StemSeparationJobSchema>
 export type OpusConvertJob = z.infer<typeof OpusConvertJobSchema>
 

@@ -1,4 +1,4 @@
-import type { JobPatch } from './youtubeExtract.js'
+import type { JobPatch } from './trackFormat.js'
 
 /**
  * Progress of a background job, written to the job's document (#964): at most once per interval - every write is a database PUT that only the

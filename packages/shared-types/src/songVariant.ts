@@ -24,7 +24,7 @@ export const TrackMetaSchema = z.object({
   id: z.string().min(1),
   kind: TrackKindSchema,
   label: z.string().min(1),
-  source: z.enum(['upload', 'youtube-extract', 'stem-separation']),
+  source: z.enum(['upload', 'youtube-extract', 'add-on', 'stem-separation']),
   /** Which track a stem was derived from; null for anything uploaded/extracted directly. */
   parentTrackId: z.string().nullable(),
   /** A stem's instrument, if known (docs/22 §2). Set by the separation, suggested from the file

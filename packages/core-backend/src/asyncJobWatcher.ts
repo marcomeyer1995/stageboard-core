@@ -2,12 +2,13 @@ import { randomUUID } from 'node:crypto'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { extname, join } from 'node:path'
-import { AsyncJobSchema, messageFieldsOf, ServerMessageError, type AsyncJob, type OpusConvertJob, type StemSeparationJob, type TrackMeta, type YoutubeExtractJob } from 'shared-types'
+import { AsyncJobSchema, messageFieldsOf, ServerMessageError, type AsyncJob, type AudioImportJob, type OpusConvertJob, type StemSeparationJob, type TrackMeta, type YoutubeExtractJob } from 'shared-types'
 import { allDocs, getDoc, putDocWithRetry, waitForChange, type DatabaseConfig, type DatabaseDoc } from './database.js'
 import { workspaceDbName } from './workspaceProvisioning.js'
 import { runYtDlpExtract } from './ytDlp.js'
 import { deleteAudioFile, isSafeAudioId, readAudioFile, writeAudioFile } from './audioStore.js'
-import { hostRunner, pickNextClaimable, type SeparatedStem, runStemSeparation as runStemSeparationRecipe, runYoutubeExtract, stillMine, stuckJobsOfHost } from 'sync-host'
+import type { AddonMethods } from './addons/addonMethods.js'
+import { hostRunner, type JobRef, pickNextClaimable, runAudioImport, type SeparatedStem, runStemSeparation as runStemSeparationRecipe, runYoutubeExtract, stillMine, stuckJobsOfHost } from 'sync-host'
 import { readInstallations } from './plugins/pluginSync.js'
 import { STEM_SEPARATION_PLUGIN_ID } from './plugins/stemSeparationPlugin.js'
 import { bandHasAddon, YOUTUBE_DOWNLOAD_PLUGIN_ID } from './plugins/importAddons.js'
@@ -34,8 +35,10 @@ export interface AsyncJobWatcherOptions {
   youtubeDownload?: (url: string, onProgress: (fraction: number) => void) => Promise<{ data: Uint8Array; ext: string }>
   /** Stem separation through the sandboxed add-on (`addons/stemAddon.ts`, #964). Absent: the built-in call. */
   stemSeparate?: (audio: Uint8Array, options: { model: 'standard' | 'extended'; splitGuitar: boolean }, onProgress: (fraction: number) => void) => Promise<{ stems: SeparatedStem[] }>
+  /** The add-ons this host can ask for audio (`audio-import` jobs, docs/36 §7, #964): their work scripts run in a sandbox of their own. Absent: such jobs fail with a message. */
+  addonMethods?: AddonMethods
   /** What a job needs from its host - from the host's runners (`JobRunners.needsOfJob`). Absent: sync-host's default table. */
-  needsOf?: (job: Pick<AsyncJob, 'type'>) => string | null
+  needsOf?: (job: JobRef) => string | null
   /** Whether this host can do what a job needs (`GET /host/capabilities`); a job it cannot do is left queued for a host that can. Absent: everything. */
   canDo?: (needs: string) => boolean
   /** Whether the band lists another host that might take the same job. Only then does a claim wait to be confirmed. */
@@ -150,6 +153,7 @@ export function createAsyncJobWatcher(options: AsyncJobWatcherOptions): AsyncJob
   async function processJob(job: AsyncJob): Promise<void> {
     if (job.type === 'stem-separation') return processStemJob(job)
     if (job.type === 'opus-convert') return // a device's (pickNextQueuedJob never hands one out)
+    if (job.type === 'audio-import') return processAudioImportJob(job)
     return processYoutubeJob(job)
   }
 
@@ -257,6 +261,40 @@ export function createAsyncJobWatcher(options: AsyncJobWatcherOptions): AsyncJob
             throw err
           }
         }),
+        writeAudio: (variantId, trackId, data) => writeAudioFile(variantId, trackId, Buffer.from(data.buffer, data.byteOffset, data.byteLength)),
+        deleteAudio: deleteAudioFile,
+        appendTrack,
+        queueOpusConvert,
+        newId: randomUUID,
+        now: Date.now,
+        progressIntervalMs: PROGRESS_WRITE_INTERVAL_MS,
+      })
+    } finally {
+      currentJobId = null
+    }
+    await pickUpNext()
+  }
+
+  /**
+   * "An add-on fetches audio" (docs/36 §7, #964): the recipe is sync-host's (`runAudioImport`); the audio comes from the add-on's own method, run in its
+   * sandbox on this host. This host knows nothing of the service behind it.
+   */
+  async function processAudioImportJob(job: AudioImportJob): Promise<void> {
+    currentJobId = job.id
+    try {
+      await runAudioImport(job, {
+        log,
+        patchJob: (patch) => patchJob(job.id, patch),
+        bandHasAddon: (addonId) => bandHasAddon(database, workspaceId, addonId),
+        isSafeVariantId: isSafeAudioId,
+        variantExists,
+        fetchAudio: async (addonId, method, args, onProgress) => {
+          if (!options.addonMethods) throw new Error('This device runs no add-ons')
+          const result = await options.addonMethods.call(addonId, method, args, { onProgress })
+          if (!result.ok) throw new Error(result.error.message)
+          const body = result.body as { audio: Uint8Array; ext: string }
+          return { data: body.audio, ext: body.ext }
+        },
         writeAudio: (variantId, trackId, data) => writeAudioFile(variantId, trackId, Buffer.from(data.buffer, data.byteOffset, data.byteLength)),
         deleteAudio: deleteAudioFile,
         appendTrack,

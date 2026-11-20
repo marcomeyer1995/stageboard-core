@@ -1,5 +1,6 @@
 import type { AsyncJob, HostCapabilities } from 'shared-types'
 import { JOB_IDS, unmetRequirement, type RunsOn } from './capabilities.js'
+import type { JobRef } from './jobQueue.js'
 
 /**
  * What a host can do, declared by the things that do it (#964, step 3): a **runner** is one capability of a host - a job (backup,
@@ -38,7 +39,7 @@ export interface JobRunners {
   get(kind: JobRunner['kind'], id: string): JobRunner | undefined
   all(): readonly JobRunner[]
   /** The capability a background job needs from its host (`youtube-download`, `plugin:stem-separation`), or null - not a host's job. */
-  needsOfJob(job: Pick<AsyncJob, 'type'>): string | null
+  needsOfJob(job: JobRef): string | null
   /**
    * The capabilities answer. `jobs` lists every job id of sync-host's `JOB_ROUTES` (a job nobody registered is unavailable and says
    * `notBuilt`); `plugins` lists `plugins` (the ids this build knows) - each as available or with what it lacks.
@@ -57,6 +58,7 @@ export function createJobRunners(initial: readonly JobRunner[] = []): JobRunners
     get: (kind, id) => runners.get(key(kind, id)),
     all: () => [...runners.values()],
     needsOfJob(job) {
+      if (job.type === 'audio-import') return job.addonId ? `plugin:${job.addonId}` : null
       const runner = [...runners.values()].find((r) => r.asyncJobType === job.type)
       return runner ? (runner.kind === 'plugin' ? `plugin:${runner.id}` : runner.id) : null
     },

@@ -72,5 +72,8 @@
     "failed": "Das Hilfsprogramm ist fehlgeschlagen.",
     "badRequest": "Das Hilfsprogramm hat den Auftrag nicht verstanden.",
     "tooOld": "Das Hilfsprogramm ist zu alt für diese StageBoard-Version."
+  },
+  "addon": {
+    "notInstalled": "Das Add-on „{{addon}}“ ist für diese Band nicht installiert."
   }
 }

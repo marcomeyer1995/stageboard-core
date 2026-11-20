@@ -1,6 +1,6 @@
 import { ServerMessageError, type StemRole, type StemSeparationJob, type TrackMeta } from 'shared-types'
 import { createProgressWriter } from './progress.js'
-import { errorPatch, type JobPatch } from './youtubeExtract.js'
+import { errorPatch, type JobPatch } from './trackFormat.js'
 
 /**
  * The recipe of a stem-separation background job, once (#964, step 3b): check the ids and the plugin, find the source track, hand its audio

@@ -15,8 +15,14 @@ import type { AsyncJob } from 'shared-types'
 
 /** What a job type needs from its host when the host has no runners to ask (its default): YouTube a download tool, stems the stem plugin; a
  * device's conversion nothing. A host that registers runners answers from them (`JobRunners.needsOfJob`, jobRunners.ts) - see `needsOf`. */
-export function jobNeeds(job: Pick<AsyncJob, 'type'>): string | null {
+/** What the queue needs to know of a job to say what it needs: its type, and for an add-on's job the add-on. */
+export type JobRef = Pick<AsyncJob, 'type'> & { addonId?: string }
+
+export function jobNeeds(job: JobRef): string | null {
   switch (job.type) {
+    // An add-on's audio (#964): the host needs that add-on's capability, whatever it is.
+    case 'audio-import':
+      return job.addonId ? `plugin:${job.addonId}` : null
     case 'youtube-extract':
       return 'youtube-download'
     case 'stem-separation':
@@ -32,7 +38,7 @@ export const hostRunner = (hostId: string): string => `host:${hostId}`
 export interface JobWorker {
   hostId: string
   /** What a job needs from its host - from the runners the host has registered. Absent: the default table above. */
-  needsOf?: (job: Pick<AsyncJob, 'type'>) => string | null
+  needsOf?: (job: JobRef) => string | null
   /** Whether this host can do what a job needs - `GET /host/capabilities` says. Absent: it can do everything (a host that says nothing). */
   canDo?: (needs: string) => boolean
 }
@@ -51,7 +57,7 @@ export function pickNextClaimable(jobs: readonly AsyncJob[], worker: JobWorker):
  * `running` jobs of this host that nothing works on any more - left behind by a restart mid-job. A job another runner holds is not
  * ours to fail; one with no runner is a job of the old kind (before claims), which was always the host's.
  */
-export function stuckJobsOfHost(jobs: readonly AsyncJob[], hostId: string, currentJobId: string | null, needsOf: (job: Pick<AsyncJob, 'type'>) => string | null = jobNeeds): AsyncJob[] {
+export function stuckJobsOfHost(jobs: readonly AsyncJob[], hostId: string, currentJobId: string | null, needsOf: (job: JobRef) => string | null = jobNeeds): AsyncJob[] {
   return jobs.filter((job) => job.status === 'running' && job.id !== currentJobId && needsOf(job) !== null && (!job.runner || job.runner === hostRunner(hostId)))
 }
 

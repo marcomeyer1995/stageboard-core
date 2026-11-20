@@ -361,6 +361,7 @@
   },
   "tm": {
     "job": {
+      "audioImport": "Audio from an add-on",
       "youtube": "YouTube extraction",
       "stems": "Stem separation",
       "opus": "Convert to Opus (on a device)"

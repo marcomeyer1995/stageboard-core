@@ -1,7 +1,8 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it, vi } from 'vitest'
 import { oggOpusInfo, type TrackMeta, type YoutubeExtractJob } from 'shared-types'
-import { errorPatch, mimeTypeForExt, runYoutubeExtract, toTrackFormat, type JobPatch, type YoutubeJobContext } from './youtubeExtract.js'
+import { runYoutubeExtract, type YoutubeJobContext } from './youtubeExtract.js'
+import { errorPatch, mimeTypeForExt, toTrackFormat, type JobPatch } from './trackFormat.js'
 
 const webm = new Uint8Array(readFileSync(new URL('../../../../shared-types/src/__fixtures__/stereo.webm', import.meta.url)))
 

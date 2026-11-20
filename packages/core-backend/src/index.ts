@@ -18,6 +18,7 @@ import { registerDatabaseRoutes } from './databaseRoutes.js'
 import { startBuiltinDatabase, type BuiltinDatabase } from './builtinDatabase.js'
 import { addonHostNeeds, hostCapabilities } from './hostCapabilities.js'
 import { builtinRunners } from './builtinRunners.js'
+import { createAddonMethods } from './addons/addonMethods.js'
 import { createYoutubeAddonDownload } from './addons/youtubeAddon.js'
 import { createStemAddonSeparate } from './addons/stemAddon.js'
 import { createHostLeaseService, getFromHost, postJsonToHost } from './hostLeaseService.js'
@@ -431,6 +432,8 @@ export async function buildApp(options: { backupService?: BackupService; databas
   // shutdown and every test's afterEach(() => app.close()).
   // What this host can do: its runners (#964, step 3) - capabilities and what a background job needs are derived from them.
   const runners = builtinRunners()
+  /** The add-ons whose methods this device runs (docs/36, #964) - each in a sandbox of its own, started when first asked. */
+  const addonMethods = createAddonMethods(pluginLog)
   const workspaceHardware = createWorkspaceHardwareController({
     database,
     registry,
@@ -440,6 +443,7 @@ export async function buildApp(options: { backupService?: BackupService; databas
     jobHost: {
       hostId,
       needsOf: (job) => runners.needsOfJob(job),
+      addonMethods,
       // The YouTube download as an add-on in a sandbox (#964, docs/32 §6) - opt in with STAGEBOARD_ADDON_SANDBOX=1 until it has run for hours on a real host.
       ...(process.env.STAGEBOARD_ADDON_SANDBOX === '1' ? { youtubeDownload: createYoutubeAddonDownload(pluginLog), stemSeparate: createStemAddonSeparate(pluginLog) } : {}),
       canDo: (needs) => canDoFromCapabilities(hostCapabilities(runners))(needs),

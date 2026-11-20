@@ -27,6 +27,9 @@ const JOB_LABELS: Record<AsyncJob['type'], string> = {
   get 'youtube-extract'() {
     return i18n.t('editor:tm.job.youtube')
   },
+  get 'audio-import'() {
+    return i18n.t('editor:tm.job.audioImport')
+  },
   get 'stem-separation'() {
     return i18n.t('editor:tm.job.stems')
   },

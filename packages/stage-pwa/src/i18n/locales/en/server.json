@@ -72,5 +72,8 @@
     "failed": "The helper failed.",
     "badRequest": "The helper did not understand the request.",
     "tooOld": "The helper is too old for this StageBoard version."
+  },
+  "addon": {
+    "notInstalled": "The add-on “{{addon}}” is not installed for this band."
   }
 }
