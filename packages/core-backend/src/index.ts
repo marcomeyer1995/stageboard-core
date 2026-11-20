@@ -658,6 +658,14 @@ export async function buildApp(options: { backupService?: BackupService; databas
         },
         log: { info: (meta, message) => app.log.info(meta, message), error: (meta, message) => app.log.error(meta, message) },
       },
+      // Song look-up (#546): the routes are sync-host's; the providers (a catalogue API, a scraped page) and the band's add-on check are this machine's.
+      lookup: {
+        search: (provider, query) => lookupRegistry.search(provider, query),
+        fetchDetail: (provider, resultId) => lookupRegistry.fetchDetail(provider, resultId),
+        refusal: lookupRefusal,
+        errorBody: lookupErrorBody,
+        log: { error: (meta, message) => app.log.error(meta, message) },
+      },
       capabilities: () => hostCapabilities(runners),
       log: (message, meta) => app.log.info(meta, message),
     }),
@@ -831,51 +839,6 @@ export async function buildApp(options: { backupService?: BackupService; databas
     return installed ? null : serverMessage('ug.addonMissing')
   }
 
-  app.get('/lookup/:provider/search', async (request, reply) => {
-    const { provider } = request.params as { provider: string }
-    const { q, workspace } = request.query as { q?: string; workspace?: string }
-    if (!q) {
-      return reply.status(400).send({ status: 'error', message: 'Missing query parameter q' })
-    }
-    const refusal = await lookupRefusal(provider, workspace)
-    if (refusal) return reply.status(403).send({ status: 'error', ...refusal })
-
-    try {
-      const results = await lookupRegistry.search(provider, q)
-      if (results === null) {
-        return reply.status(404).send({ status: 'error', message: `Unknown provider: ${provider}` })
-      }
-      return results
-    } catch (err) {
-      app.log.error({ err, provider, cause: (err as { cause?: unknown }).cause }, 'Lookup search failed')
-      return reply.status(502).send(lookupErrorBody(err))
-    }
-  })
-
-  // resultId travels as a query param, not a path param: an opaque id can embed a full source
-  // URL (see ultimateGuitarPlugin.ts), and Fastify's router rejects any single path param over
-  // 100 characters by default - a limit a real URL clears easily. Query strings have no such
-  // per-segment ceiling.
-  app.get('/lookup/:provider/detail', async (request, reply) => {
-    const { provider } = request.params as { provider: string }
-    const { resultId, workspace } = request.query as { resultId?: string; workspace?: string }
-    if (!resultId) {
-      return reply.status(400).send({ status: 'error', message: 'Missing query parameter resultId' })
-    }
-    const refusal = await lookupRefusal(provider, workspace)
-    if (refusal) return reply.status(403).send({ status: 'error', ...refusal })
-
-    try {
-      const detail = await lookupRegistry.fetchDetail(provider, resultId)
-      if (detail === null) {
-        return reply.status(404).send({ status: 'error', message: `Unknown provider: ${provider}` })
-      }
-      return detail
-    } catch (err) {
-      app.log.error({ err, provider, cause: (err as { cause?: unknown }).cause }, 'Lookup detail failed')
-      return reply.status(502).send(lookupErrorBody(err))
-    }
-  })
 
   /** The YouTube add-on (#546) for this band, or the refusal - like `lookupRefusal` for UG. */
   async function youtubeRefusal(workspace: string | undefined): Promise<ServerMessage | null> {

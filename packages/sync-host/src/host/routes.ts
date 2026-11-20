@@ -19,6 +19,7 @@ import type { BandCatalog } from './bandCatalog.js'
 import { createBandRoutes } from './bandRoutes.js'
 import { createChannelRoutes } from './channelRoutes.js'
 import { createSpeechRoutes, type SpeechPorts } from './speechRoutes.js'
+import { createLookupRoutes, type LookupPorts } from './lookupRoutes.js'
 import type { HostChannels } from './channels/index.js'
 import type { BandJoin } from './bandJoin.js'
 import type { BandMembers } from './bandMembers.js'
@@ -123,6 +124,8 @@ export interface HostRoutesDeps {
   channels?: HostChannels
   /** The spoken announcements' engine (#964): a host that has one passes its ports and the speech routes join the table. */
   speech?: SpeechPorts
+  /** The song look-up providers (#964): same shape - the routes join the table when a host passes its providers. */
+  lookup?: LookupPorts
   /** What this device can do now (#962): every host answers `GET /host/capabilities`. */
   capabilities?: () => HostCapabilities | Promise<HostCapabilities>
   /** A line for the host's log. */
@@ -380,6 +383,7 @@ export function createHostRoutes(deps: HostRoutesDeps): HostRoute[] {
     ...(membersOf ? memberRoutes(membersOf, refuseBand) : []),
     ...(deps.bands ? createBandRoutes(deps.bands) : []),
     ...(deps.speech ? createSpeechRoutes(deps.speech) : []),
+    ...(deps.lookup ? createLookupRoutes(deps.lookup) : []),
     ...(deps.channels ? createChannelRoutes({ channels: deps.channels, refuseBand, isBandDevice: deps.isBandDevice, log: deps.log }) : []),
   ]
 }
