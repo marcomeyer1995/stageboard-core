@@ -184,6 +184,45 @@ describe('what a hostile add-on cannot do (#964) - tried from inside, after brea
   })
 })
 
+describe('the envelope over the Node sandbox (#964)', () => {
+  /** An add-on written against the contract: it receives `request` envelopes and answers with `response` envelopes. */
+  const answersRequest = (body: string) => `self.onmessage = (e) => { if (e.data.kind !== 'request') return; const id = e.data.id; const method = e.data.method; const body = e.data.body; ${body} }`
+
+  it('answers a request with a response envelope - a protocol 3 script speaks the contract directly', async () => {
+    const sandbox = await start('v3', answersRequest(`self.postMessage({ kind: 'response', id, ok: true, body: { method, echoed: body } })`))
+    await expect(sandbox.request('lookup.search', { query: 'Oasis' }, { timeoutMs: 5_000 })).resolves.toEqual({
+      kind: 'response',
+      id: expect.any(Number),
+      ok: true,
+      body: { method: 'lookup.search', echoed: { query: 'Oasis' } },
+    })
+    expect(sandbox.health()).toEqual({ status: 'online' })
+  })
+
+  it("tells a protocol 3 script which contract it speaks in `init` - protocol 2 stays what it was", async () => {
+    const sandbox = await start('v3init', `let init; self.onmessage = (e) => { if (e.data.type === 'init') init = e.data; if (e.data.kind === 'request') self.postMessage({ kind: 'response', id: e.data.id, ok: true, body: { contractVersion: init.contractVersion, protocol: init.protocol } }) }`)
+    expect(await sandbox.request('x', {}, { timeoutMs: 5_000 })).toMatchObject({ ok: true, body: { contractVersion: 3, protocol: 2 } })
+  })
+
+  it("answers with the add-on's own error unchanged", async () => {
+    const sandbox = await start('v3fails', answersRequest(`self.postMessage({ kind: 'response', id, ok: false, error: { code: 'lookup.none', message: 'Kein Treffer' } })`))
+    await expect(sandbox.request('lookup.search', {}, { timeoutMs: 5_000 })).resolves.toEqual({
+      kind: 'response',
+      id: expect.any(Number),
+      ok: false,
+      error: { code: 'lookup.none', message: 'Kein Treffer' },
+    })
+  })
+
+  it('a request the add-on never answers is a timeout, and the add-on is stopped', async () => {
+    const sandbox = await start('v3silent', answersRequest(`void method`))
+    const answer = await sandbox.request('lookup.search', {}, { timeoutMs: 300 })
+    expect(answer).toMatchObject({ kind: 'response', ok: false, error: { code: 'timeout', params: { method: 'lookup.search' } } })
+    await new Promise((r) => setTimeout(r, 300))
+    expect(sandbox.alive()).toBe(false)
+  })
+})
+
 describe('an add-on does not outlive its host (#964)', () => {
   it('exits when the connection to the host is gone - even one that keeps a timer running', async () => {
     const { fork } = await import('node:child_process')

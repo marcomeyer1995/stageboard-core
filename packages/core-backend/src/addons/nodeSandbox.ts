@@ -1,6 +1,16 @@
 import { fork, type ChildProcess } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
-import { ADDON_API_VERSION, ADDON_PROTOCOL_VERSION, type AddonJob, type FromAddon, type ToAddon } from 'shared-types'
+import {
+  ADDON_API_VERSION,
+  ADDON_CONTRACT_VERSION,
+  ADDON_PROTOCOL_VERSION,
+  EnvelopeSchema,
+  fromEnvelope,
+  type AddonJob,
+  type Envelope,
+  type FromAddon,
+  type ToAddon,
+} from 'shared-types'
 
 /**
  * One add-on in a sandbox of its own on a Node device (#964, docs/32 §6) - the counterpart of the app's Worker sandbox, speaking the same
@@ -38,6 +48,11 @@ export type CallOutcome = { ok: true; data?: unknown; files: { key: string; byte
 export interface NodeSandbox {
   /** Asks the add-on something that wants an answer now (a clip to speak, a song to look up). */
   call(method: string, args: Record<string, unknown>, options?: { timeoutMs?: number }): Promise<CallOutcome>
+  /**
+   * Sends one contract `request` and resolves with the add-on's response envelope (docs/36 §4) - what a protocol 3 script speaks directly. An add-on
+   * that does not answer within `timeoutMs` is stopped, like a `call`, and the answer is a response with `{code: 'timeout'}`.
+   */
+  request(method: string, body: unknown, options?: { timeoutMs?: number }): Promise<Envelope>
   /** Runs a job; the add-on reports progress and ends with `job-result`. A job without an end by `timeoutMs` kills the add-on. */
   runJob(job: AddonJob, options?: { onProgress?: (fraction: number) => void; timeoutMs?: number }): Promise<JobOutcome>
   /** Whether the add-on's process is still alive. */
@@ -68,17 +83,22 @@ export async function startNodeSandbox(options: NodeSandboxOptions): Promise<Nod
   let exited = false
   const jobs = new Map<number, { onProgress?: (f: number) => void; finish: (o: JobOutcome) => void }>()
   const calls = new Map<number, (o: CallOutcome) => void>()
+  /** Contract `request`s waiting for their `response` (docs/36 §4). A response is answered exactly once, by id. */
+  const requests = new Map<number, (envelope: Envelope) => void>()
   let nextId = 1
   let nextRequest = 1
-  const send = (message: ToAddon) => {
+  const send = (message: ToAddon | Envelope) => {
     if (!exited && child.connected) child.send(message)
   }
 
-  const failAll = (message: string) => {
+  const failAll = (message: string, code = 'addon.stopped') => {
     for (const job of jobs.values()) job.finish({ ok: false, message })
     jobs.clear()
     for (const finish of calls.values()) finish({ ok: false, message })
     calls.clear()
+    // A request that will not be answered still has a shape: a failed response, so the caller reads it like any other error.
+    for (const [id, finish] of requests) finish({ kind: 'response', id, ok: false, error: { code, message } })
+    requests.clear()
   }
   child.on('exit', (code, signal) => {
     exited = true
@@ -86,9 +106,33 @@ export async function startNodeSandbox(options: NodeSandboxOptions): Promise<Nod
     failAll(`The add-on stopped${signal ? ` (${signal})` : code ? ` (code ${code})` : ''}${stderrTail ? `: ${stderrTail.trim().split('\n').slice(-2).join(' ')}` : ''}`)
   })
 
+  /**
+   * An incoming envelope, validated at the boundary (docs/36 §4). `null` means "not an envelope" (a protocol 2 message); `'invalid'` means it claims to
+   * be one and is not - it is dropped, never guessed at. Messages without a `kind` stay protocol 2 and are unchanged.
+   */
+  const readEnvelope = (raw: unknown): Envelope | 'invalid' | null => {
+    if (typeof raw !== 'object' || raw === null || !('kind' in raw)) return null
+    const parsed = EnvelopeSchema.safeParse(raw)
+    if (parsed.success) return parsed.data as Envelope
+    log?.error(`add-on ${options.name ?? ''}: a message does not match the contract`, { issues: parsed.error.issues })
+    return 'invalid'
+  }
+
   const ready = new Promise<void>((resolve) => {
     child.on('message', (raw) => {
-      const message = raw as FromAddon
+      // The runner carries both protocols untouched (scripts/addon_runner.mjs): a message with a `kind` is an envelope, anything else is protocol 2.
+      const envelope = readEnvelope(raw)
+      if (envelope === 'invalid') return
+      if (envelope && envelope.kind === 'response') {
+        const finish = requests.get(envelope.id)
+        if (!finish) return
+        requests.delete(envelope.id)
+        finish(envelope)
+        return
+      }
+      const asV2 = envelope ? fromEnvelope(envelope) : (raw as FromAddon)
+      if (!asV2) return
+      const message = asV2
       switch (message.type) {
         case 'health':
           health = { status: message.status, ...(message.message ? { message: message.message } : {}) }
@@ -118,7 +162,15 @@ export async function startNodeSandbox(options: NodeSandboxOptions): Promise<Nod
           break
         }
         case 'helper-run': {
-          const reply = (result: unknown, files: { name: string; bytes: Uint8Array }[], error?: string) => send({ type: 'helper-result', id: message.id, request: message.request, result, files, ...(error ? { error } : {}) })
+          // A protocol 3 script asked in an envelope, so it is answered in one; a protocol 2 script gets the message it knows.
+          const reply = (result: unknown, files: { name: string; bytes: Uint8Array }[], error?: string) =>
+            envelope
+              ? send(
+                  error !== undefined
+                    ? { kind: 'response', id: message.id, ok: false, error: { code: 'helper.error', message: error, params: { request: message.request } } }
+                    : { kind: 'response', id: message.id, ok: true, body: { request: message.request, result, files } },
+                )
+              : send({ type: 'helper-result', id: message.id, request: message.request, result, files, ...(error ? { error } : {}) })
           if (!(options.helpers ?? []).includes(message.helper)) return reply(null, [], `The add-on did not declare the helper "${message.helper}"`)
           if (!options.runHelper) return reply(null, [], `This device has no helper "${message.helper}"`)
           options.runHelper(message.helper, message.args, (fraction) => jobs.get(message.id)?.onProgress?.(fraction), message.files ?? []).then(
@@ -134,7 +186,8 @@ export async function startNodeSandbox(options: NodeSandboxOptions): Promise<Nod
     child.on('exit', () => resolve())
   })
 
-  send({ type: 'init', apiVersion: ADDON_API_VERSION, protocol: ADDON_PROTOCOL_VERSION, settings: options.settings ?? {}, permissions: options.permissions ?? [], language: options.language ?? 'en' })
+  // `protocol` stays 2 for every existing script; `contractVersion` is how a new script knows it may speak the envelope (docs/36 §9).
+  send({ type: 'init', apiVersion: ADDON_API_VERSION, protocol: ADDON_PROTOCOL_VERSION, contractVersion: ADDON_CONTRACT_VERSION, settings: options.settings ?? {}, permissions: options.permissions ?? [], language: options.language ?? 'en' })
   await ready
 
   return {
@@ -155,6 +208,26 @@ export async function startNodeSandbox(options: NodeSandboxOptions): Promise<Nod
         }, callOptions.timeoutMs ?? 30_000)
         calls.set(id, (outcome) => (clearTimeout(timer), resolve(outcome)))
         send({ type: 'call', id, method, args })
+      })
+    },
+    request(method, body, requestOptions = {}) {
+      const id = nextId++
+      if (exited) return Promise.resolve({ kind: 'response', id, ok: false, error: { code: 'addon.stopped', message: 'The add-on is not running' } })
+      return new Promise<Envelope>((resolve) => {
+        const timeoutMs = requestOptions.timeoutMs ?? 30_000
+        const timer = setTimeout(() => {
+          // Same rule as a call: an add-on that does not answer cannot be trusted further (docs/36, Review Focus).
+          requests.delete(id)
+          child.kill('SIGKILL')
+          resolve({
+            kind: 'response',
+            id,
+            ok: false,
+            error: { code: 'timeout', message: `The add-on did not answer within ${Math.round(timeoutMs / 1000)} s and was stopped`, params: { method, timeoutMs } },
+          })
+        }, timeoutMs)
+        requests.set(id, (envelope) => (clearTimeout(timer), resolve(envelope)))
+        send({ kind: 'request', id, method, body })
       })
     },
     runJob(job, jobOptions = {}) {

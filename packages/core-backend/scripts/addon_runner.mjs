@@ -41,6 +41,8 @@ try {
 }
 // The host is gone (it was stopped, or killed): so is the add-on. An add-on that holds a timer open must not outlive the host.
 process.on('disconnect', () => process.exit(0))
+// Both protocols pass through untouched: a protocol 2 message (`type`) and a contract envelope (`kind`) are the add-on's business, and the sandbox
+// routes by shape (#964, docs/36 §9). The runner never rewrites a message, so the same script works in a Worker and here.
 process.on('message', (data) => {
   try {
     self.onmessage?.({ data })
