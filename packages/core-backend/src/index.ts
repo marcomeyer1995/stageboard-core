@@ -869,6 +869,17 @@ export async function buildApp(options: { backupService?: BackupService; databas
     }
   })
 
+  // An add-on's method, answered by its work script in a sandbox on this device (docs/36 §3, #964). The add-on must be installed for the band; what
+  // comes back is the add-on's own answer or its own error - this route knows no add-on's domain.
+  app.post('/addons/:id/methods/:method', async (request, reply) => {
+    const { id, method } = request.params as { id: string; method: string }
+    const { workspace } = request.query as { workspace?: string }
+    if (!workspace || !/^[a-z0-9_-]+$/i.test(workspace)) return reply.status(400).send({ status: 'error', message: 'Missing or invalid workspace' })
+    if (!addonMethods.has(id)) return reply.status(404).send({ ok: false, error: { code: 'addon.unknown', message: `No add-on "${id}" on this host`, params: { addon: id } } })
+    if (!(await bandHasAddon(database, workspace, id).catch(() => false))) return reply.status(403).send({ status: 'error', ...serverMessage('addon.notInstalled', { addon: id }) })
+    return addonMethods.call(id, method, request.body ?? {})
+  })
+
   // The hits' thumbnails through the Host (#618): the tablets on stage often have no
   // internet of their own, only the server does.
   app.get('/youtube/thumbnail', async (request, reply) => {

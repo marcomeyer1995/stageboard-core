@@ -20,6 +20,6 @@
         "progress": true
       }
     },
-    "ui": [{ "slot": "song-editor.track-source", "id": "youtube", "title": "From YouTube", "icon": "youtube" }]
+    "ui": [{ "slot": "song-editor.track-source", "id": "youtube", "title": "YouTube", "icon": "youtube" }]
   }
 }

@@ -8,6 +8,19 @@ const variants = vi.hoisted(() => ({ putTrack: vi.fn(async () => {}), removeTrac
 vi.mock('../lib/songVariantsDb', () => variants)
 const youtube = vi.hoisted(() => ({ searchYoutube: vi.fn(), youtubeThumbnailUrl: (id: string) => `https://server/youtube/thumbnail?id=${id}`, formatVideoLength: (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` }))
 vi.mock('../lib/youtubeSearch', () => youtube)
+const addonMethods = vi.hoisted(() => ({ callAddonMethod: vi.fn() }))
+vi.mock('../lib/addonMethodClient', () => addonMethods)
+// The add-on's view script runs in a Worker on a device; here the same script runs in-process behind the same message interface.
+vi.mock('../lib/addonUi/slotHost', async (importOriginal) => {
+  const real = await importOriginal<typeof import('../lib/addonUi/slotHost')>()
+  const standIn: import('../lib/addonUi/slotHost').ViewWorkerFactory = (code) => {
+    const worker = { onmessage: null as ((e: { data: unknown }) => void) | null, onerror: null, terminate: () => {}, postMessage: (m: unknown) => void queueMicrotask(() => scope.onmessage?.({ data: m })) }
+    const scope: { onmessage: ((e: { data: unknown }) => void) | null; postMessage: (m: unknown) => void } = { onmessage: null, postMessage: (m) => void queueMicrotask(() => worker.onmessage?.({ data: m })) }
+    new Function('self', code)(scope)
+    return worker
+  }
+  return { ...real, AddonSlot: (props: Parameters<typeof real.AddonSlot>[0]) => real.AddonSlot({ ...props, createWorker: standIn }) }
+})
 vi.mock('../lib/measureAudioDuration', () => ({ measureAudioDurationMs: vi.fn(async () => 180_000) }))
 // The upload converts to Ogg Opus (#775) - here the file passes as it is (trackFile.test.ts tests the conversion).
 vi.mock('../lib/engine/trackFile', () => ({ toTrackFile: vi.fn(async (f: Blob) => f), TRACK_MIME: 'audio/ogg; codecs=opus', NoEncoderError: class extends Error {} }))
@@ -119,37 +132,61 @@ describe('TrackManagerField - one row per track (#604)', () => {
 describe('TrackManagerField - YouTube search in "Track hinzufügen" (#618)', () => {
   const ytPlugin = { ...stemPlugin, id: 'youtube-download', name: 'YouTube-Download', capabilities: ['video-download'] } as unknown as PluginInstallation
 
-  it('searches with "Titel Band", lists the hits, and a tap queues the extraction', async () => {
+  it('with a host: the add-on\'s own dialog (its view script, drawn by the editor) searches through the add-on\'s method, lists the hits, and a tap queues the generic audio-import job', async () => {
     usePluginsStore.setState({ installed: [ytPlugin] })
-    youtube.searchYoutube.mockResolvedValueOnce({
-      status: 'ok',
-      data: [{ id: '9Ht5RZpzPqw', title: 'blink-182 - All The Small Things', channel: 'blink-182', durationSec: 171, url: 'https://www.youtube.com/watch?v=9Ht5RZpzPqw' }],
+    route.value = { route: 'server', helper: null, trusted: [] }
+    addonMethods.callAddonMethod.mockResolvedValueOnce({
+      ok: true,
+      body: { hits: [{ id: '9Ht5RZpzPqw', title: 'blink-182 - All The Small Things', channel: 'blink-182', durationSec: 171, url: 'https://www.youtube.com/watch?v=9Ht5RZpzPqw' }] },
     })
     render(<TrackManagerField variantId="v1" tracks={[]} disabled={false} searchQuery="All the small things Blink-182" />)
     fireEvent.click(screen.getByRole('button', { name: /Track hinzufügen/ }))
-    const dialog = screen.getByRole('dialog')
-    expect(within(dialog).getByRole('searchbox', { name: 'YouTube durchsuchen' })).toHaveValue('All the small things Blink-182')
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Suchen' }))
-    expect(youtube.searchYoutube).toHaveBeenCalledWith('All the small things Blink-182')
+    // The entry the add-on declared for the slot; opening it runs its view script in a stand-in Worker.
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'YouTube' }))
+    const youtubeDialog = await screen.findByRole('dialog', { name: 'Von YouTube laden' })
+    expect(within(youtubeDialog).getByLabelText('Titel Band oder YouTube-Link')).toHaveValue('All the small things Blink-182')
+    fireEvent.click(within(youtubeDialog).getByRole('button', { name: 'Suchen' }))
+    await waitFor(() => expect(addonMethods.callAddonMethod).toHaveBeenCalledWith('youtube-download', 'search', { query: 'All the small things Blink-182' }))
 
-    const hit = await within(dialog).findByRole('button', { name: /All The Small Things/ })
-    expect(hit).toHaveTextContent('blink-182')
-    expect(hit).toHaveTextContent('2:51')
+    const hit = await within(youtubeDialog).findByText('blink-182 - All The Small Things')
+    expect(within(youtubeDialog).getByText('blink-182 · 2:51')).toBeInTheDocument()
     fireEvent.click(hit)
     await waitFor(() =>
       expect(db.putAsyncJob).toHaveBeenCalledWith(
-        expect.objectContaining({ type: 'youtube-extract', variantId: 'v1', url: 'https://www.youtube.com/watch?v=9Ht5RZpzPqw', label: 'blink-182 - All The Small Things' }),
+        expect.objectContaining({ type: 'audio-import', variantId: 'v1', addonId: 'youtube-download', method: 'fetchAudio', args: { url: 'https://www.youtube.com/watch?v=9Ht5RZpzPqw' }, label: 'blink-182 - All The Small Things', status: 'queued' }),
       ),
     )
+    // The progress is the job document's, not a message to the add-on.
+    expect(await within(youtubeDialog).findByRole('progressbar')).toHaveAttribute('aria-valuenow', '0')
   })
 
-  it('shows the server\'s message when the search fails (e.g. no internet)', async () => {
+  it('a pasted link is queued without a search - the add-on knows which links are its own; any other text is searched', async () => {
     usePluginsStore.setState({ installed: [ytPlugin] })
-    youtube.searchYoutube.mockResolvedValueOnce({ status: 'error', message: 'Host nicht erreichbar.' })
+    route.value = { route: 'server', helper: null, trusted: [] }
+    render(<TrackManagerField variantId="v1" tracks={[]} disabled={false} searchQuery="https://youtu.be/dQw4w9WgXcQ" />)
+    fireEvent.click(screen.getByRole('button', { name: /Track hinzufügen/ }))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'YouTube' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Suchen' }))
+    await waitFor(() => expect(db.putAsyncJob).toHaveBeenCalledWith(expect.objectContaining({ type: 'audio-import', args: { url: 'https://youtu.be/dQw4w9WgXcQ' }, label: 'YouTube Referenz' })))
+    expect(addonMethods.callAddonMethod).not.toHaveBeenCalled()
+  })
+
+  it('shows the add-on\'s own words when its search fails (e.g. no host, no internet)', async () => {
+    usePluginsStore.setState({ installed: [ytPlugin] })
+    route.value = { route: 'server', helper: null, trusted: [] }
+    addonMethods.callAddonMethod.mockResolvedValueOnce({ ok: false, error: { code: 'youtube.searchTimeout', message: 'Die YouTube-Suche hat nicht geantwortet - ist das Gerät online?' } })
     render(<TrackManagerField variantId="v1" tracks={[]} disabled={false} searchQuery="x" />)
     fireEvent.click(screen.getByRole('button', { name: /Track hinzufügen/ }))
-    fireEvent.click(screen.getByRole('button', { name: 'Suchen' }))
-    expect(await screen.findByText('Host nicht erreichbar.')).toBeInTheDocument()
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'YouTube' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Suchen' }))
+    expect(await screen.findByText('Die YouTube-Suche hat nicht geantwortet - ist das Gerät online?')).toBeInTheDocument()
+  })
+
+  it('the editor refuses a method the add-on never declared - it never reaches a host', async () => {
+    const { addonsForSlot } = await import('../lib/addonUi/builtinAddons')
+    expect(addonsForSlot('song-editor.track-source', ['youtube-download']).map((e) => e.entry.title)).toEqual(['YouTube'])
+    expect(addonsForSlot('song-editor.track-source', [])).toEqual([])
+    expect(addonsForSlot('device.panel', ['youtube-download'])).toEqual([])
   })
 
   it('without a host that can, this device searches and downloads with its helper (docs/25 §6b)', async () => {

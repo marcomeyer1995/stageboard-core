@@ -18,6 +18,7 @@ import { NoEncoderError, toTrackFile, TRACK_MIME } from '../lib/engine/trackFile
 import { useDialogStore } from '../store/useDialogStore'
 import { usePluginsStore } from '../store/usePluginsStore'
 import { StemSeparationDialog } from './StemSeparationDialog'
+import { TrackSourceSlots } from './TrackSourceSlots'
 import { INPUT } from './ui/styles'
 import { AddRow, Button, Dialog, IconButton, Segmented } from './ui'
 import { useTranslation } from 'react-i18next'
@@ -414,7 +415,10 @@ export function TrackManagerField({ variantId, tracks, disabled, searchQuery = '
             {uploadKind === 'stem' && (
               <span className="text-sm text-ink-faint">{t('tm.multi')}</span>
             )}
-            {canDownload && (
+            {/* An add-on's own way to get a track (docs/36 §6, #964): the editor draws its description and knows nothing of the service. */}
+            <TrackSourceSlots variantId={variantId} query={query} />
+            {/* This device's own helper when no host can do it - the add-on's work script does not run in the app yet, so this stays until it does. */}
+            {canDownload && (youtube.route === 'device' || youtube.route === 'none') && (
               <div className="flex flex-col gap-2 border-t border-line pt-3">
                 <form onSubmit={handleSearch} className="flex flex-col gap-2">
                   <span className="text-sm text-ink-muted">{t('tm.orYoutube')}</span>

@@ -39,6 +39,8 @@ export const JOB_ROUTES: readonly JobRoute[] = [
   { method: 'GET', pattern: '/plugins/:id/client.js', job: 'plugin-runtime' },
   { method: 'POST', pattern: '/plugins/:name/trigger', job: 'plugin:name' },
   { method: 'GET', pattern: '/addons/:id/:version/:file', job: 'plugin-runtime' },
+  // An add-on's method (docs/36 §3, #964): a device that has the add-on's helpers answers it.
+  { method: 'POST', pattern: '/addons/:id/methods/:method', job: 'plugin:id' },
   { method: 'POST', pattern: '/workspaces/:workspaceId/addons/preview', job: 'plugin-runtime' },
   { method: 'POST', pattern: '/workspaces/:workspaceId/addons/install', job: 'plugin-runtime' },
   { method: 'POST', pattern: '/workspaces/:workspaceId/activate-hardware', job: 'hardware' },

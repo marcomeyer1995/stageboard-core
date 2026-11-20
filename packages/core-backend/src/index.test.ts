@@ -515,6 +515,35 @@ describe('Fastify routes', () => {
     })
   })
 
+  describe('POST /addons/:id/methods/:method (docs/36, #964)', () => {
+    afterEach(() => {
+      vi.unstubAllGlobals()
+    })
+    const post = (url: string, payload: unknown = {}) => app.inject({ method: 'POST', url, payload: payload as never })
+
+    it('400 without a valid band, 404 for an add-on this host does not have', async () => {
+      expect((await post('/addons/youtube-download/methods/search')).statusCode).toBe(400)
+      expect((await post('/addons/youtube-download/methods/search?workspace=../x')).statusCode).toBe(400)
+      const unknown = await post('/addons/no-such-addon/methods/search?workspace=band-a')
+      expect(unknown.statusCode).toBe(404)
+      expect(unknown.json()).toMatchObject({ ok: false, error: { code: 'addon.unknown' } })
+    })
+
+    it('403 for a band that did not install the add-on, naming it - the add-on is not started', async () => {
+      vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ rows: [] }) }) as Response))
+      const response = await post('/addons/youtube-download/methods/search?workspace=band-a', { query: 'x' })
+      expect(response.statusCode).toBe(403)
+      expect(response.json()).toMatchObject({ messageCode: 'addon.notInstalled', messageParams: { addon: 'youtube-download' } })
+    })
+
+    it('for a band that installed it, the add-on answers - an undeclared method and a bad body come back as the contract\'s errors', async () => {
+      const installation = { _id: 'plugins:youtube-download', id: 'youtube-download', name: 'YouTube', version: '1.0.0', enabled: true, runtime: 'server', installedAt: 1, capabilities: [], source: 'builtin' }
+      vi.stubGlobal('fetch', vi.fn(async (url: string) => (String(url).includes('stageboard-band-a/_all_docs') ? ({ ok: true, status: 200, json: async () => ({ rows: [{ doc: installation }] }) } as Response) : ({ ok: false, status: 404, json: async () => ({}) } as Response))))
+      expect((await post('/addons/youtube-download/methods/format-disk?workspace=band-a')).json()).toMatchObject({ ok: false, error: { code: 'method.undeclared' } })
+      expect((await post('/addons/youtube-download/methods/search?workspace=band-a', { query: '' })).json()).toMatchObject({ ok: false, error: { code: 'method.input' } })
+    })
+  })
+
   describe('YouTube search and thumbnails (#618)', () => {
     afterEach(() => {
       vi.unstubAllGlobals()
