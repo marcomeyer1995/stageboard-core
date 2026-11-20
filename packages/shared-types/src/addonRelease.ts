@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { ContributesSchema } from './addonContract.js'
 import { PluginInstallationSchema } from './pluginInstallation.js'
 
 /**
@@ -32,12 +33,27 @@ export type AddonFile = z.infer<typeof AddonFileSchema>
 export const AddonReleaseManifestSchema = PluginInstallationSchema.omit({ enabled: true, installedAt: true, settings: true, source: true, clientSource: true }).extend({
   /** Every file of this version (the device file `client.js`, the jobs file, assets). */
   files: z.array(AddonFileSchema).min(1),
-  /** The file that drives a device (events, MIDI): every device loads it into a sandbox of its own, one of `files`. */
+  /**
+   * The contract version the add-on speaks (`ADDON_CONTRACT_VERSION`, docs/36 §3, §9). An integer: StageBoard runs every protocol it knows and says so
+   * when it does not. Absent on manifests written before the contract - the loader treats them as protocol 2.
+   */
+  protocol: z
+    .number()
+    .int()
+    .min(1)
+    .optional(),
+  /** The view script (docs/36 §2) - the new name for `clientFile`; it runs in a Worker of every device that shows the add-on. */
+  viewFile: AddonFileNameSchema.optional(),
+  /** The work script (docs/36 §2) - the new name for `jobsFile`; it runs where `runsOn` is satisfied, in a sandbox of its own. */
+  workFile: AddonFileNameSchema.optional(),
+  /** What the add-on contributes (docs/36 §3): methods, jobs, devices, UI slots, settings schema. Read through `parseContributes`, which keeps unknown kinds. */
+  contributes: ContributesSchema.optional(),
+  /** The file that drives a device (events, MIDI): every device loads it into a sandbox of its own, one of `files`. Older name of `viewFile`. */
   clientFile: AddonFileNameSchema.optional(),
   /**
    * The file that does the add-on's background jobs (a download, a separation), one of `files`. It is the same kind of JavaScript as `clientFile`, in the
    * same kind of sandbox (docs/32 §4); **any device that satisfies `runsOn` runs it** - there is no server: an add-on runs on some devices and not on
-   * others. Not loaded yet (#17).
+   * others. Not loaded yet (#17). Older name of `workFile`.
    */
   jobsFile: AddonFileNameSchema.optional(),
   /** What is new in this version - shown with the update. */

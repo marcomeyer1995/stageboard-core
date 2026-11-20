@@ -102,6 +102,98 @@ export const EnvelopeSchema = z.union([
   ]),
 ])
 
+/**
+ * A schema an add-on declares in its manifest (docs/36 §3): a JSON Schema object, checked at the boundary when it is used (Task 3), never here -
+ * the core must not look inside an add-on's method signature. The shape itself is always an object with JSON Schema keywords.
+ */
+export const JsonSchema = z.record(z.string(), z.unknown())
+export type JsonSchema = z.infer<typeof JsonSchema>
+
+/**
+ * The slots the core offers (docs/36 §6). A slot is API: only a StageBoard release adds one, because each slot ships with its component, its context
+ * and its accessibility. An add-on that names another one is rejected instead of being shown somewhere it does not fit.
+ */
+export const SlotIdSchema = z.enum([
+  'song-editor.track-source',
+  'song-editor.panel',
+  'device.panel',
+  'settings.section',
+  'lookup.source',
+  'toolbar.action',
+])
+export type SlotId = z.infer<typeof SlotIdSchema>
+
+/** One place an add-on fills in the UI - the `ui` list of its manifest (docs/36 §3, §6). The tree itself arrives later as a `ui-set`. */
+export const UiContributionSchema = z.object({
+  slot: SlotIdSchema,
+  /** Stable within the add-on: the app tells a `ui-action` by `{slot, action}`, this id names the piece in health and logs. */
+  id: z.string().min(1),
+  title: z.string().min(1),
+  icon: z.string().min(1).optional(),
+})
+export type UiContribution = z.infer<typeof UiContributionSchema>
+
+/**
+ * One value a device add-on publishes into the band's live state (docs/36 §5a): the latest value per key per device reaches every viewer, and widgets
+ * bind to it (`{bind: "state:qlc-1.scene"}`). `enum` needs its `values`; `number` may be bounded by `min`/`max`.
+ */
+export const StateFieldSchema = z
+  .object({
+    type: z.enum(['enum', 'number', 'string', 'boolean']),
+    values: z.array(z.union([z.string(), z.number()])).min(1).optional(),
+    min: z.number().optional(),
+    max: z.number().optional(),
+  })
+  .refine((field) => field.type !== 'enum' || (field.values?.length ?? 0) > 0, {
+    message: 'an enum state field needs its values',
+  })
+export type StateField = z.infer<typeof StateFieldSchema>
+
+/** A device an add-on brings (docs/36 §5a) - a lighting desk, an effects unit, anything that offers state; the core knows none of them. */
+export const DeviceContributionSchema = z.object({
+  kind: z.string().min(1),
+  title: z.string().min(1),
+  /** How the add-on talks to it, its own word (`network-osc`, ...) - the core routes only, it does not interpret it. */
+  transport: z.string().min(1),
+  state: z.record(z.string(), StateFieldSchema).default({}),
+  /** The device's commands are a method like any other: declared input schema, sent as a `request`, so the add-on decides the bytes. */
+  commands: z.record(z.string(), z.object({ in: JsonSchema })).default({}),
+})
+export type DeviceContribution = z.infer<typeof DeviceContributionSchema>
+
+/**
+ * Everything an add-on contributes, as docs/36 §3 lists it: its methods and jobs with their schemas, the devices it brings, the slots it fills, its own
+ * settings schema. Additive across protocol versions - `parseContributes` keeps kinds this StageBoard does not know in `unknown` instead of failing.
+ */
+export const ContributesSchema = z.object({
+  methods: z.record(z.string(), z.object({ in: JsonSchema, out: JsonSchema })).default({}),
+  jobs: z
+    .record(z.string(), z.object({ input: JsonSchema, needs: z.object({ helper: z.string().min(1).optional() }).optional() }))
+    .default({}),
+  devices: z.array(DeviceContributionSchema).default([]),
+  ui: z.array(UiContributionSchema).default([]),
+  settings: JsonSchema.optional(),
+})
+export type Contributes = z.infer<typeof ContributesSchema>
+
+/** Every top-level kind `ContributesSchema` knows - what `parseContributes` compares a raw manifest against. */
+const KNOWN_CONTRIBUTES = Object.keys(ContributesSchema.shape)
+
+/**
+ * The boundary for a manifest's `contributes` (docs/36 §3). A contribution kind this StageBoard does not know is **not** an error: it is returned in
+ * `unknown` so the app can say "needs a newer StageBoard" and run everything else. A slot the core does not know **is** an error, because slots are API -
+ * `ContributesSchema.parse` throws for it (like for any other malformed contribution).
+ */
+export function parseContributes(raw: unknown): { contributes: Contributes; unknown: string[] } {
+  if (raw === undefined || raw === null) return { contributes: ContributesSchema.parse({}), unknown: [] }
+
+  const record = z.record(z.string(), z.unknown()).parse(raw)
+  const contributes = ContributesSchema.parse(record)
+  const unknown = Object.keys(record).filter((key) => !KNOWN_CONTRIBUTES.includes(key))
+
+  return { contributes, unknown }
+}
+
 /** What travels between StageBoard and an add-on - the shape `EnvelopeSchema` validates. */
 export type Envelope =
   | { kind: 'request'; id: number; method: string; body: unknown }
