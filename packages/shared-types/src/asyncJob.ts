@@ -28,9 +28,10 @@ const AsyncJobBase = {
   /** The error as a code the device translates (#679, serverMessage.ts), when the server has one. */
   errorCode: z.string().min(1).optional(),
   errorParams: ServerMessageParamsSchema.optional(),
-  /** Who works on it, when not the Host: `device:<Device.id>` - a device whose own helper
-   * does the job (docs/32 §8, the YouTube helper on Android). The Host leaves such a job
-   * alone, restart or not; the device fails its own leftovers. Absent: the Host's. */
+  /** Who works on it (#964): `host:<hostId>` - a host that can do it took it (sync-host's job queue: a job needs a capability of
+   * its host, a capable host claims it and goes on only if the job still names it once the claim has replicated); or
+   * `device:<Device.id>` - a device whose own helper does the job (docs/32 §8, the YouTube helper on Android). Whoever is named keeps
+   * the job, restart or not; every other host and device leaves it alone. Absent: nobody has taken it yet. */
   runner: z.string().min(1).optional(),
 }
 

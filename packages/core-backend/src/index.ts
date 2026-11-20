@@ -60,7 +60,7 @@ import { LookupRegistry } from './plugins/lookupRegistry.js'
 import { lookupErrorBody } from './plugins/lookupError.js'
 import { presence as presenceStore } from './presenceStore.js'
 import { registerHostRoutes } from './hostRoutes.js'
-import { addonRefusal, createBandCatalog, createHostChannels } from 'sync-host'
+import { addonRefusal, canDoFromCapabilities, createBandCatalog, createHostChannels } from 'sync-host'
 import { createLaptopBandStore } from './bandStore.js'
 import { createBandJoin, createBandMembers, createHostRoutes, createReplicationAccountIssuer, type BandJoin } from 'sync-host'
 import { PluginRegistry } from './plugins/registry.js'
@@ -473,7 +473,21 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
   // box currently serves - lives here, not in main(), so the activate-hardware route below can
   // reach the same instance main() activates at boot. deactivate() on close covers both a real
   // shutdown and every test's afterEach(() => app.close()).
-  const workspaceHardware = createWorkspaceHardwareController({ database, registry, log: pluginLog })
+  const workspaceHardware = createWorkspaceHardwareController({
+    database,
+    registry,
+    log: pluginLog,
+    // Background jobs (#964): this host takes the ones its own capabilities say it can do, and leaves the rest queued only when the
+    // band lists another host that might. Looked up when asked - the host list and the capabilities can change while it runs.
+    jobHost: {
+      hostId,
+      canDo: (needs) => canDoFromCapabilities(hostCapabilities())(needs),
+      hasPeers: async () => {
+        const workspaceId = workspaceHardware.getActiveWorkspaceId()
+        return workspaceId ? ((await readBandHosts(workspaceId))?.length ?? 0) >= 2 : false
+      },
+    },
+  })
   app.addHook('onClose', async () => workspaceHardware.deactivate())
 
   // A fresh backup has neither the band's host list nor its code in its own database yet: until the

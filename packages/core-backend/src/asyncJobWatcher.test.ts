@@ -170,6 +170,75 @@ describe('createAsyncJobWatcher', () => {
     expect(writeAudioFile).toHaveBeenCalledWith('variant-1', storedJob('job-1')?.trackId, Buffer.from('audio-bytes'))
   })
 
+  describe('claiming a job with other hosts around (#964)', () => {
+    it('writes itself as the runner of the job it takes, and keeps that runner to the end', async () => {
+      ytDlpSucceeds()
+      store.set('song-variants:variant-1', { _id: 'song-variants:variant-1', tracks: [] })
+      putJob({})
+      const watcher = createAsyncJobWatcher({ database, workspaceId: 'ws', log, hostId: 'laptop' })
+      await vi.waitFor(() => expect(storedJob('job-1')?.status).toBe('done'))
+      watcher.stop()
+      expect(storedJob('job-1')?.runner).toBe('host:laptop')
+    })
+
+    it('leaves a job it cannot do queued - it neither takes it nor ends it with an error', async () => {
+      putJob({})
+      const watcher = createAsyncJobWatcher({ database, workspaceId: 'ws', log, hostId: 'tablet', canDo: () => false, hasPeers: () => true })
+      await new Promise((resolve) => setTimeout(resolve, 200))
+      watcher.stop()
+      expect(storedJob('job-1')).toMatchObject({ status: 'queued' })
+      expect(storedJob('job-1')?.runner).toBeUndefined()
+      expect(runYtDlpExtract).not.toHaveBeenCalled()
+    })
+
+    it('the only host takes a job it cannot do and ends it with its own message - nobody should wait for nothing', async () => {
+      store.delete('plugins:youtube-download')
+      putJob({})
+      const watcher = createAsyncJobWatcher({ database, workspaceId: 'ws', log, hostId: 'laptop', canDo: () => false, hasPeers: () => false })
+      await vi.waitFor(() => expect(storedJob('job-1')?.status).toBe('error'))
+      watcher.stop()
+      expect(storedJob('job-1')?.runner).toBe('host:laptop')
+    })
+
+    it('goes on after the claim settled when the job still names it', async () => {
+      ytDlpSucceeds()
+      store.set('song-variants:variant-1', { _id: 'song-variants:variant-1', tracks: [] })
+      putJob({})
+      const watcher = createAsyncJobWatcher({ database, workspaceId: 'ws', log, hostId: 'laptop', hasPeers: () => true, settleMs: 20 })
+      await vi.waitFor(() => expect(storedJob('job-1')?.status).toBe('done'))
+      watcher.stop()
+      expect(runYtDlpExtract).toHaveBeenCalledTimes(1)
+    })
+
+    it('stops when another host won the claim in replication - the download never starts', async () => {
+      putJob({})
+      // The other host's claim arrives while this one waits for its own to settle: the job now names it.
+      const watcher = createAsyncJobWatcher({
+        database,
+        workspaceId: 'ws',
+        log,
+        hostId: 'laptop',
+        settleMs: 40,
+        hasPeers: () => {
+          setTimeout(() => store.set('async-jobs:job-1', { ...(store.get('async-jobs:job-1') as object), runner: 'host:tablet' }), 10)
+          return true
+        },
+      })
+      await new Promise((resolve) => setTimeout(resolve, 300))
+      watcher.stop()
+      expect(runYtDlpExtract).not.toHaveBeenCalled()
+      expect(storedJob('job-1')?.runner).toBe('host:tablet')
+    })
+
+    it('does not fail a running job another host holds when it starts', async () => {
+      putJob({ status: 'running', runner: 'host:tablet' } as never)
+      const watcher = createAsyncJobWatcher({ database, workspaceId: 'ws', log, hostId: 'laptop' })
+      await new Promise((resolve) => setTimeout(resolve, 200))
+      watcher.stop()
+      expect(storedJob('job-1')).toMatchObject({ status: 'running', runner: 'host:tablet' })
+    })
+  })
+
   it('stores a WebM/Opus download as Ogg Opus - re-wrapped, nothing encoded again', async () => {
     const { readFileSync } = await import('node:fs')
     const webm = readFileSync(join(__dirname, '../../shared-types/src/__fixtures__/stereo.webm'))

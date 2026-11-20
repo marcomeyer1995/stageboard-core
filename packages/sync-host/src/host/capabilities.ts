@@ -132,3 +132,14 @@ export function unmetRequirement(runsOn: RunsOn | undefined, capabilities: HostC
 export function addonRefusal(addonId: string, needs: string): { status: 501; body: unknown } {
   return { status: 501, body: { status: 'error', error: 'capability_missing', capability: `plugin:${addonId}`, needs, reason: `This device cannot host the add-on "${addonId}" - it needs ${needs}. Install it on a host that can.` } }
 }
+
+/**
+ * What a job needs (`jobNeeds`: a job id, or `plugin:<id>`) answered from this device's own capabilities (#964): the same function
+ * decides for every host which background job it may take. A need the device never listed is not something it can do.
+ */
+export function canDoFromCapabilities(capabilities: HostCapabilities): (needs: string) => boolean {
+  return (needs) => {
+    const entry = needs.startsWith('plugin:') ? capabilities.plugins.find((p) => p.id === needs.slice(7)) : capabilities.jobs.find((j) => j.id === needs)
+    return entry?.available === true
+  }
+}
