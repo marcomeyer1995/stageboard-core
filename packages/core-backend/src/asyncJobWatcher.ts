@@ -27,6 +27,11 @@ export interface AsyncJobWatcherOptions {
   workspaceId: string
   /** This host's id: the runner it writes into a job it takes (`host:<id>`, sync-host's queue rules, #964). */
   hostId?: string
+  /**
+   * Download for the YouTube job through something else than the built-in `yt-dlp` call - the sandboxed add-on (`addons/youtubeAddon.ts`, #964). Absent: the
+   * built-in call, as before.
+   */
+  youtubeDownload?: (url: string, onProgress: (fraction: number) => void) => Promise<{ data: Uint8Array; ext: string }>
   /** What a job needs from its host - from the host's runners (`JobRunners.needsOfJob`). Absent: sync-host's default table. */
   needsOf?: (job: Pick<AsyncJob, 'type'>) => string | null
   /** Whether this host can do what a job needs (`GET /host/capabilities`); a job it cannot do is left queued for a host that can. Absent: everything. */
@@ -240,7 +245,7 @@ export function createAsyncJobWatcher(options: AsyncJobWatcherOptions): AsyncJob
         bandHasAddon: () => bandHasAddon(database, workspaceId, YOUTUBE_DOWNLOAD_PLUGIN_ID),
         isSafeVariantId: isSafeAudioId,
         variantExists,
-        download: async (url, onProgress) => {
+        download: options.youtubeDownload ?? (async (url, onProgress) => {
           const workDir = await mkdtemp(join(tmpdir(), 'stageboard-yt-'))
           try {
             const { filePath } = await runYtDlpExtract(url, join(workDir, 'track.%(ext)s'), onProgress)
@@ -249,7 +254,7 @@ export function createAsyncJobWatcher(options: AsyncJobWatcherOptions): AsyncJob
             await rm(workDir, { recursive: true, force: true }).catch(() => {})
             throw err
           }
-        },
+        }),
         writeAudio: (variantId, trackId, data) => writeAudioFile(variantId, trackId, Buffer.from(data.buffer, data.byteOffset, data.byteLength)),
         deleteAudio: deleteAudioFile,
         appendTrack,

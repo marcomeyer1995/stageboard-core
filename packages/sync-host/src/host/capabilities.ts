@@ -108,7 +108,7 @@ export const parseCapabilities = (raw: unknown): HostCapabilities | null => {
   return parsed.success ? parsed.data : null
 }
 
-/** What an add-on's server part needs from a device (`AddonReleaseManifest.runsOn`). */
+/** What an add-on's jobs file needs from a device (`AddonReleaseManifest.runsOn`). */
 export interface RunsOn {
   platforms?: string[]
   minCpuCores?: number
@@ -116,7 +116,7 @@ export interface RunsOn {
 }
 
 /**
- * What this device lacks to run an add-on's server part, as words for the person - or null when it can (#962, step 4).
+ * What this device lacks to run an add-on's jobs file, as words for the person - or null when it can (#962, step 4).
  * Only what the device tells counts: a power it did not report is not held against it (it is not invented either way).
  */
 export function unmetRequirement(runsOn: RunsOn | undefined, capabilities: HostCapabilities): string | null {

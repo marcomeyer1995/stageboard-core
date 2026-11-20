@@ -4,10 +4,11 @@ import { JOB_IDS, unmetRequirement, type RunsOn } from './capabilities.js'
 /**
  * What a host can do, declared by the things that do it (#964, step 3): a **runner** is one capability of a host - a job (backup,
  * speech, ...) or a plugin (stem separation, ...) - with a manifest: its id, what it lacks on this device (`missing`), what its
- * server part needs from a device (`runsOn`, the same field an add-on's manifest has), and which background job type it works on.
+ * jobs file needs from a device (`runsOn`, the same field an add-on's manifest has), and which background job type it works on.
  * `GET /host/capabilities` and the job queue's "what does this job need" are *derived* from the runners a host has registered - there
  * is no second table to keep in step. A Node host registers the runners that ship with it; a tablet registers what it can do; an
- * add-on that brings a server part (docs/32, #17) registers the same way, so installing it is what makes the host able to do its job.
+ * add-on that brings a jobs file (docs/32, #17) registers the same way, so installing it is what makes a device able to do its job: there is
+ * no server, an add-on runs on the devices that can run it.
  */
 export interface JobRunner {
   /** The capability id: a job id (`speech`) or, with `kind: 'plugin'`, a plugin id (`stem-separation`). */
@@ -15,7 +16,7 @@ export interface JobRunner {
   kind: 'job' | 'plugin'
   /** What this device lacks to run it, in words (`demucs`), or null when it can. Absent: nothing is lacking. */
   missing?: () => string | null
-  /** What the server part needs from the device (platform, cores, memory); checked against the device's own power. */
+  /** What the jobs file needs from the device (platform, cores, memory); checked against the device's own power. */
   runsOn?: RunsOn
   /** Plain words for the person: why it is slow or missing here and how to improve it. */
   note?: string

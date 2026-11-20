@@ -96,13 +96,15 @@ Antwort (`ShowControlResult`): `status: 'ok' | 'error'`, Meldung als Text oder b
 
 **Timing-Klassen** (`timing[]`, docs/21): `sample` (±2 ms, Audio), `realtime` (±10 ms, Klick-nahe Geräte, Licht im Takt), `soft` (±100 ms, Preset-Wechsel), `none` (wann es ankommt). Dazu die bekannte Latenz und wie man sie misst (Licht-, Ton-, MIDI-Rückweg- oder Kamera-Sensor) – StageBoard sendet entsprechend früher.
 
-## 6. Server-Teil – *nur eingebaut*
+## 6. Hintergrund-Aufgaben (Jobs) – *eingebaut; die Sandbox dafür in Arbeit (#964)*
 
-**Gebaut** (nur für StageBoards eigene Add-ons): Server-Add-ons implementieren `IShowControlPlugin` (`init(context)`, `trigger(event)`, `shutdown()`), der Host startet und stoppt sie, wenn ihr Dokument erscheint oder verschwindet, und meldet ihren Zustand. Welche es gibt, steht fest im Code (`core-backend/src/plugins/catalog.ts`).
+**Es gibt keinen Server.** Ein Add-on läuft auf den Geräten, die es können, und auf anderen nicht: `runsOn` im Manifest (Plattform, Kerne, Speicher) und die Hilfsprogramme (§8) entscheiden, nicht eine Rolle des Geräts. Dasselbe JavaScript-Add-on läuft in derselben Art Sandbox (§4) - auf einem Tablet in einem Worker der App, auf einem Laptop in einem eigenen Node-Prozess mit Nodes Permission-Modell (`--permission`: nur erlaubte Verzeichnisse, kein Starten von Programmen außer den angemeldeten Hilfsprogrammen) - und spricht dieselben Nachrichten.
 
-**Geplant:** Server-Code aus `source` nachladen, **jedes Add-on in einem eigenen Node-Prozess** mit Nodes Permission-Modell (`--permission`, nur erlaubte Verzeichnisse und kein Starten von Programmen außer den angemeldeten Hilfsprogrammen) – dieselben Nachrichten wie §4 über eine Pipe. Auf einem Android-Host läuft derselbe JS-Teil in der App (Worker), Hilfsprogramme dort als App-Paket (§8).
+**Gebaut:** Aufgaben für Geräte (§4: Ereignisse an ein MIDI-Gerät) und die eingebauten Hintergrund-Aufgaben (YouTube, Stem-Trennung, Sprache): `IShowControlPlugin` (`init`, `trigger`, `shutdown`), die Rezepte in `sync-host/jobs/` laufen **ohne Sandbox** im Prozess des Geräts, das die Aufgabe nimmt; welche es gibt, steht fest im Code (`core-backend/src/plugins/catalog.ts`).
 
-Lange Aufgaben (Stems trennen, Download) laufen als **Job**: ein Band-Dokument mit Status und Fortschritt (`asyncJob.ts`), das jedes Gerät sieht. *Gebaut* für die eingebauten Jobs; *geplant*: Jobs für Add-ons über dieselben Nachrichten (`job-progress`, `job-result`).
+**In Arbeit (#964):** die Aufgaben-Nachrichten (`job`, `job-progress`, `job-result`, `helper-run`) im gemeinsamen Protokoll (`shared-types/addonProtocol.ts`) und die Laufzeit dafür auf Node (`--permission`). Die Datei dafür heißt im Manifest `jobsFile` (früher `serverFile`).
+
+Lange Aufgaben (Stems trennen, Download) laufen als **Job**: ein Band-Dokument mit Status und Fortschritt (`asyncJob.ts`), das jedes Gerät sieht; welches Gerät es nimmt, entscheidet seine Fähigkeit (`sync-host/jobQueue.ts`, docs/25 #964).
 
 ## 7. Rechte – *Feld gebaut (#756), Durchsetzung geplant*
 
@@ -151,7 +153,7 @@ Im Manifest (*gebaut*, #756 – `HelpersSchema`; `certSha256` ist eine Liste, da
 
 ## 9. Zustand, Meldungen, Einstellungen – *gebaut*
 
-- **Zustand** (`pluginHealth.ts`): `online` / `offline` / `error` + Meldung; vom Host für Server-Add-ons, vom Gerät für Geräte-Add-ons. Ohne Meldung seit 15 s gilt es als offline – ein Add-on meldet sich also regelmäßig.
+- **Zustand** (`pluginHealth.ts`): `online` / `offline` / `error` + Meldung; von dem Gerät, das das Add-on ausführt. Ohne Meldung seit 15 s gilt es als offline – ein Add-on meldet sich also regelmäßig.
 - **Meldungen** an Musiker als Code + Parameter, nicht als fertiger Text: das Gerät übersetzt (docs/03, #679).
 - **Einstellungen** der Band in `settings`, repliziert; das Add-on prüft sie mit einem eigenen Schema und nimmt bei Unbekanntem seine Voreinstellung (nie abstürzen).
 
@@ -164,7 +166,7 @@ Im Manifest (*gebaut*, #756 – `HelpersSchema`; `certSha256` ist eine Liste, da
 | Heute eingebaut | wird | Hilfsprogramm |
 |---|---|---|
 | Kemper, MG-30, RC-500, CQ-18T, Ui24R (Translatoren in `stage-pwa/src/lib/*Translator.ts`), MIDI-Clock | JS-Add-on | – |
-| OSC (`oscPlugin.ts`) | JS-Add-on (Server-Teil, Recht `osc:`) | – |
+| OSC (`oscPlugin.ts`) | JS-Add-on (Jobs-Datei, Recht `osc:`) | – |
 | Sprachausgabe Piper | JS-Add-on | Laptop: Piper; Android: offen |
 | Stem-Trennung | JS-Add-on | Laptop: Python + Demucs; Android: offen (zu schwer?) |
 | Ultimate-Guitar-Import (Chrome über puppeteer) | JS-Add-on | Laptop: Chrome; Android: offen |
@@ -197,8 +199,8 @@ Today the catalogue is fixed in code (`core-backend/src/plugins/catalog.ts`, `st
 A GitHub repository whose **releases** are the versions. The latest release that is not a pre-release is the current version, and its tag is the version (`v1.3.0` → `1.3.0`, SemVer).
 
 - **`stageboard-addon.json`** in each release (as a release asset, so a version's manifest never changes afterwards): the manifest of §2 (`id`, `name`, `version`, `apiVersion`, `runtime`, `capabilities`, `transports`, `hardwareIds`, `timing`, `permissions`, `helpers`, settings schema), plus
-  - `files`: every file of this version with its **SHA-256** and size: the client bundle (`client.js`), the server part (`server.js`), assets. Each `name` is an asset of the same release - a plain file name, no folders (a release's assets are flat, and a name can never leave the version's folder on the host).
-  - `clientFile` / `serverFile`: which of `files` is the client bundle the devices load, and the host's server part.
+  - `files`: every file of this version with its **SHA-256** and size: the device file (`client.js`), the jobs file (`jobs.js`), assets. Each `name` is an asset of the same release - a plain file name, no folders (a release's assets are flat, and a name can never leave the version's folder on the host).
+  - `clientFile` / `jobsFile`: which of `files` is the device file every device loads, and the jobs file that any device satisfying `runsOn` runs (there is no server; #964).
   - *Built (2026-11-17, #852 steps 1-2):* `AddonReleaseManifestSchema` / `AddonSourceSchema` in `shared-types/src/addonRelease.ts`; the host's part in `core-backend/src/addons/addonStore.ts` - read the latest release, check the manifest (schema, version = tag, `apiVersion`, every file present), download, check each SHA-256, keep under `<state>/addons/<id>/<version>/`, keep two versions; routes `GET /addons/:id/:version/:file`, `POST /workspaces/:id/addons/preview` and `…/install` (admin only).
   - `changes`: a short text of what is new (shown with the update).
   - `minStageBoard`: the oldest StageBoard version it runs on, optional.

@@ -14,9 +14,9 @@ export function hostCapabilities(runners: JobRunners = builtinRunners(), catalog
 }
 
 /**
- * What this machine lacks to host an add-on's server part (#962, step 4) - null when it can, or when the add-on has no server
- * part (the client bundle runs in every device's page, wherever the add-on was installed).
+ * What this device lacks to run an add-on's jobs (#962, step 4) - null when it can, or when the add-on has no jobs file (its device file
+ * runs on every device, wherever the add-on was installed).
  */
-export function addonHostNeeds(manifest: Pick<AddonReleaseManifest, 'serverFile' | 'runsOn'>, capabilities: HostCapabilities = hostCapabilities()): string | null {
-  return manifest.serverFile ? unmetRequirement(manifest.runsOn, capabilities) : null
+export function addonHostNeeds(manifest: Pick<AddonReleaseManifest, 'jobsFile' | 'runsOn'>, capabilities: HostCapabilities = hostCapabilities()): string | null {
+  return manifest.jobsFile ? unmetRequirement(manifest.runsOn, capabilities) : null
 }

@@ -32,15 +32,15 @@ describe('hostCapabilities (docs/25 §6, 2026-11-07)', () => {
 describe('addonHostNeeds (#962, step 4)', () => {
   const base = { ...hostCapabilities(createJobRunners(), []), kind: 'desktop' as const, platform: 'linux', cpuCores: 8, memoryMb: 16384 }
 
-  it('only the server part is limited: an add-on without one installs anywhere', () => {
+  it('only the jobs file is limited: an add-on without one runs anywhere', () => {
     expect(addonHostNeeds({ runsOn: { platforms: ['win32'] } }, base)).toBeNull()
   })
 
-  it('a server part that needs another platform or more power is refused with what is missing', () => {
-    expect(addonHostNeeds({ serverFile: 'server.js', runsOn: { platforms: ['win32'] } }, base)).toContain('win32')
-    expect(addonHostNeeds({ serverFile: 'server.js', runsOn: { minMemoryMb: 65536 } }, base)).toContain('65536 MB')
-    expect(addonHostNeeds({ serverFile: 'server.js', runsOn: { platforms: ['linux'], minCpuCores: 4 } }, base)).toBeNull()
-    expect(addonHostNeeds({ serverFile: 'server.js' }, base)).toBeNull()
+  it('a jobs file that needs another platform or more power is refused with what is missing', () => {
+    expect(addonHostNeeds({ jobsFile: 'jobs.js', runsOn: { platforms: ['win32'] } }, base)).toContain('win32')
+    expect(addonHostNeeds({ jobsFile: 'jobs.js', runsOn: { minMemoryMb: 65536 } }, base)).toContain('65536 MB')
+    expect(addonHostNeeds({ jobsFile: 'jobs.js', runsOn: { platforms: ['linux'], minCpuCores: 4 } }, base)).toBeNull()
+    expect(addonHostNeeds({ jobsFile: 'jobs.js' }, base)).toBeNull()
   })
 })
 

@@ -30,21 +30,25 @@ export type AddonFile = z.infer<typeof AddonFileSchema>
 
 /** The manifest of docs/32 §2 (what a band's installation copies), plus what only a release has. */
 export const AddonReleaseManifestSchema = PluginInstallationSchema.omit({ enabled: true, installedAt: true, settings: true, source: true, clientSource: true }).extend({
-  /** Every file of this version (the client bundle `client.js`, a server part, assets). */
+  /** Every file of this version (the device file `client.js`, the jobs file, assets). */
   files: z.array(AddonFileSchema).min(1),
-  /** The file the devices load as the client bundle, one of `files`. */
+  /** The file that drives a device (events, MIDI): every device loads it into a sandbox of its own, one of `files`. */
   clientFile: AddonFileNameSchema.optional(),
-  /** The host's server part, one of `files` (not loaded yet - #17). */
-  serverFile: AddonFileNameSchema.optional(),
+  /**
+   * The file that does the add-on's background jobs (a download, a separation), one of `files`. It is the same kind of JavaScript as `clientFile`, in the
+   * same kind of sandbox (docs/32 §4); **any device that satisfies `runsOn` runs it** - there is no server: an add-on runs on some devices and not on
+   * others. Not loaded yet (#17).
+   */
+  jobsFile: AddonFileNameSchema.optional(),
   /** What is new in this version - shown with the update. */
   changes: z.string().max(4000).optional(),
   /** The oldest StageBoard version it runs on. */
   minStageBoard: z.string().optional(),
   /**
-   * What the **server part** needs from the device that runs it (#962): only the power of the device decides which add-on
-   * it can host. An add-on that needs Windows or Linux and cannot run on Android says so here; a host that does not
-   * fit refuses to install the server part (501) and tells what is missing. Absent: runs anywhere. Does not limit the
-   * client bundle - that runs in every device's page.
+   * What the **jobs file** needs from the device that runs it (#962): only the power of the device decides where an add-on
+   * runs. An add-on that needs Windows or Linux and cannot run on Android says so here; a device that does not fit does not run
+   * it, says what is missing, and the job goes to a device that can (501). Absent: runs anywhere. Does not limit the device
+   * file - that runs on every device.
    */
   runsOn: z
     .object({

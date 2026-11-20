@@ -18,6 +18,7 @@ import { registerDatabaseRoutes } from './databaseRoutes.js'
 import { startBuiltinDatabase, type BuiltinDatabase } from './builtinDatabase.js'
 import { addonHostNeeds, hostCapabilities } from './hostCapabilities.js'
 import { builtinRunners } from './builtinRunners.js'
+import { createYoutubeAddonDownload } from './addons/youtubeAddon.js'
 import { createHostLeaseService, getFromHost, postJsonToHost } from './hostLeaseService.js'
 import { createHostRoleStore } from './hostRoleStore.js'
 import { makeLocalBandDb, makeRemoteBandDb } from './bandPouch.js'
@@ -438,6 +439,8 @@ export async function buildApp(options: { backupService?: BackupService; databas
     jobHost: {
       hostId,
       needsOf: (job) => runners.needsOfJob(job),
+      // The YouTube download as an add-on in a sandbox (#964, docs/32 §6) - opt in with STAGEBOARD_ADDON_SANDBOX=1 until it has run for hours on a real host.
+      ...(process.env.STAGEBOARD_ADDON_SANDBOX === '1' ? { youtubeDownload: createYoutubeAddonDownload(pluginLog) } : {}),
       canDo: (needs) => canDoFromCapabilities(hostCapabilities(runners))(needs),
       hasPeers: async () => {
         const workspaceId = workspaceHardware.getActiveWorkspaceId()
@@ -762,7 +765,7 @@ export async function buildApp(options: { backupService?: BackupService; databas
     if (!parsed.success) return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
     try {
       const { preview } = await previewAddon(parsed.data.repository, { apiBase: process.env.STAGEBOARD_GITHUB_API })
-      // What this machine lacks to host the add-on's server part (#962): the admin sees it before installing.
+      // What this device lacks to run the add-on's jobs (#962): the admin sees it before installing.
       return { ...preview, hostNeeds: addonHostNeeds(preview.manifest) }
     } catch (err) {
       if (err instanceof AddonError) return reply.status(422).send({ status: 'error', code: err.code, message: err.message })
@@ -788,7 +791,7 @@ export async function buildApp(options: { backupService?: BackupService; databas
       }
       const needs = addonHostNeeds(preview.manifest)
       if (needs) {
-        app.log.warn({ workspaceId, addon: preview.manifest.id, needs }, 'Add-on refused - this machine cannot host its server part')
+        app.log.warn({ workspaceId, addon: preview.manifest.id, needs }, 'Add-on refused - this device cannot run its jobs')
         const refused = addonRefusal(preview.manifest.id, needs)
         return reply.status(refused.status).send(refused.body)
       }
