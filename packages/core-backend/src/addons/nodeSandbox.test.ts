@@ -143,10 +143,19 @@ describe('calls and files for helpers (#964)', () => {
     expect(outcome).toMatchObject({ ok: true, data: { got: 1 } })
   })
 
-  it('gives `fetch` only to an add-on that declared the http permission', async () => {
-    const probe = answersCall(`self.postMessage({ type: 'call-result', id, ok: true, data: { fetch: typeof fetch, URL: typeof URL } })`)
-    expect((await (await start('nohttp', probe, { permissions: [] })).call('p', {}, { timeoutMs: 5_000 }))).toMatchObject({ data: { fetch: 'undefined', URL: 'function' } })
-    expect((await (await start('withhttp', probe, { permissions: ['http:musicbrainz.org'] })).call('p', {}, { timeoutMs: 5_000 }))).toMatchObject({ data: { fetch: 'function' } })
+  it('never gives an add-on `fetch` - not even one that declared http; it asks StageBoard for `capability.http` instead', async () => {
+    const probe = answersCall(`self.postMessage({ type: 'call-result', id, ok: true, data: { fetch: typeof fetch, XMLHttpRequest: typeof XMLHttpRequest, WebSocket: typeof WebSocket, URL: typeof URL } })`)
+    for (const permissions of [[], ['http:https://musicbrainz.org']]) {
+      expect(await (await start(`nofetch${permissions.length}`, probe, { permissions })).call('p', {}, { timeoutMs: 5_000 })).toMatchObject({ data: { fetch: 'undefined', XMLHttpRequest: 'undefined', WebSocket: 'undefined', URL: 'function' } })
+    }
+  })
+
+  it('answers a `capability.*` request from the add-on with a response envelope - and refuses all of them when the device gives none', async () => {
+    const asks = `self.onmessage = (e) => { if (e.data.type === 'init') return; if (e.data.kind === 'response') self.postMessage({ type: 'call-result', id: 1, ok: true, data: e.data }); if (e.data.type === 'call') self.postMessage({ kind: 'request', id: 7, method: 'capability.http', body: { url: 'https://x.example/' } }) }`
+    const withCaps = await start('caps', asks, { capabilities: async (method: string) => ({ ok: true as const, body: { method } }) })
+    expect(await withCaps.call('go', {}, { timeoutMs: 5_000 })).toMatchObject({ ok: true, data: { kind: 'response', id: 7, ok: true, body: { method: 'capability.http' } } })
+    const without = await start('nocaps', asks)
+    expect(await without.call('go', {}, { timeoutMs: 5_000 })).toMatchObject({ ok: true, data: { ok: false, error: { code: 'permission.denied' } } })
   })
 })
 

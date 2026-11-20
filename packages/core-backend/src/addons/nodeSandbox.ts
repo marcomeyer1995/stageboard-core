@@ -1,3 +1,4 @@
+import type { Capabilities } from './capabilities.js'
 import { fork, type ChildProcess } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import {
@@ -36,6 +37,8 @@ export interface NodeSandboxOptions {
   helpers?: readonly string[]
   /** Runs a declared helper (the line protocol, docs/32 §8); the platform's own part. `onProgress` gets 0-1. */
   runHelper?: (helper: string, args: string[], onProgress: (fraction: number) => void, files: { name: string; bytes: Uint8Array }[]) => Promise<{ result: unknown; files: { name: string; bytes: Uint8Array }[] }>
+  /** What an add-on may ask the world for through `capability.*` requests (capabilities.ts); absent: every capability request is refused. */
+  capabilities?: Capabilities
   log?: { info: (msg: string, meta?: Record<string, unknown>) => void; error: (msg: string, meta?: Record<string, unknown>) => void }
 }
 
@@ -65,11 +68,12 @@ export interface NodeSandbox {
 /** Starts the add-on and waits until it says it is online (or failed to start). */
 export async function startNodeSandbox(options: NodeSandboxOptions): Promise<NodeSandbox> {
   const log = options.log
-  const child: ChildProcess = fork(RUNNER, [options.addonFile, ...((options.permissions ?? []).some((p) => p === 'http' || p.startsWith('http:')) ? ['--http'] : [])], {
+  const child: ChildProcess = fork(RUNNER, [options.addonFile], {
     // The permission model: only these two files readable; nothing else, nothing writable, no child process, no worker.
     execArgv: ['--permission', `--allow-fs-read=${RUNNER}`, `--allow-fs-read=${options.addonFile}`],
-    // `fetch` is handed to the add-on only if it declared the `http` permission (docs/32 §7). Node's permission model cannot cut the network, so this
-    // is the only place the add-on's reach is limited: a hostile add-on that escapes the vm context can still open a connection.
+    // The add-on is never handed `fetch` (docs/36 §5): it asks for `capability.http` and StageBoard performs it for the origins it declared. Node's
+    // permission model cannot cut the network, so a hostile add-on that escapes the vm context could still open a connection - until Node has
+    // `--allow-net` (documented in docs/36 §5).
     // Not StageBoard's environment: no database login, no keys, no paths.
     env: {},
     serialization: 'advanced',
@@ -123,6 +127,12 @@ export async function startNodeSandbox(options: NodeSandboxOptions): Promise<Nod
       // The runner carries both protocols untouched (scripts/addon_runner.mjs): a message with a `kind` is an envelope, anything else is protocol 2.
       const envelope = readEnvelope(raw)
       if (envelope === 'invalid') return
+      if (envelope && envelope.kind === 'request' && envelope.method.startsWith('capability.')) {
+        const id = envelope.id
+        const answer = options.capabilities ? options.capabilities(envelope.method, envelope.body) : Promise.resolve({ ok: false as const, error: { code: 'permission.denied', message: 'This device gives no capabilities to add-ons' } })
+        void answer.then((result) => send(result.ok ? { kind: 'response', id, ok: true, body: result.body } : { kind: 'response', id, ok: false, error: result.error }))
+        return
+      }
       if (envelope && envelope.kind === 'response') {
         const finish = requests.get(envelope.id)
         if (!finish) return

@@ -1,4 +1,5 @@
 import { fileURLToPath } from 'node:url'
+import { createCapabilities } from './capabilities.js'
 import { helperRunnerFor } from './helpers.js'
 import { startNodeSandbox, type NodeSandbox, type NodeSandboxOptions } from './nodeSandbox.js'
 
@@ -22,7 +23,7 @@ const addonFile = (name: string) => fileURLToPath(new URL(`../../scripts/addons/
 export const BUILTIN_ADDONS = {
   youtubeDownload: { id: 'youtube-download', file: addonFile('youtube-download'), helpers: ['yt-dlp'], permissions: ['helper:yt-dlp'] },
   speechSynthesis: { id: 'piper-speech', file: addonFile('speech-synthesis'), helpers: ['piper'], permissions: ['helper:piper'] },
-  metadataLookup: { id: 'metadata-lookup', file: addonFile('musicbrainz-lookup'), helpers: [], permissions: ['http:musicbrainz.org'] },
+  metadataLookup: { id: 'metadata-lookup', file: addonFile('musicbrainz-lookup'), helpers: [], permissions: ['http:https://musicbrainz.org'] },
   ultimateGuitarLookup: { id: 'ultimate-guitar-scraper', file: addonFile('ultimate-guitar-lookup'), helpers: ['ug-page'], permissions: ['helper:ug-page'] },
   oscSend: { id: 'osc', file: addonFile('osc-send'), helpers: ['udp-send'], permissions: ['helper:udp-send'] },
   stemSeparation: { id: 'stem-separation', file: addonFile('stem-separation'), helpers: ['stems'], permissions: ['helper:stems'] },
@@ -44,6 +45,7 @@ export function createAddonHost(manifest: AddonManifest, log?: Log, runHelper: N
       ...(manifest.settings ? { settings: manifest.settings } : {}),
       language: 'de',
       runHelper,
+      capabilities: createCapabilities({ permissions: manifest.permissions, helpers: runHelper ?? helperRunnerFor(manifest.helpers) }),
       ...(log ? { log } : {}),
     }).finally(() => (starting = null))
     sandbox = await starting

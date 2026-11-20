@@ -9,7 +9,9 @@ import type { NodeSandboxOptions } from './nodeSandbox.js'
  * back with the add-on's own words and a code (`blocked`, `timeout`, ...) that the route hands to the app unchanged.
  */
 export function createLookupAddonPlugin(manifest: AddonManifest, options: { baseUrl?: string; log?: Log; runHelper?: NodeSandboxOptions['runHelper'] } = {}): ILookupPlugin {
-  const sandbox = createAddonHost({ ...manifest, ...(options.baseUrl ? { settings: { baseUrl: options.baseUrl } } : {}) }, options.log, options.runHelper)
+  // A test points the look-up at a local server: that origin is declared like any other.
+  const permissions = options.baseUrl ? [...manifest.permissions, `http:${new URL(options.baseUrl).origin}`] : manifest.permissions
+  const sandbox = createAddonHost({ ...manifest, permissions, ...(options.baseUrl ? { settings: { baseUrl: options.baseUrl } } : {}) }, options.log, options.runHelper)
   const ask = async (method: string, args: Record<string, unknown>): Promise<unknown> => {
     const outcome = await (await sandbox()).call(method, args, { timeoutMs: 60_000 })
     if (!outcome.ok) throw outcome.messageCode ? new LookupError(outcome.messageCode, outcome.message) : new Error(outcome.message)
