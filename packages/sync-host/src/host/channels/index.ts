@@ -1,4 +1,4 @@
-import type { DeviceTrigger, DiscoverySession, OscInMessage, PluginHealth, PluginHealthEntry, Presence, ShowStatePush, SwitchStateEvent, DetectedHardware } from 'shared-types'
+import type { DeviceStateEvent, DeviceTrigger, DiscoverySession, OscInMessage, PluginHealth, PluginHealthEntry, Presence, ShowStatePush, SwitchStateEvent, DetectedHardware } from 'shared-types'
 import type { HostPresence } from '../presence.js'
 import * as showState from './showStatePushHub.js'
 import * as switchState from './switchStateHub.js'
@@ -6,6 +6,8 @@ import * as oscIn from './oscInHub.js'
 import * as relay from './deviceRelay.js'
 import * as health from './healthStore.js'
 import * as discovery from './discoverySessionStore.js'
+import * as deviceState from './deviceStateHub.js'
+import type { StateField } from 'shared-types'
 
 /**
  * The live channels of a host (#962, step 2): show state, switch states, plugin health, presence, OSC in, the
@@ -14,7 +16,7 @@ import * as discovery from './discoverySessionStore.js'
  * the same topics. Nothing of a channel is platform code; whether a device may *feed* one (OSC needs a UDP port,
  * Discovery a MIDI port) is a capability of the device (`GET /host/capabilities`), not of the channel.
  */
-export type ChannelTopic = 'show-state' | 'switch-state' | 'presence' | 'plugin-health' | 'osc-in' | 'discovery'
+export type ChannelTopic = 'show-state' | 'switch-state' | 'presence' | 'plugin-health' | 'osc-in' | 'discovery' | 'device-state'
 
 export type ChannelPayload = {
   'show-state': ShowStatePush
@@ -23,6 +25,8 @@ export type ChannelPayload = {
   'plugin-health': PluginHealth
   'osc-in': OscInMessage
   discovery: DiscoverySession
+  /** The latest value of a state field of a device an add-on offers (docs/36 §5a); a follower first gets every current one. */
+  'device-state': DeviceStateEvent
 }
 
 export interface HostChannels {
@@ -34,6 +38,8 @@ export interface HostChannels {
   pushShowState(workspaceId: string, push: ShowStatePush): number
   pushSwitchState(workspaceId: string, event: SwitchStateEvent): number
   pushOscIn(workspaceId: string, message: OscInMessage): number
+  /** An add-on's device published a value: kept and shared if it fits the field the add-on declared, else refused with the reason. */
+  publishDeviceState(workspaceId: string, event: DeviceStateEvent, declared: Readonly<Record<string, StateField>>): deviceState.PublishResult
   /** Whether the device was connected to get it. */
   triggerDevice(workspaceId: string, deviceId: string, trigger: DeviceTrigger): boolean
   setPluginHealth(workspaceId: string, pluginName: string, entry: PluginHealthEntry): void
@@ -62,6 +68,8 @@ export function createHostChannels(deps: { presence: HostPresence; readBandDocs:
         return oscIn.subscribe(workspaceId, fn)
       case 'discovery':
         return discovery.subscribe(workspaceId, fn)
+      case 'device-state':
+        return deviceState.subscribe(workspaceId, fn)
     }
   }
   return {
@@ -70,6 +78,7 @@ export function createHostChannels(deps: { presence: HostPresence; readBandDocs:
     pushShowState: showState.broadcast,
     pushSwitchState: (workspaceId, event) => switchState.broadcast(workspaceId, event),
     pushOscIn: oscIn.broadcast,
+    publishDeviceState: deviceState.publish,
     triggerDevice: relay.relay,
     setPluginHealth: health.setEntry,
     discovery: {

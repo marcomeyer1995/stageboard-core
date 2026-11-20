@@ -28,6 +28,10 @@
             },
             "port": {
               "type": "integer"
+            },
+            "device": {
+              "type": "string",
+              "maxLength": 100
             }
           }
         },
@@ -40,6 +44,27 @@
         },
         "timeoutMs": 8000
       }
-    }
-  }
+    },
+    "devices": [
+      {
+        "kind": "osc-target",
+        "title": "OSC",
+        "transport": "network-osc",
+        "state": {
+          "lastCue": {
+            "type": "string"
+          }
+        },
+        "commands": {}
+      }
+    ],
+    "ui": [
+      {
+        "slot": "device.panel",
+        "id": "osc-last-cue",
+        "title": "OSC"
+      }
+    ]
+  },
+  "viewFile": "view.js"
 }

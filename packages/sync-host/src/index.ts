@@ -275,6 +275,7 @@ export { createSpeechRoutes, type SpeechPorts, type SpeechResult } from './host/
 export { runStemSeparation, STEM_LABELS, STEM_ROLES, type SeparatedStem, type StemJobContext } from './host/jobs/stemSeparation.js'
 export { createProgressWriter } from './host/jobs/progress.js'
 export { errorPatch, mimeTypeForExt, toTrackFormat, type JobPatch } from './host/jobs/trackFormat.js'
+export * as deviceStateHub from './host/channels/deviceStateHub.js'
 export { runAudioImport, type AudioImportContext } from './host/jobs/audioImport.js'
 export { createJobRunners, type JobRunner, type JobRunners, type DeviceDescription } from './host/jobRunners.js'
 export { hostRunner, jobNeeds, jobsNobodyCanDo, pickNextClaimable, stillMine, stuckJobsOfHost, type JobRef, type JobWorker } from './host/jobQueue.js'

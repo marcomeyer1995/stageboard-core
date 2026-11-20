@@ -86,7 +86,11 @@ self.onmessage = function (e) {
     if (!m.body.host || !m.body.port) return refuse(m.id, 'osc.no-target', 'noTarget')
     var packet = encode(address, parseArgs(String(m.body.args || '')))
     sendUdp(String(m.body.host), Number(m.body.port), packet, m.id).then(
-      function () { self.postMessage({ kind: 'response', id: m.id, ok: true, body: { sent: true } }) },
+      function () {
+        // The device's state (docs/36 §5a): what was last sent to it. StageBoard checks this against the field this add-on declared and shares it with the band.
+        if (m.body.device) self.postMessage({ kind: 'notify', topic: 'state', body: { device: String(m.body.device), key: 'lastCue', value: (address + (m.body.args ? ' ' + String(m.body.args) : '')).slice(0, 400) } })
+        self.postMessage({ kind: 'response', id: m.id, ok: true, body: { sent: true } })
+      },
       function (err) { refuse(m.id, 'osc.failed', 'failed', { host: m.body.host, port: m.body.port, error: err.message }) },
     )
   } else if (m.kind === 'request') {

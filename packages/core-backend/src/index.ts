@@ -19,6 +19,7 @@ import { startBuiltinDatabase, type BuiltinDatabase } from './builtinDatabase.js
 import { addonHostNeeds, hostCapabilities } from './hostCapabilities.js'
 import { builtinRunners } from './builtinRunners.js'
 import { sharedAddonMethods } from './addons/addonMethods.js'
+import { relayAddonState } from './addons/stateRelay.js'
 import { createStemAddonSeparate } from './addons/stemAddon.js'
 import { createHostLeaseService, getFromHost, postJsonToHost } from './hostLeaseService.js'
 import { createHostRoleStore } from './hostRoleStore.js'
@@ -400,7 +401,7 @@ export async function buildApp(options: { backupService?: BackupService; databas
     const unsubscribe = subscribe((payload) => reply.raw.write(`data: ${JSON.stringify(payload)}\n\n`))
     request.raw.on('close', unsubscribe)
   }
-  for (const topic of ['show-state', 'switch-state', 'presence', 'osc-in', 'discovery'] as const) {
+  for (const topic of ['show-state', 'switch-state', 'presence', 'osc-in', 'discovery', 'device-state'] as const) {
     app.get(`/workspaces/:workspaceId/${topic}/stream`, (request, reply) => {
       const { workspaceId } = request.params as { workspaceId: string }
       openStream(request, reply, (send) => channels.subscribe(topic, workspaceId, send))
@@ -450,6 +451,10 @@ export async function buildApp(options: { backupService?: BackupService; databas
         return workspaceId ? ((await readBandHosts(workspaceId))?.length ?? 0) >= 2 : false
       },
     },
+  })
+  // What an add-on's devices publish (docs/36 §5a) is checked against its manifest and shared with the band this host serves.
+  addonMethods.onState((addonId, body) => {
+    relayAddonState({ channels, workspaceId: workspaceHardware.getActiveWorkspaceId() ?? null, addonId, body, declared: addonMethods.declaredState(addonId), log: pluginLog })
   })
   app.addHook('onClose', async () => workspaceHardware.deactivate())
 

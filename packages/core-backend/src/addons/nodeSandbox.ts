@@ -25,6 +25,8 @@ export interface NodeSandboxOptions {
   language?: string
   /** What the script may ask the world for through `capability.*` requests (capabilities.ts); absent: every capability request is refused. */
   capabilities?: Capabilities
+  /** The add-on published a value of a device state field (`notify` topic `state`, docs/36 §5a). The host checks it against what the add-on declared. */
+  onState?: (body: unknown) => void
   log?: { info: (msg: string, meta?: Record<string, unknown>) => void; error: (msg: string, meta?: Record<string, unknown>) => void }
 }
 
@@ -96,6 +98,7 @@ export async function startNodeSandbox(options: NodeSandboxOptions): Promise<Nod
         case 'notify': {
           const body = (envelope.body ?? {}) as { status?: Health['status']; message?: string; line?: string }
           if (envelope.topic === 'log') log?.info(`add-on ${options.name ?? ''}: ${String(body.line ?? '')}`)
+          if (envelope.topic === 'state') options.onState?.(envelope.body)
           if (envelope.topic === 'health' && body.status) {
             health = { status: body.status, ...(body.message ? { message: body.message } : {}) }
             // Online is ready. An error at start is followed by the process ending - ready then waits for that (below), so `alive()` is true only

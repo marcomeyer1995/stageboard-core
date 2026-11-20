@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { callMethod, type MethodResult, type MethodSandbox } from 'sync-host'
-import { parseContributes, type AddonError, type Contributes } from 'shared-types'
+import { parseContributes, type AddonError, type Contributes, type StateField } from 'shared-types'
 import { createCapabilities } from './capabilities.js'
 import { helperRunnerFor } from './helpers.js'
 import { startNodeSandbox, type NodeSandbox } from './nodeSandbox.js'
@@ -68,6 +68,10 @@ export interface AddonMethods {
   contributes(addonId: string): Contributes | null
   /** `grants`: permissions for this one call only, StageBoard's own (a device's own target) - never the add-on's choice. */
   call(addonId: string, method: string, body: unknown, options?: { onProgress?: (fraction: number) => void; grants?: readonly string[] }): Promise<MethodResult>
+  /** The state fields the add-on's devices declared (docs/36 §5a), by key - what a published value is checked against. Empty for an add-on with no device. */
+  declaredState(addonId: string): Record<string, StateField>
+  /** Who hears the values an add-on's devices publish (`notify` topic `state`): which add-on and what it said, unchecked - the listener checks it against `declaredState`. */
+  onState(listener: ((addonId: string, body: unknown) => void) | null): void
 }
 
 export interface AddonMethodsOptions {
@@ -85,6 +89,7 @@ export interface AddonMethodsOptions {
 
 export function createAddonMethods(options: AddonMethodsOptions = {}): AddonMethods {
   const entries = loadEntries(options.root ?? defaultRoot, options.dirs ?? ADDON_DIRS)
+  let stateListener: ((addonId: string, body: unknown) => void) | null = null
   const sandboxes = new Map<string, Promise<NodeSandbox>>()
   const entry = (id: string): Entry | undefined => entries.get(id)
 
@@ -100,6 +105,8 @@ export function createAddonMethods(options: AddonMethodsOptions = {}): AddonMeth
         language: 'de',
         capabilities: createCapabilities({ permissions, helpers: runHelper }),
         ...(options.settings?.[found.id] ? { settings: options.settings[found.id]! } : {}),
+        // Late-bound: the adapters create their sandboxes at import time, the host that listens exists later (`methods.onState(...)`).
+        onState: (body: unknown) => stateListener?.(found.id, body),
         ...(options.log ? { log: options.log } : {}),
       })
     }
@@ -116,6 +123,8 @@ export function createAddonMethods(options: AddonMethodsOptions = {}): AddonMeth
   return {
     has: (id) => entry(id) !== undefined,
     contributes: (id) => entry(id)?.contributes ?? null,
+    declaredState: (id) => Object.assign({}, ...(entry(id)?.contributes.devices ?? []).map((device) => device.state)) as Record<string, StateField>,
+    onState: (listener) => void (stateListener = listener),
     async call(id, method, body, callOptions) {
       const found = entry(id)
       if (!found) return { ok: false, error: { code: 'addon.unknown', message: `No add-on "${id}" on this device`, params: { addon: id } } satisfies AddonError }

@@ -1,7 +1,7 @@
 import { join } from 'node:path'
 import { createSocket, type Socket } from 'node:dgram'
 import type { AddressInfo } from 'node:net'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { createOscAddonPlugin } from './oscAddon.js'
 import { setOscTargetResolver } from '../plugins/oscPlugin.js'
 
@@ -127,5 +127,40 @@ describe('OSC sends only where StageBoard says (#964, docs/36 §5, review)', () 
   it('the old udp-send helper is gone: no helper sends to a free target any more', async () => {
     const { HELPERS } = await import('./helpers.js')
     expect(Object.keys(HELPERS)).not.toContain('udp-send')
+  })
+})
+
+describe('the OSC device publishes its state (#964, docs/36 §5a - the proof that the contract carries a device)', () => {
+  it('after a cue is sent the band\'s device state says which one - declared by the add-on, checked, shared, replayed to a device that connects later', async () => {
+    const { createAddonMethods } = await import('./addonMethods.js')
+    const { relayAddonState } = await import('./stateRelay.js')
+    const { deviceStateHub } = await import('sync-host')
+    deviceStateHub.__resetForTests()
+    const methods = createAddonMethods()
+    expect(methods.declaredState('osc')).toEqual({ lastCue: { type: 'string' } })
+    methods.onState((addonId, body) => void relayAddonState({ channels: { publishDeviceState: deviceStateHub.publish }, workspaceId: 'band', addonId, body, declared: methods.declaredState(addonId) }))
+    const seen: unknown[] = []
+    deviceStateHub.subscribe('band', (e) => seen.push(e))
+    received.length = 0
+    expect(await createOscAddonPlugin({ methods }).trigger(cue({ address: '/cue/12/go', args: '1' }))).toEqual({ status: 'ok' })
+    await waitFor(1)
+    await vi.waitFor(() => expect(seen).toHaveLength(1))
+    expect(seen[0]).toMatchObject({ device: 'lights', key: 'lastCue', value: '/cue/12/go 1' })
+    // A device that opens the band later is told the current value without asking the add-on.
+    const late: unknown[] = []
+    deviceStateHub.subscribe('band', (e) => late.push(e))
+    expect(late).toEqual([expect.objectContaining({ device: 'lights', key: 'lastCue', value: '/cue/12/go 1' })])
+  })
+
+  it('a refused cue publishes nothing', async () => {
+    const { createAddonMethods } = await import('./addonMethods.js')
+    const { deviceStateHub } = await import('sync-host')
+    deviceStateHub.__resetForTests()
+    const methods = createAddonMethods()
+    const heard: unknown[] = []
+    methods.onState((_id, body) => void heard.push(body))
+    expect(await createOscAddonPlugin({ methods }).trigger(cue({ address: 'not an address' }))).toMatchObject({ status: 'error' })
+    await new Promise((r) => setTimeout(r, 150))
+    expect(heard).toEqual([])
   })
 })

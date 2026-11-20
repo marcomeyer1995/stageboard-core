@@ -19,7 +19,7 @@ export function createOscAddonPlugin(options: { methods?: AddonMethods } = {}): 
       const method = event.type === OSC_SEND ? 'send' : event.type
       // The target is the device's own setting, so StageBoard grants exactly that one for this call: the add-on cannot send anywhere else.
       const grants = target ? [`udp:${target.host}:${target.port}`] : []
-      const answer = await methods.call(OSC_PLUGIN_ID, method, { address: event.payload?.address, args: event.payload?.args, ...(target ?? {}) }, { grants })
+      const answer = await methods.call(OSC_PLUGIN_ID, method, { address: event.payload?.address, args: event.payload?.args, ...(event.logicalDeviceId ? { device: event.logicalDeviceId } : {}), ...(target ?? {}) }, { grants })
       return answer.ok ? { status: 'ok' } : { status: 'error', message: answer.error.message }
     },
     shutdown: () => undefined,

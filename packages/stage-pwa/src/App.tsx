@@ -73,6 +73,7 @@ import { useAudioRouteStore } from './store/useAudioRouteStore'
 import { useLogicalDevicesStore } from './store/useLogicalDevicesStore'
 import { usePluginsStore } from './store/usePluginsStore'
 import { usePresenceStore } from './store/usePresenceStore'
+import { useDeviceStateStore } from './store/useDeviceStateStore'
 import { useProfilesStore } from './store/useProfilesStore'
 import { useRosterSetupStore } from './store/useRosterSetupStore'
 import { useSetlistsStore } from './store/useSetlistsStore'
@@ -226,6 +227,8 @@ function App() {
   useWorkspaceResource(useBandSettingsStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(useAsyncJobsStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(usePresenceStore((state) => state.init), noopStart, activeWorkspaceId, hostUrl)
+  // The live state of the band's devices that add-ons publish (docs/36 §5a): what a `device.panel` binds to.
+  useWorkspaceResource(useDeviceStateStore((state) => state.init), noopStart, activeWorkspaceId, hostUrl)
   // Device Ledger's live diagnostic *subscription* is deliberately NOT wired here - unlike
   // usePresenceStore just above, it's opened only while DeviceLedgerView.tsx is actually
   // mounted (see useDeviceInfoStore.ts's own doc comment: this app already sits near Chrome's
