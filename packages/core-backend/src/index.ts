@@ -41,7 +41,7 @@ import {
   type Device,
 } from 'shared-types'
 import { messageFieldsOf, serverMessage, type ServerMessage } from 'shared-types'
-import { SpeechSpeedSchema, SpeechVoiceKeySchema, YOUTUBE_VIDEO_ID_RE } from 'shared-types'
+import { YOUTUBE_VIDEO_ID_RE } from 'shared-types'
 import { createBackupService, realBackupDeps, type BackupService } from './backup.js'
 import { deleteAudioFile, readAudioFile, writeAudioFile } from './audioStore.js'
 import { readPersistedActiveWorkspace } from './activeWorkspaceStateStore.js'
@@ -423,52 +423,6 @@ export async function buildApp(options: { backupService?: BackupService; databas
     error: (msg: string, meta?: Record<string, unknown>) => app.log.error(meta ?? {}, msg),
   }
 
-  // Spoken announcements (#63): a speech clip per text and voice, generated once with Piper and
-  // cached - only while the band has the piper-speech plugin installed. Clips never change for the
-  // same text and voice, so devices may cache them for good. The voices themselves are listed and
-  // downloaded on request (voiceCatalog.ts), so the band picks one in the plugin's settings.
-  const speechReady = (reply: FastifyReply) => {
-    if (registry.get(PIPER_SPEECH_PLUGIN_ID)) return true
-    void reply.status(404).send({ status: 'error', ...serverMessage('speech.pluginMissing') })
-    return false
-  }
-  app.get('/speech', async (request, reply) => {
-    const query = request.query as { text?: unknown; voice?: unknown; speed?: unknown }
-    const text = PiperSpeech.normalise(String(query.text ?? ''))
-    if (!text) return reply.status(400).send({ status: 'error', ...serverMessage('speech.textMissing') })
-    const voice = query.voice === undefined || query.voice === '' ? undefined : SpeechVoiceKeySchema.safeParse(query.voice)
-    if (voice && !voice.success) return reply.status(400).send({ status: 'error', ...serverMessage('speech.invalidVoice') })
-    const speed = query.speed === undefined || query.speed === '' ? undefined : SpeechSpeedSchema.safeParse(Number(query.speed))
-    if (speed && !speed.success) return reply.status(400).send({ status: 'error', ...serverMessage('speech.invalidSpeed') })
-    if (!speechReady(reply)) return reply
-    const result = await serverSpeech.speak(text, voice?.data, speed?.data)
-    if (!result.ok) {
-      app.log.error({ text, voice: voice?.data, reason: result.reason, message: result.message }, 'Speech clip failed')
-      return reply.status(result.reason === 'unavailable' ? 503 : 500).send({ status: 'error', message: result.message, messageCode: result.messageCode, messageParams: result.messageParams })
-    }
-    if (result.generated) app.log.info({ text, voice: voice?.data, bytes: result.wav.length }, 'Speech clip generated')
-    return reply.header('Content-Type', 'audio/wav').header('Cache-Control', 'public, max-age=31536000, immutable').send(result.wav)
-  })
-  app.get('/speech/voices', async (_request, reply) => {
-    if (!speechReady(reply)) return reply
-    return serverVoices.list(serverSpeech.piperInstalled())
-  })
-  app.get('/speech/voices/:key/license', async (request, reply) => {
-    const key = SpeechVoiceKeySchema.safeParse((request.params as { key: string }).key)
-    if (!key.success) return reply.status(400).send({ status: 'error', ...serverMessage('speech.invalidVoice') })
-    if (!speechReady(reply)) return reply
-    return serverVoices.license(key.data)
-  })
-  app.post('/speech/voices/:key/install', async (request, reply) => {
-    const key = SpeechVoiceKeySchema.safeParse((request.params as { key: string }).key)
-    if (!key.success) return reply.status(400).send({ status: 'error', ...serverMessage('speech.invalidVoice') })
-    if (!speechReady(reply)) return reply
-    const started = await serverVoices.install(key.data)
-    if (!started) return reply.status(409).send({ status: 'error', ...serverMessage('speech.downloadBusy') })
-    app.log.info({ voice: key.data }, 'Speech voice download started')
-    return { status: 'ok' }
-  })
-
   // Owns which single workspace's hardware (plugin sync, Discovery Mode's MIDI watcher) this
   // box currently serves - lives here, not in main(), so the activate-hardware route below can
   // reach the same instance main() activates at boot. deactivate() on close covers both a real
@@ -692,6 +646,18 @@ export async function buildApp(options: { backupService?: BackupService; databas
       isBandDevice,
       bands,
       channels,
+      // Spoken announcements (#63): the routes are sync-host's; the engine - Piper and its voice files - is this machine's.
+      speech: {
+        pluginInstalled: () => registry.get(PIPER_SPEECH_PLUGIN_ID) !== undefined,
+        normalise: PiperSpeech.normalise,
+        speak: (text, voice, speed) => serverSpeech.speak(text, voice, speed),
+        voices: {
+          list: () => serverVoices.list(serverSpeech.piperInstalled()),
+          license: (key) => serverVoices.license(key),
+          install: (key) => serverVoices.install(key),
+        },
+        log: { info: (meta, message) => app.log.info(meta, message), error: (meta, message) => app.log.error(meta, message) },
+      },
       capabilities: () => hostCapabilities(runners),
       log: (message, meta) => app.log.info(meta, message),
     }),
