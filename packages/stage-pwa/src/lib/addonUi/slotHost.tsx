@@ -28,6 +28,10 @@ export interface AddonSlotProps {
   /** Methods the view script calls (answered by the work script on some capable device). Absent: every request is refused. */
   onRequest?: RequestHandler
   onHealth?: (health: SlotHealth) => void
+  /** The containing surface is already a dialog: draw the tree without the add-on's own dialog node (no popup on popup). */
+  inline?: boolean
+  /** When the add-on asks to close: leave it, so the caller can go back instead of closing the whole surface. */
+  onLeave?: () => void
   createWorker?: ViewWorkerFactory
   now?: () => number
 }
@@ -37,11 +41,20 @@ export interface AddonSlotProps {
  * data - and answers with UI descriptions. Every description is validated; a bad one is refused with its code and the previous tree stays. The person's
  * taps leave as `ui-action`; values that follow a job or a device are `{bind}`s the app resolves itself, so a progress bar never asks the add-on.
  */
-export function AddonSlot({ slot, addon, context, language, sources, onRequest, onHealth, createWorker = browserWorker as unknown as ViewWorkerFactory, now = Date.now }: AddonSlotProps) {
+export function AddonSlot({ slot, addon, context, language, sources, onRequest, onHealth, inline = false, onLeave, createWorker = browserWorker as unknown as ViewWorkerFactory, now = Date.now }: AddonSlotProps) {
   const [tree, setTree] = useState<UiNode | null>(null)
   const worker = useRef<ViewWorkerLike | null>(null)
-  const latest = useRef({ onRequest, onHealth, now, imageOrigins: addon.imageOrigins ?? [], context })
-  latest.current = { onRequest, onHealth, now, imageOrigins: addon.imageOrigins ?? [], context }
+  const latest = useRef({ onRequest, onHealth, onLeave, now, imageOrigins: addon.imageOrigins ?? [], context })
+  latest.current = { onRequest, onHealth, onLeave, now, imageOrigins: addon.imageOrigins ?? [], context }
+
+  // A bound job's document is news for the view script too: when it ends, the dialog must be able to say so instead of "loading" for ever.
+  // Bound values are drawn by the app; this `update` is the same change as a message (docs/36 §4 `subscribe`/`update`).
+  const knownJobs = useRef<Record<string, Record<string, unknown>>>({})
+  useEffect(() => {
+    const changed = Object.entries(sources.jobs).filter(([id, job]) => JSON.stringify(knownJobs.current[id]) !== JSON.stringify(job))
+    knownJobs.current = sources.jobs
+    if (changed.length > 0) worker.current?.postMessage({ kind: 'update', topic: 'jobs', body: Object.fromEntries(changed) })
+  }, [sources.jobs])
 
   useEffect(() => {
     const w = createWorker(addon.code, `addon-view:${addon.id}`)
@@ -61,7 +74,8 @@ export function AddonSlot({ slot, addon, context, language, sources, onRequest, 
         sets.push(at)
         const result = validateUiTree(envelope.tree, { imageOrigins: latest.current.imageOrigins })
         if (!result.ok) return health(result.code, `${result.code} at ${result.path || 'the root'}`)
-        setTree(result.tree)
+        // Inline: a dialog node becomes its children - the add-on describes the same UI either way.
+        setTree(inline && result.tree.type === 'dialog' ? ({ type: 'stack', children: result.tree.children ?? [] } as UiNode) : result.tree)
       } else if (envelope.kind === 'request') {
         const handler = latest.current.onRequest
         const id = envelope.id
@@ -81,5 +95,14 @@ export function AddonSlot({ slot, addon, context, language, sources, onRequest, 
   }, [addon.id, addon.code, slot]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!tree) return null
-  return <UiTree tree={tree} sources={sources} onAction={(action, value) => worker.current?.postMessage({ kind: 'ui-action', slot, action, ...(value !== undefined ? { value } : {}) })} />
+  return (
+    <UiTree
+      tree={tree}
+      sources={sources}
+      onAction={(action, value) => {
+        if (action === 'close') latest.current.onLeave?.()
+        worker.current?.postMessage({ kind: 'ui-action', slot, action, ...(value !== undefined ? { value } : {}) })
+      }}
+    />
+  )
 }

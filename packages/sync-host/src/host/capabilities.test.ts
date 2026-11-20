@@ -75,6 +75,15 @@ describe('what an add-on needs from the device that hosts it (#962)', () => {
   })
 })
 
+describe('jobOfRequest - which capability a route needs (#964)', () => {
+  it('fills the add-on id of a method route into plugin:<id> - the literal pattern must never reach the host choice', () => {
+    expect(jobOfRequest('POST', '/addons/youtube-download/methods/search')).toBe('plugin:youtube-download')
+    expect(jobOfRequest('POST', '/plugins/stem-separation/trigger')).toBe('plugin:stem-separation')
+    expect(jobOfRequest('GET', '/speech/voices')).toBe('speech')
+    expect(jobOfRequest('POST', '/addons/no%20such/methods/search')).toBe('plugin:no such')
+  })
+})
+
 describe('what a device can do, as a yes/no for the job queue (#964)', () => {
   it('says yes only for what the device lists as available - jobs and plugins', () => {
     const can = canDoFromCapabilities({ ...tablet, jobs: [{ id: 'lookup', available: true, needs: null }, { id: 'speech', available: false, needs: 'piper' }], plugins: [{ id: 'stem-separation', available: true, needs: null }] })

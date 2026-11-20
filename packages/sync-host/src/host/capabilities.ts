@@ -11,7 +11,7 @@ export interface JobRoute {
   method: 'GET' | 'POST'
   /** Fastify-style. */
   pattern: string
-  /** The job's id in `HostCapabilities.jobs`, or - for a plugin - `plugin:<id>` (a `:name` in the pattern fills it in). */
+  /** The job's id in `HostCapabilities.jobs`, or - for a plugin - `plugin:<id>` (the named placeholder in the pattern fills it in). */
   job: string
 }
 
@@ -68,9 +68,12 @@ export function jobOfRequest(method: string, path: string): string | null {
     if (route.method !== method.toUpperCase()) continue
     const params = matches(route.pattern, clean)
     if (!params) continue
-    if (route.job === 'plugin:name') {
+    // Every `plugin:<placeholder>` route fills the id from the path - `/plugins/:name/trigger` and `/addons/:id/methods/:method` alike.
+    // Returning the pattern itself would make the app look for a host that can do the literal "plugin:id" (seen on the Fire, 2026-11-20).
+    const pluginParam = /^plugin:(\w+)$/.exec(route.job)?.[1]
+    if (pluginParam) {
       try {
-        return `plugin:${decodeURIComponent(params.name ?? '')}`
+        return `plugin:${decodeURIComponent(params[pluginParam] ?? '')}`
       } catch {
         return null
       }

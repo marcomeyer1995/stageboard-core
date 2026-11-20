@@ -1,5 +1,5 @@
 import i18n from '../i18n'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { CAPABILITIES, StemRoleSchema, type AsyncJob, type StemModel, type StemRole, type TrackKind, type TrackMeta } from 'shared-types'
 import { measureAudioDurationMs } from '../lib/measureAudioDuration'
 import { randomId } from '../lib/id'
@@ -61,6 +61,7 @@ export function TrackManagerField({ variantId, tracks, disabled, searchQuery = '
   const { t } = useTranslation('editor')
   const [busyTrackId, setBusyTrackId] = useState<string | null>(null)
   const [uploadKind, setUploadKind] = useState<TrackKind>('band-mix')
+  const fileInput = useRef<HTMLInputElement>(null)
   // Only this variant's jobs, oldest first - so a stray leftover from another song's editing
   // session never shows here, and multiple queued extractions (rare, but possible) list in the
   // order they were started.
@@ -304,15 +305,11 @@ export function TrackManagerField({ variantId, tracks, disabled, searchQuery = '
                 ))}
               </select>
             </label>
-            {/* A file input behind a button-sized label - the input itself can't be styled. */}
-            <label
-              className={`inline-flex min-h-form cursor-pointer items-center justify-center rounded-control bg-control-strong px-4 text-base text-ink [@media(hover:hover)]:hover:bg-control-strong-hover ${
-                busyTrackId !== null ? 'pointer-events-none opacity-40' : ''
-              }`}
-            >
+            {/* The file picker is a Button like every other way to add a track - same component, so the same height in every tier; the input itself can't be styled. */}
+            <Button fullWidth disabled={busyTrackId !== null} onClick={() => fileInput.current?.click()}>
               {uploadKind === 'stem' ? t('tm.chooseFiles') : t('tm.chooseFile')}
-              <input type="file" accept="audio/*" multiple={uploadKind === 'stem'} className="hidden" disabled={busyTrackId !== null} onChange={handleFiles} />
-            </label>
+            </Button>
+            <input ref={fileInput} type="file" accept="audio/*" multiple={uploadKind === 'stem'} className="hidden" disabled={busyTrackId !== null} onChange={handleFiles} />
             {uploadKind === 'stem' && (
               <span className="text-sm text-ink-faint">{t('tm.multi')}</span>
             )}

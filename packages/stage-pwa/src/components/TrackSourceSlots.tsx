@@ -71,21 +71,26 @@ export function TrackSourceSlots({ variantId, query, createWorker }: { variantId
   return (
     <>
       {entries.map(({ addon, entry }) => (
-        <Button key={`${addon.id}:${entry.id}`} variant="secondary" onClick={() => setOpen({ addon })}>
+        <Button key={`${addon.id}:${entry.id}`} variant="secondary" fullWidth onClick={() => setOpen({ addon })}>
           {entry.title}
         </Button>
       ))}
       {open && (
-        <AddonSlot
-          key={open.addon.id}
-          slot={SLOT}
-          addon={{ id: open.addon.id, code: open.addon.viewScript, permissions: open.addon.permissions, imageOrigins: open.addon.imageOrigins }}
-          context={{ variantId, query }}
-          language={i18n.language}
-          sources={sources}
-          onRequest={handler(open.addon)}
-          {...(createWorker ? { createWorker } : {})}
-        />
+        <div className="flex flex-col gap-2 border-t border-line pt-3">
+          <Button variant="quiet" icon="back" onClick={() => setOpen(null)}>{i18n.t('common:actions.back')}</Button>
+          <AddonSlot
+            key={open.addon.id}
+            slot={SLOT}
+            inline
+            onLeave={() => setOpen(null)}
+            addon={{ id: open.addon.id, code: open.addon.viewScript, permissions: open.addon.permissions, imageOrigins: open.addon.imageOrigins }}
+            context={{ variantId, query }}
+            language={i18n.language}
+            sources={sources}
+            onRequest={handler(open.addon)}
+            {...(createWorker ? { createWorker } : {})}
+          />
+        </div>
       )}
     </>
   )

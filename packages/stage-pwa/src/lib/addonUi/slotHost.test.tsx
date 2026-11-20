@@ -89,14 +89,15 @@ describe('AddonSlot - the view script in a Worker of its own, its UI drawn by th
     expect(screen.queryByText('Not mine')).toBeNull()
   })
 
-  it('a bound progress follows the job source with no message to the worker', () => {
+  it('a bound progress follows the job source; the changed job is told to the view script so its text can finish too', () => {
     const { worker, sent, rerender } = mount()
     worker.say(setTree({ type: 'progress', value: { bind: 'job:abc.progress' } }))
     expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '10')
     const before = sent.length
-    rerender(<AddonSlot slot="song-editor.track-source" addon={addon} context={{ variantId: 'v1' }} language="de" sources={{ ...sources, jobs: { abc: { progress: 0.7 } } }} createWorker={() => worker} />)
+    rerender(<AddonSlot slot="song-editor.track-source" addon={addon} context={{ variantId: 'v1' }} language="de" sources={{ ...sources, jobs: { abc: { progress: 0.7, status: 'done' } } }} createWorker={() => worker} />)
     expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '70')
-    expect(sent.length).toBe(before)
+    // ONE update about the job, not per frame - the add-on does not get a message for every bound value.
+    expect(sent.slice(before)).toEqual([{ kind: 'update', topic: 'jobs', body: { abc: { progress: 0.7, status: 'done' } } }])
   })
 
   it('a request from the view script goes to the app and the answer comes back as a response; a failing app says so', async () => {
@@ -117,5 +118,14 @@ describe('AddonSlot - the view script in a Worker of its own, its UI drawn by th
     expect(screen.getByText('Still here')).toBeInTheDocument()
     unmount()
     expect(worker.terminated).toBe(true)
+  })
+})
+
+describe('AddonSlot inline (#964, one dialog not two)', () => {
+  it('a dialog node from the add-on becomes its children when the caller is already a dialog - no nested dialog', () => {
+    const { worker } = mount({ inline: true })
+    worker.say({ kind: 'ui-set', slot: 'song-editor.track-source', tree: { type: 'dialog', size: 'M', title: 'Von YouTube laden', children: [{ type: 'text', role: 'title', text: 'Im ersten Dialog' }] } })
+    expect(screen.getByText('Im ersten Dialog')).toBeInTheDocument()
+    expect(screen.queryAllByRole('dialog')).toHaveLength(0)
   })
 })
