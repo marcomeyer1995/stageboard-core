@@ -1134,6 +1134,8 @@ async function main() {
     user: process.env.STAGEBOARD_DB_USER ?? 'admin',
     password: process.env.STAGEBOARD_DB_PASSWORD ?? 'admin',
     port: Number(process.env.STAGEBOARD_DB_PORT ?? 5984),
+    // For measuring only (tools/soak): another storage setup, e.g. '{"auto_compaction":false,"revs_limit":50}'.
+    ...(process.env.STAGEBOARD_DB_STORAGE ? { storage: JSON.parse(process.env.STAGEBOARD_DB_STORAGE) } : {}),
   })
   process.env.STAGEBOARD_DB_URL = builtinDb.url
   const { app, lookupRegistry, workspaceHardware, pluginLog, database, backups, hostLease, replication, audioMirror, catchUp, channels } = await buildApp()

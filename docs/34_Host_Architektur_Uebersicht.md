@@ -114,7 +114,7 @@ flowchart TD
 
 - Every band is a PouchDB database `stageboard-<id>`; devices replicate with the host over the CouchDB protocol that `sync-host` implements. No CouchDB anywhere (#960).
 - Logins and PINs are documents *of the band* (`account:*`, `anchor:*`), written only by `_admin` or a device the band lists as a host. A host can therefore be replaced without losing accounts.
-- Revision history is bounded (`revs_limit: 50`, auto-compaction) on host and device after the first soak run showed an unbounded history slowing the host down (docs/25).
+- Revision history is **not** bounded: `revs_limit` + auto-compaction was tried and crashes the process under replication (docs/25, correction of 2026-11-20). A document written thousands of times (the soak's show state) slows its own writes; the real app does not write like that. Open: a safe way to shorten very long revision trees.
 - The first band on a host is free; further bands need an admin login of a band on that host (or the laptop's own loopback). A deleted band is copied first and never founded again.
 
 ## 6. What is not built, and where the gaps are

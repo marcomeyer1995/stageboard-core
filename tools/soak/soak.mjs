@@ -36,6 +36,11 @@ const sampleSeconds = Number(arg('sample', '30'))
 const out = arg('out', '/tmp/soak')
 const band = arg('band', `soak${Date.now().toString(36)}`)
 const songs = 150
+// `--speed 8` runs the device loops eight times as fast: a 4 h soak's writes in half an hour (finding what grows).
+const speed = Number(arg('speed', '1'))
+// How often the master writes the show state: the app writes it on actions (play, next, claim), a few per minute at most. The first
+// soaks wrote it 4 times a second (57,000 revisions of one document in 4 h) - far beyond a gig, and what made them slow down.
+const showStateHz = Number(arg('show-state-hz', '0.25'))
 
 mkdirSync(out, { recursive: true })
 const started = Date.now()
@@ -119,10 +124,10 @@ async function writer(device) {
       return device.local.put({ _id: id, ...(existing ? { _rev: existing._rev } : {}), title: `Song ${id}`, by: device.i, n: (existing?.n ?? 0) + 1, notes: 'x'.repeat(1_800 + Math.floor(Math.random() * 400)) })
     })
     if (result) device.writes += 1
-    await sleep(120 + Math.random() * 160)
+    await sleep((120 + Math.random() * 160) / speed)
   }
 }
-/** Show state at 4 Hz from one device - what a playing band sends. */
+/** Show state from one device at `--show-state-hz` (default one write per 4 s - already more than a band does). */
 async function showState(device) {
   let n = 0
   while (!stop()) {
@@ -130,7 +135,7 @@ async function showState(device) {
       const existing = await device.local.get('show-state').catch(() => null)
       return device.local.put({ _id: 'show-state', ...(existing ? { _rev: existing._rev } : {}), playbackStatus: 'playing', tick: ++n })
     })
-    await sleep(250)
+    await sleep(1000 / showStateHz / speed)
   }
 }
 /** Reads through the proxy as a device does (the changes feed is held by the live sync). */
@@ -141,7 +146,7 @@ async function reader() {
       if (response.status !== 200 && response.status !== 404) throw new Error(`HTTP ${response.status}`)
       await response.arrayBuffer()
     })
-    await sleep(100)
+    await sleep(100 / speed)
   }
 }
 /** `/time` is what the whole band's clock sync leans on: the answer time that matters most. */
@@ -152,7 +157,7 @@ async function clock() {
       if (!response.ok) throw new Error(`HTTP ${response.status}`)
       await response.arrayBuffer()
     })
-    await sleep(500)
+    await sleep(500 / speed)
   }
 }
 /** Joining and PIN checks cost PBKDF2 on the server: bursts of them must not stall the rest. */
@@ -168,7 +173,7 @@ async function accounts() {
       const checked = await json(`/workspaces/${band}/verify-admin-pin`, { method: 'POST', body: JSON.stringify({ profileId: 'f1', pin: code.slice(-4) }) })
       if (checked.status !== 200 && checked.status !== 403) throw new Error(`HTTP ${checked.status}`)
     })
-    await sleep(2_000)
+    await sleep(2_000 / speed)
   }
 }
 /** A 3 MB track every minute: big bodies are what exhausts memory on a small host. */

@@ -55,8 +55,9 @@ export function remoteDbUrl(workspaceId: string, base: string | undefined = getH
   return `${base.replace(/\/$/, '')}/db/${localDbName(workspaceId)}`
 }
 
-/** A device's copy keeps a bounded revision history like the host's (#962, soak): hours of writes must not slow it down. */
-export const LOCAL_DB_OPTIONS = { auto_compaction: true, revs_limit: 50 } as const
+/** PouchDB's defaults. A bounded history (revs_limit + auto_compaction) was tried for the soak and reverted: it makes PouchDB throw
+ * 'Unable to resolve latest revision' from a callback under replication (docs/25, #962). Kept as one place to set options. */
+export const LOCAL_DB_OPTIONS = {} as const
 
 let currentWorkspaceId: string | null = null
 let db: PouchDB.Database<Record<string, unknown>> = new PouchDB(localDbName('default'), LOCAL_DB_OPTIONS)

@@ -68,17 +68,14 @@ async function readBody(req: IncomingMessage): Promise<unknown> {
   return { data: new Uint8Array(raw), contentType: type }
 }
 
-/** How a band's database is stored: bounded revision history (see below). */
-export const DEFAULT_STORAGE_OPTIONS = { auto_compaction: true, revs_limit: 50 } as const
-
 export async function startBuiltinDatabase(options: { dataDir: string; user: string; password: string; port?: number; host?: string; storage?: { auto_compaction?: boolean; revs_limit?: number } }): Promise<BuiltinDatabase> {
   const dbDir = join(options.dataDir, 'db')
   await mkdir(dbDir, { recursive: true })
   const handler = createDatabaseHost({
-    // Revision history is bounded (#962, soak): a 4 h run of three devices writing the same 150 songs left ~1,200 revisions
-    // per document and the host's write time rose from 8 ms to over a second. Old bodies are compacted on write and only the
-    // last 50 ancestors are kept - more than enough to merge the few devices of a band.
-    storage: (name) => new PouchDB(join(dbDir, encodeURIComponent(name)), { adapter: 'leveldb', ...(options.storage ?? DEFAULT_STORAGE_OPTIONS) }),
+    // Stored with PouchDB's defaults. A bounded history (revs_limit 50 + auto_compaction) was tried for a soak run and REVERTED: under
+    // replication it makes PouchDB throw 'Unable to resolve latest revision' from inside a callback, which kills the whole process
+    // (reproduced on the host within 10 minutes at 8x speed, docs/25 #962).
+    storage: (name) => new PouchDB(join(dbDir, encodeURIComponent(name)), { adapter: 'leveldb', ...(options.storage ?? {}) }),
     catalog: fileCatalog(join(options.dataDir, 'databases.json')),
     admin: { user: options.user, password: options.password },
   })

@@ -40,23 +40,19 @@ describe('the built-in database host (no the database, docs/25)', () => {
     }
   })
 
-  it('keeps the revision history of a document bounded, so hours of writes do not slow the host down (#962, soak)', async () => {
+  it('keeps every revision - a bounded history crashes the host under replication, so none is set (#962)', async () => {
     const host = await startBuiltinDatabase({ dataDir: dir, user: 'admin', password: 'secret', port: 0 })
     const config: DatabaseConfig = { url: host.url, user: 'admin', password: 'secret' }
+    const auth = { authorization: `Basic ${Buffer.from('admin:secret').toString('base64')}`, 'content-type': 'application/json' }
     try {
       await ensureDb(config, 'stageboard-band')
       let rev: string | undefined
-      for (let i = 0; i < 160; i++) {
-        const response = await fetch(`${host.url}/stageboard-band/song:1`, {
-          method: 'PUT',
-          headers: { 'content-type': 'application/json', authorization: `Basic ${Buffer.from('admin:secret').toString('base64')}` },
-          body: JSON.stringify({ _id: 'song:1', ...(rev ? { _rev: rev } : {}), title: `take ${i}` }),
-        })
+      for (let i = 0; i < 60; i++) {
+        const response = await fetch(`${host.url}/stageboard-band/song:1`, { method: 'PUT', headers: auth, body: JSON.stringify({ _id: 'song:1', ...(rev ? { _rev: rev } : {}), title: `take ${i}` }) })
         rev = ((await response.json()) as { rev: string }).rev
       }
-      const doc = (await (await fetch(`${host.url}/stageboard-band/song:1?revs=true`, { headers: { authorization: `Basic ${Buffer.from('admin:secret').toString('base64')}` } })).json()) as { _revisions: { ids: string[] } }
-      // A band's documents are edited by a few devices; ancestry beyond a short window is never needed to merge them.
-      expect(doc._revisions.ids.length).toBeLessThanOrEqual(50)
+      const doc = (await (await fetch(`${host.url}/stageboard-band/song:1?revs=true`, { headers: auth })).json()) as { _revisions: { ids: string[] } }
+      expect(doc._revisions.ids.length).toBe(60)
     } finally {
       await host.close()
     }
