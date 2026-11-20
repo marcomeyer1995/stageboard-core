@@ -29,7 +29,7 @@ A standalone offline mode where musicians prepare setlists, edit songs, and prac
 * **Seamless Merging:** Everything done in the sandbox is saved to the local PouchDB instance. When connected to the Host, PouchDB quietly syncs all offline edits back to the host's database, instantly propagating updates to the rest of the band.
 
 ### Stage Mesh
-The full live experience relies on a Host (a dedicated Linux box, or the laptop or tablet that is the band host - docs/25) running Fastify and the built-in database host. This central unit handles low-latency event routing, central database synchronization, and multi-device coordination.
+The full live experience relies on a Host - a **role** that a dedicated Linux box, a laptop or a tablet can take (docs/25, docs/34). The laptop and the box run Fastify as the transport of the built-in database host (`sync-host`); a tablet runs the same `sync-host` inside the app. What a host can do besides syncing (backup, stems, speech, ...) depends only on the device (`GET /host/capabilities`). This central unit handles low-latency event routing, central database synchronization, and multi-device coordination.
 
 ## 2. Onboarding & Network Discovery
 
