@@ -2,12 +2,12 @@ import { randomUUID } from 'node:crypto'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { extname, join } from 'node:path'
-import { AsyncJobSchema, messageFieldsOf, ServerMessageError, type AsyncJob, type OpusConvertJob, type StemRole, type StemSeparationJob, type TrackMeta, type YoutubeExtractJob } from 'shared-types'
+import { AsyncJobSchema, messageFieldsOf, ServerMessageError, type AsyncJob, type OpusConvertJob, type StemSeparationJob, type TrackMeta, type YoutubeExtractJob } from 'shared-types'
 import { allDocs, getDoc, putDocWithRetry, waitForChange, type DatabaseConfig, type DatabaseDoc } from './database.js'
 import { workspaceDbName } from './workspaceProvisioning.js'
 import { runYtDlpExtract } from './ytDlp.js'
 import { deleteAudioFile, isSafeAudioId, readAudioFile, writeAudioFile } from './audioStore.js'
-import { hostRunner, pickNextClaimable, runYoutubeExtract, stillMine, stuckJobsOfHost } from 'sync-host'
+import { hostRunner, pickNextClaimable, runStemSeparation as runStemSeparationRecipe, runYoutubeExtract, stillMine, stuckJobsOfHost } from 'sync-host'
 import { readInstallations } from './plugins/pluginSync.js'
 import { STEM_SEPARATION_PLUGIN_ID } from './plugins/stemSeparationPlugin.js'
 import { bandHasAddon, YOUTUBE_DOWNLOAD_PLUGIN_ID } from './plugins/importAddons.js'
@@ -21,30 +21,6 @@ const SONG_VARIANT_PREFIX = 'song-variants:'
  * a second, and every one of those as its own the database PUT would be a needless write storm for
  * a number only the job's own creator is watching. */
 const PROGRESS_WRITE_INTERVAL_MS = 1_500
-
-/** What a stem is called in the song editor - renamable there ("Gitarre Marco"). */
-const STEM_LABELS: Record<string, string> = {
-  drums: 'Schlagzeug',
-  bass: 'Bass',
-  vocals: 'Gesang',
-  other: 'Rest',
-  guitar: 'Gitarre',
-  'guitar-left': 'Gitarre links',
-  'guitar-right': 'Gitarre rechts',
-  piano: 'Keys/Piano',
-}
-
-/** The role each Demucs stem gets (docs/22 §2). */
-const STEM_ROLES: Record<string, StemRole> = {
-  drums: 'drums',
-  bass: 'bass',
-  vocals: 'vocals',
-  other: 'other',
-  guitar: 'guitar',
-  'guitar-left': 'guitar',
-  'guitar-right': 'guitar',
-  piano: 'keys',
-}
 
 export interface AsyncJobWatcherOptions {
   database: DatabaseConfig
@@ -210,66 +186,42 @@ export function createAsyncJobWatcher(options: AsyncJobWatcherOptions): AsyncJob
   }
 
   /**
-   * Stem separation (#9): the source track's audio through Demucs on this machine
-   * (stems/stemSeparation.ts), each stem stored like an uploaded track and attached as
-   * `kind: 'stem'` with `parentTrackId` - replacing the stems of an earlier separation of that
-   * track. Only while the band has the stem-separation plugin installed (Marco, 2026-10-15).
+   * Stem separation (#9): the recipe is sync-host's (`runStemSeparation` - the checks, the stems as `kind: 'stem'` tracks replacing the
+   * earlier ones, the clean-up, the errors), run here with this host's ports: the band's documents over the database client, the audio
+   * store on disk, and Demucs (stems/stemSeparation.ts) on a temp copy of the source for the separation.
    */
   async function processStemJob(job: StemSeparationJob): Promise<void> {
     currentJobId = job.id
-    log.info('Starting stem separation', { jobId: job.id, variantId: job.variantId, sourceTrackId: job.sourceTrackId, model: job.model, splitGuitar: job.splitGuitar })
-    let workDir: string | null = null
-    const written: string[] = []
-    const progress = progressWriter(job.id)
     try {
-      if (!isSafeAudioId(job.variantId) || !isSafeAudioId(job.sourceTrackId)) throw new ServerMessageError('job.invalidIds')
-      if (!(await stemPluginInstalled())) throw new ServerMessageError('job.stemPluginMissing')
-      await patchJob(job.id, { status: 'running', progress: 0 })
-      const variant = await getDoc<Record<string, unknown> & DatabaseDoc>(database, workspaceDb, `${SONG_VARIANT_PREFIX}${job.variantId}`)
-      if (!variant) throw new ServerMessageError('job.variantGone')
-      const source = ((Array.isArray(variant.tracks) ? variant.tracks : []) as Record<string, unknown>[]).find((t) => t.id === job.sourceTrackId)
-      if (!source) throw new ServerMessageError('job.trackGone')
-      const audio = await readAudioFile(job.variantId, job.sourceTrackId)
-      if (!audio) throw new ServerMessageError('job.audioMissing')
-
-      workDir = await mkdtemp(join(tmpdir(), 'stageboard-stems-'))
-      const input = join(workDir, 'input')
-      await writeFile(input, audio)
-      const files = await runStemSeparation(input, workDir, { model: job.model, splitGuitar: job.splitGuitar }, (p) => progress.report(p))
-      await progress.settled()
-
-      const stems: TrackMeta[] = []
-      for (const file of files) {
-        const buffer = await readFile(file.path)
-        const id = randomUUID()
-        await writeAudioFile(job.variantId, id, buffer)
-        written.push(id)
-        stems.push({
-          id,
-          kind: 'stem',
-          label: STEM_LABELS[file.key] ?? file.key,
-          source: 'stem-separation',
-          parentTrackId: job.sourceTrackId,
-          ...(STEM_ROLES[file.key] ? { role: STEM_ROLES[file.key] } : {}),
-          // Ogg Opus, the track format (stem_separate.py); WebM from a script before 2026-11-10.
-          mimeType: file.path.endsWith('.opus') ? 'audio/ogg' : 'audio/webm',
-          addedAt: Date.now(),
-          sizeBytes: buffer.length,
-          ...(typeof source.durationMs === 'number' ? { durationMs: source.durationMs } : {}),
-        })
-      }
-      const replaced = await replaceStems(job.variantId, job.sourceTrackId, stems)
-      for (const old of replaced) await deleteAudioFile(job.variantId, old).catch(() => {})
-      await patchJob(job.id, { status: 'done', progress: 1, stemTrackIds: stems.map((s) => s.id) })
-      log.info('Stem separation finished', { jobId: job.id, stems: stems.length, replaced: replaced.length })
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
-      log.error('Stem separation failed', { jobId: job.id, error: message })
-      for (const id of written) await deleteAudioFile(job.variantId, id).catch(() => {})
-      await progress.settled()
-      await failJob(job, err)
+      await runStemSeparationRecipe(job, {
+        log,
+        patchJob: (patch) => patchJob(job.id, patch),
+        isSafeId: isSafeAudioId,
+        bandHasStemPlugin: stemPluginInstalled,
+        readVariant: (variantId) => getDoc<Record<string, unknown> & DatabaseDoc>(database, workspaceDb, `${SONG_VARIANT_PREFIX}${variantId}`),
+        readAudio: readAudioFile,
+        separate: async (audio, options, onProgress) => {
+          const workDir = await mkdtemp(join(tmpdir(), 'stageboard-stems-'))
+          const dispose = () => rm(workDir, { recursive: true, force: true })
+          try {
+            const input = join(workDir, 'input')
+            await writeFile(input, audio)
+            const files = await runStemSeparation(input, workDir, options, onProgress)
+            const stems = await Promise.all(files.map(async (file) => ({ key: file.key, data: await readFile(file.path), opus: file.path.endsWith('.opus') })))
+            return { stems, dispose }
+          } catch (err) {
+            await dispose().catch(() => {})
+            throw err
+          }
+        },
+        writeAudio: (variantId, trackId, data) => writeAudioFile(variantId, trackId, Buffer.from(data.buffer, data.byteOffset, data.byteLength)),
+        deleteAudio: deleteAudioFile,
+        replaceStems,
+        newId: randomUUID,
+        now: Date.now,
+        progressIntervalMs: PROGRESS_WRITE_INTERVAL_MS,
+      })
     } finally {
-      if (workDir) await rm(workDir, { recursive: true, force: true }).catch(() => {})
       currentJobId = null
     }
     await pickUpNext()

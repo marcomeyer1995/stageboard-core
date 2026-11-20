@@ -1,3 +1,4 @@
+import { createProgressWriter } from './progress.js'
 import { isYoutubeUrl, messageFieldsOf, ServerMessageError, webmOpusToOgg, type AsyncJob, type ServerMessageCode, type TrackMeta, type YoutubeExtractJob } from 'shared-types'
 
 /**
@@ -88,21 +89,13 @@ export async function runYoutubeExtract(job: YoutubeExtractJob, ctx: YoutubeJobC
 
   let dispose: (() => Promise<void>) | undefined
   let writtenTrackId: string | null = null
-  // Progress writes are chained and awaited before the final write, so a throttled one still in flight can never land after it and flip a
-  // finished job back to `running`.
-  let progressWrites = Promise.resolve()
+  const progress = createProgressWriter({ patch: ctx.patchJob, intervalMs: ctx.progressIntervalMs ?? 1_500, now: () => ctx.now(), onError: (err) => log.error('Failed to write job progress', { jobId: job.id, error: String(err) }) })
   try {
     await ctx.patchJob({ status: 'running', progress: 0 })
     if (!(await ctx.variantExists(job.variantId))) throw new ServerMessageError('job.variantGone')
-    let lastWriteAt = 0
-    const downloaded = await ctx.download(job.url, (progress) => {
-      const now = ctx.now()
-      if (now - lastWriteAt < (ctx.progressIntervalMs ?? 1_500)) return
-      lastWriteAt = now
-      progressWrites = progressWrites.then(() => ctx.patchJob({ status: 'running', progress }).catch((err) => log.error('Failed to write job progress', { jobId: job.id, error: String(err) })))
-    })
+    const downloaded = await ctx.download(job.url, (fraction) => progress.report(fraction))
     dispose = downloaded.dispose
-    await progressWrites
+    await progress.settled()
 
     const track = toTrackFormat(downloaded.data, downloaded.ext)
     const needsOpus = !track.remuxed
@@ -121,7 +114,7 @@ export async function runYoutubeExtract(job: YoutubeExtractJob, ctx: YoutubeJobC
     log.error('Async job failed', { jobId: job.id, error: err instanceof Error ? err.message : String(err) })
     // Audio written but never attached to the variant would be an orphan no UI can reach.
     if (writtenTrackId) await ctx.deleteAudio(job.variantId, writtenTrackId).catch(() => {})
-    await progressWrites
+    await progress.settled()
     await ctx.patchJob(errorPatch(err)).catch((patchErr) => log.error('Failed to mark async job as failed', { jobId: job.id, error: String(patchErr) }))
   } finally {
     await dispose?.().catch(() => {})
