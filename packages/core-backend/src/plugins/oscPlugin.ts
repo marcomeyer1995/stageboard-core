@@ -33,6 +33,9 @@ export function oscTargetFromConfig(doc: unknown): OscTarget | null {
 type TargetResolver = (logicalDeviceId: string | undefined) => Promise<OscTarget | null>
 let resolveTarget: TargetResolver = async () => null
 
+/** Where a device's OSC goes, or null (none set, or the lookup failed). */
+export const resolveOscTarget = (logicalDeviceId: string | undefined): Promise<OscTarget | null> => resolveTarget(logicalDeviceId).catch(() => null)
+
 export function setOscTargetResolver(resolver: TargetResolver): void {
   resolveTarget = resolver
 }

@@ -1,8 +1,10 @@
+import { createSocket, type Socket } from 'node:dgram'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { extname, join } from 'node:path'
 import { runStemSeparation } from '../stems/stemSeparation.js'
 import { runYtDlpExtract } from '../ytDlp.js'
+import { createUgPageReader } from '../plugins/ultimateGuitarPlugin.js'
 import { runPiperProgram } from '../speech/piperSpeech.js'
 
 /**
@@ -70,7 +72,42 @@ const piper: HelperRun = async (args, _onProgress, files) => {
   })
 }
 
-export const HELPERS: Record<string, HelperRun> = { 'yt-dlp': ytDlp, stems, piper }
+/**
+ * `ug-page <url>`: Ultimate Guitar's page in a real Chrome, as `{hasData, title, data}` (plugins/ultimateGuitarPlugin.ts `createUgPageReader`). One Chrome is
+ * kept for the device's lifetime. A failure the musician can act on (no Chrome, timeout, UG unreachable) comes back as `result.error` with its message code
+ * and parameters, so the words survive the trip through the sandbox.
+ */
+let ugReader: ReturnType<typeof createUgPageReader> | null = null
+const ugPage: HelperRun = async (args) => {
+  const url = args[0]
+  if (!url || !/^https:\/\/(www\.)?ultimate-guitar\.com\//.test(url)) throw new Error('The ug-page helper opens only ultimate-guitar.com')
+  ugReader ??= createUgPageReader()
+  try {
+    return { result: await ugReader.read(url), files: [] }
+  } catch (err) {
+    if (err instanceof Error && err.name === 'LookupError') {
+      const e = err as Error & { code?: string; messageCode?: string; messageParams?: Record<string, unknown> }
+      return { result: { error: { code: e.code, message: e.message, messageCode: e.messageCode, messageParams: e.messageParams } }, files: [] }
+    }
+    throw err
+  }
+}
+
+/** `udp-send <host> <port>` with the datagram as the file `packet`: one UDP packet (the OSC add-on's way to the network). One socket for the device. */
+let udpSocket: Socket | null = null
+const udpSend: HelperRun = async (args, _onProgress, files) => {
+  const packet = files.find((f) => f.name === 'packet')
+  const host = args[0]
+  const port = Number(args[1])
+  if (!packet || !host || !Number.isInteger(port) || port < 1 || port > 65535) throw new Error('The udp-send helper needs a host, a port (1-65535) and the file "packet"')
+  if (packet.bytes.length > 8192) throw new Error('The udp-send helper sends at most 8192 bytes')
+  udpSocket ??= createSocket('udp4')
+  const socket = udpSocket
+  await new Promise<void>((resolve, reject) => socket.send(packet.bytes, port, host, (err) => (err ? reject(err) : resolve())))
+  return { result: {}, files: [] }
+}
+
+export const HELPERS: Record<string, HelperRun> = { 'yt-dlp': ytDlp, stems, piper, 'ug-page': ugPage, 'udp-send': udpSend }
 
 /** The `runHelper` a sandbox gets: only what its manifest declared, and only what this device has. */
 export function helperRunnerFor(declared: readonly string[]): (helper: string, args: string[], onProgress: (f: number) => void, files: { name: string; bytes: Uint8Array }[]) => Promise<HelperOutput> {

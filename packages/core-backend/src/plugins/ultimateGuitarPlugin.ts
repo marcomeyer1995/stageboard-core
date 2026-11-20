@@ -92,20 +92,19 @@ interface UgTabPageData {
   bpm: number | null
 }
 
+/** What a UG page offered: whether the expected data was there, the page title, and `UGAPP.store.page.data` as plain JSON. */
+export interface UgPage {
+  hasData: boolean
+  title: string
+  data: unknown
+}
+
 /**
- * Real scraper, not a mock: Ultimate Guitar's search page sits behind Cloudflare's bot
- * challenge, which only a real browser executing JS gets past - a plain HTTP request (the
- * originally-planned cheerio approach) is served the challenge page, never real content.
- * Verified live against the real site while building this. Requires a Chrome/Chromium binary
- * on the Host host (see resolveChromeExecutable) - an external dependency, not an npm
- * one, the same shape as yt-dlp elsewhere in this roadmap; puppeteer-core deliberately ships
- * no bundled browser of its own.
- *
- * A private practice tool for personal, non-redistributed use - the same mitigation already
- * accepted for YouTube extraction elsewhere in this roadmap.
+ * The browser side of Ultimate Guitar (#964): one Chrome kept for the reader's lifetime, a page opened per read. It is the device's *helper*
+ * (`ug-page`, addons/helpers.ts) when the look-up runs as a sandboxed add-on, and the built-in plugin's own browser otherwise - one copy of the
+ * Chrome handling either way. It knows nothing about what UG's data means; that is the plugin's / the add-on's job.
  */
-export function createUltimateGuitarPlugin(): ILookupPlugin {
-  let context: PluginContext | undefined
+export function createUgPageReader(): { read(url: string): Promise<UgPage>; close(): Promise<void> } {
   let browserPromise: Promise<Browser> | null = null
 
   function launchBrowser(): Promise<Browser> {
@@ -164,6 +163,101 @@ export function createUltimateGuitarPlugin(): ILookupPlugin {
   }
 
   return {
+    read: (url) =>
+      withPage(async (page) => {
+        await openUgPage(page, url)
+        return page.evaluate((): UgPage => {
+          const data = (globalThis as { UGAPP?: { store?: { page?: { data?: unknown } } } }).UGAPP?.store?.page?.data
+          return { hasData: data !== undefined, title: document.title, data: data === undefined ? null : JSON.parse(JSON.stringify(data)) }
+        })
+      }),
+    async close() {
+      if (!browserPromise) return
+      const browser = await browserPromise
+      await browser.close()
+      browserPromise = null
+    },
+  }
+}
+
+/** The search page's data as the list the musician picks from: importable versions only, best-rated first. */
+export function ugSearchResults(data: unknown): LookupResult[] {
+  const results = (data as { results?: UgSearchResult[] } | null)?.results ?? []
+  // Entries with no `type` are the paid "official"/"TabPro" listings (they carry `marketing_type` instead). Among the rest, "Pro"/"Official"/"Video"
+  // have no plain wiki_tab.content at all (Pro/Official use UG's paid interactive player; Video just links offsite) - fetchDetail would only fail on
+  // them, so they're excluded upfront rather than left to surface as an error after the user picks one.
+  const NOT_IMPORTABLE_TYPES = new Set(['Pro', 'Official', 'Video'])
+  // Best-rated first (Marco): the version the community trusts most is usually the one to take.
+  return results
+    .filter((r) => typeof r.type === 'string' && r.type.length > 0 && !NOT_IMPORTABLE_TYPES.has(r.type))
+    .sort((a, b) => ratingScore(b.rating, b.votes) - ratingScore(a.rating, a.votes))
+    .map(
+      (r): LookupResult => ({
+        // The id carries the full URL (stateless between calls); it travels as one query-param value that the client already encodes once.
+        id: `${r.id}::${r.tab_url}`,
+        title: r.song_name,
+        subtitle: [r.artist_name, r.type, r.tonality_name].filter(Boolean).join(' · '),
+        sourceUrl: r.tab_url,
+        ...(typeof r.rating === 'number' ? { rating: Math.round(r.rating * 100) / 100 } : {}),
+        ...(typeof r.votes === 'number' ? { votes: r.votes } : {}),
+      }),
+    )
+}
+
+interface UgTabData {
+  tab_view?: { wiki_tab?: { content?: string }; meta?: { tonality?: string; tuning?: { name?: string; value?: string }; capo?: number }; strummings?: Array<{ bpm?: number }> }
+  tab?: { song_name?: string; artist_name?: string; tonality_name?: string }
+}
+
+/** One tab page's data as the detail the editor imports; `null` content means it has no plain tab (a paid player). */
+export function ugTabDetail(data: unknown): UgTabPageData {
+  const d = data as UgTabData | null
+  return {
+    content: d?.tab_view?.wiki_tab?.content ?? null,
+    title: d?.tab?.song_name ?? null,
+    artist: d?.tab?.artist_name ?? null,
+    key: d?.tab_view?.meta?.tonality ?? d?.tab?.tonality_name ?? null,
+    tuning: d?.tab_view?.meta?.tuning?.value ?? d?.tab_view?.meta?.tuning?.name ?? null,
+    capo: d?.tab_view?.meta?.capo ?? null,
+    bpm: d?.tab_view?.strummings?.[0]?.bpm ?? null,
+  }
+}
+
+/** The detail the routes return, from the page data (shared by the built-in plugin and the add-on's adapter). */
+export function ugDetailResult(tabUrl: string, page: UgPage, detail: UgTabPageData): Record<string, unknown> {
+  if (!page.hasData) throw missingDataError(page.title)
+  if (!detail.content) throw new LookupError('not-importable', serverMessage('ug.notImportable'))
+  return {
+    title: detail.title,
+    artist: detail.artist,
+    key: detail.key,
+    tuning: detail.tuning,
+    capo: detail.capo,
+    bpm: detail.bpm,
+    sourceUrl: tabUrl,
+    chordProContent: convertUltimateGuitarContent(detail.content),
+  }
+}
+
+export const ugSearchUrl = (query: string): string => `https://www.ultimate-guitar.com/search.php?search_type=title&value=${encodeURIComponent(query)}`
+
+/**
+ * Real scraper, not a mock: Ultimate Guitar's search page sits behind Cloudflare's bot
+ * challenge, which only a real browser executing JS gets past - a plain HTTP request (the
+ * originally-planned cheerio approach) is served the challenge page, never real content.
+ * Verified live against the real site while building this. Requires a Chrome/Chromium binary
+ * on the Host host (see resolveChromeExecutable) - an external dependency, not an npm
+ * one, the same shape as yt-dlp elsewhere in this roadmap; puppeteer-core deliberately ships
+ * no bundled browser of its own.
+ *
+ * A private practice tool for personal, non-redistributed use - the same mitigation already
+ * accepted for YouTube extraction elsewhere in this roadmap.
+ */
+export function createUltimateGuitarPlugin(): ILookupPlugin {
+  let context: PluginContext | undefined
+  const reader = createUgPageReader()
+
+  return {
     name: 'ultimate-guitar-scraper',
     version: '0.0.1',
     capabilities: [],
@@ -171,108 +265,20 @@ export function createUltimateGuitarPlugin(): ILookupPlugin {
       context = ctx
       context.log.info('ultimate-guitar-scraper plugin initialized')
     },
-    async shutdown() {
-      if (!browserPromise) return
-      const browser = await browserPromise
-      await browser.close()
-      browserPromise = null
-    },
+    shutdown: () => reader.close(),
     async search(query: string): Promise<LookupResult[]> {
       context?.log.info('ultimate-guitar-scraper search', { query })
-      return withPage(async (page) => {
-        await openUgPage(page, `https://www.ultimate-guitar.com/search.php?search_type=title&value=${encodeURIComponent(query)}`)
-        const found = await page.evaluate(() => {
-          const data = (globalThis as { UGAPP?: { store?: { page?: { data?: { results?: UgSearchResult[] } } } } }).UGAPP?.store?.page?.data
-          return { hasData: data !== undefined, results: data?.results ?? [], title: document.title }
-        })
-        // No data at all is not "no results" (UG then still sends an empty list) - it's a
-        // challenge page or a rebuilt site, and the musician should be told which.
-        if (!found.hasData) throw missingDataError(found.title)
-        const results = found.results
-
-        // Entries with no `type` are the paid "official"/"TabPro" listings (they carry
-        // `marketing_type` instead). Among the rest, "Pro"/"Official"/"Video" have no plain
-        // wiki_tab.content at all (Pro/Official use UG's paid interactive player; Video just
-        // links offsite) - fetchDetail would only fail on them, so they're excluded upfront
-        // rather than left to surface as an error after the user picks one.
-        const NOT_IMPORTABLE_TYPES = new Set(['Pro', 'Official', 'Video'])
-        // Best-rated first (Marco): the version the community trusts most is usually the one to take.
-        return results
-          .filter((r) => typeof r.type === 'string' && r.type.length > 0 && !NOT_IMPORTABLE_TYPES.has(r.type))
-          .sort((a, b) => ratingScore(b.rating, b.votes) - ratingScore(a.rating, a.votes))
-          .map(
-            (r): LookupResult => ({
-              // The plugin is stateless between calls, so fetchDetail needs the full URL
-              // encoded into the id itself rather than a server-side cache of the last search.
-              // The id travels to the client and back as a single query-param value (see
-              // lookupClient.ts), which already applies its own encodeURIComponent - encoding
-              // the URL a second time here just makes the transported string longer for no
-              // benefit, and previously tripped Fastify's path-param length limit.
-              id: `${r.id}::${r.tab_url}`,
-              title: r.song_name,
-              subtitle: [r.artist_name, r.type, r.tonality_name].filter(Boolean).join(' · '),
-              sourceUrl: r.tab_url,
-              ...(typeof r.rating === 'number' ? { rating: Math.round(r.rating * 100) / 100 } : {}),
-              ...(typeof r.votes === 'number' ? { votes: r.votes } : {}),
-            }),
-          )
-      })
+      const page = await reader.read(ugSearchUrl(query))
+      // No data at all is not "no results" (UG then still sends an empty list) - it's a challenge page or a rebuilt site, and the musician should be told which.
+      if (!page.hasData) throw missingDataError(page.title)
+      return ugSearchResults(page.data)
     },
     async fetchDetail(resultId: string): Promise<Record<string, unknown>> {
       const separatorIndex = resultId.indexOf('::')
-      if (separatorIndex === -1) {
-        throw new Error(`Malformed ultimate-guitar-scraper result id: ${resultId}`)
-      }
+      if (separatorIndex === -1) throw new Error(`Malformed ultimate-guitar-scraper result id: ${resultId}`)
       const tabUrl = resultId.slice(separatorIndex + 2)
-
-      return withPage(async (page) => {
-        await openUgPage(page, tabUrl)
-        const raw = await page.evaluate((): UgTabPageData & { hasData: boolean; pageTitle: string } => {
-          const data = (
-            globalThis as {
-              UGAPP?: {
-                store?: {
-                  page?: {
-                    data?: {
-                      tab_view?: {
-                        wiki_tab?: { content?: string }
-                        meta?: { tonality?: string; tuning?: { name?: string; value?: string }; capo?: number }
-                        strummings?: Array<{ bpm?: number }>
-                      }
-                      tab?: { song_name?: string; artist_name?: string; tonality_name?: string }
-                    }
-                  }
-                }
-              }
-            }
-          ).UGAPP?.store?.page?.data
-          return {
-            hasData: data !== undefined,
-            pageTitle: document.title,
-            content: data?.tab_view?.wiki_tab?.content ?? null,
-            title: data?.tab?.song_name ?? null,
-            artist: data?.tab?.artist_name ?? null,
-            key: data?.tab_view?.meta?.tonality ?? data?.tab?.tonality_name ?? null,
-            tuning: data?.tab_view?.meta?.tuning?.value ?? data?.tab_view?.meta?.tuning?.name ?? null,
-            capo: data?.tab_view?.meta?.capo ?? null,
-            bpm: data?.tab_view?.strummings?.[0]?.bpm ?? null,
-          }
-        })
-        if (!raw.hasData) throw missingDataError(raw.pageTitle)
-        if (!raw.content) {
-          throw new LookupError('not-importable', serverMessage('ug.notImportable'))
-        }
-        return {
-          title: raw.title,
-          artist: raw.artist,
-          key: raw.key,
-          tuning: raw.tuning,
-          capo: raw.capo,
-          bpm: raw.bpm,
-          sourceUrl: tabUrl,
-          chordProContent: convertUltimateGuitarContent(raw.content),
-        }
-      })
+      const page = await reader.read(tabUrl)
+      return ugDetailResult(tabUrl, page, ugTabDetail(page.data))
     },
   }
 }
