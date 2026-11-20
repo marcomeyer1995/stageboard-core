@@ -7,8 +7,8 @@
 | Part | What it is | Size (non-test) | Runs on |
 |---|---|---|---|
 | `shared-types` | Zod schemas and pure helpers: the vocabulary every other part shares (documents, requests, capabilities). No behaviour. | - | everywhere |
-| `sync-host` | **The host**: database protocol, band life cycle, accounts, live channels, lease/clock, capabilities (docs/34). | 34 files (non-test) | laptop (Node), tablet (inside the app) |
-| `core-backend` | Node/Fastify: the laptop's *transport* for the host plus what only Node can do (backup, stems, speech, yt-dlp, OSC, MIDI, plugins). | 75 files in `src`, `index.ts` 1332 lines | laptop, dedicated Linux box |
+| `sync-host` | **The host**: database protocol, band life cycle, accounts, live channels, lease/clock, capabilities (docs/34). | 45 files (non-test) | laptop (Node), tablet (inside the app) |
+| `core-backend` | Node/Fastify: **the Node shell** (listener, TLS, SSE, mDNS, files) plus the Node-only job code (backup, stems, speech, yt-dlp, OSC, MIDI, plugins). It has no second host implementation since #964. | about 7,600 lines non-test (was 7,834); `index.ts` 1,328 lines | laptop, dedicated Linux box |
 | `stage-pwa` | The app (React + Vite + Capacitor): UI, local database, audio, and the tablet as a host. | about 71,000 lines: `lib` 32,000 / `components` 27,000 / `widgets` 6,000 / `store` 4,700 / `host` 1,200 | browser, Android |
 | `native/engine` | C++ audio engine (click, clock map, Opus clip reader/writer), built to **WebAssembly** (`stageboard_engine.wasm`, `stageboard_opus.wasm`) and for Android. | 6 source files | inside the app |
 | Android shell | Capacitor plus 10 Java plugins and a C++ output (`native_output.cpp`, AAudio). | 14 Java files | Android |
@@ -145,7 +145,7 @@ Decisions and measurements live in docs/29 (sync), docs/30 (output, incl. native
 |---|---|---|
 | `lib` ↔ `store` cycle | 213 vs 114 imports between them | neither layer can be moved or tested alone |
 | `lib` is flat | 346 non-test files, 32,000 lines, 106 files in no topic | hard to find things, easy to couple by accident |
-| `core-backend/src/index.ts` | 1332 lines (was 1426 before tonight's extraction) | still wires many routes by hand; more can move to `JOB_ROUTES` modules like `serverSettingsRoutes.ts` |
+| `core-backend/src/index.ts` | 1,328 lines, 23 explicit routes | the job routes and the job execution (`asyncJobWatcher.ts`, 458 lines) are Node code that is declared by runners but not yet behind them (#964 step 3b) |
 | `localHost.ts` | about 640 lines in one function-heavy module | the tablet host's wiring is hard to test as a whole; `serving.ts` and `bandScan.ts` were pulled out for that reason |
 | Android native class names | `ServerTrust*`, `ServerDiscovery*` | the vocabulary of #962 stops at the JavaScript bridge |
 | Long-running host | soak runs (docs/25) | a document written thousands of times slows its own writes; a bounded revision history crashes PouchDB (tried, reverted) |

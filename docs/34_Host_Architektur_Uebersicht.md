@@ -22,8 +22,8 @@ flowchart LR
     CP[capabilities.ts<br/>JOB_ROUTES, refusalFor, unmetRequirement]
   end
 
-  subgraph laptop["core-backend (Node, Fastify) - a thin transport + what only Node can do"]
-    FA[Fastify: HTTP/2, TLS, SSE, /db proxy]
+  subgraph laptop["core-backend (Node, Fastify) - the Node shell: listener + what only Node can do (#964)"]
+    FA[Fastify: HTTP/2, TLS, SSE, static files<br/>/db answered in-process by the database host]
     LB[createLaptopBandStore<br/>over LevelDB]
     JOBS[jobs: backup, stems, speech,<br/>yt-dlp, lookup, OSC UDP, MIDI]
   end
@@ -126,7 +126,7 @@ flowchart TD
 | `LocalHostPlugin.java` knows the lease flag and `servedBands`, nothing finer | changes there need a real device | docs/25 |
 | The app does not yet choose a host for a job by itself | step 4/6 of #962 is the rule, not the routing UI | docs/25 |
 | Locked screen stops a tablet host | a band that runs on a tablet needs it awake | docs/25 §6g |
-| `core-backend/src/index.ts` (about 1400 lines) still wires many routes by hand | candidates to move into the table as jobs | cleanup list |
+| `core-backend/src/index.ts` (1,328 lines, 23 explicit routes: speech, plugins, YouTube, lookup, calibration, add-ons) | the job routes and the job execution (`asyncJobWatcher.ts`) are still Node code, not yet behind runner manifests | docs/25 #964 step 3 |
 
 ## 7. Reading order
 
@@ -135,3 +135,18 @@ flowchart TD
 3. `packages/sync-host/src/host/capabilities.ts` - which requests need a capable device.
 4. `packages/stage-pwa/src/host/localHost.ts` - how a tablet wires the same pieces.
 5. `tools/host-test/no-laptop.mjs` - the executable description of what a host must do.
+
+
+## 8. After #964: what is shared, what is a shell, what is Node-only
+
+| Thing | Where | Status |
+|---|---|---|
+| Band rules, accounts, join, the lease, replication, the audio mirror | `sync-host` | **once**, behind ports (storage, requests to other hosts) |
+| One request answered: route table, band guard (404/503/401), 501 for a stream or job a device lacks | `sync-host/hostRequest.ts` | **once**; the tablet calls it for every request |
+| Who takes a background job (needs, claim, settle, stop if lost) | `sync-host/jobQueue.ts` | **once** |
+| What a host can do (`GET /host/capabilities`) | `sync-host/jobRunners.ts`: runners with manifests | **once**; laptop and tablet register different runners |
+| The database a device syncs with | `createDatabaseHost` (laptop, in-process via `/db`), `createSyncHost` + write guard (tablet) | one database protocol, two compositions |
+| Listener, TLS, HTTP/2, SSE, static files, mDNS | `core-backend` (Fastify) / `LocalHostPlugin.java` | per platform - small shells, no band logic |
+| Execution of heavy jobs (yt-dlp, Demucs, Piper, Chrome, backup, MIDI, OSC) | `core-backend` (about 3,700 lines) | Node-only; declared by runners, **not yet** loaded as add-ons |
+
+So `core-backend` is, at the moment, **the Node shell plus Node-only job code**; it has no second host implementation any more. It is not deleted: the shell and the jobs are still in it.
