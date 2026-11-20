@@ -2,12 +2,12 @@ import { randomUUID } from 'node:crypto'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { extname, join } from 'node:path'
-import { AsyncJobSchema, isYoutubeUrl, messageFieldsOf, ServerMessageError, type ServerMessageCode, type AsyncJob, type OpusConvertJob, type StemRole, type StemSeparationJob, type TrackMeta, type YoutubeExtractJob } from 'shared-types'
+import { AsyncJobSchema, messageFieldsOf, ServerMessageError, type AsyncJob, type OpusConvertJob, type StemRole, type StemSeparationJob, type TrackMeta, type YoutubeExtractJob } from 'shared-types'
 import { allDocs, getDoc, putDocWithRetry, waitForChange, type DatabaseConfig, type DatabaseDoc } from './database.js'
 import { workspaceDbName } from './workspaceProvisioning.js'
-import { runYtDlpExtract, toTrackFormat } from './ytDlp.js'
+import { runYtDlpExtract } from './ytDlp.js'
 import { deleteAudioFile, isSafeAudioId, readAudioFile, writeAudioFile } from './audioStore.js'
-import { hostRunner, pickNextClaimable, stillMine, stuckJobsOfHost } from 'sync-host'
+import { hostRunner, pickNextClaimable, runYoutubeExtract, stillMine, stuckJobsOfHost } from 'sync-host'
 import { readInstallations } from './plugins/pluginSync.js'
 import { STEM_SEPARATION_PLUGIN_ID } from './plugins/stemSeparationPlugin.js'
 import { bandHasAddon, YOUTUBE_DOWNLOAD_PLUGIN_ID } from './plugins/importAddons.js'
@@ -44,22 +44,6 @@ const STEM_ROLES: Record<string, StemRole> = {
   'guitar-left': 'guitar',
   'guitar-right': 'guitar',
   piano: 'keys',
-}
-
-/**
- * The downloaded file as a track: Opus (YouTube's format 251, practically always) re-wrapped into
- * Ogg losslessly. Anything else is kept as downloaded and `needsOpus` - a device converts it
- * (an `opus-convert` job, #822): the host has no decoder of its own, the devices have one in
- * their browser engine and the same WASM encoder they use for uploads.
- */
-async function youtubeTrack(filePath: string, ext: string, jobId: string, log: AsyncJobWatcherOptions['log']): Promise<{ data: Buffer; mimeType: string; needsOpus: boolean }> {
-  const track = toTrackFormat(await readFile(filePath), ext)
-  if (track.remuxed) {
-    log.info('YouTube audio re-wrapped as Ogg Opus', { jobId, ext })
-    return { ...track, needsOpus: false }
-  }
-  log.info('YouTube audio is not Opus - a device converts it', { jobId, ext })
-  return { ...track, needsOpus: true }
 }
 
 export interface AsyncJobWatcherOptions {
@@ -291,84 +275,38 @@ export function createAsyncJobWatcher(options: AsyncJobWatcherOptions): AsyncJob
     await pickUpNext()
   }
 
+  /**
+   * The YouTube job: the recipe is sync-host's (`runYoutubeExtract` - the order of the steps, the checks, the clean-up, the errors), run
+   * here with this host's ports: the band's documents over the database client, the audio store on disk, and yt-dlp for the download.
+   */
   async function processYoutubeJob(job: YoutubeExtractJob): Promise<void> {
     currentJobId = job.id
-    log.info('Starting async job', { jobId: job.id, type: job.type, variantId: job.variantId })
-
-    // Both checked server-side regardless of what the client already validated - a replicated
-    // document is untrusted input. The URL guards the shell-out (shared-types' own doc comment
-    // on isYoutubeUrl); the variant id becomes a path segment under the audio store, the same
-    // check the upload route applies.
-    // Only for a band with the YouTube-Download add-on (#546) - checked here, not only in the app.
-    const rejection: ServerMessageCode | null = !(await bandHasAddon(database, workspaceId, YOUTUBE_DOWNLOAD_PLUGIN_ID).catch(() => false))
-      ? 'youtube.addonMissing'
-      : !isYoutubeUrl(job.url)
-        ? 'youtube.urlOnly'
-        : !isSafeAudioId(job.variantId)
-          ? 'job.invalidVariantId'
-          : null
-    if (rejection) {
-      log.error('Rejected async job', { jobId: job.id, reason: rejection })
-      await patchJob(job.id, errorPatch(new ServerMessageError(rejection))).catch((err) =>
-        log.error('Failed to mark async job as failed', { jobId: job.id, error: String(err) }),
-      )
-      currentJobId = null
-      await pickUpNext()
-      return
-    }
-
-    let workDir: string | null = null
-    let writtenTrackId: string | null = null
-    // Progress writes are chained and awaited before the final done/error write, so a
-    // throttled progress PUT still in flight (or retrying on a 409) can never land *after* it
-    // and flip a finished job back to `running`.
-    let progressWrites = Promise.resolve()
     try {
-      await patchJob(job.id, { status: 'running', progress: 0 })
-      if (!(await variantExists(job.variantId))) throw new ServerMessageError('job.variantGone')
-      workDir = await mkdtemp(join(tmpdir(), 'stageboard-yt-'))
-      let lastWriteAt = 0
-      const { filePath } = await runYtDlpExtract(job.url, join(workDir, 'track.%(ext)s'), (progress) => {
-        const now = Date.now()
-        if (now - lastWriteAt < PROGRESS_WRITE_INTERVAL_MS) return
-        lastWriteAt = now
-        progressWrites = progressWrites.then(() =>
-          patchJob(job.id, { status: 'running', progress }).catch((err) => log.error('Failed to write job progress', { jobId: job.id, error: String(err) })),
-        )
+      await runYoutubeExtract(job, {
+        log,
+        patchJob: (patch) => patchJob(job.id, patch),
+        bandHasAddon: () => bandHasAddon(database, workspaceId, YOUTUBE_DOWNLOAD_PLUGIN_ID),
+        isSafeVariantId: isSafeAudioId,
+        variantExists,
+        download: async (url, onProgress) => {
+          const workDir = await mkdtemp(join(tmpdir(), 'stageboard-yt-'))
+          try {
+            const { filePath } = await runYtDlpExtract(url, join(workDir, 'track.%(ext)s'), onProgress)
+            return { data: await readFile(filePath), ext: extname(filePath).replace(/^\./, ''), dispose: () => rm(workDir, { recursive: true, force: true }) }
+          } catch (err) {
+            await rm(workDir, { recursive: true, force: true }).catch(() => {})
+            throw err
+          }
+        },
+        writeAudio: (variantId, trackId, data) => writeAudioFile(variantId, trackId, Buffer.from(data.buffer, data.byteOffset, data.byteLength)),
+        deleteAudio: deleteAudioFile,
+        appendTrack,
+        queueOpusConvert,
+        newId: randomUUID,
+        now: Date.now,
+        progressIntervalMs: PROGRESS_WRITE_INTERVAL_MS,
       })
-      await progressWrites
-
-      const ext = extname(filePath).replace(/^\./, '')
-      const track = await youtubeTrack(filePath, ext, job.id, log)
-      const trackId = randomUUID()
-      await writeAudioFile(job.variantId, trackId, track.data)
-      writtenTrackId = trackId
-
-      const meta: TrackMeta = {
-        id: trackId,
-        kind: 'reference',
-        label: job.label,
-        source: 'youtube-extract',
-        parentTrackId: null,
-        mimeType: track.mimeType,
-        addedAt: Date.now(),
-        sizeBytes: track.data.length,
-      }
-      await appendTrack(job.variantId, meta)
-      if (track.needsOpus) await queueOpusConvert(job.variantId, trackId, job.label)
-      await patchJob(job.id, { status: 'done', progress: 1, trackId })
-      log.info('Async job finished', { jobId: job.id, trackId, needsOpus: track.needsOpus })
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
-      log.error('Async job failed', { jobId: job.id, error: message })
-      // Audio written but never attached to the variant would be an orphan no UI can reach.
-      if (writtenTrackId) await deleteAudioFile(job.variantId, writtenTrackId).catch(() => {})
-      await progressWrites
-      await patchJob(job.id, errorPatch(err)).catch((patchErr) =>
-        log.error('Failed to mark async job as failed', { jobId: job.id, error: String(patchErr) }),
-      )
     } finally {
-      if (workDir) await rm(workDir, { recursive: true, force: true }).catch(() => {})
       currentJobId = null
     }
     await pickUpNext()

@@ -1,0 +1,129 @@
+import { isYoutubeUrl, messageFieldsOf, ServerMessageError, webmOpusToOgg, type AsyncJob, type ServerMessageCode, type TrackMeta, type YoutubeExtractJob } from 'shared-types'
+
+/**
+ * The recipe of a YouTube background job, once (#964, step 3b): check the job, download the audio, make it a track, put the file in
+ * the band's audio store, attach the track to its song variant, report progress, clean up when it fails. Everything the recipe touches
+ * is a **port** of `YoutubeJobContext`: the band's documents and the audio store are the host's, and the one thing that is a platform's
+ * own - *how the audio is downloaded* (yt-dlp on a Node machine, the add-on's helper app on Android) - is `download`. So a Node host and
+ * a tablet run the same job with the same order of steps and the same errors; they differ only in the context they hand in.
+ */
+
+const MIME_TYPES_BY_EXT: Record<string, string> = {
+  m4a: 'audio/mp4',
+  mp4: 'audio/mp4',
+  webm: 'audio/webm',
+  opus: 'audio/opus',
+  ogg: 'audio/ogg',
+  mp3: 'audio/mpeg',
+  wav: 'audio/wav',
+}
+
+/** yt-dlp writes the extension of the file it produced; an unlisted one still gets *a* playable guess rather than failing the job. */
+export function mimeTypeForExt(ext: string): string {
+  return MIME_TYPES_BY_EXT[ext.toLowerCase()] ?? 'application/octet-stream'
+}
+
+/**
+ * The downloaded file as a track: Opus in WebM (YouTube's format 251, practically always) is re-wrapped into Ogg losslessly - every device then
+ * starts it on the same sample (docs/30 §8h). Anything else stays as downloaded: a host has no decoder to encode it anew.
+ */
+export function toTrackFormat(data: Uint8Array, ext: string): { data: Uint8Array; mimeType: string; remuxed: boolean } {
+  if (['webm', 'mkv'].includes(ext.toLowerCase())) {
+    const ogg = webmOpusToOgg(data)
+    if (ogg) return { data: ogg, mimeType: 'audio/ogg', remuxed: true }
+  }
+  return { data, mimeType: mimeTypeForExt(ext), remuxed: false }
+}
+
+/** What a job document is ever patched with: the fields every job shares, plus the result. */
+export type JobPatch = Partial<Pick<AsyncJob, 'status' | 'progress' | 'error' | 'errorCode' | 'errorParams' | 'runner'>> & { trackId?: string; stemTrackIds?: string[] }
+
+/** The `error` patch for a failure: the message, plus its code when it has one (#679). */
+export function errorPatch(err: unknown): JobPatch {
+  const { message, messageCode, messageParams } = messageFieldsOf(err)
+  return { status: 'error', error: message, ...(messageCode ? { errorCode: messageCode } : {}), ...(messageParams ? { errorParams: messageParams } : {}) }
+}
+
+export interface YoutubeJobContext {
+  log: { info: (msg: string, meta?: Record<string, unknown>) => void; error: (msg: string, meta?: Record<string, unknown>) => void }
+  /** Writes into the job's own document. */
+  patchJob(patch: JobPatch): Promise<void>
+  /** The band has the YouTube-Download add-on (#546) - checked here, not only in the app. */
+  bandHasAddon(): Promise<boolean>
+  /** A variant id becomes a path segment under the audio store: the same check the upload route applies. */
+  isSafeVariantId(id: string): boolean
+  variantExists(variantId: string): Promise<boolean>
+  /** The platform's own part: download the audio of `url`; `onProgress` gets 0-1. `dispose` removes whatever it left (a temp folder). */
+  download(url: string, onProgress: (fraction: number) => void): Promise<{ data: Uint8Array; ext: string; dispose?: () => Promise<void> }>
+  writeAudio(variantId: string, trackId: string, data: Uint8Array): Promise<void>
+  deleteAudio(variantId: string, trackId: string): Promise<void>
+  /** Appends to the variant's raw `tracks` array (never a parsed copy: a lost backing track is real data loss). */
+  appendTrack(variantId: string, meta: TrackMeta): Promise<void>
+  /** A device converts a track the host could not re-wrap to Ogg Opus (#822). */
+  queueOpusConvert(variantId: string, trackId: string, label: string): Promise<void>
+  newId(): string
+  now(): number
+  /** Progress is written at most this often (default 1.5 s): every write is a database PUT only the job's creator watches. */
+  progressIntervalMs?: number
+}
+
+/** Runs the job. Never throws: every outcome is written into the job's document - `done`, or `error` with its message and code. */
+export async function runYoutubeExtract(job: YoutubeExtractJob, ctx: YoutubeJobContext): Promise<void> {
+  const { log } = ctx
+  log.info('Starting async job', { jobId: job.id, type: job.type, variantId: job.variantId })
+
+  // A replicated document is untrusted input: the URL guards the shell-out (shared-types' `isYoutubeUrl`), the variant id the path.
+  const rejection: ServerMessageCode | null = !(await ctx.bandHasAddon().catch(() => false))
+    ? 'youtube.addonMissing'
+    : !isYoutubeUrl(job.url)
+      ? 'youtube.urlOnly'
+      : !ctx.isSafeVariantId(job.variantId)
+        ? 'job.invalidVariantId'
+        : null
+  if (rejection) {
+    log.error('Rejected async job', { jobId: job.id, reason: rejection })
+    await ctx.patchJob(errorPatch(new ServerMessageError(rejection))).catch((err) => log.error('Failed to mark async job as failed', { jobId: job.id, error: String(err) }))
+    return
+  }
+
+  let dispose: (() => Promise<void>) | undefined
+  let writtenTrackId: string | null = null
+  // Progress writes are chained and awaited before the final write, so a throttled one still in flight can never land after it and flip a
+  // finished job back to `running`.
+  let progressWrites = Promise.resolve()
+  try {
+    await ctx.patchJob({ status: 'running', progress: 0 })
+    if (!(await ctx.variantExists(job.variantId))) throw new ServerMessageError('job.variantGone')
+    let lastWriteAt = 0
+    const downloaded = await ctx.download(job.url, (progress) => {
+      const now = ctx.now()
+      if (now - lastWriteAt < (ctx.progressIntervalMs ?? 1_500)) return
+      lastWriteAt = now
+      progressWrites = progressWrites.then(() => ctx.patchJob({ status: 'running', progress }).catch((err) => log.error('Failed to write job progress', { jobId: job.id, error: String(err) })))
+    })
+    dispose = downloaded.dispose
+    await progressWrites
+
+    const track = toTrackFormat(downloaded.data, downloaded.ext)
+    const needsOpus = !track.remuxed
+    if (needsOpus) log.info('YouTube audio is not Opus - a device converts it', { jobId: job.id, ext: downloaded.ext })
+    else log.info('YouTube audio re-wrapped as Ogg Opus', { jobId: job.id, ext: downloaded.ext })
+
+    const trackId = ctx.newId()
+    await ctx.writeAudio(job.variantId, trackId, track.data)
+    writtenTrackId = trackId
+    const meta: TrackMeta = { id: trackId, kind: 'reference', label: job.label, source: 'youtube-extract', parentTrackId: null, mimeType: track.mimeType, addedAt: ctx.now(), sizeBytes: track.data.length }
+    await ctx.appendTrack(job.variantId, meta)
+    if (needsOpus) await ctx.queueOpusConvert(job.variantId, trackId, job.label)
+    await ctx.patchJob({ status: 'done', progress: 1, trackId })
+    log.info('Async job finished', { jobId: job.id, trackId, needsOpus })
+  } catch (err) {
+    log.error('Async job failed', { jobId: job.id, error: err instanceof Error ? err.message : String(err) })
+    // Audio written but never attached to the variant would be an orphan no UI can reach.
+    if (writtenTrackId) await ctx.deleteAudio(job.variantId, writtenTrackId).catch(() => {})
+    await progressWrites
+    await ctx.patchJob(errorPatch(err)).catch((patchErr) => log.error('Failed to mark async job as failed', { jobId: job.id, error: String(patchErr) }))
+  } finally {
+    await dispose?.().catch(() => {})
+  }
+}

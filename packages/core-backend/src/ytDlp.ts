@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs'
 import { spawn } from 'node:child_process'
-import { ServerMessageError, YOUTUBE_VIDEO_ID_RE, webmOpusToOgg, type YoutubeSearchResult } from 'shared-types'
+import { ServerMessageError, YOUTUBE_VIDEO_ID_RE, type YoutubeSearchResult } from 'shared-types'
 
 /** Same "find whichever binary is already on the host" pattern as ultimateGuitarPlugin.ts's
  * `resolveChromeExecutable` - yt-dlp is not bundled or auto-installed (fetching an executable
@@ -29,24 +29,8 @@ export function parseYtDlpProgress(line: string): number | null {
   return match ? Number(match[1]) / 100 : null
 }
 
-/** yt-dlp writes the extension of the file it actually produced (`m4a`, `webm`, ...) - the
- * container/codec YouTube happens to offer for the requested format, not something this code
- * picks. Unlisted extensions still get *a* browser-playable guess rather than failing the whole
- * job, since `<audio>` mostly figures it out from the bytes regardless of a slightly-off
- * declared type. */
-const MIME_TYPES_BY_EXT: Record<string, string> = {
-  m4a: 'audio/mp4',
-  mp4: 'audio/mp4',
-  webm: 'audio/webm',
-  opus: 'audio/opus',
-  ogg: 'audio/ogg',
-  mp3: 'audio/mpeg',
-  wav: 'audio/wav',
-}
-
-export function mimeTypeForExt(ext: string): string {
-  return MIME_TYPES_BY_EXT[ext.toLowerCase()] ?? 'application/octet-stream'
-}
+/** The type of a downloaded file by its extension, and re-wrapping WebM/Opus to Ogg: sync-host's (the YouTube job recipe, #964). */
+export { mimeTypeForExt, toTrackFormat } from 'sync-host'
 
 /**
  * Args for extracting just the audio of one video, without a hard ffmpeg dependency: YouTube's own
@@ -69,19 +53,6 @@ export function buildYtDlpArgs(url: string, outputTemplate: string, maxFileSizeB
     '-o', outputTemplate,
     '--', url,
   ]
-}
-
-/**
- * A downloaded file in the track format (docs/30 §8h): WebM with Opus - nearly always, see
- * `buildYtDlpArgs` - becomes Ogg Opus, packet for packet (lossless; every device then starts it on
- * the same sample). Anything else stays as downloaded: the server has no decoder to encode it anew.
- */
-export function toTrackFormat(data: Buffer, ext: string): { data: Buffer; mimeType: string; remuxed: boolean } {
-  if (['webm', 'mkv'].includes(ext.toLowerCase())) {
-    const ogg = webmOpusToOgg(new Uint8Array(data.buffer, data.byteOffset, data.byteLength))
-    if (ogg) return { data: Buffer.from(ogg.buffer, ogg.byteOffset, ogg.byteLength), mimeType: 'audio/ogg', remuxed: true }
-  }
-  return { data, mimeType: mimeTypeForExt(ext), remuxed: false }
 }
 
 /** The message shown on the job: yt-dlp's own `ERROR:` lines when there are any - its stderr
