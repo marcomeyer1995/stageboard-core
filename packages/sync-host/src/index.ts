@@ -267,6 +267,7 @@ export { createReplicationAccountIssuer, type ReplicationAccountIssuer } from '.
 export { BAND_SETTINGS_DOC_ID, listedHostIds } from './host/hostRole.js'
 export { createHostDeviceInfo, type HostDeviceInfo } from './host/deviceInfo.js'
 export { ROSTER_VALIDATOR_SOURCE } from './host/rosterValidator.js'
+export { answerHostRequest, bandOfPath, loginCheckOf, type HostRequest, type HostAnswer, type HostRequestDeps } from './host/hostRequest.js'
 export { createReplicationRunner, type ReplicationRunner, type RemoteTarget } from './host/replicationRunner.js'
 export { createAudioMirror, type AudioMirror, type MirrorStatus } from './host/audioMirror.js'
 export { hostRunner, jobNeeds, jobsNobodyCanDo, pickNextClaimable, stillMine, stuckJobsOfHost, type JobWorker } from './host/jobQueue.js'
