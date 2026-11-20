@@ -3,7 +3,7 @@ import MemoryAdapter from 'pouchdb-adapter-memory'
 import ReplicationPlugin from 'pouchdb-replication'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { BandHostEntry } from 'shared-types'
-import { leaseKey, verifyAccountRequest } from 'sync-host'
+import { leaseKey, verifyAccountRequest } from './leaseAuth.js'
 import { createReplicationRunner, type ReplicationRunner } from './replicationRunner.js'
 
 PouchDB.plugin(MemoryAdapter)

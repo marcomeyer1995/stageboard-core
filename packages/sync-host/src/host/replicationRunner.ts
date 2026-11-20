@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { BandHostsSchema, type BandHostEntry } from 'shared-types'
-import { startCatchUp as startBandReplication, type CatchUp as BandReplication, type CatchUpStatus as ReplicationStatus } from 'sync-host'
-import { leaseKey, signAccountRequest } from 'sync-host'
+import { startCatchUp as startBandReplication, type CatchUp as BandReplication, type CatchUpStatus as ReplicationStatus } from './catchUp.js'
+import { leaseKey, signAccountRequest } from './leaseAuth.js'
 
 export interface RemoteTarget {
   baseUrl: string

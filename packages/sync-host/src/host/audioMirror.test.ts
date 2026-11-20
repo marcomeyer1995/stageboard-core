@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { BandHostEntry } from 'shared-types'
-import { trackKey, type TrackRef } from 'sync-host'
+import { trackKey, type TrackRef } from './trackSync.js'
 import { createAudioMirror } from './audioMirror.js'
 
 const FP = 'a'.repeat(64)

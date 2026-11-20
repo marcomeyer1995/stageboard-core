@@ -1,5 +1,5 @@
 import { BandHostsSchema, type BandHostEntry } from 'shared-types'
-import { parseTrackKey, planTrackSync, trackKey, type TrackRef } from 'sync-host'
+import { parseTrackKey, planTrackSync, trackKey, type TrackRef } from './trackSync.js'
 
 export interface MirrorStatus {
   /** Tracks the replicated song variants list. */
