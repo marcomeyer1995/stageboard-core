@@ -17,6 +17,7 @@ import cors from '@fastify/cors'
 import { registerDatabaseRoutes } from './databaseRoutes.js'
 import { startBuiltinDatabase, type BuiltinDatabase } from './builtinDatabase.js'
 import { addonHostNeeds, hostCapabilities } from './hostCapabilities.js'
+import { builtinRunners } from './builtinRunners.js'
 import { createHostLeaseService, getFromHost, postJsonToHost } from './hostLeaseService.js'
 import { createHostRoleStore } from './hostRoleStore.js'
 import { makeLocalBandDb, makeRemoteBandDb } from './bandPouch.js'
@@ -472,6 +473,8 @@ export async function buildApp(options: { backupService?: BackupService; databas
   // box currently serves - lives here, not in main(), so the activate-hardware route below can
   // reach the same instance main() activates at boot. deactivate() on close covers both a real
   // shutdown and every test's afterEach(() => app.close()).
+  // What this host can do: its runners (#964, step 3) - capabilities and what a background job needs are derived from them.
+  const runners = builtinRunners()
   const workspaceHardware = createWorkspaceHardwareController({
     database,
     registry,
@@ -480,7 +483,8 @@ export async function buildApp(options: { backupService?: BackupService; databas
     // band lists another host that might. Looked up when asked - the host list and the capabilities can change while it runs.
     jobHost: {
       hostId,
-      canDo: (needs) => canDoFromCapabilities(hostCapabilities())(needs),
+      needsOf: (job) => runners.needsOfJob(job),
+      canDo: (needs) => canDoFromCapabilities(hostCapabilities(runners))(needs),
       hasPeers: async () => {
         const workspaceId = workspaceHardware.getActiveWorkspaceId()
         return workspaceId ? ((await readBandHosts(workspaceId))?.length ?? 0) >= 2 : false
@@ -688,7 +692,7 @@ export async function buildApp(options: { backupService?: BackupService; databas
       isBandDevice,
       bands,
       channels,
-      capabilities: () => hostCapabilities(),
+      capabilities: () => hostCapabilities(runners),
       log: (message, meta) => app.log.info(meta, message),
     }),
   )

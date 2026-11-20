@@ -68,3 +68,11 @@ describe('jobs nobody can do (#964)', () => {
     expect(jobsNobodyCanDo(jobs, [weak, laptop])).toEqual([])
   })
 })
+
+describe('a host with its own runners answers what a job needs (#964)', () => {
+  it('uses the runner\'s answer instead of the default table - a job type only an add-on knows can be taken', () => {
+    const worker = { hostId: 'laptop', needsOf: (j: { type: string }) => (j.type === 'stem-separation' ? 'plugin:stems-v2' : null), canDo: (needs: string) => needs === 'plugin:stems-v2' }
+    expect(pickNextClaimable([stem({ id: 's' }), job({ id: 'yt' })], worker)?.id).toBe('s')
+    expect(pickNextClaimable([job({ id: 'yt' })], worker)).toBeUndefined()
+  })
+})

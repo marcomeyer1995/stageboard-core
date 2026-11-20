@@ -67,6 +67,8 @@ export interface AsyncJobWatcherOptions {
   workspaceId: string
   /** This host's id: the runner it writes into a job it takes (`host:<id>`, sync-host's queue rules, #964). */
   hostId?: string
+  /** What a job needs from its host - from the host's runners (`JobRunners.needsOfJob`). Absent: sync-host's default table. */
+  needsOf?: (job: Pick<AsyncJob, 'type'>) => string | null
   /** Whether this host can do what a job needs (`GET /host/capabilities`); a job it cannot do is left queued for a host that can. Absent: everything. */
   canDo?: (needs: string) => boolean
   /** Whether the band lists another host that might take the same job. Only then does a claim wait to be confirmed. */
@@ -383,7 +385,7 @@ export function createAsyncJobWatcher(options: AsyncJobWatcherOptions): AsyncJob
     // A job this host cannot do is left for another host only when the band lists one that might; the only host takes it and ends it
     // with its own message ("no demucs"), as before - the person must not wait for nothing.
     const peers = (await options.hasPeers?.()) ?? false
-    const next = pickNextClaimable(await loadJobs(), { hostId, ...(peers && options.canDo ? { canDo: options.canDo } : {}) })
+    const next = pickNextClaimable(await loadJobs(), { hostId, ...(options.needsOf ? { needsOf: options.needsOf } : {}), ...(peers && options.canDo ? { canDo: options.canDo } : {}) })
     // Re-checked after the await: a change-feed pass and the startup pass can overlap.
     if (next && currentJobId === null) void claimAndProcess(next, peers)
   }
@@ -419,7 +421,7 @@ export function createAsyncJobWatcher(options: AsyncJobWatcherOptions): AsyncJob
    * raced with a job finishing between the `allDocs` read and the sweep, overwriting `done`
    * with `error`. */
   async function failJobsLeftRunning(): Promise<void> {
-    for (const stuck of stuckJobsOfHost(await loadJobs(), hostId, currentJobId)) {
+    for (const stuck of stuckJobsOfHost(await loadJobs(), hostId, currentJobId, options.needsOf)) {
       log.error('Async job was left running by a previous process - marking it failed', { jobId: stuck.id })
       await patchJob(stuck.id, errorPatch(new ServerMessageError('job.interrupted')))
     }
