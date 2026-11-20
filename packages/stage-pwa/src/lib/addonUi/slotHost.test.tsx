@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import { UI_LIMITS, type AddonError } from 'shared-types'
+import { EnvelopeSchema, UI_LIMITS, type AddonError } from 'shared-types'
 import { AddonSlot, type ViewWorkerLike } from './slotHost'
 
 /** A stand-in for the add-on's view script Worker: records what the host sends, lets a test play the add-on. */
@@ -97,7 +97,9 @@ describe('AddonSlot - the view script in a Worker of its own, its UI drawn by th
     rerender(<AddonSlot slot="song-editor.track-source" addon={addon} context={{ variantId: 'v1' }} language="de" sources={{ ...sources, jobs: { abc: { progress: 0.7, status: 'done' } } }} createWorker={() => worker} />)
     expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '70')
     // ONE update about the job, not per frame - the add-on does not get a message for every bound value.
-    expect(sent.slice(before)).toEqual([{ kind: 'update', topic: 'jobs', body: { abc: { progress: 0.7, status: 'done' } } }])
+    expect(sent.slice(before)).toEqual([{ kind: 'notify', topic: 'jobs', body: { abc: { progress: 0.7, status: 'done' } } }])
+    // And it is a valid envelope of the contract (it was not: `update` without an id).
+    expect(EnvelopeSchema.safeParse(sent[sent.length - 1]).success).toBe(true)
   })
 
   it('a request from the view script goes to the app and the answer comes back as a response; a failing app says so', async () => {

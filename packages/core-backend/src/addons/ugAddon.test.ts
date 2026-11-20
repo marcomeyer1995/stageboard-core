@@ -87,7 +87,18 @@ describe('the ug-page helper (#964)', () => {
   it('opens only ultimate-guitar.com - the add-on cannot make the device\'s Chrome visit anything else', async () => {
     const { helperRunnerFor } = await import('./helpers.js')
     const run = helperRunnerFor(['ug-page'])
-    for (const url of ['https://evil.example/', 'file:///etc/passwd', 'https://ultimate-guitar.com.evil.example/', 'http://www.ultimate-guitar.com/x'])
+    for (const url of ['https://evil.example/', 'file:///etc/passwd', 'https://ultimate-guitar.com.evil.example/', 'http://www.ultimate-guitar.com/x', 'https://tabs.ultimate-guitar.com.evil.example/x', 'https://evil.tabs.ultimate-guitar.com/x', 'https://www.ultimate-guitar.com@evil.example/'])
       await expect(run('ug-page', [url], () => {}, [])).rejects.toThrow('opens only ultimate-guitar.com')
+  })
+})
+
+describe('the ug-page helper accepts the pages UG really serves (#964)', () => {
+  it('the tab pages of the search results live on tabs.ultimate-guitar.com - the helper must open them (it refused them once; the stand-in Chrome of the other tests never asked)', async () => {
+    const { helperRunnerFor } = await import('./helpers.js')
+    // Not a real Chrome: whichever error comes, it must NOT be the helper's own refusal of the address.
+    for (const url of ['https://tabs.ultimate-guitar.com/tab/oasis/wonderwall-chords-39080', 'https://www.ultimate-guitar.com/search.php?search_type=title&value=x', 'https://ultimate-guitar.com/x']) {
+      const attempt = await Promise.race([helperRunnerFor(['ug-page'])('ug-page', [url], () => {}, []).then(() => 'opened', (err: Error) => err.message), new Promise((r) => setTimeout(() => r('opened'), 1_500))])
+      expect(String(attempt), url).not.toContain('opens only')
+    }
   })
 })

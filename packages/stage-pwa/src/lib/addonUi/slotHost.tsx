@@ -48,12 +48,12 @@ export function AddonSlot({ slot, addon, context, language, sources, onRequest, 
   latest.current = { onRequest, onHealth, onLeave, now, imageOrigins: addon.imageOrigins ?? [], context }
 
   // A bound job's document is news for the view script too: when it ends, the dialog must be able to say so instead of "loading" for ever.
-  // Bound values are drawn by the app; this `update` is the same change as a message (docs/36 §4 `subscribe`/`update`).
+  // Bound values are drawn by the app; this is the same change as a one-way `notify` (docs/36 §4) - the contract's own shape, so a host that validates it passes it.
   const knownJobs = useRef<Record<string, Record<string, unknown>>>({})
   useEffect(() => {
     const changed = Object.entries(sources.jobs).filter(([id, job]) => JSON.stringify(knownJobs.current[id]) !== JSON.stringify(job))
     knownJobs.current = sources.jobs
-    if (changed.length > 0) worker.current?.postMessage({ kind: 'update', topic: 'jobs', body: Object.fromEntries(changed) })
+    if (changed.length > 0) worker.current?.postMessage({ kind: 'notify', topic: 'jobs', body: Object.fromEntries(changed) })
   }, [sources.jobs])
 
   useEffect(() => {

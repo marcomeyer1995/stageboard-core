@@ -536,10 +536,18 @@ describe('Fastify routes', () => {
       expect(response.json()).toMatchObject({ messageCode: 'addon.notInstalled', messageParams: { addon: 'youtube-download' } })
     })
 
-    it('for a band that installed it, the add-on answers - an undeclared method and a bad body come back as the contract\'s errors', async () => {
+    it('a method the add-on did not offer to devices is refused with 403 - OSC send, stem separation, fetching audio - and the add-on is never asked', async () => {
+      for (const [id, method] of [['osc', 'send'], ['stem-separation', 'separate'], ['youtube-download', 'fetchAudio'], ['piper-speech', 'speak']] as const) {
+        const response = await post(`/addons/${id}/methods/${method}?workspace=band-a`, { address: '/x', host: '10.0.0.9', port: 7000 })
+        expect(response.statusCode, `${id}.${method}`).toBe(403)
+        expect(response.json()).toMatchObject({ ok: false, error: { code: 'method.not-callable' } })
+      }
+    })
+
+    it('for a band that installed it, the add-on answers a method it offered - a bad body comes back as the contract\'s error, an undeclared method is refused before the add-on', async () => {
       const installation = { _id: 'plugins:youtube-download', id: 'youtube-download', name: 'YouTube', version: '1.0.0', enabled: true, runtime: 'server', installedAt: 1, capabilities: [], source: 'builtin' }
       vi.stubGlobal('fetch', vi.fn(async (url: string) => (String(url).includes('stageboard-band-a/_all_docs') ? ({ ok: true, status: 200, json: async () => ({ rows: [{ doc: installation }] }) } as Response) : ({ ok: false, status: 404, json: async () => ({}) } as Response))))
-      expect((await post('/addons/youtube-download/methods/format-disk?workspace=band-a')).json()).toMatchObject({ ok: false, error: { code: 'method.undeclared' } })
+      expect((await post('/addons/youtube-download/methods/format-disk?workspace=band-a')).json()).toMatchObject({ ok: false, error: { code: 'method.not-callable' } })
       expect((await post('/addons/youtube-download/methods/search?workspace=band-a', { query: '' })).json()).toMatchObject({ ok: false, error: { code: 'method.input' } })
     })
   })

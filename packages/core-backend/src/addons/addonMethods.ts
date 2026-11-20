@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { callMethod, type MethodResult, type MethodSandbox } from 'sync-host'
 import { parseContributes, type AddonError, type Contributes } from 'shared-types'
@@ -36,11 +37,12 @@ interface Entry {
   contributes: Contributes
 }
 
-const scriptsDir = (dir: string, file: string) => fileURLToPath(new URL(`../../scripts/addons/${dir}/${file}`, import.meta.url))
+const defaultRoot = fileURLToPath(new URL('../../scripts/addons/', import.meta.url))
 
-function loadEntries(): Map<string, Entry> {
+function loadEntries(root: string, dirs: readonly string[]): Map<string, Entry> {
+  const scriptsDir = (dir: string, file: string) => join(root, dir, file)
   const entries = new Map<string, Entry>()
-  for (const dir of ADDON_DIRS) {
+  for (const dir of dirs) {
     const manifest = JSON.parse(readFileSync(scriptsDir(dir, 'manifest.json'), 'utf8')) as ManifestFile
     const permissions = manifest.permissions ?? []
     entries.set(manifest.id, {
@@ -75,10 +77,13 @@ export interface AddonMethodsOptions {
   extraPermissions?: Record<string, string[]>
   /** What an add-on gets in `init`, per add-on. */
   settings?: Record<string, Record<string, unknown>>
+  /** Where the add-on directories are, and which (a test brings its own add-ons; default: the ones that ship with the device). */
+  root?: string
+  dirs?: readonly string[]
 }
 
 export function createAddonMethods(options: AddonMethodsOptions = {}): AddonMethods {
-  const entries = loadEntries()
+  const entries = loadEntries(options.root ?? defaultRoot, options.dirs ?? ADDON_DIRS)
   const sandboxes = new Map<string, Promise<NodeSandbox>>()
   const entry = (id: string): Entry | undefined => entries.get(id)
 
@@ -97,10 +102,14 @@ export function createAddonMethods(options: AddonMethodsOptions = {}): AddonMeth
         ...(options.log ? { log: options.log } : {}),
       })
     }
-    // A sandbox that died is started again with the next call.
-    const next = running ? running.then((sandbox) => (sandbox.alive() ? sandbox : start())) : start()
-    sandboxes.set(found.id, next)
-    return next
+    // A sandbox that died is started again with the next call. A start that FAILED must not be remembered: the failed promise would answer every later
+    // call with the same error for ever, even after the cause (a broken file, a missing helper) is gone.
+    const attempt: Promise<NodeSandbox> = (running ? running.then((sandbox) => (sandbox.alive() ? sandbox : start())) : start()).catch((err: unknown) => {
+      if (sandboxes.get(found.id) === attempt) sandboxes.delete(found.id)
+      throw err
+    })
+    sandboxes.set(found.id, attempt)
+    return attempt
   }
 
   return {

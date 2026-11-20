@@ -64,6 +64,28 @@ describe('capability.http - StageBoard performs the request, only to declared or
     expect(await caps([`http:${allowedOrigin}`])('capability.http', { url: `${allowedOrigin}/big` })).toMatchObject({ ok: false, error: { code: 'http.too-large' } })
   })
 
+  it('refuses a big answer WITHOUT a content-length as soon as it passes the cap - the rest is never read', async () => {
+    let sent = 0
+    const chunked = createServer((_req, res) => {
+      res.setHeader('Transfer-Encoding', 'chunked') // no content-length: only reading the body can tell
+      const chunk = Buffer.alloc(1024 * 1024, 7)
+      const timer = setInterval(() => {
+        if (res.destroyed || sent >= 200) return void (clearInterval(timer), res.end())
+        sent++
+        res.write(chunk)
+      }, 2)
+      res.on('close', () => clearInterval(timer))
+    })
+    const origin = await listen(chunked)
+    const started = Date.now()
+    expect(await caps([`http:${origin}`])('capability.http', { url: `${origin}/x` })).toMatchObject({ ok: false, error: { code: 'http.too-large' } })
+    expect(Date.now() - started).toBeLessThan(5_000)
+    // The proof that the rest was never read: the server was cut off long before it had sent its 200 MB (a whole-body read would take all of it).
+    await new Promise((r) => setTimeout(r, 200))
+    expect(sent).toBeLessThan(60)
+    chunked.close()
+  })
+
   it('an add-on with no http permission at all gets nothing', async () => {
     expect(await caps([])('capability.http', { url: `${allowedOrigin}/x` })).toMatchObject({ ok: false, error: { code: 'permission.denied' } })
   })

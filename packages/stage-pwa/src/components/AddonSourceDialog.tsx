@@ -14,6 +14,24 @@ import i18n from '../i18n'
 import { useAsyncJobsStore } from '../store/useAsyncJobsStore'
 import { putTrack } from '../lib/songVariantsDb'
 
+/** How large the arguments of an audio-import job may be (a link, an id - never data). */
+export const MAX_JOB_ARGS_CHARS = 2_000
+export const MAX_JOB_LABEL_CHARS = 300
+
+/**
+ * What is wrong with a view script's `core.queueAudioImport` request, or `null`. The job becomes a band document that replicates to every device, so what
+ * a script may put in it is bounded and shaped here - not trusted because the script is ours today.
+ */
+export function queueRequestProblem(body: unknown): string | null {
+  if (typeof body !== 'object' || body === null) return 'core.queueAudioImport needs {label, args}'
+  const { label, args } = body as { label?: unknown; args?: unknown }
+  if (typeof label !== 'string' || label.trim() === '') return 'core.queueAudioImport needs a label'
+  if (label.length > MAX_JOB_LABEL_CHARS) return 'core.queueAudioImport: the label is too long'
+  if (typeof args !== 'object' || args === null || Array.isArray(args)) return 'core.queueAudioImport needs args as an object'
+  if (JSON.stringify(args).length > MAX_JOB_ARGS_CHARS) return 'core.queueAudioImport: the args are too large'
+  return null
+}
+
 /**
  * The add-on's own dialog for a song track source (docs/36 §6 slot `song-editor.track-source`, #964). It is shown INSTEAD of the "Track hinzufügen"
  * dialog, not on top of it; leaving it reopens that one. The editor knows nothing of the add-on's service: it draws its description and answers its
@@ -26,9 +44,11 @@ export function AddonSourceDialog({ addon, variantId, query, onLeave, createWork
   const handler: RequestHandler = async (method, body) => {
     if (method === 'core.closeSlot') return onLeave(), { ok: true, body: {} }
     if (method === 'core.queueAudioImport') {
-      const { label, args } = body as { label?: string; args?: Record<string, unknown> }
+      const { label, args } = body as { label: string; args: Record<string, unknown> } // shape checked by queueRequestProblem below
+      const problem = queueRequestProblem(body)
+      if (problem) return { ok: false, error: { code: 'request.invalid', message: problem } }
       const name = Object.prototype.hasOwnProperty.call(addon.contributes.methods, 'fetchAudio') ? 'fetchAudio' : null
-      if (!name || typeof label !== 'string' || typeof args !== 'object' || args === null) return { ok: false, error: { code: 'request.invalid', message: 'core.queueAudioImport needs {label, args}' } }
+      if (!name) return { ok: false, error: { code: 'request.invalid', message: 'This add-on fetches no audio' } }
       const input = { variantId, addonId: addon.id, method: name, args, label: label.trim() || addon.name }
       const host = await resolveHostFor('POST', `/addons/${encodeURIComponent(addon.id)}/methods/${name}`)
       if (host.base === null && (await localAddonMethods.canRun(addon.id))) {

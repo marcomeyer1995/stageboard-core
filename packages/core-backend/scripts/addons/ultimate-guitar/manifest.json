@@ -26,7 +26,8 @@
         "out": {
           "type": "array"
         },
-        "timeoutMs": 90000
+        "timeoutMs": 90000,
+        "callableByDevices": true
       },
       "fetchDetail": {
         "in": {
@@ -45,7 +46,8 @@
         "out": {
           "type": "object"
         },
-        "timeoutMs": 90000
+        "timeoutMs": 90000,
+        "callableByDevices": true
       }
     }
   }

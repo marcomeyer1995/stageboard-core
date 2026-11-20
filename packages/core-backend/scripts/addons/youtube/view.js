@@ -113,7 +113,7 @@ function search() {
 self.onmessage = function (e) {
   var m = e.data
   if (m.type === 'init') { LANG = m.language === 'en' ? 'en' : 'de'; return }
-  if (m.kind === 'update' && m.topic === 'jobs' && state.job && m.body && m.body[state.job.id]) {
+  if (m.kind === 'notify' && m.topic === 'jobs' && state.job && m.body && m.body[state.job.id]) {
     var status = m.body[state.job.id].status
     if (status && status !== state.jobStatus) { state.jobStatus = status; show() }
     return

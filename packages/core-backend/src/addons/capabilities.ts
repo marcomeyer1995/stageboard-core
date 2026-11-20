@@ -21,6 +21,31 @@ const HttpRequest = z.object({ url: z.string(), method: z.enum(['GET', 'POST', '
 const UdpRequest = z.object({ host: z.string().min(1), port: z.number().int().min(1).max(65535), bytes: z.instanceof(Uint8Array).refine((b) => b.length <= 8192, 'at most 8192 bytes') })
 const HelperRequest = z.object({ helper: z.string().min(1), args: z.array(z.string()), forRequest: z.number().int().optional(), files: z.array(z.object({ name: z.string(), bytes: z.instanceof(Uint8Array) })).default([]) })
 
+/** The body of a response, or `null` as soon as it is larger than `max` bytes - the rest is never read. */
+async function readCapped(response: Response, max: number): Promise<Uint8Array | null> {
+  if (!response.body) {
+    const whole = new Uint8Array(await response.arrayBuffer())
+    return whole.length > max ? null : whole
+  }
+  const reader = response.body.getReader()
+  const chunks: Uint8Array[] = []
+  let total = 0
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    total += value.length
+    if (total > max) {
+      await reader.cancel().catch(() => {})
+      return null
+    }
+    chunks.push(value)
+  }
+  const out = new Uint8Array(total)
+  let at = 0
+  for (const chunk of chunks) (out.set(chunk, at), (at += chunk.length))
+  return out
+}
+
 /** The origin of `url` when it is a plain http(s) URL without credentials; otherwise null - `user@host` is how an allowed-looking URL points elsewhere. */
 function originOf(url: string): string | null {
   try {
@@ -60,8 +85,10 @@ export function createCapabilities(options: {
       }
       const declared = Number(response.headers.get('content-length') ?? 0)
       if (declared > MAX_HTTP_BODY) return fail('http.too-large', `The answer is larger than ${MAX_HTTP_BODY / 1024 / 1024} MB`)
-      const bytes = new Uint8Array(await response.arrayBuffer())
-      if (bytes.length > MAX_HTTP_BODY) return fail('http.too-large', `The answer is larger than ${MAX_HTTP_BODY / 1024 / 1024} MB`)
+      // Read as it arrives and stop at the cap: an answer with no (or a false) content-length must not be held in memory whole before it is refused.
+      const read = await readCapped(response, MAX_HTTP_BODY)
+      if (read === null) return fail('http.too-large', `The answer is larger than ${MAX_HTTP_BODY / 1024 / 1024} MB`)
+      const bytes = read
       const headers: Record<string, string> = {}
       response.headers.forEach((value, key) => void (headers[key] = value))
       return { ok: true, body: { status: response.status, headers, body: new TextDecoder().decode(bytes) } }

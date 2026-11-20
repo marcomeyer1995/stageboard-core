@@ -246,3 +246,14 @@ describe('TrackManagerField - YouTube search in "Track hinzufügen" (#618)', () 
     expect(within(screen.getByRole('dialog')).queryByRole('button', { name: 'YouTube' })).not.toBeInTheDocument()
   })
 })
+
+describe('what a view script may put in a job (#964, review)', () => {
+  it('only a short label and small arguments as an object - the job document replicates to every device', async () => {
+    const { queueRequestProblem, MAX_JOB_ARGS_CHARS, MAX_JOB_LABEL_CHARS } = await import('./AddonSourceDialog')
+    expect(queueRequestProblem({ label: 'Wonderwall', args: { url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ' } })).toBeNull()
+    for (const [body, why] of [
+      [null, 'no body'], ['x', 'a string'], [{ args: {} }, 'no label'], [{ label: '   ', args: {} }, 'blank label'], [{ label: 'x'.repeat(MAX_JOB_LABEL_CHARS + 1), args: {} }, 'long label'],
+      [{ label: 'x' }, 'no args'], [{ label: 'x', args: 'url' }, 'args as string'], [{ label: 'x', args: ['a'] }, 'args as array'], [{ label: 'x', args: { blob: 'y'.repeat(MAX_JOB_ARGS_CHARS) } }, 'huge args'],
+    ] as const) expect(queueRequestProblem(body), why).toEqual(expect.any(String))
+  })
+})

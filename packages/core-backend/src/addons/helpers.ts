@@ -95,7 +95,7 @@ const piper: HelperRun = async (args, _onProgress, files) => {
 let ugReader: ReturnType<typeof createBrowserReader> | null = null
 const ugPage: HelperRun = async (args) => {
   const url = args[0]
-  if (!url || !/^https:\/\/(www\.)?ultimate-guitar\.com\//.test(url)) throw new Error('The ug-page helper opens only ultimate-guitar.com')
+  if (!url || !/^https:\/\/(www\.|tabs\.)?ultimate-guitar\.com\//.test(url)) throw new Error('The ug-page helper opens only ultimate-guitar.com')
   ugReader ??= createBrowserReader()
   try {
     return { result: await ugReader.read(url), files: [] }

@@ -853,6 +853,12 @@ export async function buildApp(options: { backupService?: BackupService; databas
     const { workspace } = request.query as { workspace?: string }
     if (!workspace || !/^[a-z0-9_-]+$/i.test(workspace)) return reply.status(400).send({ status: 'error', message: 'Missing or invalid workspace' })
     if (!addonMethods.has(id)) return reply.status(404).send({ ok: false, error: { code: 'addon.unknown', message: `No add-on "${id}" on this host`, params: { addon: id } } })
+    // Only what the add-on marked for devices: a method that sends a packet (OSC), runs Demucs or fetches audio is the host's own business - without this
+    // anyone on the network could make this host send UDP anywhere or start a program (found in review, 2026-11-21).
+    const declared = addonMethods.contributes(id)?.methods
+    if (!declared || !Object.prototype.hasOwnProperty.call(declared, method) || declared[method]!.callableByDevices !== true) {
+      return reply.status(403).send({ ok: false, error: { code: 'method.not-callable', message: `The method "${method}" of "${id}" is not offered to devices.`, params: { addon: id, method } } })
+    }
     if (!(await bandHasAddon(database, workspace, id).catch(() => false))) return reply.status(403).send({ status: 'error', ...serverMessage('addon.notInstalled', { addon: id }) })
     return addonMethods.call(id, method, request.body ?? {})
   })
