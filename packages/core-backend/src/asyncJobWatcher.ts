@@ -7,7 +7,7 @@ import { allDocs, getDoc, putDocWithRetry, waitForChange, type DatabaseConfig, t
 import { workspaceDbName } from './workspaceProvisioning.js'
 import { runYtDlpExtract } from './ytDlp.js'
 import { deleteAudioFile, isSafeAudioId, readAudioFile, writeAudioFile } from './audioStore.js'
-import { hostRunner, pickNextClaimable, runStemSeparation as runStemSeparationRecipe, runYoutubeExtract, stillMine, stuckJobsOfHost } from 'sync-host'
+import { hostRunner, pickNextClaimable, type SeparatedStem, runStemSeparation as runStemSeparationRecipe, runYoutubeExtract, stillMine, stuckJobsOfHost } from 'sync-host'
 import { readInstallations } from './plugins/pluginSync.js'
 import { STEM_SEPARATION_PLUGIN_ID } from './plugins/stemSeparationPlugin.js'
 import { bandHasAddon, YOUTUBE_DOWNLOAD_PLUGIN_ID } from './plugins/importAddons.js'
@@ -32,6 +32,8 @@ export interface AsyncJobWatcherOptions {
    * built-in call, as before.
    */
   youtubeDownload?: (url: string, onProgress: (fraction: number) => void) => Promise<{ data: Uint8Array; ext: string }>
+  /** Stem separation through the sandboxed add-on (`addons/stemAddon.ts`, #964). Absent: the built-in call. */
+  stemSeparate?: (audio: Uint8Array, options: { model: 'standard' | 'extended'; splitGuitar: boolean }, onProgress: (fraction: number) => void) => Promise<{ stems: SeparatedStem[] }>
   /** What a job needs from its host - from the host's runners (`JobRunners.needsOfJob`). Absent: sync-host's default table. */
   needsOf?: (job: Pick<AsyncJob, 'type'>) => string | null
   /** Whether this host can do what a job needs (`GET /host/capabilities`); a job it cannot do is left queued for a host that can. Absent: everything. */
@@ -205,7 +207,7 @@ export function createAsyncJobWatcher(options: AsyncJobWatcherOptions): AsyncJob
         bandHasStemPlugin: stemPluginInstalled,
         readVariant: (variantId) => getDoc<Record<string, unknown> & DatabaseDoc>(database, workspaceDb, `${SONG_VARIANT_PREFIX}${variantId}`),
         readAudio: readAudioFile,
-        separate: async (audio, options, onProgress) => {
+        separate: options.stemSeparate ?? (async (audio, options, onProgress) => {
           const workDir = await mkdtemp(join(tmpdir(), 'stageboard-stems-'))
           const dispose = () => rm(workDir, { recursive: true, force: true })
           try {
@@ -218,7 +220,7 @@ export function createAsyncJobWatcher(options: AsyncJobWatcherOptions): AsyncJob
             await dispose().catch(() => {})
             throw err
           }
-        },
+        }),
         writeAudio: (variantId, trackId, data) => writeAudioFile(variantId, trackId, Buffer.from(data.buffer, data.byteOffset, data.byteLength)),
         deleteAudio: deleteAudioFile,
         replaceStems,

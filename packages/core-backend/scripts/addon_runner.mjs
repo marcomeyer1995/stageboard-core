@@ -8,6 +8,7 @@ import { readFileSync } from 'node:fs'
 import vm from 'node:vm'
 
 const addonFile = process.argv[2]
+const withHttp = process.argv.includes('--http')
 const send = (message) => process.send?.(message)
 const self = {
   postMessage: (message) => send(message),
@@ -28,6 +29,9 @@ const sandboxGlobals = {
   clearInterval,
   TextEncoder,
   TextDecoder,
+  URL,
+  URLSearchParams,
+  ...(withHttp ? { fetch, Headers, Request, Response, AbortController } : {}),
 }
 try {
   vm.runInNewContext(readFileSync(addonFile, 'utf8'), sandboxGlobals, { filename: addonFile })

@@ -32,6 +32,8 @@ export type ToAddon =
   | { type: 'midi-reply'; id: number; request: number; data: number[] | null }
   /** A background job for this add-on (#964). The answer is `job-result`; `job-progress` any number of times before it. */
   | { type: 'job'; id: number; job: AddonJob }
+  /** A request that wants an answer now (#964): a clip to speak, a song to look up. The answer is `call-result`. */
+  | { type: 'call'; id: number; method: string; args: Record<string, unknown> }
   /** The answer to a `helper-run` (#964): the helper's last `RESULT` line as JSON, the files it left, or an error. */
   | { type: 'helper-result'; id: number; request: number; result: unknown; files: { name: string; bytes: Uint8Array }[]; error?: string }
   | { type: 'shutdown' }
@@ -47,12 +49,16 @@ export type FromAddon =
   /** The end of job `id` (#964): what it made - tracks as files the add-on hands over - or why it failed. */
   | { type: 'job-result'; id: number; ok: true; files: { key: string; bytes: Uint8Array }[]; data?: Record<string, unknown> }
   | { type: 'job-result'; id: number; ok: false; message: string; messageCode?: string }
+  /** The answer to a `call` (#964): data and files, or why it failed (with the message code a device translates). */
+  | { type: 'call-result'; id: number; ok: true; data?: unknown; files?: { key: string; bytes: Uint8Array }[] }
+  | { type: 'call-result'; id: number; ok: false; message: string; messageCode?: string }
   /**
    * Run one of the helper programs this add-on declared (`helpers` in its manifest, docs/32 §8) with these arguments (#964). StageBoard - not the
    * add-on - starts it, only if the add-on has the permission and the device has the helper; the add-on itself can never start a program.
+   * `files` are what the helper is to read (the audio to separate): StageBoard puts them in the helper's own work folder, the add-on never sees a path.
    * The helper speaks the line protocol (`PROGRESS`, `RESULT`); its progress comes back as `job-progress` of job `id`, its end as `helper-result`.
    */
-  | { type: 'helper-run'; id: number; request: number; helper: string; args: string[] }
+  | { type: 'helper-run'; id: number; request: number; helper: string; args: string[]; files?: { name: string; bytes: Uint8Array }[] }
   | { type: 'health'; status: 'online' | 'offline' | 'error'; message?: string }
   | { type: 'log'; line: string }
 

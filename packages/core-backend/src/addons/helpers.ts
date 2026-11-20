@@ -1,0 +1,82 @@
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { extname, join } from 'node:path'
+import { runStemSeparation } from '../stems/stemSeparation.js'
+import { runYtDlpExtract } from '../ytDlp.js'
+import { runPiperProgram } from '../speech/piperSpeech.js'
+
+/**
+ * The helper programs a Node device has (#964, docs/32 §8): the things an add-on cannot do itself and asks StageBoard to run. A helper is a
+ * program with the line protocol (`PROGRESS`, `RESULT`), started **by StageBoard** in a work folder of its own, never by the add-on; an add-on may
+ * ask only for a helper its manifest declared. Everything here is the device's - on Android the same names are separate helper apps.
+ */
+export interface HelperOutput {
+  result: unknown
+  files: { name: string; bytes: Uint8Array }[]
+}
+
+export type HelperRun = (args: string[], onProgress: (fraction: number) => void, files: { name: string; bytes: Uint8Array }[]) => Promise<HelperOutput>
+
+/** A work folder for one run, removed after it - whatever the helper left in it is read before. */
+async function inWorkFolder<T>(prefix: string, run: (dir: string) => Promise<T>): Promise<T> {
+  const dir = await mkdtemp(join(tmpdir(), prefix))
+  try {
+    return await run(dir)
+  } finally {
+    await rm(dir, { recursive: true, force: true }).catch(() => {})
+  }
+}
+
+/** `yt-dlp <url>`: yt-dlp's own best audio of one video; the file comes back with its extension. */
+const ytDlp: HelperRun = (args, onProgress) => {
+  const url = args[0]
+  if (!url) return Promise.reject(new Error('No link given to the helper'))
+  return inWorkFolder('stageboard-yt-', async (dir) => {
+    const { filePath } = await runYtDlpExtract(url, join(dir, 'track.%(ext)s'), onProgress)
+    const ext = extname(filePath).replace(/^\./, '')
+    return { result: { ext }, files: [{ name: `track.${ext}`, bytes: new Uint8Array(await readFile(filePath)) }] }
+  })
+}
+
+/** `stems <model> [--split-guitar]` with the audio as the file `input`: Demucs through the stems script; one file per stem. */
+const stems: HelperRun = (args, onProgress, files) => {
+  const input = files.find((f) => f.name === 'input')
+  const model = args[0] === 'extended' ? 'extended' : 'standard'
+  if (!input) return Promise.reject(new Error('The stems helper needs the audio as the file "input"'))
+  return inWorkFolder('stageboard-stems-', async (dir) => {
+    await writeFile(join(dir, 'input'), input.bytes)
+    const done = await runStemSeparation(join(dir, 'input'), dir, { model, splitGuitar: args.includes('--split-guitar') }, onProgress)
+    const out = await Promise.all(done.map(async (file) => ({ name: `${file.key}${file.path.endsWith('.opus') ? '.opus' : '.webm'}`, bytes: new Uint8Array(await readFile(file.path)) })))
+    return { result: { stems: done.map((file) => ({ key: file.key, opus: file.path.endsWith('.opus') })) }, files: out }
+  })
+}
+
+/**
+ * `piper <voice key or ""> <pace>` with the text as the file `input`: Piper's raw WAV for it. The helper finds the voice's model file itself - the
+ * add-on never sees a path. Piper not installed, or a voice that is not, is an error with the words the app translates.
+ */
+const piper: HelperRun = async (args, _onProgress, files) => {
+  const text = files.find((f) => f.name === 'input')
+  if (!text) throw new Error('The piper helper needs the text as the file "input"')
+  const { serverSpeech } = await import('../plugins/piperSpeechPlugin.js')
+  const voice = args[0] || undefined
+  const model = serverSpeech.voiceModel(voice)
+  if (!serverSpeech.piperInstalled() || !model) throw new Error(`Piper or the voice ${serverSpeech.voiceName(voice)} is not installed`)
+  const pace = Number(args[1]) || 1
+  return inWorkFolder('stageboard-piper-', async (dir) => {
+    const out = join(dir, 'clip.wav')
+    await runPiperProgram(model, pace, new TextDecoder().decode(text.bytes), out)
+    return { result: {}, files: [{ name: 'clip.wav', bytes: new Uint8Array(await readFile(out)) }] }
+  })
+}
+
+export const HELPERS: Record<string, HelperRun> = { 'yt-dlp': ytDlp, stems, piper }
+
+/** The `runHelper` a sandbox gets: only what its manifest declared, and only what this device has. */
+export function helperRunnerFor(declared: readonly string[]): (helper: string, args: string[], onProgress: (f: number) => void, files: { name: string; bytes: Uint8Array }[]) => Promise<HelperOutput> {
+  return (helper, args, onProgress, files) => {
+    const run = declared.includes(helper) ? HELPERS[helper] : undefined
+    if (!run) return Promise.reject(new Error(`No helper "${helper}"`))
+    return run(args, onProgress, files)
+  }
+}

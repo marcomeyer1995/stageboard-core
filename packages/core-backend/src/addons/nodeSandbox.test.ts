@@ -107,6 +107,49 @@ describe('helper programs only through StageBoard (#964)', () => {
   })
 })
 
+describe('calls and files for helpers (#964)', () => {
+  const answersCall = (body: string) => `self.onmessage = (e) => { if (e.data.type !== 'call') return; const id = e.data.id; const method = e.data.method; const args = e.data.args; ${body} }`
+
+  it('answers a call with data and files, asked by method and arguments', async () => {
+    const sandbox = await start('speak', answersCall(`self.postMessage({ type: 'call-result', id, ok: true, data: { method, text: args.text }, files: [{ key: 'wav', bytes: new Uint8Array([7, 7]) }] })`))
+    const outcome = await sandbox.call('speak', { text: 'Hallo' }, { timeoutMs: 5_000 })
+    expect(outcome).toMatchObject({ ok: true, data: { method: 'speak', text: 'Hallo' } })
+    expect(outcome.ok && [...outcome.files[0]!.bytes]).toEqual([7, 7])
+  })
+
+  it('a call the add-on refuses is an error with its message and code', async () => {
+    const sandbox = await start('refuses', answersCall(`self.postMessage({ type: 'call-result', id, ok: false, message: 'Ungültige Stimme', messageCode: 'speech.invalidVoice' })`))
+    expect(await sandbox.call('speak', {}, { timeoutMs: 5_000 })).toEqual({ ok: false, message: 'Ungültige Stimme', messageCode: 'speech.invalidVoice' })
+  })
+
+  it('a call that is never answered stops the add-on when the time is up', async () => {
+    const sandbox = await start('silent', answersCall(`for (;;) {}`))
+    expect(await sandbox.call('x', {}, { timeoutMs: 300 })).toMatchObject({ ok: false })
+    await new Promise((r) => setTimeout(r, 300))
+    expect(sandbox.alive()).toBe(false)
+  })
+
+  it('gives a helper the files the add-on passes on - and the add-on never sees a path', async () => {
+    const seen: { name: string; size: number }[][] = []
+    const sandbox = await start('files', answersCall(`self.onmessage = (m) => { if (m.data.type === 'helper-result') self.postMessage({ type: 'call-result', id, ok: !m.data.error, data: m.data.result }) }; self.postMessage({ type: 'helper-run', id, request: 1, helper: 'tool', args: [], files: [{ name: 'input', bytes: args.audio }] })`), {
+      helpers: ['tool'],
+      runHelper: async (_h: string, _a: string[], _p: (f: number) => void, files: { name: string; bytes: Uint8Array }[]) => {
+        seen.push(files.map((f) => ({ name: f.name, size: f.bytes.length })))
+        return { result: { got: files.length }, files: [] }
+      },
+    })
+    const outcome = await sandbox.call('go', { audio: new Uint8Array(5000) }, { timeoutMs: 5_000 })
+    expect(seen).toEqual([[{ name: 'input', size: 5000 }]])
+    expect(outcome).toMatchObject({ ok: true, data: { got: 1 } })
+  })
+
+  it('gives `fetch` only to an add-on that declared the http permission', async () => {
+    const probe = answersCall(`self.postMessage({ type: 'call-result', id, ok: true, data: { fetch: typeof fetch, URL: typeof URL } })`)
+    expect((await (await start('nohttp', probe, { permissions: [] })).call('p', {}, { timeoutMs: 5_000 }))).toMatchObject({ data: { fetch: 'undefined', URL: 'function' } })
+    expect((await (await start('withhttp', probe, { permissions: ['http:musicbrainz.org'] })).call('p', {}, { timeoutMs: 5_000 }))).toMatchObject({ data: { fetch: 'function' } })
+  })
+})
+
 describe('what a hostile add-on cannot do (#964) - tried from inside, after breaking out of the vm context', () => {
   // The vm context is not a security boundary: an object from outside lets the script reach the real `process`. What stops it is the permission
   // model the process was started with. This add-on does exactly that, then tries everything it should not be able to do.

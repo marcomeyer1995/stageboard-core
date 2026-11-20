@@ -25,7 +25,7 @@ export interface NodeSandboxOptions {
   /** Helper programs the manifest declared; a `helper-run` for any other name is refused. */
   helpers?: readonly string[]
   /** Runs a declared helper (the line protocol, docs/32 §8); the platform's own part. `onProgress` gets 0-1. */
-  runHelper?: (helper: string, args: string[], onProgress: (fraction: number) => void) => Promise<{ result: unknown; files: { name: string; bytes: Uint8Array }[] }>
+  runHelper?: (helper: string, args: string[], onProgress: (fraction: number) => void, files: { name: string; bytes: Uint8Array }[]) => Promise<{ result: unknown; files: { name: string; bytes: Uint8Array }[] }>
   log?: { info: (msg: string, meta?: Record<string, unknown>) => void; error: (msg: string, meta?: Record<string, unknown>) => void }
 }
 
@@ -33,7 +33,11 @@ export type JobOutcome =
   | { ok: true; files: { key: string; bytes: Uint8Array }[]; data?: Record<string, unknown> }
   | { ok: false; message: string; messageCode?: string }
 
+export type CallOutcome = { ok: true; data?: unknown; files: { key: string; bytes: Uint8Array }[] } | { ok: false; message: string; messageCode?: string }
+
 export interface NodeSandbox {
+  /** Asks the add-on something that wants an answer now (a clip to speak, a song to look up). */
+  call(method: string, args: Record<string, unknown>, options?: { timeoutMs?: number }): Promise<CallOutcome>
   /** Runs a job; the add-on reports progress and ends with `job-result`. A job without an end by `timeoutMs` kills the add-on. */
   runJob(job: AddonJob, options?: { onProgress?: (fraction: number) => void; timeoutMs?: number }): Promise<JobOutcome>
   /** Whether the add-on's process is still alive. */
@@ -46,9 +50,11 @@ export interface NodeSandbox {
 /** Starts the add-on and waits until it says it is online (or failed to start). */
 export async function startNodeSandbox(options: NodeSandboxOptions): Promise<NodeSandbox> {
   const log = options.log
-  const child: ChildProcess = fork(RUNNER, [options.addonFile], {
+  const child: ChildProcess = fork(RUNNER, [options.addonFile, ...((options.permissions ?? []).some((p) => p === 'http' || p.startsWith('http:')) ? ['--http'] : [])], {
     // The permission model: only these two files readable; nothing else, nothing writable, no child process, no worker.
     execArgv: ['--permission', `--allow-fs-read=${RUNNER}`, `--allow-fs-read=${options.addonFile}`],
+    // `fetch` is handed to the add-on only if it declared the `http` permission (docs/32 §7). Node's permission model cannot cut the network, so this
+    // is the only place the add-on's reach is limited: a hostile add-on that escapes the vm context can still open a connection.
     // Not StageBoard's environment: no database login, no keys, no paths.
     env: {},
     serialization: 'advanced',
@@ -61,6 +67,7 @@ export async function startNodeSandbox(options: NodeSandboxOptions): Promise<Nod
   let health: { status: 'online' | 'offline' | 'error'; message?: string } = { status: 'offline' }
   let exited = false
   const jobs = new Map<number, { onProgress?: (f: number) => void; finish: (o: JobOutcome) => void }>()
+  const calls = new Map<number, (o: CallOutcome) => void>()
   let nextId = 1
   let nextRequest = 1
   const send = (message: ToAddon) => {
@@ -70,6 +77,8 @@ export async function startNodeSandbox(options: NodeSandboxOptions): Promise<Nod
   const failAll = (message: string) => {
     for (const job of jobs.values()) job.finish({ ok: false, message })
     jobs.clear()
+    for (const finish of calls.values()) finish({ ok: false, message })
+    calls.clear()
   }
   child.on('exit', (code, signal) => {
     exited = true
@@ -101,11 +110,18 @@ export async function startNodeSandbox(options: NodeSandboxOptions): Promise<Nod
           job.finish(message.ok ? { ok: true, files: message.files, ...(message.data ? { data: message.data } : {}) } : { ok: false, message: message.message, ...(message.messageCode ? { messageCode: message.messageCode } : {}) })
           break
         }
+        case 'call-result': {
+          const finish = calls.get(message.id)
+          if (!finish) break
+          calls.delete(message.id)
+          finish(message.ok ? { ok: true, ...(message.data !== undefined ? { data: message.data } : {}), files: message.files ?? [] } : { ok: false, message: message.message, ...(message.messageCode ? { messageCode: message.messageCode } : {}) })
+          break
+        }
         case 'helper-run': {
           const reply = (result: unknown, files: { name: string; bytes: Uint8Array }[], error?: string) => send({ type: 'helper-result', id: message.id, request: message.request, result, files, ...(error ? { error } : {}) })
           if (!(options.helpers ?? []).includes(message.helper)) return reply(null, [], `The add-on did not declare the helper "${message.helper}"`)
           if (!options.runHelper) return reply(null, [], `This device has no helper "${message.helper}"`)
-          options.runHelper(message.helper, message.args, (fraction) => jobs.get(message.id)?.onProgress?.(fraction)).then(
+          options.runHelper(message.helper, message.args, (fraction) => jobs.get(message.id)?.onProgress?.(fraction), message.files ?? []).then(
             (done) => reply(done.result, done.files),
             (err) => reply(null, [], err instanceof Error ? err.message : String(err)),
           )
@@ -127,6 +143,19 @@ export async function startNodeSandbox(options: NodeSandboxOptions): Promise<Nod
     stop() {
       send({ type: 'shutdown' })
       setTimeout(() => child.kill('SIGKILL'), 500).unref()
+    },
+    call(method, args, callOptions = {}) {
+      if (exited) return Promise.resolve({ ok: false, message: 'The add-on is not running' })
+      return new Promise<CallOutcome>((resolve) => {
+        const id = nextId++
+        const timer = setTimeout(() => {
+          calls.delete(id)
+          child.kill('SIGKILL')
+          resolve({ ok: false, message: `The add-on did not answer within ${Math.round((callOptions.timeoutMs ?? 30_000) / 1000)} s and was stopped` })
+        }, callOptions.timeoutMs ?? 30_000)
+        calls.set(id, (outcome) => (clearTimeout(timer), resolve(outcome)))
+        send({ type: 'call', id, method, args })
+      })
     },
     runJob(job, jobOptions = {}) {
       if (exited) return Promise.resolve({ ok: false, message: 'The add-on is not running' })
