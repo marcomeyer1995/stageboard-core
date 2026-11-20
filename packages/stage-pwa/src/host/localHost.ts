@@ -1,6 +1,6 @@
 import { registerPlugin, type PluginListenerHandle } from '@capacitor/core'
-import { AccessCodeSchema, HostJoinInviteSchema } from 'shared-types'
-import { BAND_SETTINGS_DOC_ID, createBandAccounts, createBandAccountStore, createBandCatalog, createHostChannels, createHostDeviceInfo, createHostPresence, listedHostIds, createBandJoin, createBandMembers, createPinThrottle, createReplicationAccountIssuer, leaseKey, signAccountRequest, startCatchUp, type BandAccounts, type BandJoin, type BandMembers, type CatchUp, createSyncHost, createWriteGuard, type SyncDatabase, type SyncRequest } from 'sync-host'
+import { AccessCodeSchema } from 'shared-types'
+import { BAND_SETTINGS_DOC_ID, createBandAccounts, createBandAccountStore, createBandCatalog, createHostChannels, createHostDeviceInfo, createHostPresence, listedHostIds, createBandJoin, createBandMembers, createVerifyWithPrimary, joinBandInvite, createPinThrottle, createReplicationAccountIssuer, leaseKey, signAccountRequest, startCatchUp, type BandAccounts, type BandBootstrapStore, type BandJoin, type BandMembers, type CatchUp, createSyncHost, createWriteGuard, type SyncDatabase, type SyncRequest } from 'sync-host'
 import { useBandSettingsStore } from '../store/useBandSettingsStore'
 import { useAndroidHostStore } from '../store/useAndroidHostStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
@@ -156,7 +156,7 @@ const setServedBands = (bands: Iterable<string>) => {
   lastPushed = ''
 }
 
-function pushState(machine: TabletHost) {
+function pushState(machine: TabletHost): Promise<void> {
   const state = machine.state()
   // Pages of the band's hosts may read this host from a browser (CORS) - the app itself always may.
   const origins = (hostsNow() ?? []).flatMap((h) => {
@@ -167,9 +167,9 @@ function pushState(machine: TabletHost) {
     }
   })
   const key = `${state.hostId}|${state.epoch}|${state.active}|${Math.round(machine.clockOffsetMs())}|${origins.join(',')}|${servedBands.join(',')}`
-  if (key === lastPushed) return
+  if (key === lastPushed) return Promise.resolve()
   lastPushed = key
-  void LocalHost.setState({ hostId: state.hostId, epoch: state.epoch, active: state.active, offsetMs: machine.clockOffsetMs(), origins, servedBands }).catch(() => undefined)
+  return LocalHost.setState({ hostId: state.hostId, epoch: state.epoch, active: state.active, offsetMs: machine.clockOffsetMs(), origins, servedBands }).catch(() => undefined)
 }
 
 function publish(machine: TabletHost, url: string | null, error: string | null = null) {
@@ -412,6 +412,9 @@ export async function startAndroidHost(): Promise<void> {
         founded.add(band)
         setServedBands(founded)
         subscribePresence(band)
+        // The native server must know before the phone's next request: a founded band is served at once, not at the next tick (a
+        // real tablet answered 503 for the first second - found by the device test, #964).
+        await pushState(machine)
         return credentials
       },
       remove: async (band) => {
@@ -419,6 +422,7 @@ export async function startAndroidHost(): Promise<void> {
         localBands.delete(band)
         founded.delete(band)
         setServedBands(founded)
+        await pushState(machine)
         handles.get(band)?.close?.()
         handles.delete(band)
       },
@@ -456,35 +460,44 @@ export async function startAndroidHost(): Promise<void> {
   if (hasBand) subscribePresence(workspaceId)
 
 
-  const acceptInvite = async (raw: unknown) => {
-    const invite = HostJoinInviteSchema.safeParse(raw)
-    if (!invite.success) return { ok: false as const, status: 400, message: invite.error.issues[0]?.message ?? 'Invalid invite' }
-    const { workspaceId: invitedBand, accessCode, primaryUrl, targetHostId, fingerprint, sentAt } = invite.data
-    if (targetHostId !== hostId) return { ok: false as const, status: 400, message: 'This invite is for another host' }
-    if (invitedBand !== workspaceIdNow()) return { ok: false as const, status: 409, message: 'This tablet holds another band' }
-    const last = readJson<{ at: number }>(INVITE_KEY)?.at ?? -1
-    if (sentAt <= last || sentAt > Date.now() + 60_000) return { ok: false as const, status: 409, message: 'This invite is old or was already used' }
-    // The code arrives from the primary, so the primary is asked whether it is really this band's -
-    // the same proof the Host's host join uses (#945). Already known and unchanged: trust it.
-    if (storedCode(workspaceId) !== accessCode) {
-      try {
-        if (fingerprint) await pinListedHosts([{ url: primaryUrl, certFingerprint: fingerprint }])
-        const response = await fetch(`${primaryUrl.replace(/\/+$/, '')}/workspaces/${encodeURIComponent(workspaceId)}/roster`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ code: accessCode }),
-          signal: AbortSignal.timeout(5_000),
-        })
-        if (!response.ok) return { ok: false as const, status: 403, message: 'The primary did not accept the band code' }
-      } catch {
-        return { ok: false as const, status: 502, message: 'The primary does not confirm the band' }
-      }
-      localStorage.setItem(CODE_KEY, JSON.stringify({ workspaceId, accessCode }))
-      keysFor = accessCode
-    }
-    localStorage.setItem(INVITE_KEY, JSON.stringify({ at: sentAt }))
-    return { ok: true as const }
+  // The invitation rules (target host, a rising `sentAt`, the band conflict, and the code confirmed with the primary) are sync-host's
+  // `joinBandInvite` - the Node host runs the same function (#964). What is the tablet's: it only takes a band it already holds (the
+  // band's data arrives by sync, not from an invite), keeps the code and the last `sentAt` in its own storage, and its requests to the
+  // primary go through the native certificate pin.
+  const inviteStore: BandBootstrapStore = {
+    load: () => {
+      const at = readJson<{ at: number }>(INVITE_KEY)?.at
+      return at === undefined ? null : { workspaceId, accessCode: storedCode(workspaceId) ?? '-', hosts: [], lastInviteAt: at }
+    },
+    save: (bootstrap) => {
+      localStorage.setItem(CODE_KEY, JSON.stringify({ workspaceId: bootstrap.workspaceId, accessCode: bootstrap.accessCode }))
+      if (bootstrap.lastInviteAt !== undefined) localStorage.setItem(INVITE_KEY, JSON.stringify({ at: bootstrap.lastInviteAt }))
+      keysFor = bootstrap.accessCode
+    },
   }
+  const pinnedRequest = async (url: string, init: RequestInit, fingerprint: string | undefined): Promise<unknown | null> => {
+    try {
+      if (fingerprint) await pinListedHosts([{ url, certFingerprint: fingerprint }])
+      const response = await fetch(url, { ...init, signal: AbortSignal.timeout(5_000) })
+      return response.ok ? ((await response.json().catch(() => ({}))) as unknown) : null
+    } catch {
+      return null
+    }
+  }
+  const acceptInvite = joinBandInvite({
+    selfHostId: hostId,
+    selfUrl: '',
+    activeWorkspaceId: () => (hasBand ? workspaceId : null),
+    mayJoin: (band) => hasBand && band === workspaceId,
+    verifyWithPrimary: createVerifyWithPrimary({
+      post: (url, body, fingerprint) => pinnedRequest(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }, fingerprint),
+      get: (url, fingerprint) => pinnedRequest(url, { method: 'GET' }, fingerprint),
+    }),
+    ensureLocalDb: async () => undefined,
+    activate: async () => undefined,
+    store: inviteStore,
+    now: () => Date.now(),
+  })
 
   let startedAddress: string | null = null
   let startedFingerprint = ''

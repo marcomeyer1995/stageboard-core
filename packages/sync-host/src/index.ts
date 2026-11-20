@@ -267,6 +267,7 @@ export { createReplicationAccountIssuer, type ReplicationAccountIssuer } from '.
 export { BAND_SETTINGS_DOC_ID, listedHostIds } from './host/hostRole.js'
 export { createHostDeviceInfo, type HostDeviceInfo } from './host/deviceInfo.js'
 export { ROSTER_VALIDATOR_SOURCE } from './host/rosterValidator.js'
+export { BootstrapSchema, createVerifyWithPrimary, effectiveHosts, joinBand, joinBandInvite, type Bootstrap, type BandBootstrapStore, type JoinResult } from './host/hostJoin.js'
 export { createBandCatalog, type BandCatalog, type BandStore, type BandAnswer } from './host/bandCatalog.js'
 export { JOB_ROUTES, JOB_IDS, jobOfRequest, refusalFor, unavailableJobs, parseCapabilities, unmetRequirement, addonRefusal, type JobRoute, type RunsOn } from './host/capabilities.js'
 export { createBandRoutes } from './host/bandRoutes.js'

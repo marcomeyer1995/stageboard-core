@@ -22,7 +22,8 @@ import { createHostRoleStore } from './hostRoleStore.js'
 import { makeLocalBandDb, makeRemoteBandDb } from './bandPouch.js'
 import { createReplicationRunner } from './replicationRunner.js'
 import { createAudioMirror } from './audioMirror.js'
-import { createBandBootstrapStore, joinBandInvite, effectiveHosts, joinBand } from './bandJoin.js'
+import { createBandBootstrapStore } from './bandJoin.js'
+import { createVerifyWithPrimary, joinBandInvite, effectiveHosts, joinBand } from 'sync-host'
 import { listHeldKeys, saveMirrorFile } from './audioMirrorFiles.js'
 import { tracksOfVariantDocs } from 'sync-host'
 import { createPinnedFetch } from './pinnedFetch.js'
@@ -568,19 +569,11 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
     selfHostId: hostId,
     selfUrl,
     activeWorkspaceId: () => workspaceHardware.getActiveWorkspaceId(),
-    verifyWithPrimary: async (primaryUrl, workspaceId, code, fingerprint) => {
-      // Roster is gated by the standing band code; /time tells us who the primary is.
-      // The roster route is a POST with the band code in the body (#364); a 200 means the code is right.
-      const confirmed = await postJsonToHost(
-        `${primaryUrl.replace(/\/+$/, '')}/workspaces/${encodeURIComponent(workspaceId)}/roster`,
-        { code },
-        fingerprint,
-        3_000,
-      )
-      if (!confirmed) return null
-      const time = await getFromHost(`${primaryUrl.replace(/\/+$/, '')}/time`, fingerprint, 3_000)
-      return HostTimeAnswerSchema.safeParse(time).data?.hostId ?? null
-    },
+    // The rule (confirm the code with the primary, then ask who it is) is sync-host's; the pinned requests are Node's.
+    verifyWithPrimary: createVerifyWithPrimary({
+      post: (url, body, fingerprint) => postJsonToHost(url, body, fingerprint, 3_000),
+      get: (url, fingerprint) => getFromHost(url, fingerprint, 3_000),
+    }),
     ensureLocalDb: async (workspaceId) => void (await makeLocalBandDb(database, workspaceId)),
     activate: (workspaceId) => workspaceHardware.activate(workspaceId),
     store: bootstrapStore,

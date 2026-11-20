@@ -148,6 +148,14 @@ const discoveryStream = await fetch(`${host}/workspaces/${bandA}/discovery/strea
 check('a stream the tablet does not relay yet says which capability is missing (501), not 404', discoveryStream?.status === 501, `status=${discoveryStream?.status}`)
 await discoveryStream?.body?.cancel().catch(() => undefined)
 
+// ---- the invitation a primary sends a backup (#945, rules shared since #964) ---------------------------------------------------------------
+const selfId = (await call('GET', '/time')).body?.hostId
+const invite = { workspaceId: bandA, accessCode: '12345678', primaryUrl: 'https://10.255.255.1:8443', targetHostId: selfId, sentAt: Date.now() }
+check('an invitation for another host is refused (400)', (await call('POST', '/host/join-band-invite', { ...invite, targetHostId: 'someone-else' })).status === 400)
+check('an invitation for a band this tablet does not hold is refused before anyone is asked (409)', (await call('POST', '/host/join-band-invite', { ...invite, workspaceId: 'not-held-here' })).status === 409)
+check('an invitation from the far future is refused (409)', (await call('POST', '/host/join-band-invite', { ...invite, sentAt: Date.now() + 3_600_000 })).status === 409)
+check('a bad invitation body is refused (400)', (await call('POST', '/host/join-band-invite', { nonsense: true })).status === 400)
+
 // ---- a second band: refused without proof, accepted with an admin of the first --------------------------------------------
 const without = await call('POST', '/workspaces', { workspaceId: bandB, founderId: 'f2', workspaceName: 'No laptop B', deviceId: 'phone-1' })
 check('a second band needs an admin proof (403)', without.status === 403, `status=${without.status}`)
