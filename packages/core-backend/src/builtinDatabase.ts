@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import PouchDB from 'pouchdb-core'
 import LevelAdapter from 'pouchdb-adapter-leveldb'
 import { createDatabaseHost, type Catalog, type DatabaseHostRequest } from 'sync-host/database-host'
+import type { SyncResponse } from 'sync-host'
 
 PouchDB.plugin(LevelAdapter)
 
@@ -17,6 +18,9 @@ PouchDB.plugin(LevelAdapter)
  */
 export interface BuiltinDatabase {
   url: string
+  /** The database host itself: what devices reach through `/db` is answered by calling this in the same process (#964) - no second
+   * HTTP hop. `url` stays for the host's own admin client. */
+  handle: (request: DatabaseHostRequest) => Promise<SyncResponse>
   close: () => Promise<void>
 }
 
@@ -113,6 +117,7 @@ export async function startBuiltinDatabase(options: { dataDir: string; user: str
   const port = (server.address() as AddressInfo).port
   return {
     url: `http://${host}:${port}`,
+    handle: handler,
     close: async () => {
       await new Promise<void>((resolve) => server.close(() => resolve()))
       await handler.close()

@@ -44,7 +44,7 @@ export async function destroyLocalWorkspaceDb(workspaceId: string): Promise<void
  * request). Browsers trust a self-signed cert per *origin*, not per-certificate - pointing
  * PouchDB at a *separate* the database port meant every new device needed a second manual
  * "trotzdem fortfahren" tap beyond the one for the Host API/PWA itself
- * (docs/03 section 0a). core-backend's `/db` prefix (`index.ts`, `@fastify/http-proxy`) is a
+ * (docs/03 section 0a). core-backend's `/db` prefix (`databaseRoutes.ts`, answered in-process by the database host since #964) is a
  * pure passthrough - this device's own per-person Basic Auth (`startWorkspaceSync`'s `auth`
  * below) travels straight through to real the database unmodified, so nothing about who can read or
  * write what changes; only the network hop does. `null` when no Host is configured at

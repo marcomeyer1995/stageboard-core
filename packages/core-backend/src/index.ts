@@ -14,8 +14,8 @@ import { hostname, networkInterfaces } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import cors from '@fastify/cors'
-import httpProxy from '@fastify/http-proxy'
-import { startBuiltinDatabase } from './builtinDatabase.js'
+import { registerDatabaseRoutes } from './databaseRoutes.js'
+import { startBuiltinDatabase, type BuiltinDatabase } from './builtinDatabase.js'
 import { addonHostNeeds, hostCapabilities } from './hostCapabilities.js'
 import { createHostLeaseService, getFromHost, postJsonToHost } from './hostLeaseService.js'
 import { createHostRoleStore } from './hostRoleStore.js'
@@ -200,7 +200,7 @@ function beginSseStream(request: FastifyRequest, reply: FastifyReply): void {
 /** The UDP port OSC triggers arrive on (#484) - TouchOSC and most controllers send to 8000 by default. */
 const OSC_IN_PORT = Number(process.env.STAGEBOARD_OSC_IN_PORT ?? 8000)
 
-export async function buildApp(options: { backupService?: BackupService } = {}) {
+export async function buildApp(options: { backupService?: BackupService; databaseHost?: BuiltinDatabase['handle'] } = {}) {
   // Same shared cert as Vite and the database (see #34, scripts/generate-dev-certs.sh) - the
   // tablet's WebMIDI/getUserMedia calls need the *page* origin to be secure, not this
   // server, but WSS/HTTPS here still matters once the PWA itself is HTTPS: an HTTPS page
@@ -1055,30 +1055,14 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
   // directly. `stage-pwa`'s `workspaceDb.ts` now builds its remote database URL from this
   // server's own origin plus this `/db` prefix (`VITE_HOST_URL`) instead of a separate
   // `VITE_DB_URL` pointing at the database's own port - one address to configure, not two.
-  await app.register(httpProxy, {
-    upstream: database.url,
-    prefix: '/db',
-    rewritePrefix: '',
-    // A band's database only for that band's own accounts. the database's `_security` grants access by
-    // role, and the roles (`member`, `admin`) are the same in every band - without this, any
-    // band's device login could read and write every other band's database through here.
-    preHandler: (request, reply, done) => {
-      const refusal = bandDbProxyRefusal(request.url, request.headers.authorization)
-      if (refusal) {
-        app.log.warn({ url: request.url.split('?')[0], remoteAddress: request.ip, reason: refusal }, 'Database request for another band refused')
-        void reply.status(403).send({ error: 'forbidden', reason: 'Not an account of this band' })
-        return
-      }
-      // the database itself never locks a login - an admin's password is their 4-digit PIN, so guessing
-      // it here had no limit (#396 review). Same lock as the admin routes, shared per account.
-      const login = basicAuthCredentials(request.headers.authorization)
-      const lockedFor = login ? adminLoginThrottle.lockedForSeconds(login.username) : 0
-      if (lockedFor > 0) {
-        void reply.status(429).header('Retry-After', String(lockedFor)).send({ error: 'locked', reason: 'Too many wrong logins' })
-        return
-      }
-      done()
+  registerDatabaseRoutes(app, {
+    handle: options.databaseHost,
+    refusal: bandDbProxyRefusal,
+    lockedForSeconds: (authorization) => {
+      const login = basicAuthCredentials(authorization)
+      return login ? adminLoginThrottle.lockedForSeconds(login.username) : 0
     },
+    log: app.log,
   })
   app.addHook('onResponse', async (request, reply) => {
     if (!request.url.startsWith('/db')) return
@@ -1144,7 +1128,7 @@ async function main() {
     ...(process.env.STAGEBOARD_DB_STORAGE ? { storage: JSON.parse(process.env.STAGEBOARD_DB_STORAGE) } : {}),
   })
   process.env.STAGEBOARD_DB_URL = builtinDb.url
-  const { app, lookupRegistry, workspaceHardware, pluginLog, database, backups, hostLease, replication, audioMirror, catchUp, channels } = await buildApp()
+  const { app, lookupRegistry, workspaceHardware, pluginLog, database, backups, hostLease, replication, audioMirror, catchUp, channels } = await buildApp({ databaseHost: builtinDb.handle })
   app.log.info({ url: builtinDb.url }, 'Built-in database host')
   // Scheduled backups (daily time, USB medium plugged in) - checked every 30 s.
   backups.start()
