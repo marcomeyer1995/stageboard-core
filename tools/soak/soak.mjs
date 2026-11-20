@@ -259,6 +259,17 @@ async function sampler() {
 
 /** Stress only: now and then a device loses its connection for a while and comes back (a tablet going to sleep, WiFi dropping), and a
  * 2 MB document is written (a big song with embedded data) - recovery is part of the test. */
+/** The simulated devices keep every revision body in memory (PouchDB's memory adapter), which a real app's storage does not: eight devices
+ * with 2 MB documents ran the soak process out of memory at 4 GB after 45 minutes (a result lost). Every two minutes each device compacts
+ * its own copy - an explicit, supported call that drops old bodies and keeps the revision tree. The host is never compacted here: what the
+ * soak measures is how the host behaves. */
+async function compactDevices() {
+  while (!stop()) {
+    await sleep(120_000)
+    for (const device of devices) await device.local.compact().catch(() => {})
+  }
+}
+
 async function faults() {
   if (profile !== 'stress') return
   let n = 0
@@ -278,7 +289,7 @@ async function faults() {
   }
 }
 
-await Promise.all([faults(), sampler(), clock(), reader(), accounts(), tracks(), showState(devices[0]), ...devices.map(writer)])
+await Promise.all([compactDevices(), faults(), sampler(), clock(), reader(), accounts(), tracks(), showState(devices[0]), ...devices.map(writer)])
 
 // A host that died must show up as a verdict, not as a pile of "fetch failed" (the first stress runs lost the host this way).
 const hostAliveAtEnd = await fetch(`${url}/time`, { signal: AbortSignal.timeout(5000) }).then((r) => r.ok).catch(() => false)
