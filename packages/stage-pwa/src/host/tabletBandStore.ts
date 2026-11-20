@@ -60,14 +60,17 @@ function generateAccessCode(): string {
 }
 
 export function createTabletBandStore(deps: TabletBandStoreDeps): BandStore {
-  const accountsPerBand = new Map<string, BandAccounts>()
+  // Accounts are bound to the database handle they were built on; when the host opens a band's handle again (the browser closed
+  // the connection), the accounts follow it.
+  const accountsPerBand = new Map<string, { handle: unknown; accounts: BandAccounts }>()
   const accountsFor = (workspaceId: string): BandAccounts => {
-    let accounts = accountsPerBand.get(workspaceId)
-    if (!accounts) {
-      accounts = createBandAccounts({ store: createBandAccountStore(deps.open(workspaceId) as never), workspaceId })
-      accountsPerBand.set(workspaceId, accounts)
+    const handle = deps.open(workspaceId)
+    let known = accountsPerBand.get(workspaceId)
+    if (!known || known.handle !== handle) {
+      known = { handle, accounts: createBandAccounts({ store: createBandAccountStore(handle as never), workspaceId }) }
+      accountsPerBand.set(workspaceId, known)
     }
-    return accounts
+    return known.accounts
   }
   const read = (workspaceId: string, id: string) => deps.open(workspaceId).get(id).catch((err: { status?: number }) => {
     if (err.status === 404) return null

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { createBandAccounts, createBandJoin, createHostChannels, createBandMembers, createPinThrottle, createHostDeviceInfo, createHostPresence, type AccountDoc, type SyncRequest } from 'sync-host'
 import { createTabletCapabilities } from './tabletCapabilities'
-import { answerHostRequest, bandOfPath, loginCheckOf, type AppHostDeps } from './hostHttp'
+import { answerHostRequest, bandOfPath, isClosedConnection, loginCheckOf, type AppHostDeps } from './hostHttp'
 
 /** The routes every host shares are tested once, in sync-host (routes.test.ts); here: the tablet's own, and its wiring of the shared ones. */
 const baseDeps = () => {
@@ -276,5 +276,19 @@ describe('what the tablet cannot do (#962)', () => {
       expect(refused.status, path).toBe(501)
       expect(refused.body, path).toMatchObject({ error: 'capability_missing', capability })
     }
+  })
+})
+
+describe('isClosedConnection (#962)', () => {
+  it('recognises the answer of a database handle whose connection the browser closed', () => {
+    const closed = { status: 500, body: { error: "InvalidStateError: Failed to execute 'transaction' on 'IDBDatabase': The database connection is closing.", status: 500 } }
+    expect(isClosedConnection(closed)).toBe(true)
+    expect(isClosedConnection({ status: 500, body: 'InvalidStateError: the database connection is closed' })).toBe(true)
+  })
+
+  it('is false for every other answer - a real error must not be retried', () => {
+    expect(isClosedConnection({ status: 200, body: { error: 'InvalidStateError: connection is closing' } })).toBe(false)
+    expect(isClosedConnection({ status: 500, body: { error: 'QuotaExceededError' } })).toBe(false)
+    expect(isClosedConnection({ status: 500, body: null })).toBe(false)
   })
 })

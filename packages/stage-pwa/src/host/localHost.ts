@@ -5,7 +5,7 @@ import { useBandSettingsStore } from '../store/useBandSettingsStore'
 import { useAndroidHostStore } from '../store/useAndroidHostStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { getDeviceId } from '../lib/deviceId'
-import { answerHostRequest, loginCheckOf, type AppHostDeps } from '../host/hostHttp'
+import { answerHostRequest, isClosedConnection, loginCheckOf, type AppHostDeps } from '../host/hostHttp'
 import { createTabletHost, type TabletHost } from '../host/tabletHost'
 import PouchDB from 'pouchdb-browser'
 import { getAudioStorageBackend } from '../lib/audioStorageBackend'
@@ -274,6 +274,18 @@ export async function startAndroidHost(): Promise<void> {
       handles.set(band, handle)
     }
     return handle
+  }
+  /** Drops the handles this host opened itself (the founded bands'); the next request opens them again. The active band's is the
+   * app's own and stays. */
+  const reopenBandDatabases = () => {
+    for (const [band, handle] of [...handles]) {
+      if (isActiveBand(band)) continue
+      void handle.close?.()
+      handles.delete(band)
+    }
+    accountsPerBand.clear()
+    joinPerBand.clear()
+    membersPerBand.clear()
   }
   const bandOfDbName = (name: string): string | null => (name.startsWith('stageboard-') ? name.slice('stageboard-'.length) : null)
   const open = (name: string) => {
@@ -562,7 +574,17 @@ export async function startAndroidHost(): Promise<void> {
         await LocalHost.respond({ id: req.id, status: ctx ? 200 : 401, contentType: 'application/json', text: JSON.stringify(ctx ? { ok: true } : { error: 'unauthorized' }) })
         return
       }
-      const answer = await answerHostRequest({ method: req.method, path: req.path, query: Object.fromEntries(new URLSearchParams(req.query)), authorization: req.authorization, ...(req.remoteAddress ? { remoteAddress: req.remoteAddress } : {}), body }, hostDeps)
+      const ask = () => answerHostRequest({ method: req.method, path: req.path, query: Object.fromEntries(new URLSearchParams(req.query)), authorization: req.authorization, ...(req.remoteAddress ? { remoteAddress: req.remoteAddress } : {}), body }, hostDeps)
+      let answer = await ask()
+      // A closed IndexedDB connection stays closed on that handle: open the band databases again and answer once more (#962).
+      if (isClosedConnection(answer)) {
+        reopenBandDatabases()
+        // Counted and logged: the retry hides it from the device, and a closed connection is worth knowing about.
+        const heals = ((window as unknown as { __sbHostHeals?: number }).__sbHostHeals ?? 0) + 1
+        ;(window as unknown as { __sbHostHeals: number }).__sbHostHeals = heals
+        console.warn(`[host] a band database connection was closed by the browser - opened again (${heals})`)
+        answer = await ask()
+      }
       if (answer.binary) await LocalHost.respond({ id: req.id, status: answer.status, contentType: answer.binary.contentType, body: toBase64(answer.binary.data) })
       else await LocalHost.respond({ id: req.id, status: answer.status, contentType: 'application/json', text: answer.status === 204 ? '' : JSON.stringify(answer.body ?? null) })
     })().catch((err: unknown) => {

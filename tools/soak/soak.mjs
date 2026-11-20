@@ -44,9 +44,15 @@ const stop = () => Date.now() >= endAt
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 const basic = (user, password) => `Basic ${Buffer.from(`${user}:${password}`).toString('base64')}`
 
-const stats = { requests: 0, failures: {}, latencies: { time: [], read: [], write: [], join: [] } }
-const fail = (what) => {
+const stats = { requests: 0, conflicts: 0, failures: {}, latencies: { time: [], read: [], write: [], join: [] } }
+const firstMessage = {}
+const fail = (what, detail) => {
   stats.failures[what] = (stats.failures[what] ?? 0) + 1
+  // The first text of each kind of failure: a count alone says nothing about why (the tablet soak showed 10,000 of them).
+  if (detail && !firstMessage[what]) {
+    firstMessage[what] = String(detail).slice(0, 300)
+    console.log(`first "${what}" at ${new Date().toISOString()}: ${firstMessage[what]}`)
+  }
 }
 /** One timed request; failures are counted by what failed, never thrown into the test. */
 async function timed(kind, label, run) {
@@ -57,7 +63,12 @@ async function timed(kind, label, run) {
     stats.latencies[kind].push(performance.now() - t0)
     return result
   } catch (err) {
-    fail(`${label}: ${err?.status ?? err?.code ?? err?.message ?? err}`)
+    // Three writers edit the same 150 songs: a 409 is the database doing its job (the writer reads again), not a failure.
+    if (err?.status === 409) {
+      stats.conflicts += 1
+      return null
+    }
+    fail(`${label}: ${err?.status ?? err?.code ?? err?.message ?? err}`, err?.message ?? err?.name ?? JSON.stringify(err))
     return null
   }
 }
@@ -235,9 +246,13 @@ for (const device of devices) {
 }
 for (const device of devices) await device.local.replicate.from(device.remote).catch(() => fail(`settle pull ${device.i}`))
 const heads = async (db) => Object.fromEntries((await db.allDocs({ startkey: 'songs:', endkey: 'songs:￰' })).rows.map((row) => [row.id, row.value.rev]))
-const hostHeads = await heads(devices[0].remote)
-let diverged = 0
-for (const device of devices) {
+const hostHeads = await heads(devices[0].remote).catch((err) => {
+  fail('final read of the host', err?.message ?? err?.name ?? JSON.stringify(err))
+  return null
+})
+// null: the host could not be read at the end - that is a failure of its own, not "no difference".
+let diverged = hostHeads === null ? null : 0
+for (const device of hostHeads === null ? [] : devices) {
   const mine = await heads(device.local)
   const ids = new Set([...Object.keys(mine), ...Object.keys(hostHeads)])
   for (const id of ids) if (mine[id] !== hostHeads[id]) diverged += 1
@@ -256,6 +271,8 @@ const summary = {
   startedAt: new Date(started).toISOString(),
   requests: stats.requests,
   failures: stats.failures,
+  firstFailureMessages: firstMessage,
+  writeConflicts: stats.conflicts,
   deviceWrites: devices.map((d) => d.writes),
   latencyMs: Object.fromEntries(Object.entries(stats.latencies).map(([k, v]) => [k, { n: v.length, p50: percentile(v, 50), p95: percentile(v, 95), p99: percentile(v, 99), max: v.length ? Math.round(v.reduce((m, x) => (x > m ? x : m), 0)) : null }])),
   rssMb: { afterWarmup: first, peak, last, growthPerHourSecondHalf: slope === null ? null : Math.round(slope * 10) / 10 },

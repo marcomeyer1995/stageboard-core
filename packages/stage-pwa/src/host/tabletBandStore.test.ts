@@ -59,7 +59,9 @@ function setup() {
     copy: async (workspaceId, docs) => void copies.push({ workspaceId, docs: docs.length }),
     deleted: { is: (id) => deleted.has(id), mark: (id) => void deleted.add(id) },
   })
-  return { store, stores, storeFor, deleted, copies, open }
+  /** The browser closed the connection: the host opens a new handle on the same data. */
+  const replaceHandle = (id: string) => void handles.set(id, fakeDb(storeFor(id)))
+  return { store, stores, storeFor, deleted, copies, open, replaceHandle }
 }
 
 describe('the tablet as a host of bands (#962)', () => {
@@ -131,5 +133,12 @@ describe('the tablet as a host of bands (#962)', () => {
     await store.create('band-u', 'U', { founderId: 'f', deviceId: 'd' })
     await expect(store.checkAdmin('band-u', 'Zoë', 'pässwörd €')).resolves.toBe(false)
     await expect(store.login('band-u', '日本語', 'x')).resolves.toBeNull()
+  })
+
+  it('builds its accounts again on a new database handle of the same band (the browser closed the connection) (#962)', async () => {
+    const { store, replaceHandle } = setup()
+    const first = await store.create('band-r', 'R', { founderId: 'f', deviceId: 'd' })
+    replaceHandle('band-r')
+    await expect(store.checkAdmin('band-r', first.username, first.password)).resolves.toBe(true)
   })
 })
