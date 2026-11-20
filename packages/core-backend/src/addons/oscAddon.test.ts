@@ -2,7 +2,7 @@ import { createSocket, type Socket } from 'node:dgram'
 import type { AddressInfo } from 'node:net'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { createOscAddonPlugin } from './oscAddon.js'
-import { createOscPlugin, encodeOscMessage, parseOscArgs, setOscTargetResolver } from '../plugins/oscPlugin.js'
+import { setOscTargetResolver } from '../plugins/oscPlugin.js'
 import { helperRunnerFor } from './helpers.js'
 
 let receiver: Socket
@@ -20,43 +20,70 @@ afterAll(() => receiver.close())
 
 const waitFor = async (n: number) => { for (let i = 0; i < 100 && received.length < n; i++) await new Promise((r) => setTimeout(r, 20)) }
 const cue = (payload: Record<string, unknown>, logicalDeviceId: string | undefined = 'lights') => ({ type: 'osc.send', logicalDeviceId, payload }) as never
+async function send(address: string, args = ''): Promise<Buffer> {
+  received.length = 0
+  expect(await createOscAddonPlugin().trigger(cue({ address, args }))).toEqual({ status: 'ok' })
+  await waitFor(1)
+  return received[0]!
+}
 
-describe('the OSC add-on in the sandbox (#964)', () => {
-  it('sends real UDP packets that are byte for byte what the built-in plugin encodes - ints, floats, strings, booleans', async () => {
-    const plugin = createOscAddonPlugin()
-    for (const [address, args] of [['/cue/1/go', ''], ['/fader', '0.5 1 "hello world" true false -7 1,25'], ['/ä/ü', 'Größe']] as const) {
-      received.length = 0
-      expect(await plugin.trigger(cue({ address, args }))).toEqual({ status: 'ok' })
-      await waitFor(1)
-      expect([...received[0]!]).toEqual([...encodeOscMessage(address, parseOscArgs(args))])
-    }
+describe('the OSC add-on in the sandbox (#964): real UDP packets', () => {
+  it('encodes the OSC 1.0 spec example "/oscillator/4/frequency" 440.0', async () => {
+    const expected = Buffer.from([...Buffer.from('/oscillator/4/frequency'), 0, ...Buffer.from(',f'), 0, 0, 0x43, 0xdc, 0x00, 0x00])
+    expect([...(await send('/oscillator/4/frequency', '440.0'))]).toEqual([...expected])
   })
 
-  it('refuses an address OSC does not allow - nothing is sent - with the same words as the built-in plugin', async () => {
+  it('pads every string to four bytes and writes ints big-endian; T/F have no data', async () => {
+    const msg = await send('/cue', '12 "go" true')
+    expect(msg.length % 4).toBe(0)
+    expect(msg.subarray(0, 8)).toEqual(Buffer.from([...Buffer.from('/cue'), 0, 0, 0, 0]))
+    expect(msg.subarray(8, 16)).toEqual(Buffer.from([...Buffer.from(',isT'), 0, 0, 0, 0]))
+    expect(msg.readInt32BE(16)).toBe(12)
+    expect(msg.subarray(20, 24)).toEqual(Buffer.from([...Buffer.from('go'), 0, 0]))
+  })
+
+  it('reads the cue\'s values as typed arguments - more than one: int, float, bool, quoted and bare strings, comma decimals', async () => {
+    const msg = await send('/x', '1 0.5 true "Intro Teil" go -3 2,5')
+    const tags = msg.toString('latin1', 4, 16).replace(/\0/g, '')
+    expect(tags).toBe(',ifTssif')
+    expect(msg.readInt32BE(16)).toBe(1)
+    expect(msg.readFloatBE(20)).toBe(0.5)
+    expect(msg.readFloatBE(msg.length - 4)).toBe(2.5)
+    expect(msg.readInt32BE(msg.length - 8)).toBe(-3)
+    expect(msg.includes(Buffer.from('Intro Teil'))).toBe(true)
+  })
+
+  it('keeps umlauts as UTF-8', async () => {
+    expect((await send('/ä/ü', 'Größe')).includes(Buffer.from('Größe'))).toBe(true)
+  })
+})
+
+describe('what the add-on says when it cannot send - its own words, nothing sent (#964)', () => {
+  const plugin = () => createOscAddonPlugin()
+
+  it('an address OSC does not allow', async () => {
     received.length = 0
-    const mine = await createOscAddonPlugin().trigger(cue({ address: '/bad address*' }))
-    const builtin = await createOscPlugin().trigger(cue({ address: '/bad address*' }))
-    expect(mine).toEqual(builtin)
-    expect(mine.status).toBe('error')
+    for (const address of ['cue/12', '/cue 12', '/cue/*', '']) {
+      expect(await plugin().trigger(cue({ address }))).toEqual({ status: 'error', message: `Keine gültige OSC-Adresse: „${address}“` })
+    }
     await new Promise((r) => setTimeout(r, 150))
     expect(received).toHaveLength(0)
   })
 
-  it('says so when the device has no network settings, and for an unknown command', async () => {
-    const plugin = createOscAddonPlugin()
-    const builtin = createOscPlugin()
-    expect(await plugin.trigger(cue({ address: '/x' }, 'no-such-device'))).toEqual(await builtin.trigger(cue({ address: '/x' }, 'no-such-device')))
-    expect(await plugin.trigger({ type: 'other' } as never)).toEqual(await builtin.trigger({ type: 'other' } as never))
+  it('a device with no host and port, and an unknown command', async () => {
+    expect(await plugin().trigger(cue({ address: '/x' }, 'no-such-device'))).toEqual({ status: 'error', message: 'Für dieses OSC-Gerät fehlen Host und Port (Bühne).' })
+    expect(await plugin().trigger({ type: 'kemper.tuner' } as never)).toMatchObject({ status: 'error', message: 'Unbekannter OSC-Befehl: kemper.tuner' })
   })
 
   it('a send that fails is reported with host, port and the reason', async () => {
     setOscTargetResolver(async () => ({ host: '127.0.0.1', port: 70000 }))
-    const result = await createOscAddonPlugin().trigger(cue({ address: '/x' }, 'any'))
-    expect(result).toMatchObject({ status: 'error', messageCode: 'osc.sendFailed' })
+    expect(await plugin().trigger(cue({ address: '/x' }, 'any'))).toMatchObject({ status: 'error', message: expect.stringContaining('OSC an 127.0.0.1:70000 fehlgeschlagen') })
     setOscTargetResolver(async (id) => (id === 'lights' ? { host: '127.0.0.1', port } : null))
   })
+})
 
-  it('the udp-send helper refuses what is no datagram, and only a declared helper may be asked for', async () => {
+describe('the udp-send helper (#964)', () => {
+  it('refuses what is no datagram, and only a declared helper may be asked for', async () => {
     const run = helperRunnerFor(['udp-send'])
     await expect(run('udp-send', ['127.0.0.1', '0'], () => {}, [{ name: 'packet', bytes: new Uint8Array(4) }])).rejects.toThrow(/port/)
     await expect(run('udp-send', ['127.0.0.1', '9'], () => {}, [{ name: 'packet', bytes: new Uint8Array(9000) }])).rejects.toThrow(/8192/)

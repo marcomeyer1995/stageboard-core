@@ -37,12 +37,6 @@
     "demucsMissing": "Demucs is not installed on the Host (docs/03).",
     "notInstalled": "Stem separation is not installed on the Host (Demucs, see docs/03)."
   },
-  "osc": {
-    "unknownCommand": "Unknown OSC command: {{type}}",
-    "invalidAddress": "Not a valid OSC address: \"{{address}}\"",
-    "noTarget": "This OSC device has no host and port (Stage tech).",
-    "sendFailed": "OSC to {{host}}:{{port}} failed: {{error}}"
-  },
   "job": {
     "interrupted": "Interrupted by a restart of the Host.",
     "variantGone": "The song variant no longer exists.",
@@ -66,14 +60,7 @@
   },
   "ug": {
     "addonMissing": "The \"Ultimate Guitar Import\" add-on is not installed for this band.",
-    "bandMissing": "Ultimate Guitar is missing the band (add-on check).",
-    "chromePathWrong": "CHROME_EXECUTABLE_PATH points to \"{{path}}\" - there is no Chrome/Chromium there. Fix the path or remove the variable.",
-    "chromeMissing": "For Ultimate Guitar the Host needs Chrome or Chromium - none found. Install it (e.g. \"sudo apt install chromium\") or set CHROME_EXECUTABLE_PATH. Looked in: {{paths}}",
-    "timeout": "Ultimate Guitar does not answer ({{seconds}} s). Check the Host's internet connection and try again.",
-    "unavailable": "Ultimate Guitar is not reachable - does the Host have internet right now?",
-    "blocked": "Ultimate Guitar blocked the request as a bot. Try again in a few minutes.",
-    "sourceChanged": "Ultimate Guitar rebuilt its site - the import (plugin \"ultimate-guitar-scraper\") needs an update. Page title: \"{{title}}\"",
-    "notImportable": "This version has no text to take over (e.g. a Pro or video version). Please pick another version."
+    "bandMissing": "Ultimate Guitar is missing the band (add-on check)."
   },
   "helper": {
     "missing": "The add-on's helper is not installed on this device.",

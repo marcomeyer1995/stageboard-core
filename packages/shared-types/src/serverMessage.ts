@@ -36,10 +36,6 @@ export const SERVER_MESSAGES_DE = {
   'speech.notInstalled': 'Piper oder Stimme {{voice}} nicht installiert',
   'plugin.unknownEvent': '{{plugin}}: unbekannter Event-Typ "{{type}}".',
   'stems.demucsMissing': 'Demucs ist auf dem Host nicht installiert (docs/03).',
-  'osc.unknownCommand': 'Unbekannter OSC-Befehl: {{type}}',
-  'osc.invalidAddress': 'Keine gültige OSC-Adresse: „{{address}}“',
-  'osc.noTarget': 'Für dieses OSC-Gerät fehlen Host und Port (Bühne).',
-  'osc.sendFailed': 'OSC an {{host}}:{{port}} fehlgeschlagen: {{error}}',
   'job.interrupted': 'Durch einen Neustart des Hosts unterbrochen.',
   'job.variantGone': 'Die Song-Variante existiert nicht mehr.',
   'job.trackGone': 'Der Track existiert nicht mehr.',
@@ -70,13 +66,6 @@ export const SERVER_MESSAGES_DE = {
   'stems.notInstalled': 'Stem-Trennung ist auf dem Host nicht installiert (Demucs, siehe docs/03).',
   'ug.addonMissing': 'Das Add-on „Ultimate Guitar Import“ ist für diese Band nicht installiert.',
   'ug.bandMissing': 'Für Ultimate Guitar fehlt die Band (Add-on-Prüfung).',
-  'ug.chromePathWrong': 'CHROME_EXECUTABLE_PATH zeigt auf „{{path}}“ - dort ist kein Chrome/Chromium. Pfad korrigieren oder die Variable entfernen.',
-  'ug.chromeMissing': 'Für Ultimate Guitar braucht der Host Chrome oder Chromium - keins gefunden. Installieren (z. B. „sudo apt install chromium“) oder CHROME_EXECUTABLE_PATH setzen. Gesucht in: {{paths}}',
-  'ug.timeout': 'Ultimate Guitar antwortet nicht ({{seconds}} s). Internetverbindung des Hosts prüfen und noch einmal versuchen.',
-  'ug.unavailable': 'Ultimate Guitar ist nicht erreichbar - hat der Host gerade Internet?',
-  'ug.blocked': 'Ultimate Guitar hat die Anfrage als Bot blockiert. In ein paar Minuten noch einmal versuchen.',
-  'ug.sourceChanged': 'Ultimate Guitar hat seine Seite umgebaut - der Import (Plugin „ultimate-guitar-scraper“) muss angepasst werden. Seitentitel: „{{title}}“',
-  'ug.notImportable': 'Diese Version hat keinen Text zum Übernehmen (z. B. eine Pro- oder Video-Version). Bitte eine andere Version wählen.',
 } as const
 
 export type ServerMessageCode = keyof typeof SERVER_MESSAGES_DE

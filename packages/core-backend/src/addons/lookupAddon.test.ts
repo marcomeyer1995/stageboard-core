@@ -2,7 +2,6 @@ import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { createMusicBrainzAddonPlugin } from './lookupAddon.js'
-import { createMusicBrainzPlugin } from '../plugins/musicBrainzPlugin.js'
 
 let server: Server
 let baseUrl: string
@@ -22,7 +21,7 @@ beforeAll(async () => {
 afterAll(() => void server.close())
 
 describe('the metadata look-up add-on in the sandbox (#964)', () => {
-  it('searches over the network from inside the sandbox, with a User-Agent, and maps the results like the built-in plugin', async () => {
+  it('searches over the network from inside the sandbox, with a User-Agent, and maps the results', async () => {
     const plugin = createMusicBrainzAddonPlugin({ baseUrl })
     const results = await plugin.search('Wonder wall')
     expect(results).toEqual([
@@ -37,13 +36,7 @@ describe('the metadata look-up add-on in the sandbox (#964)', () => {
     expect(await createMusicBrainzAddonPlugin({ baseUrl }).fetchDetail('mbid-1')).toEqual({ title: 'Wonderwall', artist: 'Oasis', firstReleaseDate: '1995-10-02', sourceUrl: 'https://musicbrainz.org/recording/mbid-1' })
   })
 
-  it('an HTTP error is an error with the same words as the built-in plugin', async () => {
+  it('an HTTP error is an error ', async () => {
     await expect(createMusicBrainzAddonPlugin({ baseUrl }).fetchDetail('bad')).rejects.toThrow('MusicBrainz request failed: HTTP 503')
-  })
-
-  it('has the same shape as the built-in plugin', () => {
-    const a = createMusicBrainzAddonPlugin({ baseUrl })
-    const b = createMusicBrainzPlugin()
-    expect([a.name, a.version, a.capabilities]).toEqual([b.name, b.version, b.capabilities])
   })
 })

@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import { createUltimateGuitarAddonPlugin } from './lookupAddon.js'
-import { createUltimateGuitarPlugin, ugSearchResults, ugTabDetail, ugDetailResult } from '../plugins/ultimateGuitarPlugin.js'
 
 type Helper = NonNullable<Parameters<typeof createUltimateGuitarAddonPlugin>[0]>['runHelper']
 const pages: Record<string, unknown> = {}
@@ -9,7 +8,7 @@ const asked: string[] = []
 const fakeChrome: Helper = async (helper, args) => {
   if (helper !== 'ug-page') throw new Error('no helper')
   asked.push(args[0]!)
-  return { result: pages[args[0]!] ?? { error: { code: 'unavailable', message: 'UG ist nicht erreichbar', messageCode: 'ug.unavailable' } }, files: [] }
+  return { result: pages[args[0]!] ?? { error: { code: 'unavailable', params: {} } }, files: [] }
 }
 
 const SEARCH = {
@@ -28,26 +27,24 @@ const TAB = {
 }
 
 describe('the Ultimate Guitar add-on in the sandbox (#964)', () => {
-  it('searches: the add-on chooses and orders the importable versions exactly as the built-in plugin does', async () => {
+  it('searches: the add-on chooses and orders the importable versions - the community trust (4.81 stars from 11,313 votes beats 4.86 from 406), no Pro, no unrated paid listings', async () => {
     pages['https://www.ultimate-guitar.com/search.php?search_type=title&value=Wonderwall'] = SEARCH
     const results = await createUltimateGuitarAddonPlugin({ runHelper: fakeChrome }).search('Wonderwall')
-    expect(results).toEqual(ugSearchResults(SEARCH.data))
     expect(results.map((r) => r.id.split('::')[0])).toEqual(['2', '1', '5'])
     expect(results[0]).toMatchObject({ rating: 4.81, votes: 11313 })
   })
 
-  it('fetches a tab: the same detail, with ChordPro, as the built-in conversion', async () => {
+  it('fetches a tab: its details and the tab text converted to ChordPro by the add-on', async () => {
     const url = 'https://tabs.ultimate-guitar.com/tab/oasis/wonderwall-chords-2'
     pages[url] = TAB
     const detail = await createUltimateGuitarAddonPlugin({ runHelper: fakeChrome }).fetchDetail(`2::${url}`)
-    expect(detail).toEqual(ugDetailResult(url, TAB, ugTabDetail(TAB.data)))
     expect(detail).toMatchObject({ title: 'Wonderwall', artist: 'Oasis', key: 'F#m', tuning: 'E A D G B E', capo: 2, bpm: 87 })
-    expect(String(detail.chordProContent)).toContain('Em7')
+    expect(detail.chordProContent).toBe('[Em7] Today is gonna be')
   })
 
-  it('a failure with the musician\'s words (no Chrome, timeout...) arrives as a LookupError with its code and message code', async () => {
+  it('a failure the Chrome helper reports as a code arrives as a LookupError with the add-on\'s own words', async () => {
     const err = await createUltimateGuitarAddonPlugin({ runHelper: fakeChrome }).search('no-such-page').catch((e: unknown) => e)
-    expect(err).toMatchObject({ name: 'LookupError', code: 'unavailable', messageCode: 'ug.unavailable' })
+    expect(err).toMatchObject({ name: 'LookupError', code: 'unavailable', message: 'Ultimate Guitar ist nicht erreichbar - hat das Gerät gerade Internet?' })
   })
 
   it('a page without data is "blocked" for a Cloudflare challenge and "source changed" for anything else', async () => {
@@ -68,10 +65,17 @@ describe('the Ultimate Guitar add-on in the sandbox (#964)', () => {
     expect(asked.length).toBe(before)
   })
 
-  it('has the same name, version and capabilities as the built-in plugin', () => {
-    const a = createUltimateGuitarAddonPlugin({ runHelper: fakeChrome })
-    const b = createUltimateGuitarPlugin()
-    expect([a.name, a.version, a.capabilities]).toEqual([b.name, b.version, b.capabilities])
+  it('says what to do when there is no Chrome, in words that carry the path or the search places', async () => {
+    pages['https://www.ultimate-guitar.com/search.php?search_type=title&value=nochrome'] = { error: { code: 'chrome-path-wrong', params: { path: '/opt/nope' } } }
+    pages['https://www.ultimate-guitar.com/search.php?search_type=title&value=timeout'] = { error: { code: 'timeout', params: { seconds: 20 } } }
+    const plugin = createUltimateGuitarAddonPlugin({ runHelper: fakeChrome })
+    await expect(plugin.search('nochrome')).rejects.toMatchObject({ code: 'no-browser', message: expect.stringContaining('„/opt/nope“') })
+    await expect(plugin.search('timeout')).rejects.toMatchObject({ code: 'timeout', message: expect.stringContaining('(20 s)') })
+  })
+
+  it('names the page in "source changed" so the add-on can be fixed', async () => {
+    pages['https://www.ultimate-guitar.com/search.php?search_type=title&value=rebuilt'] = { hasData: false, title: 'WONDERWALL CHORDS by Oasis', data: null }
+    await expect(createUltimateGuitarAddonPlugin({ runHelper: fakeChrome }).search('rebuilt')).rejects.toMatchObject({ code: 'source-changed', message: expect.stringContaining('WONDERWALL CHORDS') })
   })
 })
 

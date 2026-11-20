@@ -16,10 +16,10 @@ describe('Host messages in the device language (#679)', () => {
   })
 
   it('translates a known code with its values, in the chosen language', async () => {
-    const reply = { status: 'error', ...serverMessage('osc.sendFailed', { host: '10.0.0.5', port: 7700, error: 'EHOSTUNREACH' }) }
-    expect(serverText(reply)).toBe('OSC an 10.0.0.5:7700 fehlgeschlagen: EHOSTUNREACH')
+    const reply = { status: 'error', ...serverMessage('youtube.tooLarge', { mb: 80 }) }
+    expect(serverText(reply)).toBe('Die Audiospur ist größer als das Limit von 80 MB.')
     await i18n.changeLanguage('en')
-    expect(serverText(reply)).toBe('OSC to 10.0.0.5:7700 failed: EHOSTUNREACH')
+    expect(serverText(reply)).toMatch(/80 MB/)
     expect(serverErrorText({ error: 'Durch einen Neustart des Hosts unterbrochen.', errorCode: 'job.interrupted' })).toBe('Interrupted by a restart of the Host.')
   })
 

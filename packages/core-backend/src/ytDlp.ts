@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs'
 import { spawn } from 'node:child_process'
 import { ServerMessageError, YOUTUBE_VIDEO_ID_RE, type YoutubeSearchResult } from 'shared-types'
 
-/** Same "find whichever binary is already on the host" pattern as ultimateGuitarPlugin.ts's
+/** Same "find whichever binary is already on the host" pattern as addons/browserHelper.ts's
  * `resolveChromeExecutable` - yt-dlp is not bundled or auto-installed (fetching an executable
  * at runtime/install time is its own can of worms), the operator installs it themselves. */
 const YT_DLP_CANDIDATES = ['/usr/bin/yt-dlp', '/usr/local/bin/yt-dlp']

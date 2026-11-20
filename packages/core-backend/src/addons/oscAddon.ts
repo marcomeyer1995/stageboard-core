@@ -1,12 +1,12 @@
-import { serverMessage, type IShowControlPlugin, type ShowControlEvent, type ShowControlResult } from 'shared-types'
+import type { IShowControlPlugin, ShowControlEvent, ShowControlResult } from 'shared-types'
 import { OSC_PLUGIN_ID, OSC_SEND, resolveOscTarget } from '../plugins/oscPlugin.js'
 import type { NodeSandboxOptions } from './nodeSandbox.js'
 import { BUILTIN_ADDONS, createAddonHost, type Log } from './addonHost.js'
 
 /**
- * OSC as a sandboxed add-on (#964). The add-on turns the cue into an OSC packet and asks the device's `udp-send` helper to send it; this adapter keeps
- * what is StageBoard's: where the device's OSC goes (its own network settings) and the musician's words for a failure - the same messages as the
- * built-in plugin.
+ * OSC as a sandboxed add-on (#964). StageBoard hands the cue to the add-on together with where this device's OSC goes (the device's own network
+ * settings - StageBoard's data, not OSC's) and relays the answer. What an OSC address is, how a packet is built and what to say when it fails is the
+ * add-on's.
  */
 export function createOscAddonPlugin(options: { log?: Log; runHelper?: NodeSandboxOptions['runHelper'] } = {}): IShowControlPlugin {
   const sandbox = createAddonHost(BUILTIN_ADDONS.oscSend, options.log, options.runHelper)
@@ -16,19 +16,12 @@ export function createOscAddonPlugin(options: { log?: Log; runHelper?: NodeSandb
     capabilities: [OSC_PLUGIN_ID],
     init: () => undefined,
     async trigger(event: ShowControlEvent): Promise<ShowControlResult> {
-      if (event.type !== OSC_SEND) return { status: 'error', ...serverMessage('osc.unknownCommand', { type: event.type }) }
-      const address = typeof event.payload?.address === 'string' ? event.payload.address : ''
       const target = await resolveOscTarget(event.logicalDeviceId)
-      if (!target) return { status: 'error', ...serverMessage('osc.noTarget') }
-      try {
-        const outcome = await (await sandbox()).call('send', { address, args: typeof event.payload?.args === 'string' ? event.payload.args : '', host: target.host, port: target.port }, { timeoutMs: 5_000 })
-        if (!outcome.ok) return { status: 'error', ...serverMessage('osc.sendFailed', { host: target.host, port: target.port, error: outcome.message }) }
-        if ((outcome.data as { error?: string } | undefined)?.error === 'invalid-address') return { status: 'error', ...serverMessage('osc.invalidAddress', { address: address.trim() }) }
-        options.log?.info('osc sent', { address, host: target.host, port: target.port })
-        return { status: 'ok' }
-      } catch (err) {
-        return { status: 'error', ...serverMessage('osc.sendFailed', { host: target.host, port: target.port, error: err instanceof Error ? err.message : String(err) }) }
-      }
+      const method = event.type === OSC_SEND ? 'send' : event.type
+      const outcome = await (await sandbox()).call(method, { address: event.payload?.address, args: event.payload?.args, ...(target ?? {}) }, { timeoutMs: 5_000 }).catch((err: unknown) => ({ ok: false as const, message: err instanceof Error ? err.message : String(err) }))
+      if (!outcome.ok) return { status: 'error', message: outcome.message }
+      options.log?.info('osc sent', { host: target?.host, port: target?.port })
+      return { status: 'ok' }
     },
     shutdown: () => undefined,
   }

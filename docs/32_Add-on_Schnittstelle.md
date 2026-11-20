@@ -166,7 +166,7 @@ Im Manifest (*gebaut*, #756 – `HelpersSchema`; `certSha256` ist eine Liste, da
 | Heute eingebaut | wird | Hilfsprogramm |
 |---|---|---|
 | Kemper, MG-30, RC-500, CQ-18T, Ui24R (Translatoren in `stage-pwa/src/lib/*Translator.ts`), MIDI-Clock | JS-Add-on | – |
-| OSC (`oscPlugin.ts`) | JS-Add-on (Jobs-Datei, Recht `osc:`) | – |
+| OSC (`scripts/addons/osc-send.js`, Hilfsprogramm `udp-send`) | JS-Add-on (Jobs-Datei, Recht `osc:`) | – |
 | Sprachausgabe Piper | JS-Add-on | Laptop: Piper; Android: offen |
 | Stem-Trennung | JS-Add-on | Laptop: Python + Demucs; Android: offen (zu schwer?) |
 | Ultimate-Guitar-Import (Chrome über puppeteer) | JS-Add-on | Laptop: Chrome; Android: offen |

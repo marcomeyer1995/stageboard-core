@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { extname, join } from 'node:path'
 import { runStemSeparation } from '../stems/stemSeparation.js'
 import { runYtDlpExtract } from '../ytDlp.js'
-import { createUgPageReader } from '../plugins/ultimateGuitarPlugin.js'
+import { BrowserError, createBrowserReader } from './browserHelper.js'
 import { runPiperProgram } from '../speech/piperSpeech.js'
 
 /**
@@ -73,22 +73,19 @@ const piper: HelperRun = async (args, _onProgress, files) => {
 }
 
 /**
- * `ug-page <url>`: Ultimate Guitar's page in a real Chrome, as `{hasData, title, data}` (plugins/ultimateGuitarPlugin.ts `createUgPageReader`). One Chrome is
- * kept for the device's lifetime. A failure the musician can act on (no Chrome, timeout, UG unreachable) comes back as `result.error` with its message code
- * and parameters, so the words survive the trip through the sandbox.
+ * `ug-page <url>`: Ultimate Guitar's page in a real Chrome, as `{hasData, title, data}` (addons/browserHelper.ts). One Chrome is
+ * kept for the device's lifetime. A failure the musician can act on (no Chrome, timeout, UG unreachable) comes back as `result.error` with a code and parameters;
+ * the add-on that asked puts it into words - the device knows no add-on's texts.
  */
-let ugReader: ReturnType<typeof createUgPageReader> | null = null
+let ugReader: ReturnType<typeof createBrowserReader> | null = null
 const ugPage: HelperRun = async (args) => {
   const url = args[0]
   if (!url || !/^https:\/\/(www\.)?ultimate-guitar\.com\//.test(url)) throw new Error('The ug-page helper opens only ultimate-guitar.com')
-  ugReader ??= createUgPageReader()
+  ugReader ??= createBrowserReader()
   try {
     return { result: await ugReader.read(url), files: [] }
   } catch (err) {
-    if (err instanceof Error && err.name === 'LookupError') {
-      const e = err as Error & { code?: string; messageCode?: string; messageParams?: Record<string, unknown> }
-      return { result: { error: { code: e.code, message: e.message, messageCode: e.messageCode, messageParams: e.messageParams } }, files: [] }
-    }
+    if (err instanceof BrowserError) return { result: { error: { code: err.code, params: err.params } }, files: [] }
     throw err
   }
 }

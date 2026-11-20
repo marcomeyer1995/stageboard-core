@@ -1,7 +1,24 @@
 // The OSC add-on's jobs file (docs/32 §6, #964): a classic Worker script, no imports, in a sandbox. One call, `send`: the cue's address and values
 // become one OSC 1.0 packet, which the device's helper `udp-send` puts on the network (an add-on has no socket and starts no program). OSC itself -
-// the address rules, the typed arguments, the byte layout - is this add-on's knowledge. Where to send (the device's own network settings) and the
-// musician's words for a failure are StageBoard's.
+// the address rules, the typed arguments, the byte layout - is this add-on's knowledge. The words the musician reads when it fails are this add-on's too.
+// Where to send is the device's own network setting; StageBoard hands it over with the cue (`host`, `port`, absent when the device has none).
+var LANG = 'de'
+var TEXT = {
+  de: {
+    unknown: function (p) { return 'Unbekannter OSC-Befehl: ' + p.type },
+    address: function (p) { return 'Keine gültige OSC-Adresse: „' + p.address + '“' },
+    noTarget: function () { return 'Für dieses OSC-Gerät fehlen Host und Port (Bühne).' },
+    failed: function (p) { return 'OSC an ' + p.host + ':' + p.port + ' fehlgeschlagen: ' + p.error },
+  },
+  en: {
+    unknown: function (p) { return 'Unknown OSC command: ' + p.type },
+    address: function (p) { return 'Not a valid OSC address: "' + p.address + '"' },
+    noTarget: function () { return 'This OSC device has no host and port set (stage).' },
+    failed: function (p) { return 'OSC to ' + p.host + ':' + p.port + ' failed: ' + p.error },
+  },
+}
+function say(key, params) { return (TEXT[LANG] || TEXT.en)[key](params || {}) }
+function refuse(id, key, params) { self.postMessage({ type: 'call-result', id: id, ok: false, message: say(key, params) }) }
 var pending = {}
 var nextRequest = 1
 var enc = new TextEncoder()
@@ -45,16 +62,22 @@ function encode(address, args) {
 
 self.onmessage = function (e) {
   var m = e.data
-  if (m.type === 'call' && m.method === 'send') {
+  if (m.type === 'init') {
+    LANG = m.language === 'en' ? 'en' : 'de'
+  } else if (m.type === 'call' && m.method === 'send') {
     var address = String(m.args.address || '').trim()
-    if (!/^\/[^\s#*,?[\]{}]*$/.test(address)) return self.postMessage({ type: 'call-result', id: m.id, ok: true, data: { error: 'invalid-address', address: address } })
+    if (!/^\/[^\s#*,?[\]{}]*$/.test(address)) return refuse(m.id, 'address', { address: address })
+    if (!m.args.host || !m.args.port) return refuse(m.id, 'noTarget')
     var packet = encode(address, parseArgs(String(m.args.args || '')))
     var request = nextRequest++
-    pending[request] = m.id
+    pending[request] = { id: m.id, host: m.args.host, port: m.args.port }
     self.postMessage({ type: 'helper-run', id: m.id, request: request, helper: 'udp-send', args: [String(m.args.host), String(m.args.port)], files: [{ name: 'packet', bytes: packet }] })
   } else if (m.type === 'helper-result') {
-    var id = pending[m.request]
+    var p = pending[m.request]
     delete pending[m.request]
-    self.postMessage({ type: 'call-result', id: id, ok: !m.error, data: m.error ? undefined : { sent: true }, message: m.error || undefined })
+    if (m.error) refuse(p.id, 'failed', { host: p.host, port: p.port, error: m.error })
+    else self.postMessage({ type: 'call-result', id: p.id, ok: true, data: { sent: true } })
+  } else if (m.type === 'call') {
+    refuse(m.id, 'unknown', { type: m.method })
   }
 }

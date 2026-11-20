@@ -42,6 +42,7 @@ export function createAddonHost(manifest: AddonManifest, log?: Log, runHelper: N
       helpers: manifest.helpers,
       permissions: [...manifest.permissions],
       ...(manifest.settings ? { settings: manifest.settings } : {}),
+      language: 'de',
       runHelper,
       ...(log ? { log } : {}),
     }).finally(() => (starting = null))

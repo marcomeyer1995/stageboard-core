@@ -4,7 +4,7 @@ import { createJobRunners, type DeviceDescription, type JobRunner, type JobRunne
 import { PIPER_SPEECH_PLUGIN_ID, serverSpeech } from './plugins/piperSpeechPlugin.js'
 import { STEM_SEPARATION_PLUGIN_ID } from './plugins/stemSeparationPlugin.js'
 import { ULTIMATE_GUITAR_PLUGIN_ID, YOUTUBE_DOWNLOAD_PLUGIN_ID } from './plugins/importAddons.js'
-import { resolveChromeExecutable } from './plugins/ultimateGuitarPlugin.js'
+import { resolveChromeExecutable } from './addons/browserHelper.js'
 import { stemsAvailable } from './stems/stemSeparation.js'
 import { resolveYtDlpExecutable } from './ytDlp.js'
 
