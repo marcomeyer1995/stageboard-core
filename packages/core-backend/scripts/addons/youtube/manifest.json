@@ -5,7 +5,7 @@
   "protocol": 3,
   "viewFile": "view.js",
   "workFile": "work.js",
-  "permissions": ["helper:yt-dlp", "http:https://i.ytimg.com"],
+  "permissions": ["helper:yt-dlp", "http:https://i.ytimg.com", "http:https://www.youtube.com"],
   "contributes": {
     "methods": {
       "search": {

@@ -15,6 +15,7 @@ var TEXT = {
     queued: 'Wird im Hintergrund geladen: ',
     queuedHint: 'Du kannst das Fenster schließen - die Spur erscheint im Song, sobald sie fertig ist.',
     done: 'Fertig - die Spur ist im Song.',
+    watch: 'Ansehen',
     jobFailed: 'Der Import ist fehlgeschlagen:',
     close: 'Schließen',
     failed: 'Das hat nicht geklappt.',
@@ -29,6 +30,7 @@ var TEXT = {
     queued: 'Loading in the background: ',
     queuedHint: 'You can close this window - the track appears in the song when it is ready.',
     done: 'Done - the track is in the song.',
+    watch: 'Watch',
     jobFailed: 'The import failed:',
     close: 'Close',
     failed: 'That did not work.',
@@ -68,6 +70,8 @@ function tree() {
       var length = typeof hit.durationSec === 'number' ? duration(hit.durationSec) : ''
       var row = { type: 'listRow', title: hit.title, subtitle: [channel, length].filter(Boolean).join(' · '), action: 'pick:' + i }
       row.image = { src: 'https://i.ytimg.com/vi/' + hit.id + '/mqdefault.jpg', role: 'thumb' }
+      // To listen in before choosing: the video in the device's own player or browser - the add-on declared this origin.
+      row.trailing = { type: 'link', label: say('watch'), href: 'https://www.youtube.com/watch?v=' + hit.id }
       return row
     }) })
   }

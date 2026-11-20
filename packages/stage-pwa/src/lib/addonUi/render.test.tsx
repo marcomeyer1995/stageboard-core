@@ -81,3 +81,22 @@ describe('UiTree - every node is one component of the UI system (#964, docs/36 Â
     expect(onAction).toHaveBeenCalledWith('close', undefined)
   })
 })
+
+describe('UiTree link (#964)', () => {
+  it('a link is a quiet Button that opens its target in a new window with no opener and no referrer', () => {
+    const open = vi.spyOn(window, 'open').mockImplementation(() => null)
+    show({ type: 'link', label: 'Ansehen', href: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ' })
+    fireEvent.click(screen.getByRole('button', { name: 'Ansehen' }))
+    expect(open).toHaveBeenCalledWith('https://www.youtube.com/watch?v=dQw4w9WgXcQ', '_blank', 'noopener,noreferrer')
+    open.mockRestore()
+  })
+
+  it('inside a list row the link does not trigger the row\'s own action', () => {
+    const open = vi.spyOn(window, 'open').mockImplementation(() => null)
+    const onAction = show({ type: 'list', children: [{ type: 'listRow', title: 'Wonderwall', action: 'pick:0', trailing: { type: 'link', label: 'Ansehen', href: 'https://www.youtube.com/watch?v=x' } }] })
+    fireEvent.click(screen.getByRole('button', { name: 'Ansehen' }))
+    expect(open).toHaveBeenCalledTimes(1)
+    expect(onAction).not.toHaveBeenCalled()
+    open.mockRestore()
+  })
+})

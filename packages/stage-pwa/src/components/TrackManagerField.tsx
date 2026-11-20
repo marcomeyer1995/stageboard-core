@@ -53,6 +53,9 @@ const KIND_LABELS: Record<TrackKind, string> = {
   },
 }
 
+/** A finished job has nothing more to say - its result is the track in the list - so its line goes by itself after this long (a failed one stays until dismissed). */
+export const DONE_JOB_VISIBLE_MS = 5_000
+
 const NO_ROLE = 'none'
 
 /** Attach/remove any number of named tracks (reference/band-mix/stem) on a song variant - and,
@@ -70,6 +73,13 @@ export function TrackManagerField({ variantId, tracks, disabled, searchQuery = '
   const variantJobs = useAsyncJobsStore((state) => state.jobs)
     .filter((job) => job.variantId === variantId)
     .sort((a, b) => a.createdAt - b.createdAt)
+  // Done jobs clear themselves: every download would otherwise leave a "done" line behind that has to be hidden by hand.
+  const doneJobIds = variantJobs.filter((job) => job.status === 'done').map((job) => job.id).join(',')
+  useEffect(() => {
+    if (doneJobIds === '') return
+    const timers = doneJobIds.split(',').map((id) => setTimeout(() => void removeAsyncJob(id).catch(() => {}), DONE_JOB_VISIBLE_MS))
+    return () => timers.forEach(clearTimeout)
+  }, [doneJobIds])
   const installed = usePluginsStore((state) => state.installed)
   const canSeparate = pluginProviding(installed, CAPABILITIES.stemSeparation) !== null
   const promptFields = useDialogStore((state) => state.promptFields)

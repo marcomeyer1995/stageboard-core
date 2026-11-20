@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PluginInstallation, TrackMeta } from 'shared-types'
 
-const db = vi.hoisted(() => ({ putAsyncJob: vi.fn(async () => {}), removeAsyncJob: vi.fn() }))
+const db = vi.hoisted(() => ({ putAsyncJob: vi.fn(async () => {}), removeAsyncJob: vi.fn(async () => {}) }))
 vi.mock('../lib/asyncJobsDb', () => db)
 const variants = vi.hoisted(() => ({ putTrack: vi.fn(async () => {}), removeTrack: vi.fn(), updateStem: vi.fn(), getTrack: vi.fn() }))
 vi.mock('../lib/songVariantsDb', () => variants)
@@ -36,7 +36,8 @@ vi.mock('pouchdb-browser', () => ({
 }))
 
 const { usePluginsStore } = await import('../store/usePluginsStore')
-const { TrackManagerField } = await import('./TrackManagerField')
+const { TrackManagerField, DONE_JOB_VISIBLE_MS } = await import('./TrackManagerField')
+const { useAsyncJobsStore } = await import('../store/useAsyncJobsStore')
 
 const track = (id: string, label: string, extra: Partial<TrackMeta> = {}): TrackMeta => ({ id, kind: 'band-mix', label, source: 'upload', parentTrackId: null, mimeType: 'audio/webm', addedAt: 0, ...extra })
 const tracks = [track('mix', 'Band-Playback'), track('drums', 'Schlagzeug', { kind: 'stem', parentTrackId: 'mix', source: 'stem-separation' })]
@@ -102,6 +103,28 @@ describe('TrackManagerField - stem sets (docs/22)', () => {
   })
 })
 
+describe('TrackManagerField - finished jobs clear themselves', () => {
+  const job = (id: string, status: 'done' | 'error' | 'running') => ({ id, type: 'audio-import' as const, status, progress: 1, createdAt: 1, updatedAt: 1, variantId: 'v1', addonId: 'a', method: 'm', args: {}, label: 'x', ...(status === 'error' ? { error: 'kaputt' } : {}) })
+
+  it('a done job\'s line goes after a few seconds; a failed one and a running one stay', () => {
+    vi.useFakeTimers()
+    try {
+      useAsyncJobsStore.setState({ jobs: [job('ok', 'done'), job('bad', 'error'), job('busy', 'running')] })
+      render(<TrackManagerField variantId="v1" tracks={[]} disabled={false} />)
+      expect(db.removeAsyncJob).not.toHaveBeenCalled()
+      vi.advanceTimersByTime(DONE_JOB_VISIBLE_MS - 1)
+      expect(db.removeAsyncJob).not.toHaveBeenCalled()
+      vi.advanceTimersByTime(2)
+      expect(db.removeAsyncJob).toHaveBeenCalledTimes(1)
+      expect(db.removeAsyncJob).toHaveBeenCalledWith('ok')
+      expect(screen.getByText(/kaputt/)).toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+      useAsyncJobsStore.setState({ jobs: [] })
+    }
+  })
+})
+
 describe('TrackManagerField - one row per track (#604)', () => {
   it('play, edit and delete are icons; removing asks first', async () => {
     const { useDialogStore } = await import('../store/useDialogStore')
@@ -148,6 +171,12 @@ describe('TrackManagerField - YouTube search in "Track hinzufügen" (#618)', () 
 
     const hit = await within(youtubeDialog).findByText('blink-182 - All The Small Things')
     expect(within(youtubeDialog).getByText('blink-182 · 2:51')).toBeInTheDocument()
+    // To listen in before choosing: a link out to the video, drawn from the add-on's description - and it does not pick the hit.
+    const open = vi.spyOn(window, 'open').mockImplementation(() => null)
+    fireEvent.click(within(youtubeDialog).getByRole('button', { name: 'Ansehen' }))
+    expect(open).toHaveBeenCalledWith('https://www.youtube.com/watch?v=9Ht5RZpzPqw', '_blank', 'noopener,noreferrer')
+    expect(db.putAsyncJob).not.toHaveBeenCalled()
+    open.mockRestore()
     fireEvent.click(hit)
     await waitFor(() =>
       expect(db.putAsyncJob).toHaveBeenCalledWith(

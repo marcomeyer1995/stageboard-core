@@ -198,6 +198,13 @@ function Node({ node, sources, onAction }: Props & { node: UiNode }): ReactNode 
         </div>
       )
     }
+    case 'link':
+      // Out of the app, to an origin the add-on declared (validated before this is drawn). No opener, no referrer: the page learns nothing of the band.
+      return (
+        <Button variant="quiet" icon="external" onClick={() => void window.open(node.href as string, '_blank', 'noopener,noreferrer')}>
+          {node.label as string}
+        </Button>
+      )
     case 'badge':
       return <Badge>{node.text as string}</Badge>
     case 'statusDot':

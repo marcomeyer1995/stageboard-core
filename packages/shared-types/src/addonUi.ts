@@ -40,6 +40,8 @@ const LEAF = {
   listRow: z.strictObject({ type: z.literal('listRow'), title: Label, subtitle: Label.optional(), image: z.strictObject({ src: z.string(), role: z.enum(['thumb', 'cover']) }).optional(), trailing: z.unknown().optional(), action: Action.optional() }),
   image: z.strictObject({ type: z.literal('image'), src: z.string(), role: z.enum(['thumb', 'cover']) }),
   progress: z.strictObject({ type: z.literal('progress'), value: bindable(z.number().min(0).max(1)) }),
+  // A way out of the app: opens `href` in the device's browser or the app that handles it. Only to an origin the add-on declared (validateUiTree).
+  link: z.strictObject({ type: z.literal('link'), label: Label, href: z.string().max(500) }),
   badge: z.strictObject({ type: z.literal('badge'), text: Label }),
   statusDot: z.strictObject({ type: z.literal('statusDot'), status: z.enum(['online', 'offline', 'error']) }),
 } as const
@@ -47,12 +49,12 @@ const LEAF = {
 export type UiNodeType = keyof typeof LEAF
 export type UiNode = { type: UiNodeType; children?: UiNode[]; trailing?: UiNode } & Record<string, unknown>
 
-export type UiError = 'ui.unknown-node' | 'ui.too-deep' | 'ui.too-many-nodes' | 'ui.too-large' | 'ui.image-origin' | 'ui.invalid'
+export type UiError = 'ui.unknown-node' | 'ui.too-deep' | 'ui.too-many-nodes' | 'ui.too-large' | 'ui.image-origin' | 'ui.link-origin' | 'ui.invalid'
 export type UiValidation = { ok: true; tree: UiNode } | { ok: false; code: UiError; path: string }
 
 const isNodeType = (type: unknown): type is UiNodeType => typeof type === 'string' && Object.prototype.hasOwnProperty.call(LEAF, type)
 
-/** The origin of an image URL that is a plain https URL without credentials (`https://i.ytimg.com@evil.example` is not an `i.ytimg.com` URL). */
+/** The origin of an image or link URL that is a plain https URL without credentials (`https://i.ytimg.com@evil.example` is not an `i.ytimg.com` URL). */
 function imageOrigin(src: string): string | null {
   try {
     const url = new URL(src)
@@ -90,6 +92,10 @@ export function validateUiTree(tree: unknown, ctx: { imageOrigins: readonly stri
     if (image) {
       const origin = imageOrigin(image.src)
       if (!origin || !allowed.has(origin)) return { ok: false, code: 'ui.image-origin', path: type === 'listRow' ? `${prefix}image` : path }
+    }
+    if (type === 'link') {
+      const origin = imageOrigin((data as { href: string }).href)
+      if (!origin || !allowed.has(origin)) return { ok: false, code: 'ui.link-origin', path }
     }
     if (Array.isArray(data.children)) {
       for (let i = 0; i < data.children.length; i++) {

@@ -89,3 +89,20 @@ describe('validateUiTree (#964, docs/36 §6)', () => {
     expect(validateUiTree(a, ctx)).toMatchObject({ ok: false })
   })
 })
+
+describe('link - a way out of the app, only to origins the add-on declared (#964)', () => {
+  const link = (href: string) => ({ type: 'link', label: 'Ansehen', href })
+  const withLinks = { imageOrigins: ['https://www.youtube.com'] }
+
+  it('accepts a link to a declared origin, also as the trailing part of a list row', () => {
+    expect(validateUiTree(link('https://www.youtube.com/watch?v=dQw4w9WgXcQ'), withLinks)).toMatchObject({ ok: true })
+    expect(validateUiTree({ type: 'listRow', title: 'x', trailing: link('https://www.youtube.com/watch?v=x') }, withLinks)).toMatchObject({ ok: true })
+  })
+
+  it('refuses every other target: another host, http, javascript:, data:, intent:, credentials, not a URL', () => {
+    for (const href of ['https://evil.example/', 'http://www.youtube.com/x', 'javascript:alert(1)', 'data:text/html,x', 'intent://scan/#Intent;scheme=zxing;end', 'https://www.youtube.com@evil.example/', 'not a url', '']) {
+      expect(validateUiTree(link(href), withLinks), href).toMatchObject({ ok: false, code: 'ui.link-origin' })
+    }
+    expect(validateUiTree({ type: 'listRow', title: 'x', trailing: link('https://evil.example/') }, withLinks)).toMatchObject({ ok: false, code: 'ui.link-origin', path: 'trailing' })
+  })
+})
