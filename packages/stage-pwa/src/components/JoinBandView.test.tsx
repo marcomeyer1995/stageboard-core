@@ -48,7 +48,7 @@ beforeEach(() => {
 })
 
 describe('JoinBandView - step 1: workspace list (landing, no code needed)', () => {
-  it('lists every band the Stage-Server hosts on mount, with no code entry', async () => {
+  it('lists every band the Host hosts on mount, with no code entry', async () => {
     useWorkspaceStore.setState({ listWorkspaces: vi.fn().mockResolvedValue(workspaceList) })
 
     render(<JoinBandView />)
@@ -61,7 +61,7 @@ describe('JoinBandView - step 1: workspace list (landing, no code needed)', () =
   it('shows an empty-state message when the server hosts no bands', async () => {
     render(<JoinBandView />)
 
-    expect(await screen.findByText('Keine Band auf diesem Stage-Server gefunden.')).toBeInTheDocument()
+    expect(await screen.findByText('Keine Band auf diesem Host gefunden.')).toBeInTheDocument()
   })
 
   it('"Neu laden" re-fetches the workspace list', async () => {

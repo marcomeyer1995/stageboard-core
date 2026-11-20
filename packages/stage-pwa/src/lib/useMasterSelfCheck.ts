@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react'
 import { getServerTime } from './clockSync'
 import { useHostStatus } from './hostContact'
 import { masterSelfCheck } from './masterTakeover'
-import { getStageServerUrl } from './stageServer'
+import { getHostUrl } from './hostUrl'
 import { useNow } from './useNow'
 import { usePresenceStore } from '../store/usePresenceStore'
 import { useShowStateStore } from '../store/useShowStateStore'
@@ -27,7 +27,7 @@ export function useMasterSelfCheck(): void {
   else if (holdingSince.current === null) holdingSince.current = getServerTime()
 
   const check = holdsToken
-    ? masterSelfCheck({ syncStatus, hasStageServer: Boolean(getStageServerUrl()), deviceId, heartbeat, now: getServerTime(), holdingSince: holdingSince.current ?? getServerTime(), hostUnreachable })
+    ? masterSelfCheck({ syncStatus, hasHostUrl: Boolean(getHostUrl()), deviceId, heartbeat, now: getServerTime(), holdingSince: holdingSince.current ?? getServerTime(), hostUnreachable })
     : 'ok'
   useEffect(() => {
     setSelfCheck(check)

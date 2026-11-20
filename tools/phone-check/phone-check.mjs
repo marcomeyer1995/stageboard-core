@@ -23,7 +23,7 @@ if (cmd === 'start') {
   const port = Number(args[0] ?? 9400)
   const profile = join(here, 'out', 'profile')
   mkdirSync(profile, { recursive: true })
-  // A self-signed Stage-Server certificate is fine here: this Chrome only ever looks at test pages.
+  // A self-signed Host certificate is fine here: this Chrome only ever looks at test pages.
   const child = spawn(CHROME, ['--headless=new', `--remote-debugging-port=${port}`, `--user-data-dir=${profile}`, '--no-first-run', '--ignore-certificate-errors', 'about:blank'], { detached: true, stdio: 'ignore' })
   child.unref()
   for (let i = 0; i < 50; i++) {

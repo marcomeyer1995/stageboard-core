@@ -3,12 +3,13 @@ import { useEffect, useRef, useState } from 'react'
 import type { WorkspaceRoster, WorkspaceSummary } from 'shared-types'
 import { decodeQrFrame, parseJoinPayload, type JoinPayload } from '../lib/qrCode'
 import { isNativeApp, pairingConfirmation, pairWithServer, serverFingerprint } from '../lib/native'
-import { useStageServerStore } from '../store/useStageServerStore'
+import { useHostUrlStore } from '../store/useHostUrlStore'
 import { NetworkServerList } from './NetworkServerList'
 import { useActiveProfileStore } from '../store/useActiveProfileStore'
 import { useDialogStore } from '../store/useDialogStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { BackToWorkingBandLink } from './BackToWorkingBandLink'
+import { AndroidHostSettings } from './AndroidHostSettings'
 import { useBackHandler } from '../lib/backNavigation'
 import { Icon } from './Icon'
 import { Switch, Button, PinInput } from './ui'
@@ -25,7 +26,7 @@ type CameraStatus = 'idle' | 'requesting' | 'scanning' | 'denied' | 'insecure-co
  * 2026-09-01 WiFi-style redesign, at Marco's explicit request after losing every device's
  * cached admin credential at once with no way back in: modeled directly on joining WiFi. Three
  * steps, matching `useWorkspaceStore.ts`'s three actions:
- * 1. `listWorkspaces()` - every band the currently-configured Stage-Server hosts, shown with no
+ * 1. `listWorkspaces()` - every band the currently-configured Host hosts, shown with no
  *    code needed at all (the SSID-list equivalent). Scanning a QR skips straight past this and
  *    the next step (the QR carries `workspaceId:code` together, `InviteBandView.tsx`'s pairing).
  * 2. Pick one, type its standing code (`fetchRoster`) - the "network password" step. The code
@@ -89,9 +90,9 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
   const setActiveProfile = useActiveProfileStore((state) => state.setActive)
   const promptText = useDialogStore((state) => state.promptText)
   const confirm = useDialogStore((state) => state.confirm)
-  // The native app (#348) pairs with a Stage-Server first - its own origin isn't one.
+  // The native app (#348) pairs with a Host first - its own origin isn't one.
   const native = isNativeApp()
-  const serverUrl = useStageServerStore((state) => state.url)
+  const serverUrl = useHostUrlStore((state) => state.url)
   const [serverAddress, setServerAddress] = useState('')
   const [connectError, setConnectError] = useState<string | null>(null)
 
@@ -103,7 +104,7 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
   const [password, setPassword] = useState('')
   const [isAdmin, setIsAdmin] = useState(false)
 
-  // Step 1: the SSID-list equivalent - every band the Stage-Server hosts, no code needed yet.
+  // Step 1: the SSID-list equivalent - every band the Host hosts, no code needed yet.
   const [workspaces, setWorkspaces] = useState<WorkspaceSummary[] | null>(null)
   const [loadingWorkspaces, setLoadingWorkspaces] = useState(false)
 
@@ -201,7 +202,7 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
   // Picks up a `?ws=&code=` link (InviteBandView.tsx's `buildJoinUrl` - see #21 seventh
   // follow-up) opened by a *native* camera app rather than scanned in-app: same effect as a
   // successful in-app scan, skipping straight to step 3, so the URL doubles as both "open the
-  // right Stage-Server" and "join this band" in one action, not just the former. Clears the
+  // right Host" and "join this band" in one action, not just the former. Clears the
   // query string afterwards so a later reload/share of this URL doesn't repeat the same
   // roster fetch, or leak the code into browser history more than once.
   useEffect(() => {
@@ -644,6 +645,15 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
             </form>
           )}
         </div>
+        {/* A tablet needs no band to be a host (#962): a phone can found the band on it. */}
+        {native && (
+          <details className="rounded-md border border-line p-3">
+            <summary className="cursor-pointer text-sm text-ink-muted">{t('join.hostThisDevice')}</summary>
+            <div className="pt-2">
+              <AndroidHostSettings />
+            </div>
+          </details>
+        )}
       </div>
     </div>
   )

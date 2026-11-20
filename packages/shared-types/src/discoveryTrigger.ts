@@ -4,7 +4,7 @@ import { z } from 'zod'
  * being configured at discovery time). Its own schema (not inlined) because both a plugin's
  * `discoveryTrigger.matchCcSequence` and the live-broadcast `DiscoveryIdentifying.matchCcSequence`
  * (discoverySession.ts) need the exact same shape - every participant (a tablet, or the
- * Stage-Server's own native MIDI watcher) matches incoming messages against it locally. */
+ * Host's own native MIDI watcher) matches incoming messages against it locally. */
 export const CcSequenceSchema = z.array(z.object({ cc: z.number().int().min(0).max(127), value: z.number().int().min(0).max(127) })).min(1)
 export type CcSequence = z.infer<typeof CcSequenceSchema>
 

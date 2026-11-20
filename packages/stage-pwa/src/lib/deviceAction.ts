@@ -7,7 +7,7 @@ import { getTranslator, preloadDynamicTranslator, supportsLocalExecution } from 
 import { triggerDeviceControl } from './deviceControlClient'
 import { resolveHardwareBindingById, resolveHardwareEngine } from './hardwareRouting'
 import { triggerShowControl } from './showControlClient'
-import { getStageServerUrl } from './stageServer'
+import { getHostUrl } from './hostUrl'
 import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
 import { usePluginsStore } from '../store/usePluginsStore'
 import { useShowStateStore } from '../store/useShowStateStore'
@@ -16,11 +16,11 @@ import { useWorkspaceStore } from '../store/useWorkspaceStore'
 /**
  * Sends a device command right now - from a pedal, a MIDI controller or a widget button (docs/23):
  * on this tablet's translator when the device hangs here, through the tablet it hangs at, or
- * through its Stage-Server plugin. Any musician may (docs/23 §5a: the light technician at FOH
+ * through its Host plugin. Any musician may (docs/23 §5a: the light technician at FOH
  * while the guitarist is master). Returns an error message, or null.
  *
  * `scheduledAt` (server time): the moment it should go out ("auf den Takt", docs/23 §4a). A
- * driver that sends at a given moment itself (a WebMIDI timestamp) or the Stage-Server's gateway
+ * driver that sends at a given moment itself (a WebMIDI timestamp) or the Host's gateway
  * gets it with the command; for any other driver this waits for the moment first.
  */
 export async function fireDeviceAction(targetLogicalDeviceId: string, type: string, payload: Record<string, unknown>, scheduledAt?: number): Promise<string | null> {
@@ -36,7 +36,7 @@ export async function fireDeviceAction(targetLogicalDeviceId: string, type: stri
   if (timed) await waitUntil(at)
   const event: ShowControlEvent = { type, payload, logicalDeviceId: device.id, ...(at !== undefined && !timed ? { scheduledAt: at } : {}) }
   if (engine === 'local-mine') {
-    await preloadDynamicTranslator(device.capability, installed, getStageServerUrl() ?? null)
+    await preloadDynamicTranslator(device.capability, installed, getHostUrl() ?? null)
     const translator = getTranslator(device.capability)
     if (!translator) return i18n.t('messages:noDriver')
     await translator(event)

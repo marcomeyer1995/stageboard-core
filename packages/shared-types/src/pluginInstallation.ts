@@ -7,7 +7,7 @@ import { CapabilityTimingSchema } from './timing.js'
 
 /**
  * Where a plugin actually runs. WebMIDI is a browser API and therefore lives on the
- * tablet; a mixer adapter talks to hardware and lives on the Stage-Server. That
+ * tablet; a mixer adapter talks to hardware and lives on the Host. That
  * difference decides who reports the plugin's health (see pluginHealth.ts).
  */
 export const PluginRuntimeSchema = z.enum(['client', 'server', 'both'])
@@ -58,7 +58,7 @@ export type Helpers = z.infer<typeof HelpersSchema>
 /**
  * A plugin the band has installed. This document is replicated per workspace, so
  * installing a plugin on one tablet distributes it across the whole stage mesh -
- * every other tablet and the Stage-Server pick it up through the database replication.
+ * every other tablet and the Host pick it up through the database replication.
  *
  * It carries the plugin's *manifest*, not its code; loading plugin code from a
  * GitHub repository (docs/01) is a later step.
@@ -67,7 +67,7 @@ export const PluginInstallationSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
   version: z.string().min(1),
-  /** Where the Stage-Server fetches this plugin's *server-side* code from, for #17's dynamic
+  /** Where the Host fetches this plugin's *server-side* code from, for #17's dynamic
    * code loading (not built yet). */
   source: z.string().optional(),
   /** Where a tablet fetches this plugin's *client-side* bundle from (#101) - an ES module
@@ -106,7 +106,7 @@ export const PluginInstallationSchema = z.object({
   /** Native helper programs per platform (docs/32 §8). */
   helpers: HelpersSchema.optional(),
   /** The band's own settings for this plugin (e.g. piper-speech's voice, #63) - replicated with the
-   * installation, so every device and the Stage-Server see the same. Free-form here; each plugin
+   * installation, so every device and the Host see the same. Free-form here; each plugin
    * parses its part with its own schema (speech.ts). */
   settings: z.record(z.string(), z.unknown()).optional(),
 })

@@ -428,7 +428,7 @@
     "extendedHint": "Drums, bass, vocals, guitar, keys/piano and the rest. Keys are separated less cleanly.",
     "splitGuitar": "Split guitar left/right",
     "splitGuitarInfo": "For two guitars panned left and right - if both sit in the middle, it does not help.",
-    "runs": "Runs on the Stage server, about a minute per song. The tracks appear under the track and can be renamed.",
+    "runs": "Runs on the Host, about a minute per song. The tracks appear under the track and can be renamed.",
     "replaces": " The previous tracks of this track are replaced."
   },
   "imp": {

@@ -44,7 +44,7 @@ export interface TrackedSyncOptions {
    * A batch with a real document reports at once. 0 = report 'active' immediately.
    */
   activeGraceMs?: number
-  /** The band this stream syncs. A 404 on it is recorded as "not on this Stage-Server" for that
+  /** The band this stream syncs. A 404 on it is recorded as "not on this Host" for that
    * band (#897); without it nothing is recorded. */
   workspaceId?: string
 }
@@ -164,7 +164,7 @@ export function trackedSync<T extends object>(
             clearStreamProgress(name)
           })
           .on('error', (err) => {
-            // 404: the Stage-Server has no such band database (#897) - not a transient failure.
+            // 404: the Host has no such band database (#897) - not a transient failure.
             if (options.workspaceId) {
               useSyncStore.getState().setNotOnServer(options.workspaceId, (err as { status?: number } | undefined)?.status === 404)
             }

@@ -247,7 +247,7 @@ async function changes(db: SyncDatabase, method: string, request: SyncRequest, l
 
 export { createWriteGuard, type SecurityDoc, type UserCtx, type WriteGuardOptions } from './writeGuard.js'
 
-// The host module (#949, step 1 of #932): what every host shares, whatever it runs on - the laptop's Stage-Server,
+// The host module (#949, step 1 of #932): what every host shares, whatever it runs on - the laptop's Host,
 // the tablet's app. No Node API, no DOM: WebCrypto and plain objects only, so the same code runs on Android,
 // Windows and Linux.
 export { leaseKey, verifyLease, signLease, signAccountRequest, verifyAccountRequest } from './host/leaseAuth.js'
@@ -265,3 +265,15 @@ export { createBandMembers, type BandMembers, type BandMembersDeps } from './hos
 export { createBandAccountStore } from './host/bandAccountStore.js'
 export { createReplicationAccountIssuer, type ReplicationAccountIssuer } from './host/replicationAccount.js'
 export { BAND_SETTINGS_DOC_ID, listedHostIds } from './host/hostRole.js'
+export { createHostDeviceInfo, type HostDeviceInfo } from './host/deviceInfo.js'
+export { ROSTER_VALIDATOR_SOURCE } from './host/rosterValidator.js'
+export { createBandCatalog, type BandCatalog, type BandStore, type BandAnswer } from './host/bandCatalog.js'
+export { JOB_ROUTES, JOB_IDS, jobOfRequest, refusalFor, unavailableJobs, parseCapabilities, unmetRequirement, addonRefusal, type JobRoute, type RunsOn } from './host/capabilities.js'
+export { createBandRoutes } from './host/bandRoutes.js'
+export { createHostChannels, matchChannelStream, type HostChannels, type ChannelTopic, type ChannelPayload, type ChannelStream, type ReadBandDocs } from './host/channels/index.js'
+export * as channelResets from './host/channels/resets.js'
+export { createChannelRoutes, type ChannelRoutesDeps } from './host/channelRoutes.js'
+export * as discoverySessions from './host/channels/discoverySessionStore.js'
+export * as pluginHealth from './host/channels/healthStore.js'
+export { HOLD_TIMEOUT_MS } from './host/channels/index.js'
+export { rosterOfProfileDocs } from './host/roster.js'

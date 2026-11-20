@@ -504,7 +504,7 @@ export function StageMap() {
   const addEquipment = async () => {
     if (!setup) return
     // A tablet here is a placeholder: planned before it is registered, linked to it later (2026-11-07).
-    const models = BUILTIN_MODELS.filter((m) => m.kind !== 'stage-server')
+    const models = BUILTIN_MODELS.filter((m) => m.kind !== 'host-computer')
     const answer = await promptFields(
       t('map.addTitle'),
       [
@@ -554,11 +554,11 @@ export function StageMap() {
     await removeEquipment(merge)
   }
   // Several apps on one device (2026-11-07): the admin joins two boxes the map made apart - the
-  // Dev app into the release app's, the Stage-Server into the laptop's; the other's cables, place
+  // Dev app into the release app's, the Host into the laptop's; the other's cables, place
   // and matrix move into the box that stays.
   const appName = (appId: string) => (appId === SERVER_EXECUTION_TARGET ? t('map.serverApp') : (devices.find((d) => d.id === appId)?.name ?? appId))
   const sameDevice = async (item: StageEquipment) => {
-    const others = equipment.filter((e) => e.id !== item.id && (e.kind === 'stageboard' || e.kind === 'stage-server'))
+    const others = equipment.filter((e) => e.id !== item.id && (e.kind === 'stageboard' || e.kind === 'host-computer'))
     if (others.length === 0) return
     const options = others.map((e) => ({ value: e.id, label: e.name }))
     const answer = await promptFields(t('map.sameTitle', { name: item.name }), [{ key: 'other', label: t('map.sameLabel'), type: 'radio', options, defaultValue: options[0]!.value }], t('map.join'))
@@ -566,7 +566,7 @@ export function StageMap() {
     if (!other) return
     // "This is the same device as that one": this one goes into that one - unless that one is the
     // server, which goes into the box with the sockets.
-    const [keep, merge] = other.kind === 'stage-server' && item.kind === 'stageboard' ? [item, other] : [other, item]
+    const [keep, merge] = other.kind === 'host-computer' && item.kind === 'stageboard' ? [item, other] : [other, item]
     await saveEquipment(joinDevices(keep, merge))
     for (const s of setups) await updateSetup(s.id, (cur) => mergeEquipmentInSetup(cur, merge.id, keep.id))
     await removeEquipment(merge.id)
@@ -918,8 +918,8 @@ export function StageMap() {
               {selectedNode.deviceId === ownId && <Badge tone="accent">{t('stage.thisDevice')}</Badge>}
             </div>
             {/* The host: its server plugins, installable where it can run them (docs/25 §6). */}
-            {(selectedNode.kind === 'stage-server' || appsOf(selectedNode).includes(SERVER_EXECUTION_TARGET)) && <HostPlugins canInstall={canEdit} />}
-            {(selectedNode.kind === 'stage-server' || appsOf(selectedNode).includes(SERVER_EXECUTION_TARGET)) && <HostRole boxId={selectedNode.id} canEdit={canEdit} />}
+            {(selectedNode.kind === 'host-computer' || appsOf(selectedNode).includes(SERVER_EXECUTION_TARGET)) && <HostPlugins canInstall={canEdit} />}
+            {(selectedNode.kind === 'host-computer' || appsOf(selectedNode).includes(SERVER_EXECUTION_TARGET)) && <HostRole boxId={selectedNode.id} canEdit={canEdit} />}
             {appsOf(selectedNode).length > 1 && (
               <div className="flex flex-col gap-1">
                 <span className="text-base font-semibold">{t('map.appsHere')}</span>
@@ -1009,7 +1009,7 @@ export function StageMap() {
                 </Button>
                 {selectedNode.kind !== 'stageboard' && selectedNode.kind !== 'person' && selectedNode.kind !== 'hall' && <Button onClick={() => setPortsFor(selectedNode)}>{t('map.setUp')}</Button>}
                 {selectedNode.kind === 'stageboard' && !selectedNode.deviceId && <Button onClick={() => void linkDevice(selectedNode)}>{t('map.link')}</Button>}
-                {(selectedNode.kind === 'stageboard' || selectedNode.kind === 'stage-server') && <Button onClick={() => void sameDevice(selectedNode)}>{t('map.same')}</Button>}
+                {(selectedNode.kind === 'stageboard' || selectedNode.kind === 'host-computer') && <Button onClick={() => void sameDevice(selectedNode)}>{t('map.same')}</Button>}
                 <Button onClick={() => void takeOffStage(selectedNode)}>{t('map.offStage')}</Button>
                 {selectedNode.kind !== 'stageboard' && (
                   <Button variant="danger" icon="delete" onClick={() => void deleteEquipment(selectedNode)}>

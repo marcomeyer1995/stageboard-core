@@ -40,6 +40,20 @@ export const AddonReleaseManifestSchema = PluginInstallationSchema.omit({ enable
   changes: z.string().max(4000).optional(),
   /** The oldest StageBoard version it runs on. */
   minStageBoard: z.string().optional(),
+  /**
+   * What the **server part** needs from the device that runs it (#962): only the power of the device decides which add-on
+   * it can host. An add-on that needs Windows or Linux and cannot run on Android says so here; a host that does not
+   * fit refuses to install the server part (501) and tells what is missing. Absent: runs anywhere. Does not limit the
+   * client bundle - that runs in every device's page.
+   */
+  runsOn: z
+    .object({
+      /** Node's `process.platform` names (`win32`, `linux`, `darwin`) and `android`. */
+      platforms: z.array(z.string().min(1)).min(1).optional(),
+      minCpuCores: z.number().int().positive().optional(),
+      minMemoryMb: z.number().int().positive().optional(),
+    })
+    .optional(),
 })
 export type AddonReleaseManifest = z.infer<typeof AddonReleaseManifestSchema>
 

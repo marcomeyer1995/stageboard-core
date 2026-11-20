@@ -13,7 +13,7 @@ How StageBoard reaches a band's devices - Android, Windows, Mac, Linux, iOS and 
 
 ## 1. Where we are
 
-- **Android:** the Capacitor app (`de.stageboard.app`), UI inside the APK, certificate pinning; the APK comes from the band's own Stage-Server (`/app`), which also offers updates (docs/03 §0c). Not in any store.
+- **Android:** the Capacitor app (`de.stageboard.app`), UI inside the APK, certificate pinning; the APK comes from the band's own Host (`/app`), which also offers updates (docs/03 §0c). Not in any store.
 - **Host:** the Node server - on Linux as a systemd service; the database is the built-in database host (docs/25) in the same process, no Docker. It was measured on Linux and Windows on 2026-11-17 (#778) against the CouchDB it replaced: as fast, less than half the memory. On Android as a spike (#781).
 - **Browser:** any device opens the host's address and gets the web app - with a self-signed certificate, so a warning, no PWA install, and the rough edges seen on the Windows PC on 2026-11-17.
 - **iOS/Mac:** nothing yet.
@@ -25,7 +25,7 @@ How StageBoard reaches a band's devices - Android, Windows, Mac, Linux, iOS and 
 | **Android** | player, later host (#781) | the Capacitor app | Google Play, website download, the host's `/app` - one app (§4) | Play: 25 $ once, review, policies (foreground service, USB) |
 | **Windows** | host + player | the desktop app (§3) | website / GitHub Releases, later `winget` | code signing certificate (~200-400 €/year), otherwise SmartScreen warns on every install |
 | **Mac** | host + player | the desktop app | website (.dmg), later Homebrew | Apple developer account (99 $/year) and notarization are mandatory, otherwise macOS blocks the app |
-| **Linux** | host + player; or a dedicated Stage-Server | desktop app (AppImage/.deb); **headless package** with a systemd service for a box without screen (§3) | website / GitHub Releases, later an apt repository | none |
+| **Linux** | host + player; or a dedicated Host | desktop app (AppImage/.deb); **headless package** with a systemd service for a box without screen (§3) | website / GitHub Releases, later an apt repository | none |
 | **iOS / iPadOS** | player only | Capacitor iOS app from the same frontend, with native MIDI (CoreMIDI) and the C++ audio engine - Safari/WKWebView has no WebMIDI | App Store only (TestFlight for beta) | 99 $/year, review, a Mac to build. **Only after the demand check (docs/16 §4)** |
 | **Browser** | player, zero install | the web app the host serves | nothing to distribute | the certificate (§8); background tabs throttled |
 
@@ -46,7 +46,7 @@ How StageBoard reaches a band's devices - Android, Windows, Mac, Linux, iOS and 
 - Updates itself (Electron's updater, from GitHub Releases or our website - static files, no service of ours).
 - A host on a laptop usually can't use port 443 - the invite QR code must carry the port (finding of #778).
 
-**Headless Linux package** for a dedicated Stage-Server (the "box" of docs/02, docs/16 §E): the host without window as a systemd service, built-in database, no Docker. CouchDB is no longer needed (#960), so the productive server here can move to it (#779).
+**Headless Linux package** for a dedicated Host (the "box" of docs/02, docs/16 §E): the host without window as a systemd service, built-in database, no Docker. CouchDB is no longer needed (#960), so the productive server here can move to it (#779).
 
 **Lessons from the Windows test of 2026-11-17 (#778)** for the packaging: Node and all dependencies must be inside the package (no `npm`, the execution policy blocks `npm.ps1`); the firewall rule must cover "Public" networks or ask; moving a band by replication must copy `_security` too (#779).
 

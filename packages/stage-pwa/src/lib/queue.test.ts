@@ -41,7 +41,7 @@ beforeEach(() => {
   state = { ...DEFAULT_SHOW_STATE, activeEntryId: song.id, masterHolderId: 'me' }
   useShowStateStore.setState({ state, isMaster: true, applyPatch })
   useSongsStore.setState({ songs: [song] })
-  // Measured on the band's tablet: its clock ran 2126 ms ahead of the Stage-Server.
+  // Measured on the band's tablet: its clock ran 2126 ms ahead of the Host.
   useClockSyncStore.getState().setSync({ offsetMs: -2126, rttMs: 20, jitterMs: 1, driftMs: 0 })
 })
 

@@ -1,16 +1,16 @@
 import { useTranslation } from 'react-i18next'
 import { useEffect, useState } from 'react'
 import { checkForAppUpdate, installAppUpdate, updateFailureReason, type AppUpdate } from '../lib/native'
-import { useStageServerStore } from '../store/useStageServerStore'
+import { useHostUrlStore } from '../store/useHostUrlStore'
 
 /**
- * Native app only (#348): when the Stage-Server offers a newer app build than this one, a bar at
+ * Native app only (#348): when the Host offers a newer app build than this one, a bar at
  * the bottom offers the update - downloaded from the server and handed to Android's installer.
  * Checked on start and whenever the paired server changes; "Später" hides it until the next start.
  */
 export function AppUpdateBanner() {
   const { t } = useTranslation('common')
-  const serverUrl = useStageServerStore((state) => state.url)
+  const serverUrl = useHostUrlStore((state) => state.url)
   const [update, setUpdate] = useState<AppUpdate | null>(null)
   const [dismissed, setDismissed] = useState(false)
   const [busy, setBusy] = useState(false)

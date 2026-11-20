@@ -3,7 +3,7 @@ import type { BandAccounts } from './bandAccounts.js'
 import type { PinThrottle } from './pinThrottle.js'
 
 /**
- * Becoming a member of the band and proving an admin PIN (host module, #960) - the rules of the Stage-Server's
+ * Becoming a member of the band and proving an admin PIN (host module, #960) - the rules of the Host's
  * `join` and `verify-admin-pin` routes, once, for every host. A non-admin gets a device login without any
  * password; an admin needs the PIN (the first time: chooses one), or the last 4 digits of the band code - the
  * recovery way in, which every device that knows the code has. One count of wrong PINs per person guards both

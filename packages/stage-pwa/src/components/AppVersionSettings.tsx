@@ -36,7 +36,7 @@ export function AppVersionSettings() {
     <div className="flex flex-col gap-2">
       <p className="text-base text-ink">{t('app.installed', { version: APP_VERSION_CODE > 0 ? t('app.version', { code: APP_VERSION_CODE }) : t('app.devBuild') })}</p>
       {APP_VERSION_CODE === 0 ? (
-        // The dev app ("StageBoard Dev", a debug build) is a separate app: the Stage-Server's APK
+        // The dev app ("StageBoard Dev", a debug build) is a separate app: the Host's APK
         // would install as the real app beside it, never as its update.
         <p className="text-base text-ink-muted">{t('app.devUpdates')}</p>
       ) : (

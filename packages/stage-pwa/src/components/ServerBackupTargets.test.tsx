@@ -10,7 +10,7 @@ vi.mock('pouchdb-browser', () => ({
     }
   },
 }))
-vi.mock('../lib/stageServer', () => ({ getStageServerUrl: () => 'https://server' }))
+vi.mock('../lib/hostUrl', () => ({ getHostUrl: () => 'https://server' }))
 const { useWorkspaceStore } = await import('../store/useWorkspaceStore')
 const { ServerBackupTargets } = await import('./ServerBackupTargets')
 

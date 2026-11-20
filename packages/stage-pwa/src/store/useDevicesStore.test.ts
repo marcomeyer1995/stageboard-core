@@ -124,7 +124,7 @@ describe('rename', () => {
 
 describe('revoke', () => {
   beforeEach(() => {
-    vi.stubEnv('VITE_STAGE_SERVER_URL', 'https://stage-server:3001')
+    vi.stubEnv('VITE_HOST_URL', 'https://host-computer:3001')
     useWorkspaceStore.setState({
       workspaces: [{ id: 'band-a', name: 'Band A', password: 'admin-pw', username: 'stageboard-band-a-p1', isAdmin: true }],
     })
@@ -137,11 +137,11 @@ describe('revoke', () => {
 
     expect(result).toBe(true)
     const [url, init] = fetchMock.mock.calls[0]
-    expect(url).toBe('https://stage-server:3001/workspaces/band-a/devices/device-2/revoke')
+    expect(url).toBe('https://host-computer:3001/workspaces/band-a/devices/device-2/revoke')
     expect(JSON.parse(init.body)).toEqual({ adminUsername: 'stageboard-band-a-p1', adminPassword: 'admin-pw', revoked: true })
   })
 
-  it('returns false without calling the Stage-Server when this device is not the workspace admin', async () => {
+  it('returns false without calling the Host when this device is not the workspace admin', async () => {
     useWorkspaceStore.setState({
       workspaces: [{ id: 'band-a', name: 'Band A', password: 'member-pw', username: 'stageboard-band-a-p2', isAdmin: false }],
     })
@@ -151,7 +151,7 @@ describe('revoke', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
-  it('alerts and returns false when the Stage-Server is unreachable', async () => {
+  it('alerts and returns false when the Host is unreachable', async () => {
     stubFetch(null)
 
     const result = await useDevicesStore.getState().revoke('band-a', 'device-2', true)

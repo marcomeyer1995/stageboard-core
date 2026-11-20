@@ -8,7 +8,7 @@ afterEach(() => {
 
 describe('reportClientHealth', () => {
   it('POSTs the plugin name and status to the workspace-scoped report endpoint', async () => {
-    vi.stubEnv('VITE_STAGE_SERVER_URL', 'https://stage.example')
+    vi.stubEnv('VITE_HOST_URL', 'https://stage.example')
     const fetchMock = vi.fn().mockResolvedValue({ ok: true })
     vi.stubGlobal('fetch', fetchMock)
 
@@ -23,8 +23,8 @@ describe('reportClientHealth', () => {
     )
   })
 
-  it('does nothing when no Stage-Server is configured', async () => {
-    vi.stubEnv('VITE_STAGE_SERVER_URL', '')
+  it('does nothing when no Host is configured', async () => {
+    vi.stubEnv('VITE_HOST_URL', '')
     const fetchMock = vi.fn()
     vi.stubGlobal('fetch', fetchMock)
 
@@ -34,7 +34,7 @@ describe('reportClientHealth', () => {
   })
 
   it('swallows a network failure - the caller has no fallback to run', async () => {
-    vi.stubEnv('VITE_STAGE_SERVER_URL', 'https://stage.example')
+    vi.stubEnv('VITE_HOST_URL', 'https://stage.example')
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network down')))
 
     await expect(reportClientHealth('band-a', 'generic-webmidi', 'online')).resolves.toBeUndefined()

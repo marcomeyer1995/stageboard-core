@@ -79,8 +79,8 @@ describe('WorkspaceHardwareSettings', () => {
       await vi.advanceTimersByTimeAsync(8100)
     })
 
-    expect(screen.getByText('Stage-Server antwortet langsam…')).toBeInTheDocument()
-    expect(screen.queryByText('Stage-Server nicht erreichbar.')).not.toBeInTheDocument()
+    expect(screen.getByText('Host antwortet langsam…')).toBeInTheDocument()
+    expect(screen.queryByText('Host nicht erreichbar.')).not.toBeInTheDocument()
     vi.useRealTimers()
   })
 
@@ -91,7 +91,7 @@ describe('WorkspaceHardwareSettings', () => {
     await waitFor(() => expect(screen.getByText('keine')).toBeInTheDocument())
   })
 
-  it('disables the button and says so when the Stage-Server is unreachable', async () => {
+  it('disables the button and says so when the Host is unreachable', async () => {
     stub({
       listWorkspaces: vi.fn().mockResolvedValue(null),
       fetchActiveWorkspaceHardware: vi.fn().mockResolvedValue(null),
@@ -99,7 +99,7 @@ describe('WorkspaceHardwareSettings', () => {
     })
     render(<WorkspaceHardwareSettings />)
 
-    await waitFor(() => expect(screen.getByText('Stage-Server nicht erreichbar.')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('Host nicht erreichbar.')).toBeInTheDocument())
     expect(screen.getByRole('button', { name: 'Band wechseln…' })).toBeDisabled()
   })
 

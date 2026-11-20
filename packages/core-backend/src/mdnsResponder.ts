@@ -11,7 +11,7 @@ const SERVICES_META = '_services._dns-sd._udp.local'
 export interface MdnsIdentity {
   lanIp: string
   hostname: string
-  /** HTTPS port of the Stage-Server. */
+  /** HTTPS port of the Host. */
   port: number
   /** Human-readable server name, shown in the app's server list - no dots. */
   instance: string
@@ -83,7 +83,7 @@ export interface MdnsResponderHandle {
  * Answers "who is `hostname`" with `lanIp` over mDNS (see main()'s doc comment in index.ts for
  * why it's built this way). Never throws: at boot the service can start before Wi-Fi has its
  * address, and joining the multicast group then fails (`addMembership ENODEV`) - that used to
- * crash the whole Stage-Server (#339). It now logs once and retries every `retryMs` until the
+ * crash the whole Host (#339). It now logs once and retries every `retryMs` until the
  * network is up; the server works by raw IP meanwhile.
  */
 export function startMdnsResponder(options: MdnsResponderOptions): MdnsResponderHandle {

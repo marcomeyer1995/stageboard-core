@@ -61,7 +61,7 @@ const reportTriggered = vi.hoisted(() => vi.fn())
 const getSnapshot = vi.hoisted(() => vi.fn())
 const getPlugin = vi.hoisted(() => vi.fn())
 const subscribe = vi.hoisted(() => vi.fn(() => vi.fn()))
-vi.mock('./discoverySessionStore.js', () => ({ reportCandidate, reportTriggered, getSnapshot, getPlugin, subscribe }))
+vi.mock('sync-host', async (importOriginal) => ({ ...(await importOriginal<typeof import('sync-host')>()), discoverySessions: { reportCandidate, reportTriggered, getSnapshot, getPlugin, subscribe } }))
 
 const putDoc = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
 const putDocWithRetry = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
@@ -183,7 +183,7 @@ describe('createMidiWatcher', () => {
     watcher.stop()
   })
 
-  describe('while a role is identifying and the Stage-Server itself is a contender', () => {
+  describe('while a role is identifying and the Host itself is a contender', () => {
     const IDENTIFYING_SESSION = {
       active: true,
       startedAt: 1,
@@ -266,7 +266,7 @@ describe('createMidiWatcher', () => {
     })
   })
 
-  describe('when one of the Stage-Server\'s own candidates has just won a role', () => {
+  describe('when one of the Host\'s own candidates has just won a role', () => {
     const WON_SESSION = {
       active: true,
       startedAt: 1,

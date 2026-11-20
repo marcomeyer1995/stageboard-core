@@ -2,7 +2,7 @@ import { createHostLeaseService, type HostLeaseService, type LeaseStatus } from 
 
 /**
  * The tablet's view of the shared host service (host backup, #947, #949): the lease, takeover, handback and
- * invitation logic is `sync-host`'s `createHostLeaseService` - the very code the laptop's Stage-Server runs.
+ * invitation logic is `sync-host`'s `createHostLeaseService` - the very code the laptop's Host runs.
  * What is the tablet's own is small: it serves only when the band's list names it (a tablet that was merely
  * switched on never makes itself the host of a band that lists nobody), and the native server answers the
  * clock with the primary's offset only once it is the host.

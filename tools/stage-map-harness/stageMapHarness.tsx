@@ -1,5 +1,5 @@
 // The real stage map on its own page with local data only (PouchDB in the browser, no
-// Stage-Server) - see README.md. Copied into packages/stage-pwa/src by run.sh, never committed there.
+// Host) - see README.md. Copied into packages/stage-pwa/src by run.sh, never committed there.
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import './i18n'

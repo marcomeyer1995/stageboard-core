@@ -17,7 +17,7 @@ Vor einem Gig will die Band wissen: **alles in einer Linie, alles im Timing** (M
 | 2026-10-22 | **Ergebnis** wie eine Show im Nachbericht (Bibliothek → Shows, markiert „Rig-Check“), mit Versatz je Gerät und was ausgefallen ist - über die Zeit vergleichbar. |
 | 2026-10-22 | **Der Master spielt** den Test-Song (Track und Klick) wie im Gig; alle anderen folgen. |
 | 2026-10-26 | **Geräte-Cues je Gerät gewählt**: In der Einrichtung des Rig-Checks bekommt jedes Gerät **eine** Aktion aus der Aktionsauswahl (z. B. Kemper Stimmgerät an, RC-500 Patch). Geräte ohne Wahl bleiben unberührt. Bandweit gespeichert. |
-| 2026-10-26 | **Track wie ein echter**: Der Master erzeugt den Track einmal und lädt ihn auf den Stage-Server; die anderen laden ihn auf dem normalen Weg. So wird auch der Download geprüft, der Rig-Check zeigt „Track da“ je Gerät. |
+| 2026-10-26 | **Track wie ein echter**: Der Master erzeugt den Track einmal und lädt ihn auf den Host; die anderen laden ihn auf dem normalen Weg. So wird auch der Download geprüft, der Rig-Check zeigt „Track da“ je Gerät. |
 | 2026-10-26 | **Kurzcheck-Inhalt**: Einzählen, 8 Takte 120, ein Abschnitts-Sprung, 4 Takte 140, ein `{alert:}` und der Cue jedes Geräts - etwa 45 s. |
 | 2026-10-29 | **Gemessen statt nur gefragt** (§7): Messrunde vor dem Lauf (alle Geräte nacheinander, wie „Prüfen“); Lautsprecher über Mikrofon **und** Kopfhörer/In-Ear über Kabel; Interface frei wählbar (Laptop, UMC204HD, Mischpult mit Interface-Funktion), Mikrofon wählbar; Grenzwerte ±15 ms / ±5 ms / alle Klicks; bei Rot „Latenz neu speichern“ und vorbelegte Antwort „Problem“. MIDI-Rückweg und Reaktions-Sensoren später. |
 
@@ -88,7 +88,7 @@ Auf dem Gerät, das den Lauf startet, läuft danach die Analyse des Timeline-Edi
 
 ## 7. Gemessene Teile
 
-Entscheidungen Marco, 2026-10-29. Baut auf „Messen/Prüfen“ auf (docs/21 §4 und §8.6, #498): ein Gerät spielt 12 Klicks in unregelmäßigem Abstand, der Stage-Server nimmt auf und rechnet aus dem ganzen Muster den Versatz - bisher nur von Hand und je Gerät.
+Entscheidungen Marco, 2026-10-29. Baut auf „Messen/Prüfen“ auf (docs/21 §4 und §8.6, #498): ein Gerät spielt 12 Klicks in unregelmäßigem Abstand, der Host nimmt auf und rechnet aus dem ganzen Muster den Versatz - bisher nur von Hand und je Gerät.
 
 ### 7.1 Messrunde vor dem Lauf (Schritt 5a)
 
@@ -101,7 +101,7 @@ Entscheidungen Marco, 2026-10-29. Baut auf „Messen/Prüfen“ auf (docs/21 §4
 ### 7.2 Eingänge: Mikrofon und Kabel
 
 - **Beides:** Lautsprecher über ein **Mikrofon**; Kopfhörer, In-Ear und Bluetooth-Empfänger über ein **Kabel** vom Kopfhörer-/Line-Ausgang in einen Eingang. Gemessen wird immer der Ausgabeweg, der gerade steckt (jeder Weg hat seine eigene gespeicherte Latenz, #497).
-- **Audio-Interface frei wählbar:** jedes Gerät, das der Stage-Server als Audio-Eingang sieht - das Laptop-Mikrofon (heute `CALIBRATION_AUDIO_DEVICE`), ein **Behringer UMC204HD** (vorhanden), oder ein **Mischpult mit Interface-Funktion**. Allen & Heath CQ-18T meldet sich per USB als Audio-Interface (zu prüfen: Kanalbelegung). Beim Soundcraft Ui24R ist zu prüfen, ob es einen USB-Audioweg zum Rechner gibt - sonst über einen Ausgang des Pults in ein Interface.
+- **Audio-Interface frei wählbar:** jedes Gerät, das der Host als Audio-Eingang sieht - das Laptop-Mikrofon (heute `CALIBRATION_AUDIO_DEVICE`), ein **Behringer UMC204HD** (vorhanden), oder ein **Mischpult mit Interface-Funktion**. Allen & Heath CQ-18T meldet sich per USB als Audio-Interface (zu prüfen: Kanalbelegung). Beim Soundcraft Ui24R ist zu prüfen, ob es einen USB-Audioweg zum Rechner gibt - sonst über einen Ausgang des Pults in ein Interface.
 - **Eingang je Zweck:** in der Einrichtung des Rig-Checks (System → Rig-Check, nur Admins) ein „Messeingang Mikrofon“ und ein „Messeingang Kabel“: jeweils Gerät und Kanal. Im Bandraum hängen mehrere Mikrofone - eins davon wird gewählt, dazu Pegelanzeige und „Testklick“, damit man sieht, dass etwas ankommt.
 - Heute nimmt der Server nur ein festes Gerät per Umgebungsvariable auf; dafür braucht es die Auswahl im Backend (Liste der Eingänge, Kanal wählen).
 - **Gebaut (2026-10-30, #662 Schritt 5a):** System → Rig-Check → „Messeingänge“. Der Server listet seine Eingänge (`arecord -l`, Kanäle aus den Hardware-Parametern) und speichert die Wahl in `measure-inputs.json` im Datenverzeichnis, denn das ist seine Hardware, nicht die der Band. Ohne Wahl gilt beim Mikrofon weiter `CALIBRATION_AUDIO_DEVICE`; ein nicht gewähltes Kabel hört wie das Mikrofon. „Messen/Prüfen“ nimmt das Mikrofon beim Lautsprecher (und unbekanntem Weg im Browser), das Kabel bei Kopfhörer, USB und Bluetooth.

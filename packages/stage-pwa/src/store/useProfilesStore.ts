@@ -40,7 +40,7 @@ interface ProfilesState {
   update: (id: string, name: string) => Promise<void>
   updateStageRoles: (id: string, stageRoles: StageRole[]) => Promise<boolean>
   remove: (id: string) => Promise<boolean>
-  /** Provisions this workspace against a real Stage-Server for the first time (see the Tier-A
+  /** Provisions this workspace against a real Host for the first time (see the Tier-A
    * local-only-founding follow-up) - just the founder's own account (useWorkspaceStore.ts's
    * `connectWorkspace`). Every other already-existing local roster entry is deliberately left
    * unprovisioned (2026-09-01 redesign): self-service join (`fetchRoster`/`joinAsMember`)
@@ -63,7 +63,7 @@ function activeWorkspace() {
   return state.workspaces.find((w) => w.id === state.activeWorkspaceId)
 }
 
-/** Whether this workspace has ever been provisioned against a real Stage-Server - see the
+/** Whether this workspace has ever been provisioned against a real Host - see the
  * Tier-A local-only-founding follow-up. Until then, every roster edit here (create, admin
  * toggle, remove) stays a plain local write: there's no account or validator yet for
  * useWorkspaceStore.ts's backend calls to act on. */

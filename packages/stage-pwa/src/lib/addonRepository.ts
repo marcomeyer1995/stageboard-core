@@ -1,6 +1,6 @@
 import type { AddonReleaseManifest, AddonSource, PluginInstallation } from 'shared-types'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
-import { getStageServerUrl } from './stageServer'
+import { getHostUrl } from './hostUrl'
 import { createWorkspaceCollection } from './workspaceCollection'
 
 /**
@@ -37,7 +37,7 @@ export class RepositoryAddonError extends Error {
 const sources = createWorkspaceCollection<AddonSource>('addon-sources')
 
 async function callHost<T>(workspaceId: string, action: 'preview' | 'install', body: object): Promise<T> {
-  const base = getStageServerUrl()
+  const base = getHostUrl()
   const workspace = useWorkspaceStore.getState().workspaces.find((w) => w.id === workspaceId)
   if (!base || !workspace?.username || !workspace.password) throw new RepositoryAddonError('offline')
   let response: Response

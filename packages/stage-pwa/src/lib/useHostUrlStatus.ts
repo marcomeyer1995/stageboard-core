@@ -2,37 +2,37 @@ import { useEffect, useRef, useState } from 'react'
 import type { WorkspaceSummary } from 'shared-types'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import {
-  clearLastKnownStageServer,
-  getLastKnownStageServer,
-  updateLastKnownStageServer,
-  type StageServerSnapshot,
-} from './stageServerStatusCache'
+  clearLastKnownHost,
+  getLastKnownHost,
+  updateLastKnownHost,
+  type HostUrlSnapshot,
+} from './hostUrlStatusCache'
 import { isNativeApp } from './native'
-import { getStageServerUrl } from './stageServer'
-import { useStageServerStore } from '../store/useStageServerStore'
+import { getHostUrl } from './hostUrl'
+import { useHostUrlStore } from '../store/useHostUrlStore'
 
-/** `unpaired`: the native app (#348) hasn't been paired with any Stage-Server yet - nothing to ask. */
-export type StageServerReachability = 'loading' | 'reachable' | 'unreachable' | 'unpaired'
+/** `unpaired`: the native app (#348) hasn't been paired with any Host yet - nothing to ask. */
+export type HostUrlReachability = 'loading' | 'reachable' | 'unreachable' | 'unpaired'
 
 /** How long the hook waits with no answer at all before it flags the status as `slow`. Not a
  * failure and nothing is aborted: an answer that arrives later still just shows up. */
 export const STATUS_SLOW_AFTER_MS = 8000
 
-const EMPTY: StageServerSnapshot = { lanIp: null, hostname: null, workspaces: null, activeWorkspaceId: null }
+const EMPTY: HostUrlSnapshot = { lanIp: null, hostname: null, workspaces: null, activeWorkspaceId: null }
 
 /**
- * Everything the UI needs to know about this specific physical Stage-Server: whether it's
+ * Everything the UI needs to know about this specific physical Host: whether it's
  * reachable at all, its own address/name, every band it hosts, and which one's hardware
  * (plugin sync, Discovery Mode's MIDI watcher) it currently serves. Shared between
  * WorkspaceHardwareSettings.tsx (the switch control), BandManagementView.tsx's "Hardware auf
  * diesem Server" indicator (deliberately shown there too - that tab already has its own,
  * unrelated "which workspace is active *on this device*" concept, and the two are easy to
- * conflate), and DeviceLedgerView.tsx's "this is the Stage-Server itself" row.
+ * conflate), and DeviceLedgerView.tsx's "this is the Host itself" row.
  *
  * Built so a slow answer never leaves the screen on a bare "Lade…" (found live: 30+ seconds in
  * Settings, with the server itself answering in milliseconds - its answers were stuck behind the
  * app's own audio downloads on the same connection, audioStorageManager.ts):
- * - The last answer this page got (stageServerStatusCache.ts) is shown instantly, `refreshing`
+ * - The last answer this page got (hostUrlStatusCache.ts) is shown instantly, `refreshing`
  *   marking that it's being re-checked.
  * - The three requests are applied one by one as they arrive, not held until the slowest is in.
  * - With no answer at all after STATUS_SLOW_AFTER_MS, `slow` is set - and that is all: a slow
@@ -42,21 +42,21 @@ const EMPTY: StageServerSnapshot = { lanIp: null, hostname: null, workspaces: nu
  *
  * `status` is `'reachable'` as soon as *any* request got an answer - a server that's up but has
  * never had a workspace activated on it is still reachable, just with `activeWorkspaceId: null`.
- * It's `'unreachable'` only when nothing answered (which also covers "no Stage-Server configured
+ * It's `'unreachable'` only when nothing answered (which also covers "no Host configured
  * at all" - there's nothing meaningfully different to show for that case here).
  *
  * `reload()` resolves once all three requests have settled.
  */
-export function useStageServerStatus() {
+export function useHostUrlStatus() {
   const listWorkspaces = useWorkspaceStore((state) => state.listWorkspaces)
   const fetchActiveWorkspaceHardware = useWorkspaceStore((state) => state.fetchActiveWorkspaceHardware)
   const fetchServerInfo = useWorkspaceStore((state) => state.fetchServerInfo)
   // Re-check when the app gets paired (or re-paired) with a server.
-  const serverUrl = useStageServerStore((state) => state.url)
+  const serverUrl = useHostUrlStore((state) => state.url)
 
-  const cached = getLastKnownStageServer()
-  const [snapshot, setSnapshot] = useState<StageServerSnapshot>(cached ?? EMPTY)
-  const [status, setStatus] = useState<StageServerReachability>(cached ? 'reachable' : 'loading')
+  const cached = getLastKnownHost()
+  const [snapshot, setSnapshot] = useState<HostUrlSnapshot>(cached ?? EMPTY)
+  const [status, setStatus] = useState<HostUrlReachability>(cached ? 'reachable' : 'loading')
   const [refreshing, setRefreshing] = useState(false)
   const [slow, setSlow] = useState(false)
   const runRef = useRef(0)
@@ -65,7 +65,7 @@ export function useStageServerStatus() {
 
   async function reload(): Promise<void> {
     const run = ++runRef.current
-    if (isNativeApp() && !getStageServerUrl()) {
+    if (isNativeApp() && !getHostUrl()) {
       // The unpaired native app: no server to ask yet (a browser always has the address it was loaded from).
       clearTimeout(timerRef.current)
       setRefreshing(false)
@@ -85,10 +85,10 @@ export function useStageServerStatus() {
       }
     }, STATUS_SLOW_AFTER_MS)
 
-    function applyAnswer(patch: Partial<StageServerSnapshot>) {
+    function applyAnswer(patch: Partial<HostUrlSnapshot>) {
       if (!current()) return
       answered += 1
-      setSnapshot(updateLastKnownStageServer(patch))
+      setSnapshot(updateLastKnownHost(patch))
       setStatus('reachable')
       setSlow(false)
     }
@@ -110,7 +110,7 @@ export function useStageServerStatus() {
     setRefreshing(false)
     setSlow(false)
     if (answered === 0) {
-      clearLastKnownStageServer()
+      clearLastKnownHost()
       setStatus('unreachable')
     }
   }

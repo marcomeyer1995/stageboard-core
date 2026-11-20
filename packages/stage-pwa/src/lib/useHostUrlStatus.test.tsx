@@ -10,7 +10,7 @@ vi.mock('pouchdb-browser', () => ({
 }))
 
 const { useWorkspaceStore } = await import('../store/useWorkspaceStore')
-const { useStageServerStatus, STATUS_SLOW_AFTER_MS } = await import('./useStageServerStatus')
+const { useHostUrlStatus, STATUS_SLOW_AFTER_MS } = await import('./useHostUrlStatus')
 
 const bands = [
   { workspaceId: 'band-a', workspaceName: 'Abadschendaler' },
@@ -37,9 +37,9 @@ function stub(overrides: Partial<Parameters<typeof useWorkspaceStore.setState>[0
 beforeEach(() => stub())
 afterEach(() => vi.useRealTimers())
 
-describe('useStageServerStatus', () => {
+describe('useHostUrlStatus', () => {
   it('starts as loading, then reports everything once answered', async () => {
-    const { result } = renderHook(() => useStageServerStatus())
+    const { result } = renderHook(() => useHostUrlStatus())
     expect(result.current.status).toBe('loading')
 
     await waitFor(() => expect(result.current.status).toBe('reachable'))
@@ -57,7 +57,7 @@ describe('useStageServerStatus', () => {
     const slowList = deferred<typeof bands>()
     stub({ listWorkspaces: vi.fn().mockReturnValue(slowList.promise) })
 
-    const { result } = renderHook(() => useStageServerStatus())
+    const { result } = renderHook(() => useHostUrlStatus())
 
     // The two quick requests are in; the list is still pending - and the screen already has data.
     await waitFor(() => expect(result.current.status).toBe('reachable'))
@@ -78,7 +78,7 @@ describe('useStageServerStatus', () => {
       fetchServerInfo: vi.fn().mockResolvedValue(null),
     })
 
-    const { result } = renderHook(() => useStageServerStatus())
+    const { result } = renderHook(() => useHostUrlStatus())
 
     await waitFor(() => expect(result.current.status).toBe('unreachable'))
     expect(result.current.refreshing).toBe(false)
@@ -87,7 +87,7 @@ describe('useStageServerStatus', () => {
   it('a reachable server with nothing activated is reachable, with no active band', async () => {
     stub({ fetchActiveWorkspaceHardware: vi.fn().mockResolvedValue({ activeWorkspaceId: null }) })
 
-    const { result } = renderHook(() => useStageServerStatus())
+    const { result } = renderHook(() => useHostUrlStatus())
 
     await waitFor(() => expect(result.current.status).toBe('reachable'))
     await waitFor(() => expect(result.current.refreshing).toBe(false))
@@ -105,7 +105,7 @@ describe('useStageServerStatus', () => {
       fetchServerInfo: vi.fn().mockImplementation(never),
     })
 
-    const { result } = renderHook(() => useStageServerStatus())
+    const { result } = renderHook(() => useHostUrlStatus())
     expect(result.current.slow).toBe(false)
 
     await act(async () => {
@@ -127,7 +127,7 @@ describe('useStageServerStatus', () => {
   })
 
   it('with a last known status on screen, a slow refresh keeps showing it (flagged slow) instead of blanking it', async () => {
-    const first = renderHook(() => useStageServerStatus())
+    const first = renderHook(() => useHostUrlStatus())
     await waitFor(() => expect(first.result.current.refreshing).toBe(false))
     first.unmount()
 
@@ -138,7 +138,7 @@ describe('useStageServerStatus', () => {
       fetchActiveWorkspaceHardware: vi.fn().mockImplementation(hang),
       fetchServerInfo: vi.fn().mockImplementation(hang),
     })
-    const second = renderHook(() => useStageServerStatus())
+    const second = renderHook(() => useHostUrlStatus())
     await act(async () => {
       await vi.advanceTimersByTimeAsync(STATUS_SLOW_AFTER_MS + 100)
     })
@@ -149,7 +149,7 @@ describe('useStageServerStatus', () => {
   })
 
   it('a second screen shows the last known status instantly, marked as refreshing, while re-checking', async () => {
-    const first = renderHook(() => useStageServerStatus())
+    const first = renderHook(() => useHostUrlStatus())
     await waitFor(() => expect(first.result.current.refreshing).toBe(false))
     expect(first.result.current.status).toBe('reachable')
     first.unmount()
@@ -161,7 +161,7 @@ describe('useStageServerStatus', () => {
       fetchActiveWorkspaceHardware: vi.fn().mockImplementation(hang),
       fetchServerInfo: vi.fn().mockImplementation(hang),
     })
-    const second = renderHook(() => useStageServerStatus())
+    const second = renderHook(() => useHostUrlStatus())
 
     expect(second.result.current.status).toBe('reachable')
     expect(second.result.current.activeWorkspaceName).toBe('Abadschendaler')
@@ -170,12 +170,12 @@ describe('useStageServerStatus', () => {
   })
 
   it('a request that fails doesn\'t wipe what was already known from the others', async () => {
-    const first = renderHook(() => useStageServerStatus())
+    const first = renderHook(() => useHostUrlStatus())
     await waitFor(() => expect(first.result.current.refreshing).toBe(false))
     first.unmount()
 
     stub({ fetchActiveWorkspaceHardware: vi.fn().mockResolvedValue(null) })
-    const second = renderHook(() => useStageServerStatus())
+    const second = renderHook(() => useHostUrlStatus())
     await waitFor(() => expect(second.result.current.refreshing).toBe(false))
 
     expect(second.result.current.status).toBe('reachable')
@@ -183,7 +183,7 @@ describe('useStageServerStatus', () => {
   })
 
   it('once the server is found unreachable, the last known status is dropped - never shown as current again', async () => {
-    const first = renderHook(() => useStageServerStatus())
+    const first = renderHook(() => useHostUrlStatus())
     await waitFor(() => expect(first.result.current.refreshing).toBe(false))
     first.unmount()
 
@@ -192,12 +192,12 @@ describe('useStageServerStatus', () => {
       fetchActiveWorkspaceHardware: vi.fn().mockResolvedValue(null),
       fetchServerInfo: vi.fn().mockResolvedValue(null),
     })
-    const second = renderHook(() => useStageServerStatus())
+    const second = renderHook(() => useHostUrlStatus())
     await waitFor(() => expect(second.result.current.status).toBe('unreachable'))
     second.unmount()
 
     stub()
-    const third = renderHook(() => useStageServerStatus())
+    const third = renderHook(() => useHostUrlStatus())
     expect(third.result.current.status).toBe('loading')
     expect(third.result.current.workspaces).toBeNull()
   })
@@ -205,7 +205,7 @@ describe('useStageServerStatus', () => {
   it('reload() resolves only once all three requests have settled', async () => {
     const slowInfo = deferred<typeof info>()
     stub({ fetchServerInfo: vi.fn().mockReturnValue(slowInfo.promise) })
-    const { result } = renderHook(() => useStageServerStatus())
+    const { result } = renderHook(() => useHostUrlStatus())
     await waitFor(() => expect(result.current.status).toBe('reachable'))
 
     let settled = false

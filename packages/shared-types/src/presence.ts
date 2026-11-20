@@ -82,7 +82,7 @@ export const DEFAULT_PRESENCE: Presence = { devices: {} }
 
 /** How long a heartbeat stays valid - see PluginHealth's identical HEALTH_TIMEOUT_MS. Longer
  * than that one: which profile is active is far less time-critical than hardware reachability,
- * and every logged-in tablet reports here, not just one Stage-Server, so a longer interval
+ * and every logged-in tablet reports here, not just one Host, so a longer interval
  * keeps the aggregate report traffic modest for a full band. */
 export const PRESENCE_TIMEOUT_MS = 30_000
 

@@ -22,7 +22,7 @@ export interface VerifiedAdmin {
 
 /**
  * One step of SwitchServerBandWizard.tsx: proves "an admin of this workspace" - which admin, and
- * their PIN (their own, or the universal recovery code) - verified by the Stage-Server itself
+ * their PIN (their own, or the universal recovery code) - verified by the Host itself
  * (`verifyAdminPin`), so a wrong PIN is rejected right here instead of at the final commit.
  *
  * - `knownProfileId` given (the closing band's current user on this device): only the PIN is asked,

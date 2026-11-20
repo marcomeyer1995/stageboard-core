@@ -1,6 +1,7 @@
 import { pbkdf2Sync } from 'node:crypto'
 import { mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
-import * as showStatePushHub from './showStatePushHub.js'
+import { channelResets, discoverySessions, pluginHealth } from 'sync-host'
+import { createHostChannels } from 'sync-host'
 import { request as httpRequest } from 'node:http'
 import { request as httpsRequest, Server as HttpsServer } from 'node:https'
 import { tmpdir } from 'node:os'
@@ -23,18 +24,15 @@ import {
   getSnapshot as getDeviceInfoSnapshot,
   setEntry as setDeviceInfoEntry,
 } from './deviceInfoStore.js'
-import {
-  __resetDiscoverySessionStoreForTests,
-  getSnapshot as getDiscoverySnapshot,
-} from './discoverySessionStore.js'
 import { bandDbProxyRefusal, buildApp } from './index.js'
 import { LookupError } from './plugins/lookupError.js'
-import { __resetHealthStoreForTests, getSnapshot, setEntry } from './plugins/healthStore.js'
-import {
-  __resetPresenceStoreForTests,
-  getSnapshot as getPresenceSnapshot,
-  setEntry as setPresenceEntry,
-} from './presenceStore.js'
+const { __resetHealthStoreForTests, __resetDiscoverySessionStoreForTests } = channelResets
+const getDiscoverySnapshot = discoverySessions.getSnapshot
+const showStatePush = { subscribe: (band: string, fn: (event: unknown) => void) => createHostChannels({ presence: presence(), readBandDocs: async () => [] }).subscribe('show-state', band, fn as never) }
+const { getSnapshot, setEntry } = pluginHealth
+import { __resetPresenceStoreForTests, presence } from './presenceStore.js'
+
+const getPresenceSnapshot = (workspaceId: string) => presence().snapshot(workspaceId)
 import { recordDeletedWorkspace } from './provisioningAuth.js'
 
 function testContext(): PluginContext {
@@ -185,7 +183,7 @@ describe('Fastify routes', () => {
       expect((await app.inject({ method: 'GET', url: '/host/look-up?address=http://10.0.0.2' })).statusCode).toBe(400)
     })
 
-    it('answers 502 for an address that is not a Stage-Server', async () => {
+    it('answers 502 for an address that is not a Host', async () => {
       // Nothing listens there: the lookup must end, not hang (it answers on connection refusal).
       const response = await app.inject({ method: 'GET', url: '/host/look-up?address=https://127.0.0.1:1' })
       expect(response.statusCode).toBe(502)
@@ -768,7 +766,7 @@ describe('Fastify routes', () => {
 
   describe('GET /workspaces/:workspaceId/presence/stream', () => {
     beforeEach(() => {
-      __resetPresenceStoreForTests()
+      __resetPresenceStoreForTests(() => 123)
     })
 
     it('streams the current snapshot immediately, then pushes updates as they happen', async () => {
@@ -803,7 +801,7 @@ describe('Fastify routes', () => {
       const first = await chunks.next()
       expect(Buffer.from(first.value as Buffer).toString()).toBe('data: {"devices":{}}\n\n')
 
-      setPresenceEntry('band-a', 'device-1', { profileId: 'p1', lastSeenAt: 123 })
+      presence().setEntry('band-a', 'device-1', 'p1') // stamped 123 by the clock this describe resets the store with
 
       const second = await chunks.next()
       expect(Buffer.from(second.value as Buffer).toString()).toBe(
@@ -1435,8 +1433,8 @@ describe('Fastify routes', () => {
       vi.stubGlobal('fetch', fetchMock)
       const received: unknown[] = []
       const other: unknown[] = []
-      const off = showStatePushHub.subscribe('band-a', (event) => received.push(event))
-      const offOther = showStatePushHub.subscribe('band-b', (event) => other.push(event))
+      const off = showStatePush.subscribe('band-a', (event) => received.push(event))
+      const offOther = showStatePush.subscribe('band-b', (event) => other.push(event))
       const headers = basic('stageboard-band-a-p7~d7', 'pw')
       expect((await app.inject({ method: 'POST', url: '/workspaces/band-a/show-state/push', payload: push, headers })).statusCode).toBe(204)
       expect((await app.inject({ method: 'POST', url: '/workspaces/band-a/show-state/push', payload: push, headers })).statusCode).toBe(204)
@@ -1554,6 +1552,19 @@ describe('Fastify routes', () => {
       const response = await app.inject({ method: 'POST', url: '/workspaces/band-a/roster', payload: { code: 'guessed' } })
 
       expect(response.statusCode).toBe(403)
+    })
+
+    it('answers a band that does not exist like a wrong code (403) - a 500 would tell a stranger which bands exist', async () => {
+      stubFetch([
+        { ok: false, status: 404 }, // getAccessCode -> missing
+        { ok: false, status: 404 }, // writeAccessCodeDoc's own getDoc (for _rev) -> missing
+        { ok: false, status: 404 }, // putDoc: there is no database for this band
+      ])
+
+      const response = await app.inject({ method: 'POST', url: '/workspaces/no-such-band/roster', payload: { code: '12345678' } })
+
+      expect(response.statusCode).toBe(403)
+      expect(response.json()).toEqual({ status: 'error', message: 'Wrong code' })
     })
 
     it('returns 400 for a body that fails schema validation', async () => {

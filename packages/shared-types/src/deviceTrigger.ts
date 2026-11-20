@@ -2,9 +2,9 @@ import { z } from 'zod'
 import { ShowControlEventSchema } from './plugin.js'
 
 /**
- * Body relayed through the Stage-Server to a specific device's own trigger-stream (#10's
+ * Body relayed through the Host to a specific device's own trigger-stream (#10's
  * device-claim generalization) - for a capability whose execution target is a claimed tablet
- * rather than a Stage-Server plugin. Unlike `ShowState`'s continuous, synced fields (e.g.
+ * rather than a Host plugin. Unlike `ShowState`'s continuous, synced fields (e.g.
  * `playbackStatus`, which every tablet already watches and can react to on its own), a cue
  * fire (Quick Actions, Lighting Cues) is a one-shot event with no natural "current state" to
  * sync - it genuinely needs delivering to the one device that's claimed, once, right now. See

@@ -3,7 +3,7 @@ import type { AddonReleaseManifest, PluginInstallation } from 'shared-types'
 
 const sourcesPut = vi.hoisted(() => vi.fn())
 vi.mock('./workspaceCollection', () => ({ createWorkspaceCollection: () => ({ put: sourcesPut, switchWorkspace: vi.fn() }) }))
-vi.mock('./stageServer', () => ({ getStageServerUrl: () => 'https://host:8443' }))
+vi.mock('./hostUrl', () => ({ getHostUrl: () => 'https://host:8443' }))
 vi.mock('../store/useWorkspaceStore', () => ({
   useWorkspaceStore: { getState: () => ({ workspaces: [{ id: 'band', username: 'stageboard-band-admin~dev', password: 'pw' }] }) },
 }))

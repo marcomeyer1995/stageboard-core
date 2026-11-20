@@ -5,7 +5,7 @@ import type { PinThrottle } from './pinThrottle.js'
 
 /**
  * Managing the members of a band (host module, #960): adding and removing people, giving and taking admin,
- * choosing or resetting a PIN, and a device taking on another person - the rules of the Stage-Server's member
+ * choosing or resetting a PIN, and a device taking on another person - the rules of the Host's member
  * routes, once, for every host. Every change needs an admin of *this* band (a device login with the admin role);
  * wrong tries are counted per login name, so the admin routes cannot be used to guess a password.
  */

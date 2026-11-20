@@ -428,7 +428,7 @@
     "extendedHint": "Schlagzeug, Bass, Gesang, Gitarre, Keys/Piano und Rest. Keys sind weniger sauber getrennt.",
     "splitGuitar": "Gitarre links/rechts aufteilen",
     "splitGuitarInfo": "Für zwei Gitarren, die links und rechts im Stereobild liegen - liegen beide in der Mitte, hilft es nicht.",
-    "runs": "Läuft auf dem Stage-Server, etwa eine Minute je Song. Die Spuren erscheinen unter dem Track und lassen sich umbenennen.",
+    "runs": "Läuft auf dem Host, etwa eine Minute je Song. Die Spuren erscheinen unter dem Track und lassen sich umbenennen.",
     "replaces": " Die bisherigen Spuren dieses Tracks werden ersetzt."
   },
   "imp": {

@@ -1,7 +1,7 @@
 import i18n from '../i18n'
 import { useCallback, useEffect, useState } from 'react'
 import { BackupTargetSchema, type BackupOverview, type BackupTarget } from 'shared-types'
-import { getStageServerUrl } from '../lib/stageServer'
+import { getHostUrl } from '../lib/hostUrl'
 import { useDialogStore } from '../store/useDialogStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { AddRow, Button, Card, Dialog, Field, Section, Segmented, StatusDot, Switch } from './ui'
@@ -38,7 +38,7 @@ const NEW_TARGET = (kind: BackupTarget['kind']): BackupTarget => ({
 })
 
 /**
- * Where the Stage-Server backs itself up (#363, Marco 2026-10-08): one or several targets - a
+ * Where the Host backs itself up (#363, Marco 2026-10-08): one or several targets - a
  * folder (USB stick, second disk, ZFS, an OS-mounted NAS share) or a NAS over SSH. The server runs
  * them itself: daily at a time and when the stick is plugged in. Only for an admin of the band
  * this server serves (the server checks the admin login again).
@@ -55,7 +55,7 @@ export function ServerBackupTargets() {
 
   const call = useCallback(
     async (path: string, extra: object = {}): Promise<unknown> => {
-      const base = getStageServerUrl()
+      const base = getHostUrl()
       if (!base || !workspace?.username || !workspace.password) throw new Error(t('bk.noAdmin'))
       const res = await fetch(`${base}/server/backup/${path}`, {
         method: 'POST',

@@ -145,11 +145,11 @@ describe('TrackManagerField - YouTube search in "Track hinzufügen" (#618)', () 
 
   it('shows the server\'s message when the search fails (e.g. no internet)', async () => {
     usePluginsStore.setState({ installed: [ytPlugin] })
-    youtube.searchYoutube.mockResolvedValueOnce({ status: 'error', message: 'Stage-Server nicht erreichbar.' })
+    youtube.searchYoutube.mockResolvedValueOnce({ status: 'error', message: 'Host nicht erreichbar.' })
     render(<TrackManagerField variantId="v1" tracks={[]} disabled={false} searchQuery="x" />)
     fireEvent.click(screen.getByRole('button', { name: /Track hinzufügen/ }))
     fireEvent.click(screen.getByRole('button', { name: 'Suchen' }))
-    expect(await screen.findByText('Stage-Server nicht erreichbar.')).toBeInTheDocument()
+    expect(await screen.findByText('Host nicht erreichbar.')).toBeInTheDocument()
   })
 
   it('without a host that can, this device searches and downloads with its helper (docs/25 §6b)', async () => {
@@ -169,7 +169,7 @@ describe('TrackManagerField - YouTube search in "Track hinzufügen" (#618)', () 
     expect(hit.querySelector('img')?.getAttribute('src')).toBe('https://i.ytimg.com/vi/9Ht5RZpzPqw/mqdefault.jpg')
     fireEvent.click(hit)
     await waitFor(() => expect(device.runOnDevice).toHaveBeenCalled())
-    // Its own job, created running: no Stage-Server picks it up.
+    // Its own job, created running: no Host picks it up.
     expect(db.putAsyncJob).toHaveBeenCalledWith(expect.objectContaining({ type: 'youtube-extract', status: 'running', runner: expect.stringMatching(/^device:/), url: 'https://www.youtube.com/watch?v=9Ht5RZpzPqw' }))
   })
 

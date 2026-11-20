@@ -3,7 +3,7 @@ import { DetectedHardwareSchema } from './hardwareMatching.js'
 import { CcSequenceSchema } from './discoveryTrigger.js'
 
 /**
- * One physical port a participant (a tablet, or the Stage-Server's own native MIDI watcher -
+ * One physical port a participant (a tablet, or the Host's own native MIDI watcher -
  * see `SERVER_EXECUTION_TARGET` in hardwareSetup.ts) currently sees, as reported into a
  * DiscoverySession. `reporterId` is a `Device.id` or `SERVER_EXECUTION_TARGET`; `hardwareKey` is
  * `hardwareMatching.ts`'s `hardwareKeyFor(detected)` - together they're this candidate's unique
@@ -31,7 +31,7 @@ export const DiscoveryIdentifyingSchema = z.object({
   logicalDeviceName: z.string().min(1),
   pluginId: z.string().min(1),
   instruction: z.string().min(1),
-  /** So every participant (a tablet in useDiscoveryTrigger.ts, or the Stage-Server's own
+  /** So every participant (a tablet in useDiscoveryTrigger.ts, or the Host's own
    * midiWatcher.ts) can match incoming MIDI locally, without needing its own copy of the
    * matched plugin's full manifest. */
   matchCcSequence: CcSequenceSchema,
@@ -43,7 +43,7 @@ export type DiscoveryIdentifying = z.infer<typeof DiscoveryIdentifyingSchema>
  * A workspace-wide, admin-initiated hardware-discovery session - deliberately **not** a
  * replicated document (same reasoning as presence/plugin-health: a live coordination
  * session has no offline/multi-master value and shouldn't outlive a server restart). Lives only
- * in the Stage-Server's memory (core-backend's discoverySessionStore.ts) and is broadcast to
+ * in the Host's memory (core-backend's discoverySessionStore.ts) and is broadcast to
  * every connected tablet over SSE, the same pattern presenceStore.ts already uses.
  */
 export const DiscoverySessionSchema = z.object({

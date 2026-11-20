@@ -1,14 +1,14 @@
 import type { ShowControlEvent, ShowControlResult } from 'shared-types'
 import { serverText } from './serverMessage'
-import { getStageServerUrl, NO_STAGE_SERVER_MESSAGE } from './stageServer'
+import { getHostUrl, NO_HOST_MESSAGE } from './hostUrl'
 
 /** The low-latency cue channel CueGrid/ShowPlaybackWidget's comments have been waiting for. */
 export async function triggerShowControl(
   pluginName: string,
   event: ShowControlEvent,
 ): Promise<ShowControlResult> {
-  const base = getStageServerUrl()
-  if (!base) return { status: 'error', message: NO_STAGE_SERVER_MESSAGE }
+  const base = getHostUrl()
+  if (!base) return { status: 'error', message: NO_HOST_MESSAGE }
 
   try {
     const response = await fetch(`${base}/plugins/${pluginName}/trigger`, {

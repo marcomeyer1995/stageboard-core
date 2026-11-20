@@ -19,8 +19,8 @@ export function useNow(intervalMs = 5_000): number {
 }
 
 /**
- * useNow in band time (the Stage-Server's clock, clockSync.ts) - for comparing against anything
- * the Stage-Server stamped, like a plugin heartbeat's `lastSeenAt`. The Fire's own clock ran 14 s
+ * useNow in band time (the Host's clock, clockSync.ts) - for comparing against anything
+ * the Host stamped, like a plugin heartbeat's `lastSeenAt`. The Fire's own clock ran 14 s
  * fast (2026-11-06): every 5-s heartbeat looked 14 s old on arrival and stale a second later, so
  * all server capabilities flipped to "degraded" and back every 5 s, the Master logged each flip,
  * and the sync indicator never settled.

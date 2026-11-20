@@ -4,8 +4,9 @@ import { AddonInstallRequestSchema, AddonPreviewRequestSchema, HostAdminActionSc
 import { existsSync, readFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { CalibrationRuns } from './calibration/calibrationRuns.js'
-import { listAudioInputs, MeasureInputStore, measureLevel } from './calibration/measureInputs.js'
-import { fallbackMicDevice, startMicCapture } from './calibration/micCapture.js'
+import { MeasureInputStore } from './calibration/measureInputs.js'
+import { startMicCapture } from './calibration/micCapture.js'
+import { registerServerSettingsRoutes } from './serverSettingsRoutes.js'
 import { PIPER_SPEECH_PLUGIN_ID, serverSpeech, serverVoices } from './plugins/piperSpeechPlugin.js'
 import { PiperSpeech } from './speech/piperSpeech.js'
 import { createServer } from 'node:http'
@@ -15,7 +16,7 @@ import { fileURLToPath } from 'node:url'
 import cors from '@fastify/cors'
 import httpProxy from '@fastify/http-proxy'
 import { startBuiltinDatabase } from './builtinDatabase.js'
-import { hostCapabilities } from './hostCapabilities.js'
+import { addonHostNeeds, hostCapabilities } from './hostCapabilities.js'
 import { createHostLeaseService, getFromHost, postJsonToHost } from './hostLeaseService.js'
 import { createHostRoleStore } from './hostRoleStore.js'
 import { makeLocalBandDb, makeRemoteBandDb } from './bandPouch.js'
@@ -32,83 +33,46 @@ import { createBandAccountsFor } from './bandAccounts.js'
 import fastifyStatic from '@fastify/static'
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify'
 import {
-  ActivateProfileRequestSchema,
   SERVER_EXECUTION_TARGET,
   ActivateWorkspaceHardwareRequestSchema,
-  CreateMemberRequestSchema,
-  DeviceInfoReportSchema,
-  DeviceTriggerSchema,
-  DiscoveryAssignRequestSchema,
-  DiscoveryReportCandidateRequestSchema,
-  DiscoveryStartRequestSchema,
-  DiscoveryTriggeredRequestSchema,
   CalibrationRunRequestSchema,
-  HealthReportSchema,
-  GetAccessCodeRequestSchema,
-  JoinAsMemberRequestSchema,
-  ReadyReportSchema,
-  RemoveMemberRequestSchema,
-  RenameWorkspaceRequestSchema,
-  SetMasterModeRequestSchema,
-  RevokeDeviceRequestSchema,
-  ForgetDeviceRequestSchema,
-  RosterRequestSchema,
-  RotateAccessCodeRequestSchema,
-  SetMemberAdminRequestSchema,
-  SetOwnPinRequestSchema,
   ShowControlEventSchema,
-  VerifyAdminPinRequestSchema,
-  WorkspaceDeleteRequestSchema,
-  WorkspaceProvisionRequestSchema,
   type Device,
 } from 'shared-types'
 import { messageFieldsOf, serverMessage, type ServerMessage } from 'shared-types'
-import { BackupAdminRequestSchema, BackupSaveRequestSchema, MeasureInputsSaveRequestSchema, MeasureLevelRequestSchema, type MeasureInputsOverview, BackupTargetRequestSchema, FlashReportSchema, ShowStatePushAckSchema, ShowStatePushSchema, SwitchStateEventSchema, SpeechSpeedSchema, SpeechVoiceKeySchema, YOUTUBE_VIDEO_ID_RE } from 'shared-types'
+import { SpeechSpeedSchema, SpeechVoiceKeySchema, YOUTUBE_VIDEO_ID_RE } from 'shared-types'
 import { createBackupService, realBackupDeps, type BackupService } from './backup.js'
 import { deleteAudioFile, readAudioFile, writeAudioFile } from './audioStore.js'
 import { readPersistedActiveWorkspace } from './activeWorkspaceStateStore.js'
 import { isSafePluginId, readPluginBundle } from './plugins/pluginBundleStore.js'
-import { allDocs, deleteDocUnless, getDoc, putDoc, putDocWithRetry, type DatabaseConfig, type DatabaseDoc } from './database.js'
+import { allDocs, getDoc, type DatabaseConfig, type DatabaseDoc } from './database.js'
 import * as deviceInfoStore from './deviceInfoStore.js'
-import * as deviceRelay from './deviceRelay.js'
-import * as discoverySessionStore from './discoverySessionStore.js'
 import { installShutdownHandlers, trackConnections } from './gracefulShutdown.js'
 import { registerAppRoutes } from './appDownload.js'
 import { certFingerprint } from './certFingerprint.js'
 import { startMdnsResponder } from './mdnsResponder.js'
 import { startPingLoop } from './pingLoop.js'
-import * as healthStore from './plugins/healthStore.js'
 import { LOOKUP_CATALOG } from './plugins/lookupCatalog.js'
 import { bandHasAddon, ULTIMATE_GUITAR_PLUGIN_ID, ULTIMATE_GUITAR_PROVIDER, YOUTUBE_DOWNLOAD_PLUGIN_ID } from './plugins/importAddons.js'
 import { runYtDlpSearch } from './ytDlp.js'
 import { LookupRegistry } from './plugins/lookupRegistry.js'
 import { lookupErrorBody } from './plugins/lookupError.js'
-import * as presenceStore from './presenceStore.js'
+import { presence as presenceStore } from './presenceStore.js'
 import { registerHostRoutes } from './hostRoutes.js'
+import { addonRefusal, createBandCatalog, createHostChannels } from 'sync-host'
+import { createLaptopBandStore } from './bandStore.js'
 import { createBandJoin, createBandMembers, createHostRoutes, createReplicationAccountIssuer, type BandJoin } from 'sync-host'
-import * as showStatePushHub from './showStatePushHub.js'
-import * as switchStateHub from './switchStateHub.js'
 import { PluginRegistry } from './plugins/registry.js'
 import { createPinThrottle } from 'sync-host'
-import { isLoopback, readDeletedWorkspaces } from './provisioningAuth.js'
+import { isLoopback } from './provisioningAuth.js'
 import { listDbs } from './database.js'
 import { decodeOscPacket, oscTargetFromConfig, setOscTargetResolver } from './plugins/oscPlugin.js'
-import * as oscInHub from './oscInHub.js'
 import { createWorkspaceHardwareController } from './workspaceHardwareController.js'
 import {
-  deprovisionWorkspace,
-  deviceUsername,
   getOrCreateAccessCode,
-  listWorkspaces,
-  memberUsername,
-  provisionWorkspace,
   updateRosterValidators,
-  renameWorkspace,
-  setMasterMode,
-  rotateAccessCode,
   getAccessCode,
   workspaceDbName,
-  WorkspaceAlreadyProvisionedError,
 } from './workspaceProvisioning.js'
 
 const certFile = fileURLToPath(new URL('../../../certs/dev-cert.pem', import.meta.url))
@@ -250,7 +214,7 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
   // this is a LAN-only server (docs/01), so a generous ceiling costs nothing real.
   const bodyLimit = Number(process.env.MAX_AUDIO_UPLOAD_BYTES ?? 200 * 1024 * 1024)
 
-  // Admin database credentials - core-backend is the trusted, physically-secured Stage-Server
+  // Admin database credentials - core-backend is the trusted, physically-secured Host
   // process, so unlike the PWA (see #12) it keeps using these directly, both for its own
   // plugin-sync data access and for the /workspaces provisioning route below, which needs
   // admin rights to create the database users and databases.
@@ -259,6 +223,12 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
     user: process.env.STAGEBOARD_DB_USER ?? 'admin',
     password: process.env.STAGEBOARD_DB_PASSWORD ?? 'admin',
   }
+  // The live channels every host has (#962): one port over this process's stores; Discovery reads the band's plugins and
+  // logical devices from the database host.
+  const channels = createHostChannels({
+    presence: presenceStore(),
+    readBandDocs: (workspaceId, prefix) => allDocs<unknown>(database, workspaceDbName(workspaceId), { startkey: prefix, endkey: `${prefix}\uffff` }),
+  })
   // The accounts of every band: documents of the band's own database, the same ones the built-in database host signs
   // devices in with and the tablet writes (#960). One instance per band, with its own remembered logins.
   // The devices a band lists as its hosts have the role `host`, which lets them write the band's accounts with their own
@@ -287,7 +257,7 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
   }
 
   // How a device becomes a member and an admin PIN is checked, and who manages the members: the rules of
-  // sync-host, once for every host (#960) - the Stage-Server only brings its database, its code and its counts.
+  // sync-host, once for every host (#960) - the Host only brings its database, its code and its counts.
   const bandJoinDeps = (workspaceId: string) => ({
     accounts: accountsFor(workspaceId),
     throttle: pinThrottle,
@@ -355,7 +325,6 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
     credentials: true,
   })
 
-  app.get('/health', async () => ({ status: 'ok' }))
 
   // The NTP-style "burst handshake" target (docs/00 §4, #31): clients hit this repeatedly and
   // keep the lowest-RTT sample's offset (see stage-pwa's clockSync.ts) - a single Date.now()
@@ -376,7 +345,7 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
   // below already broadcasts - exposed here too for a device that's never seen that broadcast
   // (e.g. connected via a typed raw IP) but still wants to show this box's name, not just its
   // address.
-  // Latency calibration with the Stage-Server's microphone (docs/21 §4, #491): a device asks for a
+  // Latency calibration with the Host's microphone (docs/21 §4, #491): a device asks for a
   // run, plays its click at the irregular times returned, and polls for the delay the server heard.
   // Which input listens (#662): the microphone for speakers, the cable for everything plugged in.
   const measureInputs = new MeasureInputStore()
@@ -419,375 +388,32 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
     done(null, payload)
   })
 
-  // Named '/plugin-health', not '/health', to avoid colliding with the plain server-liveness
-  // route above - this is a different concept (per-plugin reachability, not "is this
-  // process up"). SSE, not WebSocket: the traffic is one-directional broadcast plus
-  // occasional one-shot reports, which fits a kept-open Fastify reply and a plain POST with
-  // no new dependency (see #49 follow-up - this replaces the old the database `plugin-health` doc).
+  // The live channels (#962, step 2) are sync-host's: what a device sends into one (show state, switches, plugin health,
+  // device triggers, Discovery) is answered by the shared route table, and what it listens to is one transport here -
+  // each snapshot as a server-sent event. A named '/plugin-health', not '/health': per-plugin reachability, not liveness.
+  // No login on a stream: a page opens it with EventSource, which cannot send one (presence reveals only which
+  // already-visible roster member is active).
+  const openStream = (request: FastifyRequest, reply: FastifyReply, subscribe: (send: (payload: unknown) => void) => () => void) => {
+    beginSseStream(request, reply)
+    const unsubscribe = subscribe((payload) => reply.raw.write(`data: ${JSON.stringify(payload)}\n\n`))
+    request.raw.on('close', unsubscribe)
+  }
+  for (const topic of ['show-state', 'switch-state', 'presence', 'osc-in', 'discovery'] as const) {
+    app.get(`/workspaces/:workspaceId/${topic}/stream`, (request, reply) => {
+      const { workspaceId } = request.params as { workspaceId: string }
+      openStream(request, reply, (send) => channels.subscribe(topic, workspaceId, send))
+    })
+  }
   app.get('/plugin-health/:workspaceId/stream', (request, reply) => {
     const { workspaceId } = request.params as { workspaceId: string }
-    beginSseStream(request, reply)
-
-    const unsubscribe = healthStore.subscribe(workspaceId, (snapshot) => {
-      reply.raw.write(`data: ${JSON.stringify(snapshot)}\n\n`)
-    })
-    request.raw.on('close', unsubscribe)
+    openStream(request, reply, (send) => channels.subscribe('plugin-health', workspaceId, send))
   })
-
-  app.post('/plugin-health/:workspaceId/report', async (request, reply) => {
-    const { workspaceId } = request.params as { workspaceId: string }
-    const parsed = HealthReportSchema.safeParse(request.body)
-    if (!parsed.success) {
-      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
-    }
-
-    healthStore.setEntry(workspaceId, parsed.data.pluginName, {
-      status: parsed.data.status,
-      lastSeenAt: Date.now(),
-      message: parsed.data.message,
-    })
-    return reply.status(204).send()
-  })
-
-  // "Who's currently logged in, from how many devices" (see #21 ninth follow-up, at Marco's
-  // explicit request) - same SSE push pattern as plugin-health above, just keyed by deviceId
-  // instead of plugin name (presenceStore.ts). No auth on either route: presence only reveals
-  // which already-visible roster member is active right now, nothing a workspace's own access
-  // code doesn't already gate getting this far to see.
-  app.get('/workspaces/:workspaceId/presence/stream', (request, reply) => {
-    const { workspaceId } = request.params as { workspaceId: string }
-    beginSseStream(request, reply)
-
-    const unsubscribe = presenceStore.subscribe(workspaceId, (snapshot) => {
-      reply.raw.write(`data: ${JSON.stringify(snapshot)}\n\n`)
-    })
-    request.raw.on('close', unsubscribe)
-  })
-
-  // Stage-Messenger (#26): a flash message for every tablet of the band, pushed on the presence
-  // stream like the Ready Check. In memory only - a message is only meaningful for seconds.
-  app.post('/workspaces/:workspaceId/flash', async (request, reply) => {
-    const { workspaceId } = request.params as { workspaceId: string }
-    const parsed = FlashReportSchema.safeParse(request.body)
-    if (!parsed.success) {
-      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
-    }
-    // Unlike the presence reports, a flash *pushes* text onto every tablet of the band - so only a
-    // device signed in to this band may send one (its own database login, as Basic auth).
-    if (!(await isBandDevice(workspaceId, request.headers.authorization))) {
-      app.log.warn({ workspaceId, remoteAddress: request.ip }, 'Flash message refused - not signed in to this band')
-      return reply.status(401).send({ status: 'error', message: 'Only a device of this band can send flash messages' })
-    }
-    const flash = presenceStore.setFlash(workspaceId, parsed.data.text, parsed.data.from, parsed.data.to)
-    app.log.info({ workspaceId, flashId: flash.id, from: flash.from, to: flash.to ?? 'all', remoteAddress: request.ip }, 'Flash message sent')
-    return reply.status(201).send(flash)
-  })
-
-  // Fast lane for the master's show-state changes (#468): Play, Pause, Stop, Weiter reach every
-  // device at once instead of through database replication (up to 1 s from the Fire). The database
-  // write still happens on the master; devices keep whichever copy is newer (stateIssuedAt).
-  app.get('/workspaces/:workspaceId/show-state/stream', (request, reply) => {
-    const { workspaceId } = request.params as { workspaceId: string }
-    beginSseStream(request, reply)
-    const unsubscribe = showStatePushHub.subscribe(workspaceId, (push) => {
-      reply.raw.write(`data: ${JSON.stringify(push)}\n\n`)
-    })
-    request.raw.on('close', unsubscribe)
-  })
-
-  app.post('/workspaces/:workspaceId/show-state/push', async (request, reply) => {
-    const { workspaceId } = request.params as { workspaceId: string }
-    const parsed = ShowStatePushSchema.safeParse(request.body)
-    if (!parsed.success) {
-      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
-    }
-    // Only a device of this band may change what every tablet plays - its own database login, as for
-    // flash messages. Checked logins are remembered for a while: this is on the Play path.
-    if (!(await isBandDevice(workspaceId, request.headers.authorization))) {
-      app.log.warn({ workspaceId, remoteAddress: request.ip }, 'Show-state push refused - not signed in to this band')
-      return reply.status(401).send({ status: 'error', message: 'Only a device of this band can push the show state' })
-    }
-    const devices = showStatePushHub.broadcast(workspaceId, parsed.data)
-    app.log.info({ workspaceId, deviceId: parsed.data.deviceId, issuedAt: parsed.data.issuedAt, receivedMs: Date.now() - parsed.data.issuedAt, keys: Object.keys(parsed.data.patch), devices }, 'Show state pushed')
-    return reply.status(204).send()
-  })
-
-  // Switch states (docs/23 §11.5): a held blinder lights its button on every tablet at once. Any
-  // device of the band may - device commands need no show control (§5a).
-  // OSC as a trigger (#484): what the Stage-Server receives on its OSC port, to the devices that
-  // listen - the master running the rules and a device learning a button.
-  app.get('/workspaces/:workspaceId/osc-in/stream', (request, reply) => {
-    const { workspaceId } = request.params as { workspaceId: string }
-    beginSseStream(request, reply)
-    const unsubscribe = oscInHub.subscribe(workspaceId, (message) => {
-      reply.raw.write(`data: ${JSON.stringify(message)}\n\n`)
-    })
-    request.raw.on('close', unsubscribe)
-  })
-
-  app.get('/osc-in/info', async () => ({ port: OSC_IN_PORT }))
-
-  app.get('/workspaces/:workspaceId/switch-state/stream', (request, reply) => {
-    const { workspaceId } = request.params as { workspaceId: string }
-    beginSseStream(request, reply)
-    const unsubscribe = switchStateHub.subscribe(workspaceId, (event) => {
-      reply.raw.write(`data: ${JSON.stringify(event)}\n\n`)
-    })
-    request.raw.on('close', unsubscribe)
-  })
-
-  app.post('/workspaces/:workspaceId/switch-state/push', async (request, reply) => {
-    const { workspaceId } = request.params as { workspaceId: string }
-    const parsed = SwitchStateEventSchema.safeParse(request.body)
-    if (!parsed.success) {
-      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
-    }
-    if (!(await isBandDevice(workspaceId, request.headers.authorization))) {
-      app.log.warn({ workspaceId, remoteAddress: request.ip }, 'Switch state refused - not signed in to this band')
-      return reply.status(401).send({ status: 'error', message: 'Only a device of this band can switch' })
-    }
-    const devices = switchStateHub.broadcast(workspaceId, parsed.data)
-    if (parsed.data.kind !== 'held') app.log.info({ workspaceId, ...parsed.data, devices }, 'Switch state pushed')
-    return reply.status(204).send()
-  })
-
-  // Each device reports when a change reached it - the measurement behind PLAY_LEAD_MS.
-  app.post('/workspaces/:workspaceId/show-state/ack', async (request, reply) => {
-    const { workspaceId } = request.params as { workspaceId: string }
-    const parsed = ShowStatePushAckSchema.safeParse(request.body)
-    if (!parsed.success) {
-      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
-    }
-    const { deviceId, deviceName, issuedAt, receivedAt, via } = parsed.data
-    app.log.info({ workspaceId, deviceId, deviceName, issuedAt, via, delayMs: Math.round(receivedAt - issuedAt), remoteAddress: request.ip }, 'Show state reached device')
-    return reply.status(204).send()
-  })
-
-  // Ready Check answers (#60): a tablet says "this profile is ready" for the check the Master opened
-  // (ShowState.readyCheckId). In memory and pushed on the presence stream, like the master heartbeat.
-  app.post('/workspaces/:workspaceId/ready-check/report', async (request, reply) => {
-    const { workspaceId } = request.params as { workspaceId: string }
-    const parsed = ReadyReportSchema.safeParse(request.body)
-    if (!parsed.success) {
-      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
-    }
-
-    presenceStore.setReady(workspaceId, parsed.data.checkId, parsed.data.profileId)
-    return reply.status(204).send()
-  })
-
-  // Device Ledger's live diagnostic data (DeviceLedgerView.tsx, Marco's explicit request) -
-  // deliberately a plain one-shot GET, NOT an SSE push like plugin-health/presence above, and
-  // polled client-side instead (DeviceLedgerView.tsx's own effect) - found live, 2026-09-08:
-  // this app already holds ~5 other long-lived SSE/EventSource connections open per tab for the
-  // whole session (presence, trigger-stream, discovery, plugin-health x2) against a plain
-  // HTTPS/1.1 dev server (no HTTP/2 negotiated), already sitting at/near Chrome's
-  // 6-connections-per-origin cap *before* this route existed. A 6th persistent stream here
-  // starved one-off requests (report POSTs, and - worse - the admin revoke POST, exactly while
-  // someone had this screen open to use it) of a connection entirely. A poll holds nothing
-  // open between requests, so it doesn't compete for that same tight budget. No auth, same
-  // reasoning as presence's routes.
-  app.get('/workspaces/:workspaceId/device-info', (request, reply) => {
-    const { workspaceId } = request.params as { workspaceId: string }
-    return reply.status(200).send(deviceInfoStore.getSnapshot(workspaceId))
-  })
-
-  app.post('/workspaces/:workspaceId/device-info/report', async (request, reply) => {
-    const { workspaceId } = request.params as { workspaceId: string }
-    const parsed = DeviceInfoReportSchema.safeParse(request.body)
-    if (!parsed.success) {
-      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
-    }
-
-    deviceInfoStore.setEntry(workspaceId, parsed.data.deviceId, {
-      ip: request.ip,
-      os: parsed.data.os,
-      environment: parsed.data.environment,
-      syncStatus: parsed.data.syncStatus,
-      lastSeenAt: Date.now(),
-      // Preserved across a report (which doesn't know either) rather than reset - pingLoop.ts
-      // refreshes both independently on its own cadence.
-      networkReachable: deviceInfoStore.getSnapshot(workspaceId).devices[parsed.data.deviceId]?.networkReachable ?? null,
-      hostname: deviceInfoStore.getSnapshot(workspaceId).devices[parsed.data.deviceId]?.hostname ?? null,
-      audioOutput: parsed.data.audioOutput ?? null,
-      vitals: parsed.data.vitals ?? null,
-      leadNeededMs: parsed.data.leadNeededMs ?? null,
-      battery: parsed.data.battery ?? null,
-      midiOutputs: parsed.data.midiOutputs ?? null,
-      silenced: parsed.data.silenced ?? null,
-      foreground: parsed.data.foreground ?? null,
-    })
-    return reply.status(204).send()
-  })
-
-  // Device Ledger's admin-only "kick" (Marco, explicit request, deliberately a *soft* kick -
-  // see device.ts's `revoked` doc comment). Same verifyAdmin + zod-parse + putDocWithRetry-merge
-  // template as every other admin-gated write in this file (e.g. the member-admin route above).
-  app.post('/workspaces/:workspaceId/devices/:deviceId/revoke', async (request, reply) => {
-    const { workspaceId, deviceId } = request.params as { workspaceId: string; deviceId: string }
-    const parsed = RevokeDeviceRequestSchema.safeParse(request.body)
-    if (!parsed.success) {
-      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
-    }
-    if (!(await isWorkspaceAdmin(request, workspaceId, parsed.data.adminUsername, parsed.data.adminPassword))) {
-      return reply.status(403).send({ status: 'error', message: 'Not this workspace\'s admin' })
-    }
-
-    const docId = `devices:${deviceId}`
-    const existing = await getDoc<Device & DatabaseDoc>(database, workspaceDbName(workspaceId), docId)
-    if (!existing) {
-      return reply.status(404).send({ status: 'error', message: 'Unknown device' })
-    }
-    await putDocWithRetry<Device & DatabaseDoc>(database, workspaceDbName(workspaceId), docId, (current) => ({
-      ...(current ?? existing),
-      revoked: parsed.data.revoked,
-      _id: docId,
-      _rev: current?._rev ?? existing._rev,
-    }))
-    return reply.status(204).send()
-  })
-
-  // Device Ledger cleanup (Marco, 2026-10-07): removes an entry - old and duplicate devices
-  // flooded the Geräte tab. Unlike revoke this is no block: the device registers again on its
-  // next start. Refused (409) for a blocked device - the block lives on this very doc, deleting
-  // it would lift the block - and for a device a hardware device runs on (`executionTarget`):
-  // that must first move to another device in the Hardware tab (Marco's call: never remove a
-  // device in use).
-  app.post('/workspaces/:workspaceId/devices/:deviceId/forget', async (request, reply) => {
-    const { workspaceId, deviceId } = request.params as { workspaceId: string; deviceId: string }
-    const parsed = ForgetDeviceRequestSchema.safeParse(request.body)
-    if (!parsed.success) {
-      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
-    }
-    if (!(await isWorkspaceAdmin(request, workspaceId, parsed.data.adminUsername, parsed.data.adminPassword))) {
-      request.log.warn({ workspaceId, deviceId }, 'device forget refused: not this band\'s admin')
-      return reply.status(403).send({ status: 'error', message: 'Not this workspace\'s admin' })
-    }
-    const db = workspaceDbName(workspaceId)
-    const docId = `devices:${deviceId}`
-    const existing = await getDoc<Device & DatabaseDoc>(database, db, docId)
-    if (!existing) {
-      request.log.info({ workspaceId, deviceId }, 'device forget: unknown device')
-      return reply.status(404).send({ status: 'error', message: 'Unknown device' })
-    }
-    if (existing.revoked) {
-      request.log.info({ workspaceId, deviceId }, 'device forget refused: blocked')
-      return reply.status(409).send({ status: 'error', message: 'blocked' })
-    }
-    const hardware = await allDocs<DatabaseDoc & { name?: string; executionTarget?: string | null }>(database, db, {
-      startkey: 'logical-devices:',
-      endkey: 'logical-devices:\ufff0',
-    })
-    const usedBy = hardware.filter((doc) => doc.executionTarget === deviceId).map((doc) => doc.name ?? doc._id)
-    if (usedBy.length > 0) {
-      request.log.info({ workspaceId, deviceId, usedBy }, 'device forget refused: in use by hardware')
-      return reply.status(409).send({ status: 'error', message: 'in-use', usedBy })
-    }
-    // Checked and deleted against the same revision; a write in between (the device's own
-    // lastSeenAt, a rename, a block) is a conflict - read again and check again instead of
-    // answering 204 for a delete that never happened (#426 review).
-    const result = await deleteDocUnless<Device & DatabaseDoc, 'blocked'>(database, db, docId, (existing) => (existing.revoked ? 'blocked' : null))
-    if (result === 'missing') {
-      request.log.info({ workspaceId, deviceId }, 'device forget: unknown device')
-      return reply.status(404).send({ status: 'error', message: 'Unknown device' })
-    }
-    if (result === 'blocked') {
-      request.log.info({ workspaceId, deviceId }, 'device forget refused: blocked')
-      return reply.status(409).send({ status: 'error', message: 'blocked' })
-    }
-    request.log.info({ workspaceId, deviceId }, 'device removed from ledger')
-    return reply.status(204).send()
-  })
-
-  // #10's HardwareSetup routing: a lighting/mixer cue fired from one tablet, relayed to
-  // whichever tablet the active HardwareSetup binds that capability to, since - unlike
-  // audio's continuous synced playbackStatus, which every tablet already watches on its own -
-  // a cue is a one-shot event with nothing to piggyback on. Same SSE push pattern as
-  // plugin-health/presence above, just keyed by (workspaceId, deviceId) via deviceRelay.ts
-  // instead of workspaceId alone, since this must reach exactly the one claimed device.
   app.get('/workspaces/:workspaceId/devices/:deviceId/trigger-stream', (request, reply) => {
     const { workspaceId, deviceId } = request.params as { workspaceId: string; deviceId: string }
-    beginSseStream(request, reply)
-
-    const unsubscribe = deviceRelay.subscribe(workspaceId, deviceId, (trigger) => {
-      reply.raw.write(`data: ${JSON.stringify(trigger)}\n\n`)
-    })
-    request.raw.on('close', unsubscribe)
+    openStream(request, reply, (send) => channels.subscribeDevice(workspaceId, deviceId, send))
   })
-
-  app.post('/workspaces/:workspaceId/devices/:deviceId/trigger', async (request, reply) => {
-    const { workspaceId, deviceId } = request.params as { workspaceId: string; deviceId: string }
-    const parsed = DeviceTriggerSchema.safeParse(request.body)
-    if (!parsed.success) {
-      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
-    }
-
-    const delivered = deviceRelay.relay(workspaceId, deviceId, parsed.data)
-    if (!delivered) {
-      return reply.status(200).send({ status: 'error', ...serverMessage('device.notConnected') })
-    }
-    return { status: 'ok' }
-  })
-
-  // Discovery Mode: bandwide, admin-initiated hardware detection (discoverySessionStore.ts) -
-  // same SSE broadcast pattern as presence/plugin-health above, keyed by workspaceId. Every
-  // connected tablet (and core-backend's own future native-MIDI watcher) reports what it sees
-  // and gets the same live session snapshot back; the store owns all resolution logic.
-  app.get('/workspaces/:workspaceId/discovery/stream', (request, reply) => {
-    const { workspaceId } = request.params as { workspaceId: string }
-    beginSseStream(request, reply)
-
-    const unsubscribe = discoverySessionStore.subscribe(workspaceId, (snapshot) => {
-      reply.raw.write(`data: ${JSON.stringify(snapshot)}\n\n`)
-    })
-    request.raw.on('close', unsubscribe)
-  })
-
-  app.post('/workspaces/:workspaceId/discovery/start', async (request, reply) => {
-    const { workspaceId } = request.params as { workspaceId: string }
-    const parsed = DiscoveryStartRequestSchema.safeParse(request.body ?? {})
-    if (!parsed.success) {
-      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
-    }
-    await discoverySessionStore.start(database, workspaceId, parsed.data.startedBy)
-    return { status: 'ok' }
-  })
-
-  app.post('/workspaces/:workspaceId/discovery/stop', async (request) => {
-    const { workspaceId } = request.params as { workspaceId: string }
-    discoverySessionStore.stop(workspaceId)
-    return { status: 'ok' }
-  })
-
-  app.post('/workspaces/:workspaceId/discovery/candidates', async (request, reply) => {
-    const { workspaceId } = request.params as { workspaceId: string }
-    const parsed = DiscoveryReportCandidateRequestSchema.safeParse(request.body)
-    if (!parsed.success) {
-      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
-    }
-    discoverySessionStore.reportCandidate(workspaceId, parsed.data.reporterId, parsed.data.detected)
-    return { status: 'ok' }
-  })
-
-  app.post('/workspaces/:workspaceId/discovery/triggered', async (request, reply) => {
-    const { workspaceId } = request.params as { workspaceId: string }
-    const parsed = DiscoveryTriggeredRequestSchema.safeParse(request.body)
-    if (!parsed.success) {
-      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
-    }
-    discoverySessionStore.reportTriggered(workspaceId, parsed.data.reporterId, parsed.data.hardwareKey)
-    return { status: 'ok' }
-  })
-
-  app.post('/workspaces/:workspaceId/discovery/assign', async (request, reply) => {
-    const { workspaceId } = request.params as { workspaceId: string }
-    const parsed = DiscoveryAssignRequestSchema.safeParse(request.body)
-    if (!parsed.success) {
-      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
-    }
-    discoverySessionStore.assign(workspaceId, parsed.data.reporterId, parsed.data.hardwareKey, parsed.data.logicalDeviceId)
-    return { status: 'ok' }
-  })
+  // OSC as a trigger (#484): the UDP port is a capability of this box; what arrives goes to the band's listeners.
+  app.get('/osc-in/info', async () => ({ port: OSC_IN_PORT }))
 
   const registry = new PluginRegistry()
 
@@ -968,7 +594,7 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
     if (!parsed.success) return reply.status(400).send({ status: 'error', message: 'An https host address is needed' })
     // A host the admin named, not yet trusted: no fingerprint to check it against.
     const host = await lookUpHost(parsed.data.address, (url) => getFromHost(url, undefined, 3_000))
-    return host ?? reply.status(502).send({ status: 'error', message: 'That address does not answer as a Stage-Server' })
+    return host ?? reply.status(502).send({ status: 'error', message: 'That address does not answer as a Host' })
   })
   // The backup keeps its copy of the primary's database going; started in main() (#919).
   const replication = createReplicationRunner({
@@ -1011,6 +637,18 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
     },
     saveFile: saveMirrorFile,
   })
+  // The bands this host holds (#962): founding, listing, deleting, renaming, the access code, the master mode and the
+  // Device Ledger's block/remove - the rules are sync-host's, the storage is the laptop's database host.
+  const bands = createBandCatalog({
+    store: createLaptopBandStore({
+      database,
+      accountsFor,
+      isAdminOfAnyBand: (username, password) => isAnyBandAdmin(undefined, username, password),
+      checkAdmin: (workspaceId, username, password) => checkBandAdmin(workspaceId, username, password),
+    }),
+    isSelfRequest: (address) => address !== undefined && isLoopback(address),
+  })
+
   // The routes every host answers the same way - one table in sync-host, shared with the tablet's app (#949).
   registerHostRoutes(
     app,
@@ -1024,20 +662,32 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
       joinBand: (workspaceId) => bandJoinFor(workspaceId),
       members: (workspaceId) => bandMembersFor(workspaceId),
       audio: { get: readAudioFile, put: (variantId, trackId, data) => writeAudioFile(variantId, trackId, Buffer.from(data)), remove: deleteAudioFile },
-      presence: {
-        report: (workspaceId, report) => {
-          presenceStore.setEntry(workspaceId, report.deviceId, { profileId: report.profileId, lastSeenAt: Date.now() })
-          return true
+      presence: presenceStore(),
+      deviceInfo: deviceInfoStore.deviceInfo(),
+      band: {
+        accessCode: async (workspaceId) => {
+          try {
+            const access = await getOrCreateAccessCode(database, workspaceId, workspaceId)
+            return { code: access.code, name: access.name }
+          } catch (err) {
+            // A band whose database does not exist cannot be given a code (the backfill's write finds no database): that is
+            // "no such band", answered like a wrong code - not a 500, which would tell a stranger which bands exist.
+            if (err instanceof Error && /: HTTP 404$/.test(err.message)) return null
+            throw err
+          }
         },
-        heartbeat: (workspaceId, deviceId) => {
-          presenceStore.setMasterHeartbeat(workspaceId, deviceId)
-          return true
-        },
+        profileDocs: (workspaceId) =>
+          allDocs<DatabaseDoc & Record<string, unknown>>(database, workspaceDbName(workspaceId), { startkey: PROFILE_ID_PREFIX, endkey: `${PROFILE_ID_PREFIX}￰` }),
       },
+      isBandDevice,
+      bands,
+      channels,
+      capabilities: () => hostCapabilities(),
+      log: (message, meta) => app.log.info(meta, message),
     }),
   )
 
-  // OSC devices (#484): host and port are the device's transport config for the Stage-Server
+  // OSC devices (#484): host and port are the device's transport config for the Host
   // (Bühnentechnik), in the band whose hardware this server serves.
   setOscTargetResolver(async (logicalDeviceId) => {
     const workspaceId = workspaceHardware.getActiveWorkspaceId()
@@ -1045,9 +695,9 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
     return oscTargetFromConfig(await getDoc<DatabaseDoc>(database, workspaceDbName(workspaceId), `device-transport-config:${SERVER_EXECUTION_TARGET}:${logicalDeviceId}`))
   })
 
-  async function isWorkspaceAdmin(request: FastifyRequest, workspaceId: string, username: string, password: string): Promise<boolean> {
+  async function checkBandAdmin(workspaceId: string, username: string, password: string, remoteAddress?: string): Promise<boolean> {
     if (!username.startsWith(`${workspaceDbName(workspaceId)}-`)) {
-      app.log.warn({ workspaceId, username, remoteAddress: request.ip }, 'Admin login for another band refused')
+      app.log.warn({ workspaceId, username, remoteAddress }, 'Admin login for another band refused')
       return false
     }
     if (adminLoginThrottle.lockedForSeconds(username) > 0) return false
@@ -1057,9 +707,12 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
       return true
     }
     if (adminLoginThrottle.recordFailure(username)) {
-      app.log.warn({ workspaceId, username, remoteAddress: request.ip }, 'Too many wrong admin logins - locked out temporarily')
+      app.log.warn({ workspaceId, username, remoteAddress }, 'Too many wrong admin logins - locked out temporarily')
     }
     return false
+  }
+  async function isWorkspaceAdmin(request: FastifyRequest, workspaceId: string, username: string, password: string): Promise<boolean> {
+    return checkBandAdmin(workspaceId, username, password, request.ip)
   }
 
   type PinCheck = { ok: true } | { ok: false; retryAfterSeconds?: number }
@@ -1086,7 +739,7 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
 
   app.get('/plugins', async () => registry.list())
 
-  // #101's Stage-Server mirror: whatever pluginSync.ts's downloadMissingBundles already
+  // #101's Host mirror: whatever pluginSync.ts's downloadMissingBundles already
   // cached to disk, served back out to any tablet on the LAN - same @fastify/static-style
   // static-file-from-disk shape the app's own build output uses (see docs/03), just for one
   // plugin bundle at a time instead of the whole PWA.
@@ -1125,7 +778,8 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
     if (!parsed.success) return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
     try {
       const { preview } = await previewAddon(parsed.data.repository, { apiBase: process.env.STAGEBOARD_GITHUB_API })
-      return preview
+      // What this machine lacks to host the add-on's server part (#962): the admin sees it before installing.
+      return { ...preview, hostNeeds: addonHostNeeds(preview.manifest) }
     } catch (err) {
       if (err instanceof AddonError) return reply.status(422).send({ status: 'error', code: err.code, message: err.message })
       throw err
@@ -1147,6 +801,12 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
       const { preview, release } = await previewAddon(parsed.data.repository, deps)
       if (preview.manifest.version !== parsed.data.expectedVersion) {
         return reply.status(409).send({ status: 'error', code: 'version-changed', message: `The repository now offers ${preview.manifest.version}`, version: preview.manifest.version })
+      }
+      const needs = addonHostNeeds(preview.manifest)
+      if (needs) {
+        app.log.warn({ workspaceId, addon: preview.manifest.id, needs }, 'Add-on refused - this machine cannot host its server part')
+        const refused = addonRefusal(preview.manifest.id, needs)
+        return reply.status(refused.status).send(refused.body)
       }
       await installAddonVersion(preview.manifest, release, addonRoot(), deps)
       const keep = [preview.manifest.version, ...(parsed.data.previousVersion ? [parsed.data.previousVersion] : [])]
@@ -1262,7 +922,7 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
     }
   })
 
-  // The hits' thumbnails through the Stage-Server (#618): the tablets on stage often have no
+  // The hits' thumbnails through the Host (#618): the tablets on stage often have no
   // internet of their own, only the server does.
   app.get('/youtube/thumbnail', async (request, reply) => {
     const { id } = request.query as { id?: string }
@@ -1289,7 +949,7 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
 
   /** An admin login as proof for founding (any band's admin) - locked after 5 wrong tries per
    * account like the PIN routes, since an admin's anchor password is their 4-digit PIN. */
-  async function isAnyBandAdmin(request: FastifyRequest, username: string, password: string): Promise<boolean> {
+  async function isAnyBandAdmin(remoteAddress: string | undefined, username: string, password: string): Promise<boolean> {
     const key = `admin:${username}`
     if (adminProofThrottle.lockedForSeconds(key) > 0) return false
     // The login names its band (`stageboard-<band>-<profile>[~<device>]`): the band whose database name it extends.
@@ -1299,191 +959,14 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
       adminProofThrottle.recordSuccess(key)
       return true
     }
-    if (adminProofThrottle.recordFailure(key)) app.log.warn({ username, remoteAddress: request.ip }, 'Too many wrong admin logins - locked out temporarily')
+    if (adminProofThrottle.recordFailure(key)) app.log.warn({ username, remoteAddress }, 'Too many wrong admin logins - locked out temporarily')
     return false
   }
-
-  app.post('/workspaces', async (request, reply) => {
-    const parsed = WorkspaceProvisionRequestSchema.safeParse(request.body)
-    if (!parsed.success) {
-      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
-    }
-    const { workspaceId, adminUsername, adminPassword } = parsed.data
-
-    // A deleted band comes back only through the documented the database recovery (docs/03 §0b) -
-    // this route handed its admin account to anyone before (#364, 2026-10-04).
-    if (readDeletedWorkspaces().includes(workspaceId)) {
-      app.log.warn({ workspaceId, remoteAddress: request.ip }, 'Refused to provision a deleted band again')
-      return reply.status(409).send({ status: 'error', code: 'deleted', message: 'This band was deleted - restore it via docs/03 §0b' })
-    }
-
-    // Accounts are tied to their band by name (`stageboard-<band>-<profile>`), so no band id may
-    // extend another one - band "x-y" would otherwise own names that look like band "x"'s.
-    const bandDbs = (await listDbs(database)).filter((db) => db.startsWith('stageboard-'))
-    const newDb = workspaceDbName(workspaceId)
-    if (bandDbs.some((db) => db !== newDb && (newDb.startsWith(`${db}-`) || db.startsWith(`${newDb}-`)))) {
-      app.log.warn({ workspaceId, remoteAddress: request.ip }, 'Refused a band id that extends another band id')
-      return reply.status(400).send({ status: 'error', message: 'Invalid band id' })
-    }
-
-    let proof: 'first-band' | 'server' | 'admin' | null = null
-    if (isLoopback(request.ip)) proof = 'server'
-    else if (bandDbs.length === 0) proof = 'first-band'
-    else if (adminUsername && adminPassword && (await isAnyBandAdmin(request, adminUsername, adminPassword))) proof = 'admin'
-    if (!proof) {
-      app.log.warn({ workspaceId, remoteAddress: request.ip }, 'Band provisioning refused - no proof')
-      return reply.status(403).send({ status: 'error', code: 'admin-required', message: 'Only an admin of a band on this server can found another band' })
-    }
-
-    try {
-      const credentials = await provisionWorkspace(database, workspaceId, parsed.data.founderId, parsed.data.workspaceName, {
-        accounts: accountsFor(workspaceId),
-        deviceId: parsed.data.deviceId ?? 'founding-device',
-      })
-      app.log.info({ workspaceId, proof, remoteAddress: request.ip }, 'Band provisioned')
-      return reply.status(201).send(credentials)
-    } catch (err) {
-      if (err instanceof WorkspaceAlreadyProvisionedError) {
-        return reply.status(409).send({ status: 'error', message: err.message })
-      }
-      app.log.error(err)
-      return reply.status(502).send({ status: 'error', message: err instanceof Error ? err.message : String(err) })
-    }
-  })
-
-  // Irreversibly destroys a workspace - same admin-verification pattern as the routes above.
-  // Deletes the band's database - and with it every login and PIN, which are documents of it
-  // (workspaceProvisioning.ts's deprovisionWorkspace); does not, and can't, notify any other
-  // device that already joined.
-  app.delete('/workspaces/:workspaceId', async (request, reply) => {
-    const { workspaceId } = request.params as { workspaceId: string }
-    const parsed = WorkspaceDeleteRequestSchema.safeParse(request.body)
-    if (!parsed.success) {
-      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
-    }
-
-    if (!(await isWorkspaceAdmin(request, workspaceId, parsed.data.adminUsername, parsed.data.adminPassword))) {
-      return reply.status(403).send({ status: 'error', message: 'Not this workspace\'s admin' })
-    }
-
-    await deprovisionWorkspace(database, workspaceId)
-    return reply.status(204).send()
-  })
-
-  // Public, no auth (2026-09-01 WiFi-style redesign, at Marco's request after being locked out
-  // of every device at once) - every band this Stage-Server hosts, discoverable with no code at
-  // all, the same way WiFi network names are visible before you enter a password. See
-  // workspaceProvisioning.ts's `listWorkspaces` for the lazy-backfill behavior on a workspace
-  // that predates this redesign.
-  app.get('/workspaces', async (_request, reply) => {
-    const workspaces = await listWorkspaces(database)
-    return reply.status(200).send(workspaces)
-  })
-
-  // Public, no auth - the WiFi "enter the network's password" step, scoped to one workspace
-  // picked from GET /workspaces above. `getOrCreateAccessCode` lazily creates a workspace's
-  // standing code on first use if it predates this redesign - this route alone is what made
-  // Marco's own locked-out workspace start working again, no separate migration needed. Hands
-  // back names/roles only, never credentials - the joining device still has to pick who it is
-  // (POST /workspaces/:workspaceId/join/:profileId below) before it gets anything real.
-  app.post('/workspaces/:workspaceId/roster', async (request, reply) => {
-    const { workspaceId } = request.params as { workspaceId: string }
-    const parsed = RosterRequestSchema.safeParse(request.body)
-    if (!parsed.success) {
-      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
-    }
-
-    const accessCode = await getOrCreateAccessCode(database, workspaceId, workspaceId)
-    if (parsed.data.code !== accessCode.code) {
-      return reply.status(403).send({ status: 'error', message: 'Wrong code' })
-    }
-
-    const members = await readRoster(database, workspaceId)
-    return reply.status(200).send({ workspaceId, workspaceName: accessCode.name, members })
-  })
-
-  // Admin-only: fetches a workspace's *current* standing code, to display/re-display (e.g.
-  // BandManagementView.tsx's "Einladen") without changing it - lazily creates one first if
-  // this workspace predates the 2026-09-01 redesign (same backfill `POST /workspaces/:id/roster`
-  // and `.../join/:profileId` already do), so a pre-existing workspace's admin can view a real,
-  // working code the very first time they open "Einladen" post-upgrade.
-  app.post('/workspaces/:workspaceId/access-code', async (request, reply) => {
-    const { workspaceId } = request.params as { workspaceId: string }
-    const parsed = GetAccessCodeRequestSchema.safeParse(request.body)
-    if (!parsed.success) {
-      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
-    }
-
-    if (!(await isWorkspaceAdmin(request, workspaceId, parsed.data.adminUsername, parsed.data.adminPassword))) {
-      return reply.status(403).send({ status: 'error', message: 'Not this workspace\'s admin' })
-    }
-
-    const { code } = await getOrCreateAccessCode(database, workspaceId, workspaceId)
-    return reply.status(200).send({ code })
-  })
-
-  // Admin-only: rotates a workspace's standing access code (e.g. "the code leaked", or routine
-  // post-tour cleanup). Immediately invalidates the old code for anyone who only knew that one.
-  app.post('/workspaces/:workspaceId/access-code/rotate', async (request, reply) => {
-    const { workspaceId } = request.params as { workspaceId: string }
-    const parsed = RotateAccessCodeRequestSchema.safeParse(request.body)
-    if (!parsed.success) {
-      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
-    }
-
-    if (!(await isWorkspaceAdmin(request, workspaceId, parsed.data.adminUsername, parsed.data.adminPassword))) {
-      return reply.status(403).send({ status: 'error', message: 'Not this workspace\'s admin' })
-    }
-
-    const code = await rotateAccessCode(database, workspaceId)
-    return reply.status(200).send({ code })
-  })
-
-  // Admin-only (#58): renames a workspace. Writes straight onto the `workspace:access` doc's
-  // `name` field, keeping its `code` - that doc already replicates to every joined device via
-  // the ordinary workspace-db sync, so this is the only write needed for the new name to reach
-  // everyone, no separate notification/polling required.
-  app.post('/workspaces/:workspaceId/name', async (request, reply) => {
-    const { workspaceId } = request.params as { workspaceId: string }
-    const parsed = RenameWorkspaceRequestSchema.safeParse(request.body)
-    if (!parsed.success) {
-      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
-    }
-
-    if (!(await isWorkspaceAdmin(request, workspaceId, parsed.data.adminUsername, parsed.data.adminPassword))) {
-      return reply.status(403).send({ status: 'error', message: 'Not this workspace\'s admin' })
-    }
-
-    await renameWorkspace(database, workspaceId, parsed.data.name)
-    return reply.status(200).send({ status: 'ok' })
-  })
-
-  // Who holds the Master-Token (#85): admin-only, stored with the band name.
-  app.post('/workspaces/:workspaceId/master-mode', async (request, reply) => {
-    const { workspaceId } = request.params as { workspaceId: string }
-    const parsed = SetMasterModeRequestSchema.safeParse(request.body)
-    if (!parsed.success) {
-      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
-    }
-    // Band-scoped and locked out after wrong tries like every other admin route - a bare
-    // verifyAdmin() would take any band's admin and allow unlimited PIN guesses.
-    if (!(await isWorkspaceAdmin(request, workspaceId, parsed.data.adminUsername, parsed.data.adminPassword))) {
-      return reply.status(403).send({ status: 'error', message: "Not this workspace's admin" })
-    }
-    try {
-      await setMasterMode(database, workspaceId, parsed.data.masterMode)
-    } catch (err) {
-      app.log.error({ err, workspaceId, masterMode: parsed.data.masterMode }, 'Setting the master mode failed')
-      return reply.status(500).send({ status: 'error', message: 'Could not save the master mode' })
-    }
-    app.log.info({ workspaceId, masterMode: parsed.data.masterMode }, 'Master mode set')
-    return reply.status(200).send({ status: 'ok' })
-  })
 
   // Makes this box's hardware (plugin sync, Discovery Mode's MIDI watcher) serve `workspaceId`
   // instead of whichever workspace was previously active - the runtime replacement for having
   // to kill the process and restart it with a different STAGEBOARD_WORKSPACE env var, for the
-  // real case of one Stage-Server serving two of Marco's own bands on different days, never at
+  // real case of one Host serving two of Marco's own bands on different days, never at
   // the same time (see workspaceHardwareController.ts).
   app.post('/workspaces/:workspaceId/activate-hardware', async (request, reply) => {
     const { workspaceId } = request.params as { workspaceId: string }
@@ -1525,7 +1008,7 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
   // /workspaces/:workspaceId since it describes the server, not a workspace, and needs no auth
   // for the same reason /server-info needs none: not new information beyond what's already
   // observable on the LAN.
-  // The Stage-Server's backups (#363, Marco 2026-10-08): targets chosen in the app (System →
+  // The Host's backups (#363, Marco 2026-10-08): targets chosen in the app (System →
   // Backup), run by the server itself - backup.ts. Admin of the band this server serves.
   const backups: BackupService =
     options.backupService ??
@@ -1550,104 +1033,7 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
     }
     return true
   }
-  app.post('/server/backup/overview', async (request, reply) => {
-    const parsed = BackupAdminRequestSchema.safeParse(request.body)
-    if (!parsed.success) return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
-    if (!(await activeBandAdmin(request, reply, parsed.data))) return reply
-    return reply.status(200).send(await backups.overview())
-  })
-  app.post('/server/backup/save', async (request, reply) => {
-    const parsed = BackupSaveRequestSchema.safeParse(request.body)
-    if (!parsed.success) return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
-    if (!(await activeBandAdmin(request, reply, parsed.data))) return reply
-    backups.save(parsed.data.target)
-    return reply.status(200).send(await backups.overview())
-  })
-  app.post('/server/backup/delete', async (request, reply) => {
-    const parsed = BackupTargetRequestSchema.safeParse(request.body)
-    if (!parsed.success) return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
-    if (!(await activeBandAdmin(request, reply, parsed.data))) return reply
-    backups.remove(parsed.data.targetId)
-    return reply.status(200).send(await backups.overview())
-  })
-  app.post('/server/backup/run', async (request, reply) => {
-    const parsed = BackupTargetRequestSchema.safeParse(request.body)
-    if (!parsed.success) return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
-    if (!(await activeBandAdmin(request, reply, parsed.data))) return reply
-    // Runs in the background (minutes with backing tracks); the app follows it via overview.
-    void backups.run(parsed.data.targetId, 'manual').catch((err) => app.log.error({ err }, 'Backup run failed'))
-    return reply.status(202).send({ status: 'started' })
-  })
-  app.post('/server/backup/test', async (request, reply) => {
-    const parsed = BackupTargetRequestSchema.safeParse(request.body)
-    if (!parsed.success) return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
-    if (!(await activeBandAdmin(request, reply, parsed.data))) return reply
-    return reply.status(200).send(await backups.test(parsed.data.targetId))
-  })
-
-  // Measuring inputs (docs/24 §7.2, #662): which of the server's audio inputs listens to speakers
-  // (microphone) and to headphones / in-ear / Bluetooth (cable) - System → Rig-Check, admins only.
-  app.post('/server/measure-inputs/overview', async (request, reply) => {
-    const parsed = BackupAdminRequestSchema.safeParse(request.body)
-    if (!parsed.success) return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
-    if (!(await activeBandAdmin(request, reply, parsed.data))) return reply
-    const overview: MeasureInputsOverview = { inputs: await listAudioInputs(), selected: measureInputs.get(), fallbackMic: fallbackMicDevice() }
-    return reply.status(200).send(overview)
-  })
-  app.post('/server/measure-inputs/save', async (request, reply) => {
-    const parsed = MeasureInputsSaveRequestSchema.safeParse(request.body)
-    if (!parsed.success) return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
-    if (!(await activeBandAdmin(request, reply, parsed.data))) return reply
-    measureInputs.save(parsed.data.selected)
-    app.log.info({ selected: parsed.data.selected }, 'Measuring inputs saved')
-    return reply.status(200).send({ status: 'ok' })
-  })
-  app.post('/server/measure-inputs/level', async (request, reply) => {
-    const parsed = MeasureLevelRequestSchema.safeParse(request.body)
-    if (!parsed.success) return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
-    if (!(await activeBandAdmin(request, reply, parsed.data))) return reply
-    // The device is in use while a calibration run records - one at a time.
-    if (calibrationRuns.busy()) return reply.status(409).send({ status: 'error', ...serverMessage('calibration.busy') })
-    const level = await measureLevel(parsed.data.input, parsed.data.durationMs ?? 2000)
-    if (level.error) app.log.warn({ input: parsed.data.input, error: level.error }, 'Measuring input level failed')
-    return reply.status(200).send(level)
-  })
-
-  // The status line in the app (Geräte → Stage-Server): the configured targets' summary; before
-  // any target exists, the last run of a hand-started scripts/backup.mjs; null = never set up.
-  app.get('/server/backup-status', async (_request, reply) => {
-    const summary = backups.summary()
-    if (summary) return reply.status(200).send(summary)
-    const file = join(process.env.STAGEBOARD_STATE_DIR ?? './data', 'backup-status.json')
-    if (!existsSync(file)) return reply.status(200).send(null)
-    try {
-      return reply.status(200).send(JSON.parse(readFileSync(file, 'utf8')))
-    } catch (err) {
-      app.log.warn({ err }, 'backup-status.json unreadable')
-      return reply.status(200).send({ ok: false, error: serverMessage('backup.statusUnreadable').message, errorCode: 'backup.statusUnreadable' })
-    }
-  })
-
-  // What this host can run - the map offers server plugins by it (docs/25 §6, 2026-11-07).
-  app.get('/server/capabilities', async () => hostCapabilities())
-
-
-  // The admins of the band this box is currently serving - so the hardware-switch wizard can show
-  // whose PIN closes it without asking for that band's code (it's already registered here; the
-  // code exists to gate *joining*, not to gate stopping what the box itself is running). Only
-  // names and ids, only for the active band: no workspace parameter, so it can't enumerate any
-  // other band's roster. A PIN is still required to do anything with them (verify-admin-pin).
-  app.get('/server/active-workspace/admins', async (_request, reply) => {
-    const workspaceId = workspaceHardware.getActiveWorkspaceId()
-    if (!workspaceId) {
-      return reply.status(404).send({ status: 'error', message: 'No workspace is active on this server' })
-    }
-    const members = await readRoster(database, workspaceId)
-    return reply.status(200).send({
-      workspaceId,
-      admins: members.filter((m) => m.isAdmin).map(({ profileId, name }) => ({ profileId, name })),
-    })
-  })
+  registerServerSettingsRoutes(app, { backups, activeBandAdmin, measureInputs, calibrationRuns })
 
   // 2026-09-02 fourth follow-up, at Marco's explicit request: consolidates the PWA, this API,
   // and the database onto this one origin, so a new device only ever has to accept one self-signed
@@ -1661,7 +1047,7 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
   // `database` credentials above are never injected here, and the database itself still does every bit
   // of the actual authentication/authorization exactly as if the client had connected to it
   // directly. `stage-pwa`'s `workspaceDb.ts` now builds its remote database URL from this
-  // server's own origin plus this `/db` prefix (`VITE_STAGE_SERVER_URL`) instead of a separate
+  // server's own origin plus this `/db` prefix (`VITE_HOST_URL`) instead of a separate
   // `VITE_DB_URL` pointing at the database's own port - one address to configure, not two.
   await app.register(httpProxy, {
     upstream: database.url,
@@ -1717,7 +1103,7 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
     await app.register(fastifyStatic, { root: pwaDist })
   }
 
-  return { app, registry, lookupRegistry, database, workspaceHardware, pluginLog, backups, hostLease, replication, audioMirror, catchUp }
+  return { app, registry, lookupRegistry, database, workspaceHardware, pluginLog, backups, hostLease, replication, audioMirror, catchUp, channels }
 }
 
 const port = Number(process.env.PORT ?? 3001)
@@ -1748,9 +1134,11 @@ async function main() {
     user: process.env.STAGEBOARD_DB_USER ?? 'admin',
     password: process.env.STAGEBOARD_DB_PASSWORD ?? 'admin',
     port: Number(process.env.STAGEBOARD_DB_PORT ?? 5984),
+    // For measuring only (tools/soak): another storage setup, e.g. '{"auto_compaction":false,"revs_limit":50}'.
+    ...(process.env.STAGEBOARD_DB_STORAGE ? { storage: JSON.parse(process.env.STAGEBOARD_DB_STORAGE) } : {}),
   })
   process.env.STAGEBOARD_DB_URL = builtinDb.url
-  const { app, lookupRegistry, workspaceHardware, pluginLog, database, backups, hostLease, replication, audioMirror, catchUp } = await buildApp()
+  const { app, lookupRegistry, workspaceHardware, pluginLog, database, backups, hostLease, replication, audioMirror, catchUp, channels } = await buildApp()
   app.log.info({ url: builtinDb.url }, 'Built-in database host')
   // Scheduled backups (daily time, USB medium plugged in) - checked every 30 s.
   backups.start()
@@ -1771,7 +1159,7 @@ async function main() {
     // 2026-09-02 fourteenth follow-up, at Marco's explicit request, after finding a phantom
     // empty "band-a" workspace kept reappearing in "Verfügbare Bands" no matter how often he
     // deleted it: this used to default to workspaceId 'band-a' when STAGEBOARD_WORKSPACE
-    // wasn't set - a leftover from before the WiFi-style redesign, when a Stage-Server
+    // wasn't set - a leftover from before the WiFi-style redesign, when a Host
     // belonged to exactly one fixed band. `start()` (pluginSync.ts) calls `ensureDb()`
     // unconditionally, which *creates* that database if it's missing - so every server
     // restart silently recreated an empty "band-a" nobody ever founded through the app. Now
@@ -1827,7 +1215,7 @@ async function main() {
         const messages = decodeOscPacket(packet)
         if (!workspaceId || messages.length === 0) return
         for (const message of messages) {
-          const devices = oscInHub.broadcast(workspaceId, { ...message, at: Date.now() })
+          const devices = channels.pushOscIn(workspaceId, { ...message, at: Date.now() })
           pluginLog.info('osc in', { address: message.address, args: message.args.length, from: remote.address, devices })
         }
       })

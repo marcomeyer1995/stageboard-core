@@ -135,7 +135,7 @@ function dispose(l: Loaded): void {
 
 /**
  * Makes these stems the ones to play; resolves `true` once all of them are ready. Loading the same
- * set again is free. Fetches each stem from the Stage-Server on first use (then cached locally).
+ * set again is free. Fetches each stem from the Host on first use (then cached locally).
  */
 export async function loadStems(variantId: string, trackIds: readonly string[]): Promise<boolean> {
   const key = stemKey(variantId, trackIds)

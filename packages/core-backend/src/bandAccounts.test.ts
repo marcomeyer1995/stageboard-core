@@ -39,7 +39,7 @@ beforeEach(() => {
 })
 afterEach(() => vi.unstubAllGlobals())
 
-describe('the band accounts as the Stage-Server holds them (documents of the band database, over HTTP)', () => {
+describe('the band accounts as the Host holds them (documents of the band database, over HTTP)', () => {
   it('writes a login as the server admin, reads it back and lets the device in', async () => {
     const accountsFor = createBandAccountsFor(config, { iterations: 1000 })
     const { username, password } = await accountsFor('band').provisionDevice('p1', 'd1', false)

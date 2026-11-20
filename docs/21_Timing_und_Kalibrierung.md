@@ -27,7 +27,7 @@ Die Toleranz (`TIMING_CLASS_TOLERANCE_MS`) ist der Maßstab für die Prüfung be
 
 ## 3. Latenzmodell und Ausgleich
 
-Für jeden **Ausgabeweg** (eine logische Ressource, angesteuert von einem bestimmten Gerät über einen bestimmten Transport - z. B. „Frontlicht über das USB-DMX-Interface am Stage-Server“, „Klick über den Kopfhörer des Xiaomi“) gibt es ein Latenzprofil (`LatencyProfile`):
+Für jeden **Ausgabeweg** (eine logische Ressource, angesteuert von einem bestimmten Gerät über einen bestimmten Transport - z. B. „Frontlicht über das USB-DMX-Interface am Host“, „Klick über den Kopfhörer des Xiaomi“) gibt es ein Latenzprofil (`LatencyProfile`):
 
 - `latencyMs` - Zeit vom Senden bis zur echten Ausgabe,
 - `jitterMs` - Streuung,
@@ -38,14 +38,14 @@ Für jeden **Ausgabeweg** (eine logische Ressource, angesteuert von einem bestim
 
 **Vorlauf-Budget:** Ein Cue kann nur so früh gesendet werden, wie er übergeben wird. Der Vorlauf je Klasse muss größer sein als die größte Latenz plus Streuung in dieser Klasse (heute einheitlich `CUE_LOOKAHEAD_MS` = 200 ms, §8.2). Ein Gerät mit 300 ms Latenz braucht mehr Vorlauf - der Planer muss den Vorlauf dann je Cue aus der Latenz ableiten. Grenze: Nach Pause/Stop kann ein bereits übergebener Cue nicht zurückgeholt werden (`MIDIOutput.clear()` gibt es auf keinem unserer Geräte, #477).
 
-**Speicherort (gebaut, 2026-10-13):** eigene synchronisierte Sammlung `latency-profile`, ein Dokument je Ausgabeweg mit Id `Gerät:Ausgang:Weg` (`LatencyProfileDoc`): `deviceId` ist das Gerät, das den Ausgang bedient (für Stage-Server-Ausgänge `server`), `output` ein logisches Gerät oder `audio` für den eigenen Ton (Klick, Track), `route` der Audio-Ausgabeweg. Der Weg wird in der nativen App erkannt (`AudioRoutePlugin`: Lautsprecher, Kabel, Bluetooth, USB; Entscheidung Marco: je erkanntem Weg), im Browser `unbekannt`.
+**Speicherort (gebaut, 2026-10-13):** eigene synchronisierte Sammlung `latency-profile`, ein Dokument je Ausgabeweg mit Id `Gerät:Ausgang:Weg` (`LatencyProfileDoc`): `deviceId` ist das Gerät, das den Ausgang bedient (für Host-Ausgänge `server`), `output` ein logisches Gerät oder `audio` für den eigenen Ton (Klick, Track), `route` der Audio-Ausgabeweg. Der Weg wird in der nativen App erkannt (`AudioRoutePlugin`: Lautsprecher, Kabel, Bluetooth, USB; Entscheidung Marco: je erkanntem Weg), im Browser `unbekannt`.
 
 **Anwendung (gebaut):**
 - Cues: gespeicherter Wert des ausführenden Geräts vor dem Plugin-Wert (`cueLatencyMs`).
 - Klick: jeder Schlag um die Latenz früher geplant, das Vorausfenster um sie erweitert; ein Schlag, dessen früher Zeitpunkt schon vorbei ist (Latenz länger als der Play-Vorlauf, Fire 430 > 400 ms), klingt sofort statt zu entfallen.
 - Backing-Track (`<audio>` und Web Audio): läuft um die Latenz der Song-Zeit voraus.
 - Automatisch, sobald ein Wert existiert; je Gerät abschaltbar (Einstellungen → „Ton-Latenz ausgleichen“, Entscheidung Marco).
-- Eintragen von Hand im Tab Geräte (`Latenz…` je Gerät und beim Stage-Server); die Zeile je Gerät zeigt die Werte mit Quelle.
+- Eintragen von Hand im Tab Geräte (`Latenz…` je Gerät und beim Host); die Zeile je Gerät zeigt die Werte mit Quelle.
 
 **Abgrenzung zur Uhr-Synchronisation:** Der Uhr-Versatz zwischen Gerät und Server (docs/09) bleibt die Grundlage. Das Latenzprofil beschreibt nur, was **nach** dem Senden im Ausgabeweg passiert.
 
@@ -63,11 +63,11 @@ Für jeden **Ausgabeweg** (eine logische Ressource, angesteuert von einem bestim
 
 Ein Reiz pro Sekunde macht die Latenz nur **bis auf ganze Sekunden** bestimmbar: Ein Klick, der 1,2 s zu spät kommt, landet neben dem *nächsten* Sollzeitpunkt und sieht wie 0,2 s aus (Hinweis Marco, 2026-10-13; schon die Fire-Latenz von 433 ms lag nahe an der Grenze von 500 ms, Bluetooth darüber). Deshalb:
 
-- Der Stage-Server plant die Reize mit **lauter verschiedenen Abständen** (700-1500 ms, gemischt, `irregularSchedule`).
+- Der Host plant die Reize mit **lauter verschiedenen Abständen** (700-1500 ms, gemischt, `irregularSchedule`).
 - Ausgewertet wird das **ganze Muster**: für jede mögliche Verzögerung von −50 ms bis 2 s zählt der Server, wie viele geplante Reize einen erkannten Einsatz im Abstand ≤ 15 ms haben, und nimmt die Verzögerung mit den meisten Treffern (`matchLatency`). Nur bei der richtigen passt die ganze Folge.
 - **Eindeutig** heißt: mindestens 60 % der Reize erkannt, und keine andere Verzögerung (> 50 ms entfernt) erklärt mehr als die Hälfte davon. Bei einem regelmäßigen Muster schlägt genau diese Prüfung an (Test).
 
-### Gebaut: Mikrofon des Stage-Servers als erster Sensor
+### Gebaut: Mikrofon des Hosts als erster Sensor
 
 - `POST /calibration/runs` → unregelmäßige Klickzeiten (Server-Zeit), Aufnahme läuft bis 2 s nach dem letzten; `GET /calibration/runs/:id` → Ergebnis (Latenz, Streuung, Treffer, eindeutig). Eine Messung zur Zeit.
 - Aufnahme mit `arecord` (Gerät `CALIBRATION_AUDIO_DEVICE`, Standard `default`), Einsatzerkennung wie in `sync-receiver.py`, Zeitbezug über den am wenigsten gepufferten Block - übrig bleibt ein konstanter Aufnahmeversatz von wenigen ms, für alle Geräte gleich.
@@ -79,7 +79,7 @@ Ein Sensor ist selbst ein Plugin mit einer eigenen Fähigkeit (Vorschlag: `timin
 
 | Sensor | Erkennt (`SensorKind`) | Vorteile | Nachteile |
 |---|---|---|---|
-| Fotodiode / Mikrofon am **Audio-Eingang des Stage-Servers** (USB-Interface, Line-In) | `light`, `sound` | probengenau (~0,02 ms), billig, ein Eingang für alles | Kabel zum Server, Pegel anpassen |
+| Fotodiode / Mikrofon am **Audio-Eingang des Hosts** (USB-Interface, Line-In) | `light`, `sound` | probengenau (~0,02 ms), billig, ein Eingang für alles | Kabel zum Server, Pegel anpassen |
 | **Mikrocontroller-Box** (ESP32/Arduino mit Fotodiode und Mikrofon) | `light`, `sound` | flexibel, drahtlos möglich, Produktidee für die Box | eigene Hardware, eigene Uhr muss synchronisiert werden |
 | **Tablet/Handy** (Mikrofon, Kamera, Lichtsensor) | `sound`, `video`, grob `light` | keine Zusatzhardware | grob (Kamera 30-60 fps), eigene Eingangslatenz |
 | **MIDI-Rückweg** (MIDI-Thru zurück an einen Eingang) | `midi-loopback` | exakt für den MIDI-Weg | misst nur die Leitung, nicht das Gerät |
@@ -167,15 +167,15 @@ Die Katalog-Einträge (`pluginCatalog.ts`) deklarieren heute: Kemper, MG-30, RC-
 1. ~~Vertrag im Plugin-Manifest, Ausgleich mit Plugin-Latenz im Cue-Planer~~ (gebaut, 2026-10-13).
 2. ~~Tablet-Messung #477 → Vorlauf~~ (erledigt: 200 ms für alle, §8.2 - größere Latenzen gehen automatisch, weil der Vorlauf ab dem früheren Sendezeitpunkt zählt).
 3. ~~Speicherort und Anzeige der Latenzprofile (Geräte-Tab, #303), manuelle Eingabe, Ausgleich für Cues, Klick und Track (#302)~~ (gebaut, 2026-10-13).
-4. ~~Erster Sensor: Mikrofon des Stage-Servers~~ (gebaut, 2026-10-13); allgemeine Sensor-Schnittstelle (`timing-sensor`) für weitere Sensoren offen.
+4. ~~Erster Sensor: Mikrofon des Hosts~~ (gebaut, 2026-10-13); allgemeine Sensor-Schnittstelle (`timing-sensor`) für weitere Sensoren offen.
 5. ~~Kalibrierlauf und Prüfung für Audio-Ausgänge (#302)~~ (gebaut, 2026-10-13: Messen/Prüfen); für Licht offen (braucht Lichtsensor und Licht-Plugin).
 6. Ein echtes DMX-Plugin mit deklarierter Interface-Latenz und Kalibrier-Reiz.
 
 ## 8. Messungen 2026-10-13
 
-Erste Messreihe zu allen Wegen, die heute ohne Zusatzhardware messbar sind. Rohdaten und Tabellen in den Kommentaren zu #477 und #491, Skripte in `scripts/midi-timing-probe/` (README). Geräte: Laptop (Stage-Server, Chrome 154), Xiaomi Redmi Pad SE (Android 16, WebView 153), Xiaomi 14T Pro (WebView 153), Fire HD 10 (Android 9, WebView/Silk 138).
+Erste Messreihe zu allen Wegen, die heute ohne Zusatzhardware messbar sind. Rohdaten und Tabellen in den Kommentaren zu #477 und #491, Skripte in `scripts/midi-timing-probe/` (README). Geräte: Laptop (Host, Chrome 154), Xiaomi Redmi Pad SE (Android 16, WebView 153), Xiaomi 14T Pro (WebView 153), Fire HD 10 (Android 9, WebView/Silk 138).
 
-**Methode:** Die Tablets stehen im USB-Modus „MIDI“ am Laptop, der Laptop sieht sie als MIDI-Geräte. Weil der Laptop der Stage-Server ist, ist seine Uhr die Server-Zeit - jede Ankunft lässt sich direkt gegen den Sollzeitpunkt messen (`time.time_ns()`, USB-MIDI-Weg ~1 ms). Ton über das Laptop-Mikrofon (ein Gerät zur Zeit, Klick-Cluster gegen Raumgeräusche getrennt; absolute Werte enthalten einige ms Aufnahmeversatz des Laptops, für alle Geräte gleich).
+**Methode:** Die Tablets stehen im USB-Modus „MIDI“ am Laptop, der Laptop sieht sie als MIDI-Geräte. Weil der Laptop der Host ist, ist seine Uhr die Server-Zeit - jede Ankunft lässt sich direkt gegen den Sollzeitpunkt messen (`time.time_ns()`, USB-MIDI-Weg ~1 ms). Ton über das Laptop-Mikrofon (ein Gerät zur Zeit, Klick-Cluster gegen Raumgeräusche getrennt; absolute Werte enthalten einige ms Aufnahmeversatz des Laptops, für alle Geräte gleich).
 
 ### 8.1 Senden mit WebMIDI-Zeitstempel (#477)
 
@@ -226,11 +226,11 @@ Diagnose-Tab „Synchron-Test“ (#494) auf mehreren Geräten gleichzeitig, jede
 
 - MIUI setzt den USB-Modus „MIDI“ von selbst zurück (Bildschirmsperre); die App zeigt dann einen veralteten Ausgang, Noten gehen ins Leere → Modus neu setzen, Diagnose-Tab neu öffnen.
 - Lautstärke per adb: `cmd media_session volume --set` meldet Erfolg, ändert auf den Xiaomis aber nichts - Tablet: Lautstärketasten (`input keyevent`), Handy: `cmd audio set-volume 3 N`, Fire: `media volume --stream 3 --set N`.
-- Release-Apps sind nicht inspizierbar: Messwerte deshalb im Diagnose-Tab anzeigen und per `adb exec-out screencap` ablesen; Silk lehnt das Zertifikat des Stage-Servers ab.
+- Release-Apps sind nicht inspizierbar: Messwerte deshalb im Diagnose-Tab anzeigen und per `adb exec-out screencap` ablesen; Silk lehnt das Zertifikat des Hosts ab.
 
 ### 8.6 Automatische Kalibrierung („Messen“/„Prüfen“, #498)
 
-Mikrofon des Stage-Servers, 12 Klicks in unregelmäßigem Abstand, Geräte neben dem Laptop:
+Mikrofon des Hosts, 12 Klicks in unregelmäßigem Abstand, Geräte neben dem Laptop:
 
 | Gerät | Messen | Prüfen mit gespeichertem Wert |
 |---|---|---|
@@ -240,7 +240,7 @@ Mikrofon des Stage-Servers, 12 Klicks in unregelmäßigem Abstand, Geräte neben
 - 2026-10-14 früh, von Marco von Hand an allen drei Geräten: Handy 80 ms (8/12) bzw. **67 ms** (12/12, Streuung 0,2) → „Prüfen“ −0,1 ms; Xiaomi-Tablet 72 ms → −1 ms; Fire 447/446 ms → −1,4/−0,8 ms. Ein „Prüfen“ mit nur 2-6 von 12 erkannten Klicks (−24/−12 ms) ist nicht eindeutig und zählt nicht.
 - Das Verfahren rechnet richtig: „Prüfen“ weicht genau um den Unterschied zwischen gespeichertem und aktuellem Wert ab.
 - **Der Fire schwankt selbst** um etwa ±18 ms zwischen Messungen (408-444 ms); genauer als das lässt er sich nicht ausgleichen. Die Xiaomis sind stabil. Idee: „Messen“ mehrfach laufen lassen und den Median speichern.
-- Fallstrick: PipeWires `default`-Quelle nahm den Klick eines Tablets nicht wahr (0 Einsätze), das Hardware-Gerät schon (30 dB Aufnahmeverstärkung) → `CALIBRATION_AUDIO_DEVICE=plughw:CARD=Generic_1,DEV=0` in der systemd-Unit des Stage-Servers (per Name, weil USB-MIDI-Geräte die Kartennummern verschieben).
+- Fallstrick: PipeWires `default`-Quelle nahm den Klick eines Tablets nicht wahr (0 Einsätze), das Hardware-Gerät schon (30 dB Aufnahmeverstärkung) → `CALIBRATION_AUDIO_DEVICE=plughw:CARD=Generic_1,DEV=0` in der systemd-Unit des Hosts (per Name, weil USB-MIDI-Geräte die Kartennummern verschieben).
 
 ### 8.7 MIDI-Clock (#478)
 
@@ -267,7 +267,7 @@ Windows-Laptop (nur Klick), Kopfhörer-/Bluetooth-/USB-Interface-Wege, Eigenvers
 - **Wo:** auf dem Gerät, das den Klick spielt, über denselben Ausgang, auf derselben Web-Audio-Uhr und um dieselbe gespeicherte Latenz früher (§3). Schalter je Gerät in den Einstellungen („Ansagen der Songteile“).
 - **Erster Test 2026-10-14** (Xiaomi-Tablet, „All the small things“, 151,6 BPM, 2 Takte Einzählen): von Piper erzeugt (Server-Log „Speech clip generated“), vorab geladen, genau eine Ansage in den ersten 36 s, wie berechnet („Verse 1“ bei Songzeit 16,17 s, die nächste erst bei 41,9 s). Gemessener Startzeitpunkt (Web-Audio-Zeit → Gerätezeit über `getOutputTimestamp`, Uhrversatz zum Server per adb, ±40 ms): Songzeit 16 112 ms, erwartet 16 098 ms (16 170 minus 72 ms Latenz) - passt im Rahmen der Messgenauigkeit. Genau gegen den Klick prüfen geht erst mit einem Song mit Parts und eingeschaltetem Klick.
 - **Lücke:** Teile ohne Liedzeile mit Zeit (z. B. „Instrumental“) haben keine Zeit und werden nicht angesagt - braucht eine Zeit für den Part selbst (Timeline-Editor).
-- **Stimme je Band (2026-10-14, #503):** Plugins → „Sprachausgabe (Piper)“ → Einstellungen: Sprache (Pipers Liste, 58 Sprachvarianten, 177 Stimmen; auf dem Server gespeichert, damit sie auch offline da ist), Stimme, ihre Lizenz aus der Model-Card (inkl. „weitertrainiert aus …“, bei „See URL“ der Link zum Datensatz), „Auf den Stage-Server laden“ mit Fortschritt (MD5-geprüft), „▶ Probehören“ auf diesem Gerät, „Für die Band verwenden“. Zusätzlich zu Pipers Liste: **Thorsten Hessisch** (CC0). Fränkisch, Bairisch, Schwäbisch: keine Piper-Stimme gefunden - dafür die Texte unten lautschriftlich schreiben, oder später eine eigene Stimme trainieren (1-2 h Aufnahmen).
+- **Stimme je Band (2026-10-14, #503):** Plugins → „Sprachausgabe (Piper)“ → Einstellungen: Sprache (Pipers Liste, 58 Sprachvarianten, 177 Stimmen; auf dem Server gespeichert, damit sie auch offline da ist), Stimme, ihre Lizenz aus der Model-Card (inkl. „weitertrainiert aus …“, bei „See URL“ der Link zum Datensatz), „Auf den Host laden“ mit Fortschritt (MD5-geprüft), „▶ Probehören“ auf diesem Gerät, „Für die Band verwenden“. Zusätzlich zu Pipers Liste: **Thorsten Hessisch** (CC0). Fränkisch, Bairisch, Schwäbisch: keine Piper-Stimme gefunden - dafür die Texte unten lautschriftlich schreiben, oder später eine eigene Stimme trainieren (1-2 h Aufnahmen).
 - **Texte je Band:** Plugins → „Ansagen der Songteile“ → Einstellungen: jeder Teilname aus den Songs der Band mit eigenem gesprochenen Text („Chorus“ → „Refrää“) oder „nicht ansagen“, je Zeile „▶ Anhören“. Gespeichert in den Einstellungen der Plugin-Installation (`settings`, repliziert wie die Installation), Teilnamen ohne Groß-/Kleinschreibung.
 - **Ablauf, Countdown, Einzählen, Sprechtempo (2026-10-14, Marco: „frei einstellbar“):** in „Ansagen der Songteile“ → Einstellungen: Name 1-4 Takte vor dem Teil; Countdown an/aus, „Zählen ab“ 1-8 (3 = „3, 2, 1“ auf den letzten drei Schlägen), Zahlwörter je Band (leer = Ziffer, die jede Stimme in ihrer Sprache liest; Dialekt lautschriftlich), optional ein Wort auf dem ersten Schlag des Teils („Los“ - fällt genau auf den Einsatz der Musik). Einzählen: „Wie die Teile“ (Intro wird in den Einzähltakten angesagt; was vor dem ersten Klick läge, entfällt), „Gesprochen zählen“ („1, 2, 3, 4“ statt Intro-Ansage) oder „Nur Klick“. Wörter stapeln sich nie: eins, das nicht nach dem vorigen käme, entfällt (bei dicht aufeinanderfolgenden Teilen zuerst der Name); ein Wort, das länger als sein Schlag ist, wird beim nächsten kurz ausgeblendet. „▶ Ablauf anhören“ spielt ein Beispiel mit Klick (damals ein Takt Einzählen, Intro, gewählter Teil auf Takt 4) im gewählten Tempo. Sprechtempo 0,6-1,6× in „Sprachausgabe (Piper)“ (Pipers `length_scale` = 1/Tempo, eigener Clip je Tempo).
 - **Countdown auf den Hauptschlägen, Einzählen „erst halb, dann voll“ (2026-10-14, Marco: „die Zahlen sind zu dicht beieinander“; „manche zählen 1 … 2 … 1 2 3 4“):** der Countdown zählt jetzt standardmäßig auf den Hauptschlägen der Taktart statt auf jedem Schlag: 4/4 auf 1 und 3 („3“ auf der Drei zwei Takte vorher, „2“ und „1“ auf Eins und Drei des Takts davor - bei 120 BPM eine Zahl pro Sekunde), 2/4 und 3/4 einmal pro Takt, 6/8, 9/8, 12/8 auf den punktierten Schlägen (1, 4, 7, 10), 5/x als 3+2 (1 und 4), 7/8 als 2+2+3 (1, 3, 5), andere ungerade Taktarten Zweier mit einer Drei am Ende. Rückwärts gezählt wird über die echten Takte, Taktartwechsel vor dem Teil werden mitgenommen. Wählbar: „Abstand der Zahlen“ Hauptschläge / jeder Schlag / jeder zweite Schlag / einmal pro Takt. Der Name kommt standardmäßig direkt auf den Puls vor der ersten Zahl („Chorus · 3 · 2 · 1“), wahlweise weiter 1-4 Takte vorher auf der Eins. Gesprochenes Einzählen: „Erst halb, dann voll“ (Standard; die früheren Einzähltakte auf den Hauptschlägen „1 – 2 –“, der letzte auf jedem Schlag „1 2 3 4“; bei nur einem Einzähltakt wie „jeder Schlag“), „Jeder Schlag“ oder „Nur der letzte Takt“; der letzte Schlag wahlweise Zahl, Stille oder eigenes Wort („… 3, Los“). „▶ Ablauf anhören“ hat dafür jetzt zwei Einzähltakte, den Teil auf Takt 5 und eine wählbare Taktart.
@@ -275,7 +275,7 @@ Windows-Laptop (nur Klick), Kopfhörer-/Bluetooth-/USB-Interface-Wege, Eigenvers
 - **Ansage je Teil im Timeline-Editor (2026-10-15, Schritt 2):** Antippen eines Parts in der Parts-Spur wählt ihn aus; „Ansage ändern“ bietet *Standard* (das Bandmuster, auf Takt 1 das Einzählmuster), *Stumm* oder *Eigenes Muster* (derselbe Zellen-Editor). Gespeichert als Zeile direkt nach der Part-Direktive im ChordPro, z. B. `{x_announce: <name>, #, #, # | -, -, Los, -}` (Zellen mit `,`, Takte mit `|`, `-` nichts, `<name>` Name, `#` Zahl; `{x_announce: -}` = stumm) - so wandert sie bei jeder Bearbeitung, beim Rückgängig und beim Kopieren einer Variante mit dem Part. Das `x_`-Präfix ist der ChordPro-Weg für eigene Direktiven: andere Programme ignorieren die Zeile, StageBoard zeigt sie weder im Sheet noch beim Tippen. Gilt nur für diese Stelle, nicht für gleichnamige Teile; ein eigenes Muster schlägt auch das bandweite Stummschalten des Namens (dann bleiben nur dessen Namens-Zellen still). In der Parts-Spur zeigt 🔇 bzw. 🗣 vor dem Namen eine eigene Einstellung.
 - **Noch nicht:** Schalter je Song, Ansage-Knöpfe („Bridge auslassen“, ursprüngliches #63), eigener Ausgangskanal (§9.2).
 
-**Einrichtung auf dem Stage-Server** (außerhalb des Repos, wie die Daten):
+**Einrichtung auf dem Host** (außerhalb des Repos, wie die Daten):
 
 ```
 D=~/stageboard-data/speech/piper; mkdir -p $D/voices && cd $D
@@ -292,11 +292,11 @@ Andere Orte über `PIPER_BIN` / `PIPER_VOICE` in der systemd-Unit. Danach im Tab
 
 Ziel: Backing-Track (Stereo, zwei Kanäle), Klick und Ansagen je auf eigenen Kanälen eines Audio-Interfaces ins Pult, damit jeder Musiker sie in seinem In-Ear-Mix selbst mischt - oder frei zusammengelegt (Klick + Ansagen auf einem Kanal; zur Probe alles gemischt auf Stereo). Dynamisch über Plugins:
 
-- **Ausgangs-Plugins** bringen die Fähigkeit `audio-outputs` mit ihren benannten Kanälen, z. B. ein Plugin je Interface („Behringer UMC404HD“: Ausgänge 1-4). Gebunden wie jede Hardware an das Gerät, an dem es steckt (Tablet, später der Stage-Server). Immer vorhanden: der eingebaute Ausgang „Gerätelautsprecher/Kopfhörer“ (Stereo) - so funktioniert alles wie heute ohne Interface.
+- **Ausgangs-Plugins** bringen die Fähigkeit `audio-outputs` mit ihren benannten Kanälen, z. B. ein Plugin je Interface („Behringer UMC404HD“: Ausgänge 1-4). Gebunden wie jede Hardware an das Gerät, an dem es steckt (Tablet, später der Host). Immer vorhanden: der eingebaute Ausgang „Gerätelautsprecher/Kopfhörer“ (Stereo) - so funktioniert alles wie heute ohne Interface.
 - **Quellen-Plugins** melden, dass sie Ton erzeugen und wie viele Kanäle: Backing-Track (2), Klick (1), Ansagen (1), später Stems, Einzählen, Ansage-Knöpfe.
 - **Zuordnung** Quelle → Kanal/Kanäle eines Ausgangs mit eigener Lautstärke, gespeichert je Gerät und Ausgang (wie die Latenzprofile), mehrere Zuordnungen nebeneinander (Gig, Probe). Mehrere Quellen auf einem Kanal werden summiert. Die Einrichtung bietet nur Kanäle an, die ein installiertes Ausgangs-Plugin auf demselben Gerät anbietet; fehlt das Interface, fällt der Ton auf den eingebauten Ausgang zurück, mit Warnung in der Statusleiste.
 - **Technik:** Web Audio - je Quelle ein Gain-Knoten auf einen Eingang eines `ChannelMergerNode`, `destination.channelCount` = Kanalzahl des Interfaces, `channelInterpretation: 'discrete'`. Klick, Web-Audio-Track und Ansagen laufen schon über einen gemeinsamen AudioContext.
-- **Offen bis das Interface da ist:** wie viele Kanäle Chrome am Laptop und die Android-WebView am Tablet wirklich ausgeben (`destination.maxChannelCount`); gibt das Tablet nur Stereo, bekommt es Voreinstellungen („Klick + Ansagen links, Track rechts in Mono“, „alles gemischt“). Abspielen auf dem Stage-Server selbst (Interface am Laptop, ohne Tablet dazwischen) wäre ein eigener, größerer Baustein: heute spielen nur die Geräte Ton, der Server koordiniert nur.
+- **Offen bis das Interface da ist:** wie viele Kanäle Chrome am Laptop und die Android-WebView am Tablet wirklich ausgeben (`destination.maxChannelCount`); gibt das Tablet nur Stereo, bekommt es Voreinstellungen („Klick + Ansagen links, Track rechts in Mono“, „alles gemischt“). Abspielen auf dem Host selbst (Interface am Laptop, ohne Tablet dazwischen) wäre ein eigener, größerer Baustein: heute spielen nur die Geräte Ton, der Server koordiniert nur.
 
 ### 9.3 Lautstärke je Quelle: „Mein Mix“ und Bühnen-Mix (Konzept 2026-10-15, Schritt 1+2 gebaut)
 

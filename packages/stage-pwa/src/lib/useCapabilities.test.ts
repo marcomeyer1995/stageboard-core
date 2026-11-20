@@ -37,7 +37,7 @@ afterEach(() => {
 describe('useCapabilities', () => {
   it('judges a heartbeat in band time - a device clock 14 s fast does not make it stale', () => {
     vi.useFakeTimers({ now: SERVER_NOW + DEVICE_AHEAD_MS, toFake: ['Date'] })
-    // Stamped by the Stage-Server 2 s ago - on the device's own clock it looks 16 s old.
+    // Stamped by the Host 2 s ago - on the device's own clock it looks 16 s old.
     usePluginsStore.setState({ installed: [MIXER], health: { plugins: { 'mock-mixer': { status: 'online', lastSeenAt: SERVER_NOW - 2000 } } } })
 
     const { result } = renderHook(() => useCapabilities())

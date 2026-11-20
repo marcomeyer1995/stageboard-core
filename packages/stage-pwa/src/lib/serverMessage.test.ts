@@ -8,7 +8,7 @@ function flatten(value: unknown, prefix = ''): Record<string, string> {
   return Object.assign({}, ...Object.entries(value as Record<string, unknown>).map(([k, v]) => flatten(v, prefix ? `${prefix}.${k}` : k)))
 }
 
-describe('Stage-Server messages in the device language (#679)', () => {
+describe('Host messages in the device language (#679)', () => {
   afterEach(() => void i18n.changeLanguage('de'))
 
   it("de/server.json says exactly what the server's German fallback says", () => {
@@ -20,7 +20,7 @@ describe('Stage-Server messages in the device language (#679)', () => {
     expect(serverText(reply)).toBe('OSC an 10.0.0.5:7700 fehlgeschlagen: EHOSTUNREACH')
     await i18n.changeLanguage('en')
     expect(serverText(reply)).toBe('OSC to 10.0.0.5:7700 failed: EHOSTUNREACH')
-    expect(serverErrorText({ error: 'Durch einen Neustart des Stage-Servers unterbrochen.', errorCode: 'job.interrupted' })).toBe('Interrupted by a restart of the Stage-Server.')
+    expect(serverErrorText({ error: 'Durch einen Neustart des Hosts unterbrochen.', errorCode: 'job.interrupted' })).toBe('Interrupted by a restart of the Host.')
   })
 
   it("falls back to the server's own text for a code this app doesn't know, or none", async () => {

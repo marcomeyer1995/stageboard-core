@@ -22,6 +22,7 @@ Local-first live OS for bands. npm workspaces: `shared-types`, `core-backend` (F
 - Triggers, footswitches, MIDI controllers: `docs/23_Ausloeser_und_Aktionen.md`.
 - Audio output, clock, latency, hardware: `docs/29_Synchronitaet.md`, `docs/30_Audio_Ausgabe.md`, `docs/21_Timing_und_Kalibrierung.md`.
 - Debugging symptoms: `docs/09` (clock sync), `docs/10` (audio resume), `docs/11` (status latency), `docs/13` (click), `docs/19` (track playback).
+- Whole-software map (read first): `docs/35_Software_Uebersicht.md`. Host architecture (read first for host work): `docs/34_Host_Architektur_Uebersicht.md`.
 - Host tiers and distribution: `docs/25_Betriebsstufen_Host.md`, `docs/33_Distribution_and_Remote_Access.md`.
 - Real devices and test rigs: `tools/README.md`.
 

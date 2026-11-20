@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Soak test for a Stage-Server's database host (#960): several simulated devices write to one band at the same time,
+ * Soak test for a Host's database host (#960): several simulated devices write to one band at the same time,
  * replicate both ways with real PouchDB, join and check PINs, upload tracks - for hours - while the server's memory,
  * answer times and errors are recorded. It answers "does the built-in database host hold up on a laptop", with numbers.
  *
@@ -16,6 +16,7 @@
  */
 import { mkdirSync, readFileSync, writeFileSync, appendFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { execSync } from 'node:child_process'
 import PouchDB from 'pouchdb-core'
 import HttpAdapter from 'pouchdb-adapter-http'
 import MemoryAdapter from 'pouchdb-adapter-memory'
@@ -30,11 +31,24 @@ const arg = (name, fallback) => {
 const url = arg('url', 'https://127.0.0.1:8449').replace(/\/+$/, '')
 const pid = Number(arg('pid', '0'))
 const hours = Number(arg('hours', '3'))
-const writers = Number(arg('writers', '3'))
+// Two profiles (Marco, 2026-11-20: a soak must demand clearly MORE than a gig does, or it proves nothing):
+//   --profile stress     (default) 8 devices, loops 4x faster, show state 4x per second, big documents - several times a real band.
+//                        Judged by: the host must not crash, must stay reachable, and the devices must end with the same documents.
+//                        Latency under it is reported, not required to stay flat.
+//   --profile realistic  3 devices, show state every 4 s - the baseline of what a gig really sends (what latency can be held to).
+const profile = arg('profile', 'stress')
+const PROFILES = { stress: { writers: 8, speed: 4, showStateHz: 4 }, realistic: { writers: 3, speed: 1, showStateHz: 0.25 } }
+if (!PROFILES[profile]) throw new Error(`--profile stress|realistic, not ${profile}`)
+const writers = Number(arg('writers', String(PROFILES[profile].writers)))
 const sampleSeconds = Number(arg('sample', '30'))
 const out = arg('out', '/tmp/soak')
 const band = arg('band', `soak${Date.now().toString(36)}`)
 const songs = 150
+// `--speed 8` runs the device loops eight times as fast: a 4 h soak's writes in half an hour (finding what grows).
+const speed = Number(arg('speed', String(PROFILES[profile].speed)))
+// How often the master writes the show state: the app writes it on actions (play, next, claim), a few per minute at most. The first
+// soaks wrote it 4 times a second (57,000 revisions of one document in 4 h) - far beyond a gig, and what made them slow down.
+const showStateHz = Number(arg('show-state-hz', String(PROFILES[profile].showStateHz)))
 
 mkdirSync(out, { recursive: true })
 const started = Date.now()
@@ -43,9 +57,15 @@ const stop = () => Date.now() >= endAt
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 const basic = (user, password) => `Basic ${Buffer.from(`${user}:${password}`).toString('base64')}`
 
-const stats = { requests: 0, failures: {}, latencies: { time: [], read: [], write: [], join: [] } }
-const fail = (what) => {
+const stats = { requests: 0, conflicts: 0, failures: {}, latencies: { time: [], read: [], write: [], join: [] } }
+const firstMessage = {}
+const fail = (what, detail) => {
   stats.failures[what] = (stats.failures[what] ?? 0) + 1
+  // The first text of each kind of failure: a count alone says nothing about why (the tablet soak showed 10,000 of them).
+  if (detail && !firstMessage[what]) {
+    firstMessage[what] = String(detail).slice(0, 300)
+    console.log(`first "${what}" at ${new Date().toISOString()}: ${firstMessage[what]}`)
+  }
 }
 /** One timed request; failures are counted by what failed, never thrown into the test. */
 async function timed(kind, label, run) {
@@ -56,7 +76,12 @@ async function timed(kind, label, run) {
     stats.latencies[kind].push(performance.now() - t0)
     return result
   } catch (err) {
-    fail(`${label}: ${err?.status ?? err?.code ?? err?.message ?? err}`)
+    // Three writers edit the same 150 songs: a 409 is the database doing its job (the writer reads again), not a failure.
+    if (err?.status === 409) {
+      stats.conflicts += 1
+      return null
+    }
+    fail(`${label}: ${err?.status ?? err?.code ?? err?.message ?? err}`, err?.message ?? err?.name ?? JSON.stringify(err))
     return null
   }
 }
@@ -107,10 +132,10 @@ async function writer(device) {
       return device.local.put({ _id: id, ...(existing ? { _rev: existing._rev } : {}), title: `Song ${id}`, by: device.i, n: (existing?.n ?? 0) + 1, notes: 'x'.repeat(1_800 + Math.floor(Math.random() * 400)) })
     })
     if (result) device.writes += 1
-    await sleep(120 + Math.random() * 160)
+    await sleep((120 + Math.random() * 160) / speed)
   }
 }
-/** Show state at 4 Hz from one device - what a playing band sends. */
+/** Show state from one device at `--show-state-hz` (default one write per 4 s - already more than a band does). */
 async function showState(device) {
   let n = 0
   while (!stop()) {
@@ -118,7 +143,7 @@ async function showState(device) {
       const existing = await device.local.get('show-state').catch(() => null)
       return device.local.put({ _id: 'show-state', ...(existing ? { _rev: existing._rev } : {}), playbackStatus: 'playing', tick: ++n })
     })
-    await sleep(250)
+    await sleep(1000 / showStateHz / speed)
   }
 }
 /** Reads through the proxy as a device does (the changes feed is held by the live sync). */
@@ -129,7 +154,7 @@ async function reader() {
       if (response.status !== 200 && response.status !== 404) throw new Error(`HTTP ${response.status}`)
       await response.arrayBuffer()
     })
-    await sleep(100)
+    await sleep(100 / speed)
   }
 }
 /** `/time` is what the whole band's clock sync leans on: the answer time that matters most. */
@@ -140,7 +165,7 @@ async function clock() {
       if (!response.ok) throw new Error(`HTTP ${response.status}`)
       await response.arrayBuffer()
     })
-    await sleep(500)
+    await sleep(500 / speed)
   }
 }
 /** Joining and PIN checks cost PBKDF2 on the server: bursts of them must not stall the rest. */
@@ -156,7 +181,7 @@ async function accounts() {
       const checked = await json(`/workspaces/${band}/verify-admin-pin`, { method: 'POST', body: JSON.stringify({ profileId: 'f1', pin: code.slice(-4) }) })
       if (checked.status !== 200 && checked.status !== 403) throw new Error(`HTTP ${checked.status}`)
     })
-    await sleep(2_000)
+    await sleep(2_000 / speed)
   }
 }
 /** A 3 MB track every minute: big bodies are what exhausts memory on a small host. */
@@ -179,7 +204,18 @@ async function tracks() {
 }
 
 // ---- samples ----------------------------------------------------------------------------------------------------
+// `--mem-cmd "<shell command printing MB>"` samples any process by a command instead of /proc (a tablet host over adb:
+//   --mem-cmd "adb -s <serial> shell dumpsys meminfo <package> | awk '/TOTAL PSS:/ {print int(\$3/1024)}'").
+const memCmd = arg('mem-cmd', '')
 const rssMb = () => {
+  if (memCmd) {
+    try {
+      const mb = Number(execSync(memCmd, { encoding: 'utf-8', timeout: 20_000 }).trim())
+      return Number.isFinite(mb) && mb > 0 ? mb : null
+    } catch {
+      return null
+    }
+  }
   if (!pid) return null
   try {
     const kb = /VmRSS:\s+(\d+) kB/.exec(readFileSync(`/proc/${pid}/status`, 'utf-8'))?.[1]
@@ -210,7 +246,32 @@ async function sampler() {
   }
 }
 
-await Promise.all([sampler(), clock(), reader(), accounts(), tracks(), showState(devices[0]), ...devices.map(writer)])
+/** Stress only: now and then a device loses its connection for a while and comes back (a tablet going to sleep, WiFi dropping), and a
+ * 2 MB document is written (a big song with embedded data) - recovery is part of the test. */
+async function faults() {
+  if (profile !== 'stress') return
+  let n = 0
+  while (!stop()) {
+    await sleep(Number(arg('fault-every', '5')) * 60_000)
+    if (stop()) break
+    const device = devices[n++ % devices.length]
+    device.sync.cancel()
+    await sleep(20_000)
+    device.sync = device.local.sync(device.remote, { live: true, retry: true })
+    device.sync.on('error', () => fail(`device ${device.i} sync error after reconnect`, 'sync error'))
+    await timed('write', 'big document', async () => {
+      const id = `songs:big-${n % 3}`
+      const existing = await device.local.get(id).catch(() => null)
+      return device.local.put({ _id: id, ...(existing ? { _rev: existing._rev } : {}), blob: 'y'.repeat(2 * 1024 * 1024) })
+    })
+  }
+}
+
+await Promise.all([faults(), sampler(), clock(), reader(), accounts(), tracks(), showState(devices[0]), ...devices.map(writer)])
+
+// A host that died must show up as a verdict, not as a pile of "fetch failed" (the first stress runs lost the host this way).
+const hostAliveAtEnd = await fetch(`${url}/time`, { signal: AbortSignal.timeout(5000) }).then((r) => r.ok).catch(() => false)
+if (!hostAliveAtEnd) fail('host not answering at the end', 'the host process is gone or stuck')
 
 // ---- the end: do the devices agree? -----------------------------------------------------------------------------------
 for (const device of devices) device.sync.cancel()
@@ -223,9 +284,13 @@ for (const device of devices) {
 }
 for (const device of devices) await device.local.replicate.from(device.remote).catch(() => fail(`settle pull ${device.i}`))
 const heads = async (db) => Object.fromEntries((await db.allDocs({ startkey: 'songs:', endkey: 'songs:￰' })).rows.map((row) => [row.id, row.value.rev]))
-const hostHeads = await heads(devices[0].remote)
-let diverged = 0
-for (const device of devices) {
+const hostHeads = await heads(devices[0].remote).catch((err) => {
+  fail('final read of the host', err?.message ?? err?.name ?? JSON.stringify(err))
+  return null
+})
+// null: the host could not be read at the end - that is a failure of its own, not "no difference".
+let diverged = hostHeads === null ? null : 0
+for (const device of hostHeads === null ? [] : devices) {
   const mine = await heads(device.local)
   const ids = new Set([...Object.keys(mine), ...Object.keys(hostHeads)])
   for (const id of ids) if (mine[id] !== hostHeads[id]) diverged += 1
@@ -241,17 +306,22 @@ const slope = half.length > 4 ? (half.at(-1).memory - half[0].memory) / Math.max
 const summary = {
   band,
   hours,
+  profile,
+  load: { writers, speed, showStateHz },
   startedAt: new Date(started).toISOString(),
   requests: stats.requests,
   failures: stats.failures,
+  firstFailureMessages: firstMessage,
+  writeConflicts: stats.conflicts,
   deviceWrites: devices.map((d) => d.writes),
-  latencyMs: Object.fromEntries(Object.entries(stats.latencies).map(([k, v]) => [k, { n: v.length, p50: percentile(v, 50), p95: percentile(v, 95), p99: percentile(v, 99), max: v.length ? Math.round(Math.max(...v)) : null }])),
+  latencyMs: Object.fromEntries(Object.entries(stats.latencies).map(([k, v]) => [k, { n: v.length, p50: percentile(v, 50), p95: percentile(v, 95), p99: percentile(v, 99), max: v.length ? Math.round(v.reduce((m, x) => (x > m ? x : m), 0)) : null }])),
   rssMb: { afterWarmup: first, peak, last, growthPerHourSecondHalf: slope === null ? null : Math.round(slope * 10) / 10 },
   songsPerDevice: settled,
   divergedSongs: diverged,
 }
 // Fails when the devices disagree with the host, or memory keeps climbing by more than 30 MB an hour in the second half.
-summary.ok = diverged === 0 && (slope === null || slope < 30) && Object.keys(stats.failures).length === 0
+summary.hostAliveAtEnd = hostAliveAtEnd
+summary.ok = hostAliveAtEnd && diverged === 0 && (profile === 'stress' || slope === null || slope < 30) && Object.keys(stats.failures).filter((k) => profile === 'realistic' || /host not answering|final|settle/.test(k)).length === 0
 writeFileSync(join(out, 'summary.json'), JSON.stringify(summary, null, 2))
 console.log(JSON.stringify(summary, null, 2))
 process.exit(summary.ok ? 0 : 1)

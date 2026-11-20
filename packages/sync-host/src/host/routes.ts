@@ -1,30 +1,42 @@
 import {
   ActivateProfileRequestSchema,
   CreateMemberRequestSchema,
+  DeviceInfoReportSchema,
+  FlashReportSchema,
   JoinAsMemberRequestSchema,
   MasterHeartbeatReportSchema,
   PresenceReportSchema,
+  ReadyReportSchema,
   RemoveMemberRequestSchema,
   ResetMemberPasswordRequestSchema,
+  RosterRequestSchema,
   SetMemberAdminRequestSchema,
   SetOwnPinRequestSchema,
   VerifyAdminPinRequestSchema,
-  type PresenceReport,
 } from 'shared-types'
 import type { z } from 'zod'
+import type { BandCatalog } from './bandCatalog.js'
+import { createBandRoutes } from './bandRoutes.js'
+import { createChannelRoutes } from './channelRoutes.js'
+import type { HostChannels } from './channels/index.js'
 import type { BandJoin } from './bandJoin.js'
 import type { BandMembers } from './bandMembers.js'
 import type { LeaseStatus } from './leaseKeeper.js'
+import type { HostDeviceInfo } from './deviceInfo.js'
+import type { HostPresence } from './presence.js'
+import type { HostCapabilities } from 'shared-types'
+import { rosterOfProfileDocs } from './roster.js'
 
 /**
  * The routes every host answers the same way (host module, #949): who it is, the alive signal, the band
- * invitation, the login for the copy, audio, presence and the master's heartbeat. One table, in the shape both
- * platforms can use as it is: the laptop registers each entry with Fastify (`pattern` is Fastify's own
- * `:param` notation), the tablet matches an incoming path against it (`matchHostRoute`). No Node API, no
- * DOM; what differs between the platforms comes in through `HostRoutesDeps`.
+ * invitation, the login for the copy, audio, presence and the master's heartbeat, the roster, the Device Ledger,
+ * flash messages, joining a band and its members. One table, in the shape both platforms can use as it is: the
+ * laptop registers each entry with Fastify (`pattern` is Fastify's own `:param` notation), the tablet matches an
+ * incoming path against it (`matchHostRoute`). No Node API, no DOM; what differs between the platforms comes in
+ * through `HostRoutesDeps`.
  *
  * Not here (platform-specific for now): the streams (Fastify's raw reply / the native server), the database
- * proxy and its logins, `/server-info`, and the roster.
+ * proxy and its logins, and `/server-info`.
  */
 
 export interface HostRouteRequest {
@@ -33,6 +45,10 @@ export interface HostRouteRequest {
   /** `:name` segments of the pattern, as they stand in the path (still URL-encoded). */
   params: Readonly<Record<string, string>>
   query: Readonly<Record<string, string>>
+  /** The `Authorization` header, if the request carried one. */
+  authorization?: string
+  /** The address the request came from (the Device Ledger shows it), if the platform knows it. */
+  remoteAddress?: string
   /** JSON parsed; an upload as bytes. */
   body?: unknown
 }
@@ -60,7 +76,7 @@ export interface HostAudio {
   remove: (variantId: string, trackId: string) => Promise<void>
 }
 
-/** An id becomes part of a storage key, so no separators or control characters (the Stage-Server's rule). */
+/** An id becomes part of a storage key, so no separators or control characters (the Host's rule). */
 const SAFE_AUDIO_ID = /^[a-zA-Z0-9-]+$/
 export const isSafeAudioId = (id: string): boolean => SAFE_AUDIO_ID.test(id)
 
@@ -83,9 +99,10 @@ export interface HostRoutesDeps {
   lease: HostRoutesLease
   /** The band this host is set up for - null for a fresh backup that has none yet (the primary invites it then). */
   activeWorkspaceId: () => string | null
-  /** Whether this host serves the band right now. Audio and presence are refused with 503 while it does not - a
-   * passive backup serves nothing. Absent: always (the Stage-Server's behaviour so far). */
-  serving?: () => boolean
+  /** Whether this host serves the band right now - a passive backup serves nothing. The band is passed where the
+   * route has one, so a host that holds several bands can serve the ones it hosts while another is passive. Absent:
+   * always (the laptop's behaviour). */
+  serving?: (workspaceId?: string) => boolean
   /** More fields for `/server/host-lease` (the laptop adds its copy and the audio mirror). */
   hostLeaseExtra?: () => Record<string, unknown>
   /** The primary teaching this host its band (#945). */
@@ -94,15 +111,36 @@ export interface HostRoutesDeps {
   issueAccount: (raw: unknown) => Promise<{ username: string; password: string } | null>
   audio: HostAudio
   /** How a device becomes a member and an admin PIN is checked, for a band this host holds (null: not this host's band).
-   * Absent: the host does not answer these routes (the Stage-Server until its accounts move into the band, #960). */
+   * Absent: the host does not answer these routes. */
   joinBand?: (workspaceId: string) => BandJoin | null
   /** Who manages the members of a band this host holds (null: not this host's band). Absent: not registered. */
   members?: (workspaceId: string) => BandMembers | null
-  /** false: not the band of this host. */
-  presence: {
-    report: (workspaceId: string, report: PresenceReport) => boolean
-    heartbeat: (workspaceId: string, deviceId: string) => boolean
+  /** Founding, listing, deleting, renaming, the access code, the master mode and the Device Ledger's block/remove
+   * (#962). Absent: the host answers none of these itself. */
+  bands?: BandCatalog
+  /** The live channels (#962): when given, the routes that feed them join the table. */
+  channels?: HostChannels
+  /** What this device can do now (#962): every host answers `GET /host/capabilities`. */
+  capabilities?: () => HostCapabilities | Promise<HostCapabilities>
+  /** A line for the host's log. */
+  log?: (message: string, meta: Record<string, unknown>) => void
+  /** What the host knows about each device (the Device Ledger). */
+  deviceInfo: HostDeviceInfo
+  /** The band as a joining device sees it, read from the band's own data. */
+  band: {
+    /** The band's standing access code and its name, or null for a band this host does not hold. */
+    accessCode: (workspaceId: string) => Promise<{ code: string; name: string } | null>
+    /** The band's `profiles:*` documents. */
+    profileDocs: (workspaceId: string) => Promise<Record<string, unknown>[]>
   }
+  /** The presence store (`createHostPresence`): reports, the master's heartbeat, the Ready Check and flash messages land here. */
+  presence: HostPresence
+  /** false: this host does not serve that band (the tablet serves the bands it hosts; absent: every band, as the
+   * laptop does). */
+  servesBand?: (workspaceId: string) => boolean | Promise<boolean>
+  /** Whether the login in `authorization` is a device of the band - a flash message puts text onto every tablet, so it
+   * needs one (the reports do not: they only tell which already-visible roster member is active). */
+  isBandDevice: (workspaceId: string, authorization: string | undefined) => Promise<boolean>
 }
 
 const json = (status: number, body: unknown): HostRouteResponse => ({ status, body })
@@ -118,9 +156,10 @@ const safeDecode = (part: string): string => {
   }
 }
 
-/** The member routes: body checked first (400), then passive (503), then the band - one this host does not hold answers
- * like a wrong login, so it never tells which bands exist. */
-function memberRoutes(membersOf: (workspaceId: string) => BandMembers | null, serving: () => boolean): HostRoute[] {
+/** The member routes: body checked first (400), then the band guard (404 for a band this host does not serve, 503
+ * while passive), then the band - one this host does not hold answers like a wrong login, so it never tells which
+ * bands exist. */
+function memberRoutes(membersOf: (workspaceId: string) => BandMembers | null, refuseBand: (workspaceId: string) => Promise<HostRouteResponse | null>): HostRoute[] {
   const route = <T extends z.ZodType>(
     method: HostRoute['method'],
     pattern: string,
@@ -132,8 +171,10 @@ function memberRoutes(membersOf: (workspaceId: string) => BandMembers | null, se
     handle: async (request) => {
       const asked = schema.safeParse(request.body)
       if (!asked.success) return json(400, { status: 'error', message: asked.error.issues[0]?.message })
-      if (!serving()) return passive()
-      const members = membersOf(safeDecode(request.params.workspaceId ?? ''))
+      const workspaceId = safeDecode(request.params.workspaceId ?? '')
+      const refused = await refuseBand(workspaceId)
+      if (refused) return refused
+      const members = membersOf(workspaceId)
       if (!members) return json(403, { status: 'error', message: "Not this workspace's admin" })
       const answer = await run(members, safeDecode(request.params.profileId ?? ''), asked.data)
       return fromJoin(answer)
@@ -151,13 +192,48 @@ function memberRoutes(membersOf: (workspaceId: string) => BandMembers | null, se
 }
 
 export function createHostRoutes(deps: HostRoutesDeps): HostRoute[] {
-  const serving = () => deps.serving?.() ?? true
+  const serving = (workspaceId?: string) => deps.serving?.(workspaceId) ?? true
   const joinBand = deps.joinBand
   const membersOf = deps.members
+  const notThisBand = () => json(404, { error: 'not_found', reason: 'Not the band of this host.' })
+  /** A body that is no request is 400 for anyone (it tells a stranger nothing); then 404 for a band this host does not
+   * serve at all, 503 while it is not serving it right now. `null` = serve it. */
+  const refuseBand = async (workspaceId: string): Promise<HostRouteResponse | null> => {
+    if (deps.servesBand && !(await deps.servesBand(workspaceId))) return notThisBand()
+    return serving(workspaceId) ? null : passive()
+  }
+  /** A report route: body first, then the band guard; else `record` and 204. */
+  const presenceRoute = <T,>(pattern: string, schema: { safeParse: (body: unknown) => { success: true; data: T } | { success: false; error: { issues: { message: string }[] } } }, record: (workspaceId: string, body: T, request: HostRouteRequest) => void): HostRoute => ({
+    method: 'POST',
+    pattern,
+    handle: async (request) => {
+      const parsed = schema.safeParse(request.body)
+      if (!parsed.success) return json(400, { status: 'error', message: parsed.error.issues[0]?.message })
+      const workspaceId = safeDecode(request.params.workspaceId ?? '')
+      const refused = await refuseBand(workspaceId)
+      if (refused) return refused
+      record(workspaceId, parsed.data, request)
+      return { status: 204 }
+    },
+  })
   const audioIds = (params: HostRouteRequest['params']) => ({ variantId: safeDecode(params.variantId ?? ''), trackId: safeDecode(params.trackId ?? '') })
 
   return [
     { method: 'GET', pattern: '/time', handle: async () => json(200, { serverTime: deps.lease.bandTime(), hostId: deps.hostId, epoch: deps.lease.epoch(), active: deps.lease.isBandHost() }) },
+    { method: 'GET', pattern: '/health', handle: async () => json(200, { status: 'ok' }) },
+    ...(deps.capabilities ? [{ method: 'GET' as const, pattern: '/host/capabilities', handle: async () => json(200, await deps.capabilities!()) }] : []),
+    {
+      method: 'GET',
+      pattern: '/server/active-workspace/admins',
+      // Only names and ids, only for the band the host is set up for: no band in the path, so it cannot list any other
+      // band's roster (a PIN is still needed to do anything with them).
+      handle: async () => {
+        const workspaceId = deps.activeWorkspaceId()
+        if (!workspaceId) return json(404, { status: 'error', message: 'No workspace is active on this host' })
+        const members = rosterOfProfileDocs(await deps.band.profileDocs(workspaceId))
+        return json(200, { workspaceId, admins: members.filter((m) => m.isAdmin).map(({ profileId, name }) => ({ profileId, name })) })
+      },
+    },
     { method: 'GET', pattern: '/server/active-workspace', handle: async () => json(200, { activeWorkspaceId: deps.activeWorkspaceId() }) },
     {
       method: 'GET',
@@ -224,24 +300,47 @@ export function createHostRoutes(deps: HostRoutesDeps): HostRoute[] {
         return { status: 204 }
       },
     },
+    presenceRoute('/workspaces/:workspaceId/presence/report', PresenceReportSchema, (ws, report) => deps.presence.setEntry(ws, report.deviceId, report.profileId)),
+    presenceRoute('/workspaces/:workspaceId/master-heartbeat', MasterHeartbeatReportSchema, (ws, beat) => deps.presence.setMasterHeartbeat(ws, beat.deviceId)),
+    presenceRoute('/workspaces/:workspaceId/ready-check/report', ReadyReportSchema, (ws, answer) => deps.presence.setReady(ws, answer.checkId, answer.profileId)),
     {
       method: 'POST',
-      pattern: '/workspaces/:workspaceId/presence/report',
+      pattern: '/workspaces/:workspaceId/roster',
       handle: async (request) => {
-        if (!serving()) return passive()
-        const report = PresenceReportSchema.safeParse(request.body)
-        if (!report.success) return json(400, { status: 'error', message: report.error.issues[0]?.message })
-        return deps.presence.report(safeDecode(request.params.workspaceId ?? ''), report.data) ? { status: 204 } : json(404, { error: 'not_found', reason: 'Not the band of this host.' })
+        const asked = RosterRequestSchema.safeParse(request.body)
+        if (!asked.success) return json(400, { status: 'error', message: asked.error.issues[0]?.message })
+        const workspaceId = safeDecode(request.params.workspaceId ?? '')
+        const refused = await refuseBand(workspaceId)
+        if (refused) return refused
+        const access = await deps.band.accessCode(workspaceId)
+        if (!access || asked.data.code !== access.code) return json(403, { status: 'error', message: 'Wrong code' })
+        return json(200, { workspaceId, workspaceName: access.name, members: rosterOfProfileDocs(await deps.band.profileDocs(workspaceId)) })
       },
     },
     {
-      method: 'POST',
-      pattern: '/workspaces/:workspaceId/master-heartbeat',
+      method: 'GET',
+      pattern: '/workspaces/:workspaceId/device-info',
       handle: async (request) => {
-        if (!serving()) return passive()
-        const beat = MasterHeartbeatReportSchema.safeParse(request.body)
-        if (!beat.success) return json(400, { status: 'error', message: beat.error.issues[0]?.message })
-        return deps.presence.heartbeat(safeDecode(request.params.workspaceId ?? ''), beat.data.deviceId) ? { status: 204 } : json(404, { error: 'not_found', reason: 'Not the band of this host.' })
+        const workspaceId = safeDecode(request.params.workspaceId ?? '')
+        const refused = await refuseBand(workspaceId)
+        if (refused) return refused
+        // Polled, not streamed: the page is already near the browser's per-origin connection cap (the Host's reasoning).
+        return json(200, deps.deviceInfo.snapshot(workspaceId))
+      },
+    },
+    presenceRoute('/workspaces/:workspaceId/device-info/report', DeviceInfoReportSchema, (ws, report, request) => deps.deviceInfo.report(ws, report, request.remoteAddress)),
+    {
+      method: 'POST',
+      pattern: '/workspaces/:workspaceId/flash',
+      handle: async (request) => {
+        // A body that is no message is 400 for anyone (it tells a stranger nothing); only then is the login asked.
+        const flash = FlashReportSchema.safeParse(request.body)
+        if (!flash.success) return json(400, { status: 'error', message: flash.error.issues[0]?.message })
+        const workspaceId = safeDecode(request.params.workspaceId ?? '')
+        const refused = await refuseBand(workspaceId)
+        if (refused) return refused
+        if (!(await deps.isBandDevice(workspaceId, request.authorization))) return json(401, { status: 'error', message: 'Only a device of this band can send flash messages' })
+        return json(201, deps.presence.setFlash(workspaceId, flash.data.text, flash.data.from, flash.data.to))
       },
     },
     ...(joinBand ? ([
@@ -251,9 +350,11 @@ export function createHostRoutes(deps: HostRoutesDeps): HostRoute[] {
       handle: async (request) => {
         const asked = JoinAsMemberRequestSchema.safeParse(request.body)
         if (!asked.success) return json(400, { status: 'error', message: asked.error.issues[0]?.message })
-        if (!serving()) return passive()
+        const workspaceId = safeDecode(request.params.workspaceId ?? '')
+        const refused = await refuseBand(workspaceId)
+        if (refused) return refused
         // A band this host does not hold answers like a wrong code: it must not tell which bands exist.
-        const band = joinBand(safeDecode(request.params.workspaceId ?? ''))
+        const band = joinBand(workspaceId)
         if (!band) return json(403, { status: 'error', message: 'Wrong code' })
         return fromJoin(await band.join(safeDecode(request.params.profileId ?? ''), asked.data))
       },
@@ -264,14 +365,18 @@ export function createHostRoutes(deps: HostRoutesDeps): HostRoute[] {
       handle: async (request) => {
         const asked = VerifyAdminPinRequestSchema.safeParse(request.body)
         if (!asked.success) return json(400, { status: 'error', message: asked.error.issues[0]?.message })
-        if (!serving()) return passive()
-        const band = joinBand(safeDecode(request.params.workspaceId ?? ''))
+        const workspaceId = safeDecode(request.params.workspaceId ?? '')
+        const refused = await refuseBand(workspaceId)
+        if (refused) return refused
+        const band = joinBand(workspaceId)
         if (!band) return json(403, { status: 'error', message: 'Wrong admin or PIN' })
         return fromJoin(await band.verifyPin(asked.data))
       },
     },
     ] satisfies HostRoute[]) : []),
-    ...(membersOf ? memberRoutes(membersOf, serving) : []),
+    ...(membersOf ? memberRoutes(membersOf, refuseBand) : []),
+    ...(deps.bands ? createBandRoutes(deps.bands) : []),
+    ...(deps.channels ? createChannelRoutes({ channels: deps.channels, refuseBand, isBandDevice: deps.isBandDevice, log: deps.log }) : []),
   ]
 }
 

@@ -62,7 +62,7 @@ export function buildYtDlpArgs(url: string, outputTemplate: string, maxFileSizeB
     '-f', 'bestaudio[acodec=opus]/bestaudio/best',
     '--no-playlist', '--newline', '--no-part',
     '--max-filesize', String(maxFileSizeBytes),
-    // YouTube extraction needs a JS runtime (yt-dlp only auto-enables deno, which the Stage-Server
+    // YouTube extraction needs a JS runtime (yt-dlp only auto-enables deno, which the Host
     // doesn't have); without one yt-dlp warns that formats may be missing. The Node running this
     // server is always there. Verified live 2026-09-25 (yt-dlp 2026.08.19).
     '--js-runtimes', `node:${jsRuntime}`,
@@ -217,7 +217,7 @@ export function parseYtDlpSearch(json: string): YoutubeSearchResult[] {
   })
 }
 
-/** Runs a YouTube search on the Stage-Server (#618) - the same yt-dlp the download uses. */
+/** Runs a YouTube search on the Host (#618) - the same yt-dlp the download uses. */
 export function runYtDlpSearch(query: string, timeoutMs: number = YT_DLP_SEARCH_TIMEOUT_MS): Promise<YoutubeSearchResult[]> {
   return new Promise((resolve, reject) => {
     const child = spawn(resolveYtDlpExecutable(), buildYtDlpSearchArgs(query))

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { create } from 'zustand'
-import { getStageServerUrl } from './stageServer'
+import { getHostUrl } from './hostUrl'
 
 /**
  * Contact with the host (#782 part A, docs/25 §6e "No host at all"). Every successful clock sample
@@ -30,10 +30,10 @@ export const useHostContactStore = create<HostContactState>((set) => ({
   markContact: () => set({ lastContactAt: Date.now() }),
 }))
 
-/** Pure: the host's status from the age of its last answer. Without a Stage-Server (a local-only
+/** Pure: the host's status from the age of its last answer. Without a Host (a local-only
  * band, Solo) there is no host to miss. */
-export function hostStatus(hasStageServer: boolean, lastContactAt: number, now: number): HostStatus {
-  if (!hasStageServer) return 'ok'
+export function hostStatus(hasHostUrl: boolean, lastContactAt: number, now: number): HostStatus {
+  if (!hasHostUrl) return 'ok'
   const age = now - lastContactAt
   if (age >= HOST_GONE_MS) return 'gone'
   if (age >= HOST_UNREACHABLE_MS) return 'unreachable'
@@ -58,5 +58,5 @@ export function useHostStatus(): HostStatus {
 
 /** Outside React (stores, drivers that read once): the status right now. */
 export function currentHostStatus(): HostStatus {
-  return hostStatus(Boolean(getStageServerUrl()), useHostContactStore.getState().lastContactAt, Date.now())
+  return hostStatus(Boolean(getHostUrl()), useHostContactStore.getState().lastContactAt, Date.now())
 }

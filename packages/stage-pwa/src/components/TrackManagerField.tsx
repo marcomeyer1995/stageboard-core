@@ -59,7 +59,7 @@ const KIND_LABELS: Record<TrackKind, string> = {
 const NO_ROLE = 'none'
 
 /** Attach/remove any number of named tracks (reference/band-mix/stem) on a song variant - and,
- * with the stem-separation plugin installed (#9), split one into stems on the Stage-Server.
+ * with the stem-separation plugin installed (#9), split one into stems on the Host.
  * Stems form sets (docs/22 §2): those split from a track are listed under it, uploaded ones
  * (several files at once, e.g. from the band leader) in a set of their own. */
 export function TrackManagerField({ variantId, tracks, disabled, searchQuery = '' }: TrackManagerFieldProps) {
@@ -93,7 +93,7 @@ export function TrackManagerField({ variantId, tracks, disabled, searchQuery = '
   const youtube = useYoutubeRoute(canDownload && adding, youtubeWhere)
   const nowhereText = youtubeWhere === 'host' ? t('tm.youtubeNoHost') : youtubeWhere === 'device' ? t('tm.youtubeNoHelper') : t('tm.youtubeNowhere')
   const [uploadProgress, setUploadProgress] = useState<string | null>(null)
-  // The stem being listened to, as a local object URL (fetched from the Stage-Server on demand).
+  // The stem being listened to, as a local object URL (fetched from the Host on demand).
   const [listening, setListening] = useState<{ trackId: string; url: string } | null>(null)
   useEffect(
     () => () => {
@@ -185,7 +185,7 @@ export function TrackManagerField({ variantId, tracks, disabled, searchQuery = '
     )
   }
 
-  /** Queues a #9 stem-separation job - picked up by the Stage-Server like the YouTube one. */
+  /** Queues a #9 stem-separation job - picked up by the Host like the YouTube one. */
   async function startSeparation(track: TrackMeta, options: { model: StemModel; splitGuitar: boolean }) {
     setSeparating(null)
     await putAsyncJob({
@@ -249,7 +249,7 @@ export function TrackManagerField({ variantId, tracks, disabled, searchQuery = '
     setBusyTrackId(null)
   }
 
-  /** Queues a #5 YouTube-extraction job - the Stage-Server (`asyncJobWatcher.ts`) picks it up
+  /** Queues a #5 YouTube-extraction job - the Host (`asyncJobWatcher.ts`) picks it up
    * over the same replication every other cross-device command in this app uses (installing a
    * plugin, opening a hardware setup), so nothing here talks to the server directly. */
   async function handleYoutubeSubmit(e: React.FormEvent) {
@@ -262,7 +262,7 @@ export function TrackManagerField({ variantId, tracks, disabled, searchQuery = '
     await queueYoutube(url, t('tm.youtubeRef'))
   }
 
-  /** Searched by the Stage-Server (#618) - no copying links out of YouTube any more. */
+  /** Searched by the Host (#618) - no copying links out of YouTube any more. */
   async function handleSearch(e: React.FormEvent) {
     e.preventDefault()
     if (!query.trim()) return

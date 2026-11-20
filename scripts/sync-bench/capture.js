@@ -37,7 +37,7 @@
     setInterval(() => { if (ctx.state !== 'running') return; const ts = ctx.getOutputTimestamp(); c.meta.push([ts.contextTime, ts.performanceTime, performance.now(), Date.now()]); if (c.meta.length > 30000) c.meta.splice(0, 1000) }, 20)
   }
   // Server-time samples while armed (Gig: the band clock), like clockSync's: [perf sent, perf back, server].
-  const serverBase = (() => { try { return JSON.parse(localStorage.getItem('stageboard-stage-server')).state.url } catch { return null } })()
+  const serverBase = (() => { try { return JSON.parse(localStorage.getItem('stageboard-host-url')).state.url } catch { return null } })()
   let srvTimer = null
   c.arm = (on) => {
     c.armed = on

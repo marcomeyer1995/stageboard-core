@@ -37,9 +37,9 @@ export const CAPABILITIES = {
    * docs/23 §7): bound to the tablet it is plugged into and its MIDI input; the button rules
    * are band-wide. */
   midiController: 'midi-controller',
-  /** Speech clips for spoken announcements (#63), generated on the Stage-Server (Piper). */
+  /** Speech clips for spoken announcements (#63), generated on the Host (Piper). */
   speechSynthesis: 'speech-synthesis',
-  /** Splits a track into stems (drums, bass, vocals ...) on the Stage-Server (#9). */
+  /** Splits a track into stems (drums, bass, vocals ...) on the Host (#9). */
   stemSeparation: 'stem-separation',
   /** Spoken section announcements in the in-ears (#63): "Chorus", "Bridge" a bar before the part,
    * played on the click's Web Audio clock - an audio source like click and track. */
@@ -47,7 +47,7 @@ export const CAPABILITIES = {
   /** Chord sheets from Ultimate Guitar in "Song importieren" (#546): an add-on - scraping a third
    * party's site is legally risky (docs/16), so a sale build can leave it out. */
   chordImport: 'chord-import',
-  /** A reference recording downloaded from YouTube onto the Stage-Server (yt-dlp, #5/#546): an
+  /** A reference recording downloaded from YouTube onto the Host (yt-dlp, #5/#546): an
    * add-on for the same reason. */
   videoDownload: 'video-download',
 } as const satisfies Record<string, CapabilityId>

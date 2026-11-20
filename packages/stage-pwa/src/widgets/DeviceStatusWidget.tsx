@@ -45,7 +45,7 @@ export function DeviceStatusWidget({ config }: { config: DeviceStatusConfig }) {
   const installed = usePluginsStore((s) => s.installed)
   const health = usePluginsStore((s) => s.health)
   const { status: midiStatus } = useMidiTrigger()
-  // In band time: `lastSeenAt` is the Stage-Server's clock (useServerNow).
+  // In band time: `lastSeenAt` is the Host's clock (useServerNow).
   const now = useServerNow()
 
   const device = devices.find((d) => d.id === config.logicalDeviceId) ?? null

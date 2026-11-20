@@ -28,7 +28,7 @@ export interface WorkspaceHardwareController {
  * The single owner of this box's "which workspace's hardware is currently live" state -
  * replaces the old inline, boot-only `if (process.env.STAGEBOARD_WORKSPACE)` block in
  * main() (2026-09-02 phantom-"band-a" fix) with something callable again while the process
- * keeps running, for the real-world case of one physical Stage-Server serving two of Marco's
+ * keeps running, for the real-world case of one physical Host serving two of Marco's
  * own bands on different days, never at the same time.
  */
 export function createWorkspaceHardwareController(

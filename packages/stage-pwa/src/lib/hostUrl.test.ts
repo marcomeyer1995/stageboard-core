@@ -1,32 +1,32 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { useStageServerStore } from '../store/useStageServerStore'
-import { getAutomaticStageServerUrl, getStageServerUrl, normalizeStageServerUrl, overrideForTypedUrl } from './stageServer'
+import { useHostUrlStore } from '../store/useHostUrlStore'
+import { getAutomaticHostUrl, getHostUrl, normalizeHostUrl, overrideForTypedUrl } from './hostUrl'
 
 // Under Vitest `import.meta.env.DEV` is true, so the automatic address is the build-time
-// VITE_STAGE_SERVER_URL - pinned here so the tests don't depend on the local .env.
+// VITE_HOST_URL - pinned here so the tests don't depend on the local .env.
 beforeEach(() => {
-  vi.stubEnv('VITE_STAGE_SERVER_URL', 'https://stageboard.local')
-  useStageServerStore.setState({ url: null })
+  vi.stubEnv('VITE_HOST_URL', 'https://stageboard.local')
+  useHostUrlStore.setState({ url: null })
 })
 afterEach(() => {
   vi.unstubAllEnvs()
 })
 
-describe('getStageServerUrl', () => {
+describe('getHostUrl', () => {
   it('uses the automatic address when no override is set', () => {
-    expect(getAutomaticStageServerUrl()).toBe('https://stageboard.local')
-    expect(getStageServerUrl()).toBe('https://stageboard.local')
+    expect(getAutomaticHostUrl()).toBe('https://stageboard.local')
+    expect(getHostUrl()).toBe('https://stageboard.local')
   })
 
   it('prefers a manual override', () => {
-    useStageServerStore.setState({ url: 'https://192.168.178.99' })
-    expect(getStageServerUrl()).toBe('https://192.168.178.99')
+    useHostUrlStore.setState({ url: 'https://192.168.178.99' })
+    expect(getHostUrl()).toBe('https://192.168.178.99')
   })
 })
 
-describe('normalizeStageServerUrl', () => {
+describe('normalizeHostUrl', () => {
   it('trims whitespace and trailing slashes', () => {
-    expect(normalizeStageServerUrl('  https://stageboard.local//  ')).toBe('https://stageboard.local')
+    expect(normalizeHostUrl('  https://stageboard.local//  ')).toBe('https://stageboard.local')
   })
 })
 

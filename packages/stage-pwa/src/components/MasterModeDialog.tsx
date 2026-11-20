@@ -41,7 +41,7 @@ export function MasterModeDialog({ workspace, onClose }: { workspace: Workspace;
             value={mode}
             size="stage"
             onChange={async (next) => {
-              // Saved on the Stage-Server - say so when that didn't work instead of silently staying (#409 review).
+              // Saved on the Host - say so when that didn't work instead of silently staying (#409 review).
               if (!(await setMasterMode(workspace.id, next))) void alert(t('master.notSaved'))
             }}
             options={[

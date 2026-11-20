@@ -15,7 +15,7 @@ const { useActiveProfileStore } = await import('../store/useActiveProfileStore')
 const { useDialogStore } = await import('../store/useDialogStore')
 const { usePresenceStore } = await import('../store/usePresenceStore')
 const { useProfilesStore } = await import('../store/useProfilesStore')
-const { useStageServerStore } = await import('../store/useStageServerStore')
+const { useHostUrlStore } = await import('../store/useHostUrlStore')
 const { useWorkspaceStore } = await import('../store/useWorkspaceStore')
 const { BandManagementView } = await import('./BandManagementView')
 
@@ -32,14 +32,14 @@ function openBandMenu(name: string) {
 }
 
 // "Einladen" opens InviteBandView.tsx, whose fetchLanIp() would otherwise pick up the real
-// .env's VITE_STAGE_SERVER_URL and make a live, self-signed-cert network call no test here
+// .env's VITE_HOST_URL and make a live, self-signed-cert network call no test here
 // cares about - see InviteBandView.test.tsx's identical stub.
 afterEach(() => {
   vi.unstubAllEnvs()
 })
 
 beforeEach(() => {
-  vi.stubEnv('VITE_STAGE_SERVER_URL', '')
+  vi.stubEnv('VITE_HOST_URL', '')
   useWorkspaceStore.setState({
     // username set: these tests exercise an already-server-connected band by default (the
     // pre-Tier-A-local-only-founding, already-established behavior) - the local-only "Verbinden"
@@ -71,7 +71,7 @@ beforeEach(() => {
 })
 
 describe('BandManagementView without the server band line', () => {
-  it('leaves which band the Stage-Server serves to Einstellungen (shown once)', async () => {
+  it('leaves which band the Host serves to Einstellungen (shown once)', async () => {
     useWorkspaceStore.setState({
       listWorkspaces: vi.fn().mockResolvedValue([{ workspaceId: 'band-c', workspaceName: 'SOAT' }]),
       fetchActiveWorkspaceHardware: vi.fn().mockResolvedValue({ activeWorkspaceId: 'band-c' }),
@@ -688,7 +688,7 @@ describe('BandManagementView', () => {
       expect(screen.queryByText('Band für alle löschen …')).not.toBeInTheDocument()
     })
 
-    it('is not offered for a local-only band (no Stage-Server account) - "Band löschen …" alone covers it there', () => {
+    it('is not offered for a local-only band (no Host account) - "Band löschen …" alone covers it there', () => {
       useWorkspaceStore.setState({
         workspaces: [{ id: 'band-a', name: 'Band A', isAdmin: true, ownProfileId: 'p1' }],
       })
@@ -745,29 +745,29 @@ describe('BandManagementView', () => {
     })
 
     it('"Verbinden" asks for a server address, persists a different one as override, and calls connectToServer - no per-member follow-up anymore (2026-09-01 redesign)', async () => {
-      vi.stubEnv('VITE_STAGE_SERVER_URL', 'https://stageboard.local')
-      useStageServerStore.setState({ url: null })
+      vi.stubEnv('VITE_HOST_URL', 'https://stageboard.local')
+      useHostUrlStore.setState({ url: null })
       const connectToServer = vi.fn().mockResolvedValue(true)
-      const promptText = vi.fn().mockResolvedValue('https://stage-server:3001/')
+      const promptText = vi.fn().mockResolvedValue('https://host-computer:3001/')
       useProfilesStore.setState({ connectToServer })
       useDialogStore.setState({ promptText })
 
       render(<BandManagementView />)
       fireEvent.click(screen.getByText('Verbinden'))
 
-      await waitFor(() => expect(connectToServer).toHaveBeenCalledWith('https://stage-server:3001'))
-      // Pre-filled with the automatic address, so on a tablet served by the Stage-Server it's
+      await waitFor(() => expect(connectToServer).toHaveBeenCalledWith('https://host-computer:3001'))
+      // Pre-filled with the automatic address, so on a tablet served by the Host it's
       // just a confirmation.
-      expect(promptText).toHaveBeenCalledWith('Mit Stage-Server verbinden', expect.objectContaining({ defaultValue: 'https://stageboard.local' }))
-      expect(useStageServerStore.getState().url).toBe('https://stage-server:3001')
+      expect(promptText).toHaveBeenCalledWith('Mit Host verbinden', expect.objectContaining({ defaultValue: 'https://stageboard.local' }))
+      expect(useHostUrlStore.getState().url).toBe('https://host-computer:3001')
       // No "Verbunden. Jetzt die restlichen Mitglieder..." list anymore - self-service join
       // (the band-level "Einladen" code) covers every already-typed-in member instead.
       expect(screen.queryByText(/Jetzt die restlichen Mitglieder/)).not.toBeInTheDocument()
     })
 
     it('"Verbinden" with the pre-filled automatic address connects without pinning it as an override', async () => {
-      vi.stubEnv('VITE_STAGE_SERVER_URL', 'https://stageboard.local')
-      useStageServerStore.setState({ url: 'https://stale-override' })
+      vi.stubEnv('VITE_HOST_URL', 'https://stageboard.local')
+      useHostUrlStore.setState({ url: 'https://stale-override' })
       const connectToServer = vi.fn().mockResolvedValue(true)
       useProfilesStore.setState({ connectToServer })
       useDialogStore.setState({ promptText: vi.fn().mockResolvedValue('https://stageboard.local') })
@@ -776,7 +776,7 @@ describe('BandManagementView', () => {
       fireEvent.click(screen.getByText('Verbinden'))
 
       await waitFor(() => expect(connectToServer).toHaveBeenCalledWith('https://stageboard.local'))
-      expect(useStageServerStore.getState().url).toBeNull()
+      expect(useHostUrlStore.getState().url).toBeNull()
     })
 
     it('"+ Neues Mitglied" still works while local-only - just a name, same as connected', async () => {
@@ -809,7 +809,7 @@ describe('BandManagementView', () => {
       expect(activeBandButton.disabled).toBe(true)
     })
 
-    it('a local-only band (no Stage-Server account) switches the active profile immediately, with no code prompt at all', () => {
+    it('a local-only band (no Host account) switches the active profile immediately, with no code prompt at all', () => {
       useWorkspaceStore.setState({
         workspaces: [{ id: 'band-a', name: 'Band A', isAdmin: true, ownProfileId: 'p1' }],
       })
@@ -831,7 +831,7 @@ describe('BandManagementView', () => {
       expect(screen.queryByPlaceholderText('4-stelliger Code')).not.toBeInTheDocument()
     })
 
-    describe('once connected to a Stage-Server', () => {
+    describe('once connected to a Host', () => {
       beforeEach(() => {
         useProfilesStore.setState({
           profiles: [

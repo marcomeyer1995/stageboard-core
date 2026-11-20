@@ -10,17 +10,18 @@ It is inspired by the modular dashboard approach of Home Assistant: a small core
 - **One time base.** All devices agree on the band time (clock sync against the host); clicks, tracks, announcements and cues are scheduled ahead of time on that clock, so two tablets play the same beat within a few milliseconds (docs/29).
 - **The stage map configures.** The "Bühne" (stage) tab is a schematic map of the stage: who stands where, which device is connected to which port, and which signal (click, track, Kemper, light) leaves on which cable. The map decides who plays what; cues and songs only know logical signals, never a cable (docs/31).
 - **Graceful degradation.** Missing hardware never crashes the UI; widgets go into a disabled state so the musicians' muscle memory stays intact.
-- **Three operating tiers** (docs/25): **Solo** - one device, no host; **Band host** - one of the band's own devices (a laptop, later an Android device) hosts sync, clock and tracks; **Stage-Server** - a dedicated box with the heavy add-ons (stem separation, speech synthesis) and, later, redundancy.
+- **Three operating tiers** (docs/25): **Solo** - one device, no host; **Band host** - one of the band's own devices (a laptop or an Android tablet) hosts sync, clock and tracks; **Dedicated host** - a box with the heavy add-ons (stem separation, speech synthesis). The host is a role, not a kind of machine: any device can take it, and only its power decides what it can do (`GET /host/capabilities`, docs/34).
 
 ## Repository layout
 
 | Package | What |
 |---|---|
 | `packages/stage-pwa` | the app: React + Vite + TypeScript PWA, also wrapped as the Android app (Capacitor, `android/`) |
-| `packages/core-backend` | the host: Fastify server, sync proxy, clock reference, push, tracks, built-in server add-ons |
+| `packages/core-backend` | the laptop's transport for the host (Fastify, TLS, SSE) and what only a Node machine does: backup, stem separation, speech, yt-dlp, OSC, MIDI, server add-ons |
 | `packages/shared-types` | Zod schemas and shared logic used by both (stage map, timing, tracks, plugins) |
-| `packages/sync-host` | the database host (replication on PouchDB) and the shared host logic - accounts, join, members, routes - used by the Stage-Server and the Android app |
-| `docs/` | concepts, decisions and investigation write-ups - the index with "read when" hints is in [CLAUDE.md](CLAUDE.md) |
+| `packages/sync-host` | **the host, once**: replication on PouchDB, band life cycle, accounts, live channels, lease and clock, capabilities - used by the laptop and by the Android app |
+| `native/engine` | the C++ audio engine, built to WebAssembly and for Android |
+| `docs/` | concepts, decisions and investigation write-ups - the index with "read when" hints is in [CLAUDE.md](CLAUDE.md); start with [docs/35](docs/35_Software_Uebersicht.md) (the whole software) and [docs/34](docs/34_Host_Architektur_Uebersicht.md) (the host) |
 
 ## Running it
 
@@ -33,7 +34,7 @@ npm run dev            # backend + frontend with hot reload
 npm run lint --workspaces --if-present
 ```
 
-Tablets need a secure context (HTTPS) for the PWA features; the local HTTPS setup, the productive Stage-Server (systemd), the Android build and the deploy steps are in [docs/03](docs/03_Developer_Experience.md).
+Tablets need a secure context (HTTPS) for the PWA features; the local HTTPS setup, the productive Host (systemd), the Android build and the deploy steps are in [docs/03](docs/03_Developer_Experience.md).
 
 ## Add-ons
 

@@ -1,7 +1,7 @@
 import { API_VERSION_MISMATCH_CODE, apiVersionFits, HEALTH_TIMEOUT_MS, PluginInstallationSchema, type PluginInstallation } from 'shared-types'
 import { allDocs, ensureDb, waitForChange, type DatabaseConfig } from '../database.js'
 import { PLUGIN_CATALOG } from './catalog.js'
-import * as healthStore from './healthStore.js'
+import { pluginHealth as healthStore } from 'sync-host'
 import { hasPluginBundle, writePluginBundle } from './pluginBundleStore.js'
 import type { PluginRegistry } from './registry.js'
 
@@ -87,7 +87,7 @@ export function reconcile(
 }
 
 /**
- * Which enabled installations need their client bundle downloaded (#101's Stage-Server mirror)
+ * Which enabled installations need their client bundle downloaded (#101's Host mirror)
  * - anything with a `clientSource` that isn't already cached on this server's disk. Pure, same
  * "the interesting part needs no I/O to test" reasoning `reconcile` above already follows;
  * `alreadyCached` is a plain id set the caller builds from `hasPluginBundle` checks.
@@ -149,7 +149,7 @@ export function createPluginSync(options: PluginSyncOptions): PluginSyncHandle {
     await downloadMissingBundles(installations)
   }
 
-  /** #101's Stage-Server mirror: fetches each not-yet-cached `clientSource` once (this server's
+  /** #101's Host mirror: fetches each not-yet-cached `clientSource` once (this server's
    * own internet access, not a tablet's) so every tablet on the LAN can fetch it from here
    * afterward. One installation's fetch failure is logged and skipped, not fatal to the rest of
    * the sync pass. */

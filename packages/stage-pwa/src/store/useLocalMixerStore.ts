@@ -8,7 +8,7 @@ interface LocalMixerState {
 
 /**
  * Client-side mirror of core-backend's mockMixerPlugin.ts, for when *this* device is the claimed
- * `mixer` target (#10, generalized beyond audio) instead of a Stage-Server plugin - IemWidget
+ * `mixer` target (#10, generalized beyond audio) instead of a Host plugin - IemWidget
  * reads `volumes` from here rather than local component state so the faders stay correct
  * regardless of which tablet actually moved them.
  */

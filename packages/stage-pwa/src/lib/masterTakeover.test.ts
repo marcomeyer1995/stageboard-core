@@ -54,7 +54,7 @@ describe('canClaimMaster', () => {
 })
 
 describe('masterSelfCheck (#378 option B)', () => {
-  const base = { deviceId: 'me', now: 100_000, holdingSince: 0, hasStageServer: true }
+  const base = { deviceId: 'me', now: 100_000, holdingSince: 0, hasHostUrl: true }
   const beat = (deviceId: string, at: number) => ({ deviceId, at })
 
   it('keeps control while the host is unreachable - nobody can take over without it (#782)', () => {
@@ -79,9 +79,9 @@ describe('masterSelfCheck (#378 option B)', () => {
     expect(masterSelfCheck({ ...base, syncStatus: 'idle', heartbeat: null })).toBe('unconfirmed')
   })
 
-  it('always passes without a Stage-Server (local-only band) - nothing to confirm against', () => {
-    expect(masterSelfCheck({ ...base, hasStageServer: false, syncStatus: 'offline', heartbeat: null })).toBe('ok')
-    expect(masterSelfCheck({ ...base, hasStageServer: false, syncStatus: 'idle', heartbeat: null })).toBe('ok')
+  it('always passes without a Host (local-only band) - nothing to confirm against', () => {
+    expect(masterSelfCheck({ ...base, hasHostUrl: false, syncStatus: 'offline', heartbeat: null })).toBe('ok')
+    expect(masterSelfCheck({ ...base, hasHostUrl: false, syncStatus: 'idle', heartbeat: null })).toBe('ok')
   })
 
   it('gives a fresh holder one timeout to get its first beats confirmed', () => {

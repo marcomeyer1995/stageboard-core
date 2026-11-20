@@ -7,7 +7,7 @@ import { BAND_SETTINGS_DOC_ID, listedHostIds } from './host/hostRole.js'
 import { createWriteGuard, inList, isServerAdmin, type SecurityDoc, type UserCtx } from './writeGuard.js'
 
 /**
- * The database host of a Stage-Server (docs/25, #960): what core-backend's database client and the devices ask of a
+ * The database host of a Host (docs/25, #960): what core-backend's database client and the devices ask of a
  * database, over PouchDB databases - so a laptop, a Linux box and an Android tablet can all be the host with the same
  * code. On top of the replication protocol (index.ts): the server admin, the login of a device (an `account:` document of
  * the band's own database, `createBandAccounts`), each band's access rules (`_security`), the validation functions stored

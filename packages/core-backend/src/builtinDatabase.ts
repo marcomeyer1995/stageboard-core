@@ -10,7 +10,7 @@ PouchDB.plugin(LevelAdapter)
 
 /**
  * The built-in database host (docs/25, Host step 1, 2026-11-07): instead of the database in Docker, the
- * Stage-Server runs sync-host's small the database itself, its databases in LevelDB files. It listens
+ * Host runs sync-host's small the database itself, its databases in LevelDB files. It listens
  * where the database would (127.0.0.1:5984 by default), so `database.ts`, the `/db` proxy for the devices
  * and the command-line tools (PIN reset, delete a band) talk to it exactly as to the database - and only
  * this one process opens the files.
@@ -68,11 +68,14 @@ async function readBody(req: IncomingMessage): Promise<unknown> {
   return { data: new Uint8Array(raw), contentType: type }
 }
 
-export async function startBuiltinDatabase(options: { dataDir: string; user: string; password: string; port?: number; host?: string }): Promise<BuiltinDatabase> {
+export async function startBuiltinDatabase(options: { dataDir: string; user: string; password: string; port?: number; host?: string; storage?: { auto_compaction?: boolean; revs_limit?: number } }): Promise<BuiltinDatabase> {
   const dbDir = join(options.dataDir, 'db')
   await mkdir(dbDir, { recursive: true })
   const handler = createDatabaseHost({
-    storage: (name) => new PouchDB(join(dbDir, encodeURIComponent(name)), { adapter: 'leveldb' }),
+    // Stored with PouchDB's defaults. A bounded history (revs_limit 50 + auto_compaction) was tried for a soak run and REVERTED: under
+    // replication it makes PouchDB throw 'Unable to resolve latest revision' from inside a callback, which kills the whole process
+    // (reproduced on the host within 10 minutes at 8x speed, docs/25 #962).
+    storage: (name) => new PouchDB(join(dbDir, encodeURIComponent(name)), { adapter: 'leveldb', ...(options.storage ?? {}) }),
     catalog: fileCatalog(join(options.dataDir, 'databases.json')),
     admin: { user: options.user, password: options.password },
   })

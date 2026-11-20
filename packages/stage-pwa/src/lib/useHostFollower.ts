@@ -1,11 +1,11 @@
 import { useEffect } from 'react'
 import { useBandSettingsStore } from '../store/useBandSettingsStore'
-import { useStageServerStore } from '../store/useStageServerStore'
+import { useHostUrlStore } from '../store/useHostUrlStore'
 import { configLog } from './configDebug'
 import { followHostOnce, probeHostEpoch } from './hostFollow'
 import { useHostEpochStore } from './hostEpoch'
 import { hostOfUrl, isNativeApp, pairWithServer, pinListedHosts } from './native'
-import { getStageServerUrl, overrideForTypedUrl } from './stageServer'
+import { getHostUrl, overrideForTypedUrl } from './hostUrl'
 
 /** Often enough that a takeover (5-8 s of silence, docs/25 §6e) is followed within seconds, rarely
  * enough that the second host sees next to no traffic - it is a passive backup. */
@@ -27,7 +27,7 @@ export function useHostFollower(): void {
     // count as trusted (Marco, 2026-11-17), so the listed hosts are pinned here, before the first probe.
     const pinned = native ? pinListedHosts(hosts) : Promise.resolve(null)
     const check = async () => {
-      const currentUrl = getStageServerUrl()
+      const currentUrl = getHostUrl()
       if (!currentUrl) return
       await pinned
       await followHostOnce({
@@ -39,7 +39,7 @@ export function useHostFollower(): void {
         switchTo: (host) => {
           configLog('hostFollower', 'switching to', host.hostId, host.url)
           if (!native) {
-            useStageServerStore.getState().setUrl(overrideForTypedUrl(host.url))
+            useHostUrlStore.getState().setUrl(overrideForTypedUrl(host.url))
           } else if (host.certFingerprint) {
             // Pins the certificate and makes it the server address, as pairing does.
             void pairWithServer(hostOfUrl(host.url), host.certFingerprint)

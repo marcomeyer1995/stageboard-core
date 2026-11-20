@@ -54,7 +54,7 @@ export interface IShowControlPlugin extends IPlugin {
   trigger(event: ShowControlEvent): Promise<ShowControlResult> | ShowControlResult
 }
 
-/** An OSC message the Stage-Server received (#484, OSC as a trigger, docs/23 §4) - pushed to the
+/** An OSC message the Host received (#484, OSC as a trigger, docs/23 §4) - pushed to the
  * devices of the band whose hardware it serves. `at`: server time of arrival. */
 export const OscInMessageSchema = z.object({
   address: z.string().min(1),

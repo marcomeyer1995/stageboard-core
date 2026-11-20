@@ -40,6 +40,24 @@ describe('the built-in database host (no the database, docs/25)', () => {
     }
   })
 
+  it('keeps every revision - a bounded history crashes the host under replication, so none is set (#962)', async () => {
+    const host = await startBuiltinDatabase({ dataDir: dir, user: 'admin', password: 'secret', port: 0 })
+    const config: DatabaseConfig = { url: host.url, user: 'admin', password: 'secret' }
+    const auth = { authorization: `Basic ${Buffer.from('admin:secret').toString('base64')}`, 'content-type': 'application/json' }
+    try {
+      await ensureDb(config, 'stageboard-band')
+      let rev: string | undefined
+      for (let i = 0; i < 60; i++) {
+        const response = await fetch(`${host.url}/stageboard-band/song:1`, { method: 'PUT', headers: auth, body: JSON.stringify({ _id: 'song:1', ...(rev ? { _rev: rev } : {}), title: `take ${i}` }) })
+        rev = ((await response.json()) as { rev: string }).rev
+      }
+      const doc = (await (await fetch(`${host.url}/stageboard-band/song:1?revs=true`, { headers: auth })).json()) as { _revisions: { ids: string[] } }
+      expect(doc._revisions.ids.length).toBe(60)
+    } finally {
+      await host.close()
+    }
+  })
+
   it("a member's tablet syncs its band through it", async () => {
     const host = await startBuiltinDatabase({ dataDir: dir, user: 'admin', password: 'secret', port: 0 })
     const config: DatabaseConfig = { url: host.url, user: 'admin', password: 'secret' }

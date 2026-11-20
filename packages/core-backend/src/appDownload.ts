@@ -34,7 +34,7 @@ export function downloadPage(version: AppVersion | null): string {
 <li>Android fragt einmal, ob Apps aus dieser Quelle installiert werden dürfen – erlauben.</li>
 <li>Installieren, StageBoard öffnen und den QR-Code der Band scannen.</li>
 </ol>`
-    : '<p>Auf diesem Stage-Server ist noch keine App gebaut.</p>'
+    : '<p>Auf diesem Host ist noch keine App gebaut.</p>'
   return `<!doctype html>
 <html lang="de">
 <head>
@@ -58,7 +58,7 @@ ${body}
 }
 
 /**
- * Serves the native Android app (#348) from the Stage-Server itself - no app store, works offline
+ * Serves the native Android app (#348) from the Host itself - no app store, works offline
  * at the venue: `/app` (download page), `/app/stageboard.apk`, `/app/version.json` (the installed
  * app compares its own build number against it and offers the update).
  */
@@ -67,12 +67,12 @@ export function registerAppRoutes(app: FastifyInstance, dir: string): void {
 
   app.get('/app/version.json', async (_request, reply) => {
     const version = readAppVersion(dir)
-    if (!version) return reply.status(404).send({ status: 'error', message: 'No app build on this Stage-Server' })
+    if (!version) return reply.status(404).send({ status: 'error', message: 'No app build on this Host' })
     return version
   })
 
   app.get('/app/stageboard.apk', async (_request, reply) => {
-    if (!readAppVersion(dir)) return reply.status(404).send({ status: 'error', message: 'No app build on this Stage-Server' })
+    if (!readAppVersion(dir)) return reply.status(404).send({ status: 'error', message: 'No app build on this Host' })
     return reply
       .type('application/vnd.android.package-archive')
       .header('Content-Disposition', 'attachment; filename="stageboard.apk"')

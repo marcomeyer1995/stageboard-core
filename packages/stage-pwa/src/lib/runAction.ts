@@ -49,7 +49,7 @@ export function releaseDelayMs(release: { amount: number; unit: WaitUnit }, show
 }
 
 /** How long before its moment a planned device command is handed over: the driver or the
- * Stage-Server holds it until then (more than the cue lookahead - a relay to another tablet goes
+ * Host holds it until then (more than the cue lookahead - a relay to another tablet goes
  * over the WLAN). */
 const PLAN_AHEAD_MS = 1000
 

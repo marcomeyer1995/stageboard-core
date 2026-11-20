@@ -31,7 +31,7 @@ import { useTranslation } from 'react-i18next'
  *
  * 2026-09-02 seventh follow-up, at Marco's explicit request: the QR now encodes a real
  * `https://<LAN IP>/?ws=&code=` URL (`buildJoinUrl`), not just `workspaceId:code` text, so a
- * phone's *native* camera app can open it directly and land on the right Stage-Server, not only
+ * phone's *native* camera app can open it directly and land on the right Host, not only
  * the in-app scanner. The IP is fetched fresh (`fetchServerAddress`) every time this screen mounts - so
  * every "Einladen" press embeds whatever address is current right now, not a stale build-time
  * or first-load one - and shown as plain text alongside the QR, with a note that the code needs

@@ -1,5 +1,5 @@
 // serve-build.mjs PORT DIST - the measurement browser loads the app files (index.html, assets/...) from a
-// local build instead of the Stage-Server - same origin, so its band data and pairing stay. Everything
+// local build instead of the Host - same origin, so its band data and pairing stay. Everything
 // else (/time, /workspaces/..., the database) still goes to the real server.
 import { readFileSync, existsSync, statSync } from 'node:fs'
 import { join, extname } from 'node:path'

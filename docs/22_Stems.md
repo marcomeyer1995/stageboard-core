@@ -1,10 +1,10 @@
 # Stems: Stem-Satz, Üben, Gig und Timeline
 
-Konzept, Stand 2026-10-15, mit Marco besprochen. Baut auf der Stem-Trennung auf dem Stage-Server auf (Plugin „Spuren trennen“, #9, PR #522, Installation in docs/03 §0b4) und bündelt #482 (mehrere Spuren je Song, Mixer, Stummschalt-Vorlagen je Show). Gebaut sind die Trennung, der Stem-Satz, das Widget „Stems“ und die Stems in der Timeline (§7 Schritte 1–3).
+Konzept, Stand 2026-10-15, mit Marco besprochen. Baut auf der Stem-Trennung auf dem Host auf (Plugin „Spuren trennen“, #9, PR #522, Installation in docs/03 §0b4) und bündelt #482 (mehrere Spuren je Song, Mixer, Stummschalt-Vorlagen je Show). Gebaut sind die Trennung, der Stem-Satz, das Widget „Stems“ und die Stems in der Timeline (§7 Schritte 1–3).
 
 ## 1. Ausgangslage
 
-- **Trennung gebaut (#522):** Ein Track einer Variante wird auf dem Stage-Server mit Demucs in Spuren zerlegt – Standard (Schlagzeug, Bass, Gesang, Rest) oder Erweitert (+ Gitarre, Keys/Piano), wahlweise Gitarre nach Stereoseite links/rechts. Die Spuren sind Tracks `kind: 'stem'` mit `parentTrackId`, Ogg Opus 256 kbit/s (seit 2026-11-10 das Track-Format aus docs/30 §8h; davor WebM, anfangs MP3 – Höhen der Summe verloren, 25 ms Versatz), liegen nur auf dem Server, sind nie Backing-Track, lassen sich anhören, umbenennen, entfernen.
+- **Trennung gebaut (#522):** Ein Track einer Variante wird auf dem Host mit Demucs in Spuren zerlegt – Standard (Schlagzeug, Bass, Gesang, Rest) oder Erweitert (+ Gitarre, Keys/Piano), wahlweise Gitarre nach Stereoseite links/rechts. Die Spuren sind Tracks `kind: 'stem'` mit `parentTrackId`, Ogg Opus 256 kbit/s (seit 2026-11-10 das Track-Format aus docs/30 §8h; davor WebM, anfangs MP3 – Höhen der Summe verloren, 25 ms Versatz), liegen nur auf dem Server, sind nie Backing-Track, lassen sich anhören, umbenennen, entfernen.
 - **Qualität:** Marco nach dem ersten Hören (All the small things): „really, really good“.
 - **Zwei Quellen für Spuren:**
   1. **Getrennt** aus einem fertig gemischten Song (Demucs).

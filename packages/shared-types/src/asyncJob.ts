@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { ServerMessageParamsSchema } from './serverMessage.js'
 
 /**
- * A replicated background-job document (#5): the Stage-Server watches this workspace's shared
+ * A replicated background-job document (#5): the Host watches this workspace's shared
  * db for new ones the same way it watches for plugin installs (`pluginSync.ts`) - a tablet
  * creates the doc, the server picks it up over the database `_changes` feed and does the actual
  * work (network access, a shell-out), and progress/result flow back the same way every other
@@ -28,9 +28,9 @@ const AsyncJobBase = {
   /** The error as a code the device translates (#679, serverMessage.ts), when the server has one. */
   errorCode: z.string().min(1).optional(),
   errorParams: ServerMessageParamsSchema.optional(),
-  /** Who works on it, when not the Stage-Server: `device:<Device.id>` - a device whose own helper
-   * does the job (docs/32 §8, the YouTube helper on Android). The Stage-Server leaves such a job
-   * alone, restart or not; the device fails its own leftovers. Absent: the Stage-Server's. */
+  /** Who works on it, when not the Host: `device:<Device.id>` - a device whose own helper
+   * does the job (docs/32 §8, the YouTube helper on Android). The Host leaves such a job
+   * alone, restart or not; the device fails its own leftovers. Absent: the Host's. */
   runner: z.string().min(1).optional(),
 }
 
@@ -53,7 +53,7 @@ export const YoutubeExtractJobSchema = z.object({
 export const StemModelSchema = z.enum(['standard', 'extended'])
 export type StemModel = z.infer<typeof StemModelSchema>
 
-/** Stem separation (#9, Marco 2026-10-15: on the Stage-Server): a track of the variant split into
+/** Stem separation (#9, Marco 2026-10-15: on the Host): a track of the variant split into
  * stems, stored as `kind: 'stem'` tracks with `parentTrackId` = the source. A new separation of
  * the same track replaces its earlier stems. */
 export const StemSeparationJobSchema = z.object({

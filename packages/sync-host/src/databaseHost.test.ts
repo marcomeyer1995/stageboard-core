@@ -10,7 +10,7 @@ import { createDatabaseHost, type Catalog, type DatabaseHostRequest } from './da
 
 PouchDB.plugin(HttpAdapter).plugin(MemoryAdapter).plugin(Replication)
 
-// The validator the Stage-Server writes into every band (core-backend workspaceProvisioning.ts).
+// The validator the Host writes into every band (core-backend workspaceProvisioning.ts).
 const ROSTER = `function(newDoc, oldDoc, userCtx) {
   var isAdmin = userCtx.roles.indexOf('admin') !== -1 || userCtx.roles.indexOf('_admin') !== -1;
   if (newDoc._id.indexOf('profiles:') === 0 && !isAdmin) {
@@ -56,7 +56,7 @@ const auth = (user: string, password: string) => ({ Authorization: `Basic ${Buff
 const admin = auth('admin', 'secret')
 const call = (path: string, init: RequestInit = {}) => fetch(`${web.url}${path}`, init)
 
-/** The band's accounts as the Stage-Server writes them: as the server admin, over the host's own protocol. */
+/** The band's accounts as the Host writes them: as the server admin, over the host's own protocol. */
 const storeOf = (band: string): AccountStore => ({
   get: async (id) => {
     const r = await call(`/${band}/${encodeURIComponent(id)}`, { headers: admin })

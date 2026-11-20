@@ -105,7 +105,7 @@ async function soloStart(ctx) {
 
 /**
  * The sizes other devices have (#819 step 2), on this device: CDP makes its WebView lay out as a
- * phone or a tablet in either orientation - the very build in the APK, not the Stage-Server's.
+ * phone or a tablet in either orientation - the very build in the APK, not the Host's.
  * Width × height in CSS px; `mobile` for touch layouts.
  */
 export const SIZES = [

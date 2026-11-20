@@ -58,6 +58,8 @@ public class LocalHostPlugin extends Plugin {
     private volatile String hostId = "";
     private volatile int epoch = 1;
     private volatile boolean active = false;
+    /** Bands this host serves whatever the lease says (#962): the ones it founded. The live channels of any other band follow `active`. */
+    private volatile java.util.Set<String> servedBands = java.util.Collections.emptySet();
     private volatile long clockOffsetMs = 0;
     /** Pages that may talk to this host from a browser or the app's WebView: the app itself (Capacitor's
      * origin) and the other hosts of the band, whose pages open the band (the app pushes them). A page of
@@ -74,7 +76,7 @@ public class LocalHostPlugin extends Plugin {
     private final AtomicLong nextId = new AtomicLong();
     private final Map<Long, Pending> pending = new ConcurrentHashMap<>();
     /** Live channels (Play, switches): per "<band>/<topic>" the open streams - relayed natively,
-     * without the WebView, like the Stage-Server's push hubs (show-state, switch-state). */
+     * without the WebView, like the Host's push hubs (show-state, switch-state). */
     /** The latest snapshot of a channel that sends its whole state (presence): a stream gets it on connecting. */
     private final Map<String, String> snapshots = new ConcurrentHashMap<>();
     private final Map<String, java.util.Set<OutputStream>> streams = new ConcurrentHashMap<>();
@@ -149,6 +151,15 @@ public class LocalHostPlugin extends Plugin {
             }
         }
         allowedOrigins = origins;
+        java.util.Set<String> served = new java.util.HashSet<>();
+        com.getcapacitor.JSArray bands = call.getArray("servedBands");
+        if (bands != null) {
+            for (int i = 0; i < bands.length(); i++) {
+                String b = bands.optString(i, "");
+                if (!b.isEmpty()) served.add(b);
+            }
+        }
+        servedBands = served;
         if (!active) allowed.clear();
         call.resolve();
     }
@@ -210,12 +221,14 @@ public class LocalHostPlugin extends Plugin {
             sock.setSoTimeout(90_000);
             InputStream in = new BufferedInputStream(sock.getInputStream(), 65536);
             OutputStream out = new java.io.BufferedOutputStream(sock.getOutputStream(), 65536);
+            java.net.InetAddress peer = sock.getInetAddress();
+            String remote = peer == null ? null : peer.getHostAddress();
             while (true) {
                 String requestLine = readLine(in);
                 if (requestLine.isEmpty()) return;
                 String[] parts = requestLine.split(" ");
                 if (parts.length < 2) return;
-                boolean keepAlive = serve(parts[0], parts[1], in, out);
+                boolean keepAlive = serve(parts[0], parts[1], in, out, remote);
                 out.flush();
                 if (!keepAlive) return;
             }
@@ -224,7 +237,7 @@ public class LocalHostPlugin extends Plugin {
     }
 
     /** Answers one request; true when the connection stays open for the next. */
-    private boolean serve(String method, String target, InputStream in, OutputStream out) throws IOException, InterruptedException {
+    private boolean serve(String method, String target, InputStream in, OutputStream out, String remote) throws IOException, InterruptedException {
         Map<String, String> headers = new HashMap<>();
         String line;
         while (!(line = readLine(in)).isEmpty()) {
@@ -266,7 +279,7 @@ public class LocalHostPlugin extends Plugin {
             write(out, 200, "application/json", answer.getBytes(StandardCharsets.UTF_8), keepAlive);
             return keepAlive;
         }
-        // Who this host is - the Stage-Server reads the fingerprint here when the admin names the tablet (#914).
+        // Who this host is - the Host reads the fingerprint here when the admin names the tablet (#914).
         if (path.equals("/server-info")) {
             String address = lanAddress();
             String cert;
@@ -284,18 +297,19 @@ public class LocalHostPlugin extends Plugin {
         String authorization = headers.get("authorization");
         java.util.regex.Matcher live = LIVE.matcher(path);
         if (live.matches()) {
-            // A passive backup serves no band: only once the app says this host has taken over.
-            if (!active) {
+            // A passive backup serves no band: only once the app says this host has taken over - or for a band it
+            // founded itself (#962), which no lease decides.
+            if (!active && !servedBands.contains(live.group(1))) {
                 write(out, 503, "application/json", "{\"error\":\"passive\",\"reason\":\"This host is the backup and is not serving the band.\"}".getBytes(StandardCharsets.UTF_8), keepAlive);
                 return keepAlive;
             }
             // The app checks the login once, then the channel runs natively. Only a push needs it: a page opens
-            // the stream with EventSource, which cannot send a login - the Stage-Server's stream is open too.
+            // the stream with EventSource, which cannot send a login - the Host's stream is open too.
             String band = "stageboard-" + live.group(1);
             String key = band + "\n" + authorization;
             Long until = allowed.get(key);
             if (live.group(3).equals("push") && (until == null || until < System.currentTimeMillis())) {
-                Pending check = ask("GET", "/_host-login/" + band, "", "", authorization, new byte[0]);
+                Pending check = ask("GET", "/_host-login/" + band, "", "", authorization, new byte[0], remote);
                 if (check.status != 200) {
                     write(out, 401, "application/json", "{\"error\":\"unauthorized\"}".getBytes(StandardCharsets.UTF_8), keepAlive);
                     return keepAlive;
@@ -305,13 +319,13 @@ public class LocalHostPlugin extends Plugin {
             return relay(live.group(1) + "/" + live.group(2), live.group(3), method, body, out, keepAlive);
         }
 
-        Pending p = ask(method, path, query, headers.getOrDefault("content-type", ""), authorization, body);
+        Pending p = ask(method, path, query, headers.getOrDefault("content-type", ""), authorization, body, remote);
         write(out, p.status, p.contentType, p.body, keepAlive);
         return keepAlive;
     }
 
     /** Hands a request to the app (sync-host and the login check live there) and waits for its answer. */
-    private Pending ask(String method, String path, String query, String contentType, String authorization, byte[] body) throws InterruptedException {
+    private Pending ask(String method, String path, String query, String contentType, String authorization, byte[] body, String remote) throws InterruptedException {
         long id = nextId.incrementAndGet();
         Pending p = new Pending();
         pending.put(id, p);
@@ -321,6 +335,8 @@ public class LocalHostPlugin extends Plugin {
         req.put("path", path);
         req.put("query", query);
         req.put("contentType", contentType);
+        // The address the connection came from - what the Device Ledger shows; never taken from the client.
+        if (remote != null) req.put("remoteAddress", remote);
         if (authorization != null) req.put("authorization", authorization);
         // JSON as text through the bridge, only binary as Base64.
         if (contentType.isEmpty() || contentType.contains("json")) req.put("text", new String(body, StandardCharsets.UTF_8));
@@ -410,7 +426,7 @@ public class LocalHostPlugin extends Plugin {
     /**
      * The tablet's own certificate (docs/25 §6c): made once, the key stays in the Android keystore
      * and never leaves the device. Every tablet of the band trusts exactly this certificate - by its
-     * fingerprint in the band data (`hosts:<device>`), like the Stage-Server's at pairing.
+     * fingerprint in the band data (`hosts:<device>`), like the Host's at pairing.
      */
     private static final String KEY_ALIAS = "stageboard-host";
 
@@ -441,7 +457,7 @@ public class LocalHostPlugin extends Plugin {
         return ctx;
     }
 
-    /** SHA-256 of the certificate - lowercase hex, no separators, like the Stage-Server's. */
+    /** SHA-256 of the certificate - lowercase hex, no separators, like the Host's. */
     private String fingerprint() throws Exception {
         byte[] digest = MessageDigest.getInstance("SHA-256").digest(keyStore().getCertificate(KEY_ALIAS).getEncoded());
         StringBuilder hex = new StringBuilder();

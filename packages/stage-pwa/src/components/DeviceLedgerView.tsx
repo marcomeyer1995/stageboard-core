@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { DEVICE_INFO_TIMEOUT_MS, SERVER_EXECUTION_TARGET, type AudioOutputHealth, type Device, type DeviceVitalsSummary, type LogicalDevice } from 'shared-types'
 import { getServerTime } from '../lib/clockSync'
 import { useNow } from '../lib/useNow'
-import { useStageServerStatus } from '../lib/useStageServerStatus'
+import { useHostUrlStatus } from '../lib/useHostUrlStatus'
 import { useDeviceInfoStore } from '../store/useDeviceInfoStore'
 import { useDevicesStore } from '../store/useDevicesStore'
 import { useDialogStore } from '../store/useDialogStore'
@@ -16,7 +16,7 @@ import { BUILT_IN_OUTPUTS, builtInRoles } from './BuiltInOutputs'
 import { LatencyProfileDialog, LatencySummary } from './LatencyProfiles'
 import { useTranslation } from 'react-i18next'
 
-/** How long the Stage-Server has to collect reports before a missing one means "inactive". */
+/** How long the Host has to collect reports before a missing one means "inactive". */
 const COLLECT_MS = 5 * 60 * 1000
 /** Fallback for an older server (no `collectingSince`): seen this recently = not inactive. */
 const RECENT_MS = 24 * 60 * 60 * 1000
@@ -99,7 +99,7 @@ function StatusDot({ on, title }: { on: boolean | null; title: string }) {
  * same underlying heartbeat idea as BandManagementView.tsx's per-member green dots, just shown
  * per-device instead of aggregated per-profile - not a second, redundant mechanism, the same
  * kind of signal read at a different granularity), and "Netzwerk erreichbar" from the
- * Stage-Server's own background ping loop (pingLoop.ts) - a real ICMP check no browser could
+ * Host's own background ping loop (pingLoop.ts) - a real ICMP check no browser could
  * ever do itself.
  *
  * Kick/restore (`revoked`) is admin-gated the same way every other destructive/administrative
@@ -118,7 +118,7 @@ export function DeviceLedgerView() {
   const activeWorkspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
   const isAdmin = useWorkspaceStore((state) => state.workspaces.find((w) => w.id === activeWorkspaceId)?.isAdmin ?? false)
   const confirm = useDialogStore((state) => state.confirm)
-  // Latency entry (#491): which device's dialog is open - a tablet, or the Stage-Server.
+  // Latency entry (#491): which device's dialog is open - a tablet, or the Host.
   const [latencyFor, setLatencyFor] = useState<{ id: string; name: string } | null>(null)
 
   // Opens the live diagnostic SSE subscription only while this screen is actually mounted (see
@@ -130,7 +130,7 @@ export function DeviceLedgerView() {
   }, [activeWorkspaceId])
   const alert = useDialogStore((state) => state.alert)
   const now = useNow()
-  const stageServer = useStageServerStatus()
+  const hostUrl = useHostUrlStatus()
 
   async function toggleRevoked(device: Device) {
     const nextRevoked = !device.revoked
@@ -157,11 +157,11 @@ export function DeviceLedgerView() {
     if (!builtIn.includes(device)) return device.name
     return BUILT_IN_OUTPUTS.find((output) => output.capability === device.capability)?.label ?? device.name
   }
-  /** Live signal (app open or reachable). Right after a Stage-Server start no device has reported
+  /** Live signal (app open or reachable). Right after a Host start no device has reported
    * yet - then every device would look inactive (found on the real server, 2026-10-07), so
    * missing reports only count once the server has collected for a while; an older server
    * without `collectingSince` falls back to "not seen for a day". */
-  // `collectingSince` and the reports' `lastSeenAt` are the Stage-Server's clock - compared in
+  // `collectingSince` and the reports' `lastSeenAt` are the Host's clock - compared in
   // server time, so a tablet clock that is off doesn't shift the window (#426 review).
   const serverNow = now - Date.now() + getServerTime()
   const collectedLongEnough = deviceInfo.collectingSince !== undefined && serverNow - deviceInfo.collectingSince >= COLLECT_MS
@@ -209,7 +209,7 @@ export function DeviceLedgerView() {
         />
       </div>
 
-      {/* The Stage-Server itself, not a roster `Device` (it never joins a band, it hosts one) -
+      {/* The Host itself, not a roster `Device` (it never joins a band, it hosts one) -
           its own row, same visual language as the tablets below, so "is anything down" reads
           the same way for the box everything else here depends on. */}
       <div className="mb-2 rounded-container border border-line bg-surface px-4 py-3 shadow-sb">
@@ -220,22 +220,22 @@ export function DeviceLedgerView() {
         </div>
         <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ink-soft">
           <span className="flex items-center gap-1.5">
-            <StatusDot on={stageServer.status === 'loading' ? null : stageServer.status === 'reachable'} title={t('reachable')} />
+            <StatusDot on={hostUrl.status === 'loading' ? null : hostUrl.status === 'reachable'} title={t('reachable')} />
             {t('reachable')}
           </span>
-          {stageServer.status === 'reachable' ? (
+          {hostUrl.status === 'reachable' ? (
             <>
               <span>
-                {t('ip', { ip: stageServer.lanIp })}
-                {stageServer.hostname && <span className="text-ink-faint"> ({stageServer.hostname})</span>}
+                {t('ip', { ip: hostUrl.lanIp })}
+                {hostUrl.hostname && <span className="text-ink-faint"> ({hostUrl.hostname})</span>}
               </span>
               <span>{t('server')}</span>
-              <span>{t('activeBand', { band: stageServer.activeWorkspaceName ?? stageServer.activeWorkspaceId ?? t('none') })}</span>
+              <span>{t('activeBand', { band: hostUrl.activeWorkspaceName ?? hostUrl.activeWorkspaceId ?? t('none') })}</span>
               <BackupStatusLine />
             </>
           ) : (
             <span className="text-ink-faint">
-              {stageServer.status === 'loading' ? (stageServer.slow ? t('slow') : t('loading')) : t('noConnection')}
+              {hostUrl.status === 'loading' ? (hostUrl.slow ? t('slow') : t('loading')) : t('noConnection')}
             </span>
           )}
         </div>

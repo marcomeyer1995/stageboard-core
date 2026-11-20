@@ -88,12 +88,12 @@ export function readAsyncJobs(docs: unknown[]): AsyncJob[] {
  * processed at a time per workspace. Pure, so the interesting part of the sync needs no
  * the database to test (same split pluginSync.ts's `reconcile` makes). */
 export function pickNextQueuedJob(jobs: readonly AsyncJob[]): AsyncJob | undefined {
-  // A device's own job (`runner`), and a conversion only devices can do (#822), are not the Stage-Server's.
+  // A device's own job (`runner`), and a conversion only devices can do (#822), are not the Host's.
   return jobs.filter((job) => job.status === 'queued' && !job.runner && job.type !== 'opus-convert').sort((a, b) => a.createdAt - b.createdAt)[0]
 }
 
 /** `running` jobs that don't belong to this watcher instance's current job - left behind by a
- * Stage-Server restart mid-download, since nothing else will ever move them out of `running`.
+ * Host restart mid-download, since nothing else will ever move them out of `running`.
  * Pure for the same reason as `pickNextQueuedJob`. */
 export function stuckRunningJobs(jobs: readonly AsyncJob[], currentJobId: string | null): AsyncJob[] {
   return jobs.filter((job) => job.status === 'running' && job.id !== currentJobId && !job.runner && job.type !== 'opus-convert')
@@ -107,7 +107,7 @@ function jobDocId(id: string): string {
  * Picks up `AsyncJob` documents (#5) the same way `pluginSync.ts` picks up plugin installs -
  * watching the shared workspace db's `_changes` feed, no dedicated HTTP endpoint. Today's one
  * job type, `youtube-extract`, shells out to `yt-dlp` (network access + a local binary, so this
- * has to run on the Stage-Server, never a tablet) and lands the result exactly where an
+ * has to run on the Host, never a tablet) and lands the result exactly where an
  * uploaded track would: a file under `audioStore.ts` plus a `TrackMeta` appended to the owning
  * SongVariant's `tracks` - see `putTrack` (stage-pwa/songVariantsDb.ts) for the client-side
  * equivalent of that same read-modify-write this mirrors server-side.

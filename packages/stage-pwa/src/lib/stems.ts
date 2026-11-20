@@ -4,7 +4,7 @@ import type { DialogField } from '../store/useDialogStore'
 
 /**
  * Stems (#9, docs/22): `kind: 'stem'` tracks that together make the song - split from another
- * track of the variant by the Stage-Server's stem-separation plugin (`parentTrackId`), or uploaded
+ * track of the variant by the Host's stem-separation plugin (`parentTrackId`), or uploaded
  * as files from the band leader (`parentTrackId: null`). They are not alternatives to play as the
  * backing track and aren't downloaded to every device - only listed, heard and renamed.
  */

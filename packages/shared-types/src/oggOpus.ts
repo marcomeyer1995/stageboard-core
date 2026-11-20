@@ -3,7 +3,7 @@
  * stream, the browser's own recordings, stems written as WebM - only changes its container here:
  * the same packets, re-wrapped, nothing decoded or encoded again, so nothing is lost.
  *
- * Plain TypeScript without dependencies: the Stage-Server (YouTube download, stems) and the app
+ * Plain TypeScript without dependencies: the Host (YouTube download, stems) and the app
  * use the same code.
  */
 

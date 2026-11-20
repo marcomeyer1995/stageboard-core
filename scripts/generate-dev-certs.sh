@@ -19,7 +19,7 @@ fi
 
 mkdir -p "$CERTS_DIR"
 
-# LAN_IP: set it to the Stage-Server's LAN address so tablets trust the same cert the dev machine does.
+# LAN_IP: set it to the Host's LAN address so tablets trust the same cert the dev machine does.
 #
 # stageboard.local (2026-09-02, at Marco's explicit request): the mDNS name a joining device
 # can use instead of a raw IP+port - see docs/00's "Server Discovery" (mDNS auto-discovery) and
@@ -44,7 +44,7 @@ openssl req -x509 -newkey rsa:2048 -nodes \
 mv -f "${CERT_FILE}.tmp" "$CERT_FILE"
 mv -f "${KEY_FILE}.tmp" "$KEY_FILE"
 # Owner-only: the native app pins this certificate (#348), so whoever has the key could pose as
-# this Stage-Server. Only core-backend and Vite read it, both as this user.
+# this Host. Only core-backend and Vite read it, both as this user.
 chmod 600 "$KEY_FILE"
 
 echo "Wrote ${CERT_FILE} and ${KEY_FILE}."

@@ -3,14 +3,14 @@ import { dirname, join } from 'node:path'
 
 /**
  * Where song-variant audio track binaries live now (see #30): a plain directory tree on
- * the Stage-Server's own disk, not a PouchDB attachment. Every tablet used to receive every
+ * the Host's own disk, not a PouchDB attachment. Every tablet used to receive every
  * byte of every band's audio catalog through the `song-variants` live sync stream whether it
  * wanted it or not - that's the "PouchDB Bloat" problem #30 exists to fix. the database itself was
  * considered (it already has dormant attachment helpers in database.ts) and rejected: the database
  * stores attachments inline in the same file as the database, so compaction - which it needs
  * periodically - rewrites every attachment byte along with it. That's a real bottleneck at
  * the catalog sizes #30 is worried about ("10 GB catalog"), and the one benefit the database would
- * have bought (automatic replication to a future second Stage-Server) is for a feature
+ * have bought (automatic replication to a future second Host) is for a feature
  * (docs/01 §2.3 Touring-tier HA) that doesn't exist yet.
  */
 /** Read fresh on every call, not cached at module scope - tests point this at a fresh temp

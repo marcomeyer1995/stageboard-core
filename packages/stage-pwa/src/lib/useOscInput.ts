@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { OscInMessageSchema, type OscInMessage } from 'shared-types'
 import { matchOscRule, OSC_INPUT_CAPABILITY } from './oscInput'
 import { latestTrackedShow } from './runAction'
-import { getStageServerUrl } from './stageServer'
+import { getHostUrl } from './hostUrl'
 import { pressTrigger, releaseTrigger } from './triggerPress'
 import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
 import { useOscInputRulesStore } from '../store/useOscInputRulesStore'
@@ -13,7 +13,7 @@ import { useWorkspaceStore } from '../store/useWorkspaceStore'
 export const oscLearn: { capture: ((message: OscInMessage) => void) | null } = { capture: null }
 
 /**
- * OSC as a trigger (#484, docs/23 §4): the Stage-Server receives the controller's messages and
+ * OSC as a trigger (#484, docs/23 §4): the Host receives the controller's messages and
  * pushes them on a stream; the device that drives the show runs the rules - the same press/release
  * logic as pedals and MIDI controllers (triggerPress.ts), with the master's rights. Only that
  * device (and one learning a button) keeps the stream open - one connection, not one per tablet.
@@ -27,7 +27,7 @@ export function useOscInput(): void {
   const listen = hasInput && (drives || learning)
 
   useEffect(() => {
-    const base = getStageServerUrl()
+    const base = getHostUrl()
     if (!listen || !base || !workspaceId || typeof EventSource === 'undefined') return
     const source = new EventSource(`${base}/workspaces/${encodeURIComponent(workspaceId)}/osc-in/stream`)
     source.onmessage = (event: MessageEvent<string>) => {
