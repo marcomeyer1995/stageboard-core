@@ -7,7 +7,7 @@ import { writePersistedActiveWorkspace } from './activeWorkspaceStateStore.js'
 
 export interface WorkspaceHardwareControllerOptions {
   /** Who this host is and what it can do (#964): handed to the job watcher, which takes only the jobs this host can do. */
-  jobHost?: Pick<AsyncJobWatcherOptions, 'hostId' | 'canDo' | 'hasPeers' | 'needsOf' | 'youtubeDownload' | 'stemSeparate' | 'addonMethods'>
+  jobHost?: Pick<AsyncJobWatcherOptions, 'hostId' | 'canDo' | 'hasPeers' | 'needsOf' | 'stemSeparate' | 'addonMethods'>
   database: DatabaseConfig
   registry: PluginRegistry
   log: {

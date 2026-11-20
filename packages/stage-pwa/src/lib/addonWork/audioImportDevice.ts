@@ -1,7 +1,7 @@
 import { toTrackFormat } from 'sync-host'
 import type { AsyncJob, AudioImportJob, TrackMeta } from 'shared-types'
 import { randomId } from '../id'
-import { activeDeviceJobs, deviceRunner } from '../youtubeDevice'
+import { activeDeviceJobs, deviceRunner } from '../deviceJobs'
 import type { AddonMethodResult } from '../addonMethodClient'
 
 /**

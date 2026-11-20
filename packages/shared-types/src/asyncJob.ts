@@ -8,7 +8,7 @@ import { ServerMessageParamsSchema } from './serverMessage.js'
  * work (network access, a shell-out), and progress/result flow back the same way every other
  * replicated document does, no dedicated HTTP endpoint needed.
  *
- * Three job types: `youtube-extract` (#5), `stem-separation` (#9) and `opus-convert` (#822) - discriminated by `type`.
+ * Job types: `audio-import` (an add-on fetches audio, #964), `stem-separation` (#9) and `opus-convert` (#822) - discriminated by `type`. (`youtube-extract`, #5, became the YouTube add-on's `audio-import`; old documents of it are ignored.)
  */
 export const AsyncJobStatusSchema = z.enum(['queued', 'running', 'done', 'error'])
 export type AsyncJobStatus = z.infer<typeof AsyncJobStatusSchema>
@@ -34,17 +34,6 @@ const AsyncJobBase = {
    * the job, restart or not; every other host and device leaves it alone. Absent: nobody has taken it yet. */
   runner: z.string().min(1).optional(),
 }
-
-export const YoutubeExtractJobSchema = z.object({
-  ...AsyncJobBase,
-  type: z.literal('youtube-extract'),
-  url: z.string().min(1),
-  /** What to label the resulting TrackMeta - authored once at job creation, not editable
-   * mid-run. */
-  label: z.string().min(1),
-  /** Set once `status` reaches `done` - the TrackMeta.id of the track this job produced. */
-  trackId: z.string().min(1).optional(),
-})
 
 /**
  * Which stems to separate (#9): `standard` = drums, bass, vocals, rest (Demucs htdemucs);
@@ -100,22 +89,8 @@ export const AudioImportJobSchema = z.object({
   trackId: z.string().min(1).optional(),
 })
 
-export const AsyncJobSchema = z.discriminatedUnion('type', [YoutubeExtractJobSchema, AudioImportJobSchema, StemSeparationJobSchema, OpusConvertJobSchema])
+export const AsyncJobSchema = z.discriminatedUnion('type', [AudioImportJobSchema, StemSeparationJobSchema, OpusConvertJobSchema])
 export type AsyncJob = z.infer<typeof AsyncJobSchema>
-export type YoutubeExtractJob = z.infer<typeof YoutubeExtractJobSchema>
 export type AudioImportJob = z.infer<typeof AudioImportJobSchema>
 export type StemSeparationJob = z.infer<typeof StemSeparationJobSchema>
 export type OpusConvertJob = z.infer<typeof OpusConvertJobSchema>
-
-/**
- * youtube.com/youtu.be only (`www.`/`m.` subdomains, `/watch`, `/shorts/`, or a bare youtu.be
- * short link) - #5 is framed as a private practice-track tool, not a general-purpose
- * downloader, and this is the one guard shared by both the client (instant feedback before a
- * job is even created) and the server (the one thing standing between an AsyncJob document and
- * a shell-out, so it's checked again there regardless of what the client already validated).
- */
-const YOUTUBE_URL_RE = /^https:\/\/(www\.|m\.)?(youtube\.com\/(watch\?v=|shorts\/)|youtu\.be\/)[\w-]{6,}/
-
-export function isYoutubeUrl(url: string): boolean {
-  return YOUTUBE_URL_RE.test(url.trim())
-}

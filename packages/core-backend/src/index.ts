@@ -19,7 +19,6 @@ import { startBuiltinDatabase, type BuiltinDatabase } from './builtinDatabase.js
 import { addonHostNeeds, hostCapabilities } from './hostCapabilities.js'
 import { builtinRunners } from './builtinRunners.js'
 import { createAddonMethods } from './addons/addonMethods.js'
-import { createYoutubeAddonDownload } from './addons/youtubeAddon.js'
 import { createStemAddonSeparate } from './addons/stemAddon.js'
 import { createHostLeaseService, getFromHost, postJsonToHost } from './hostLeaseService.js'
 import { createHostRoleStore } from './hostRoleStore.js'
@@ -44,7 +43,6 @@ import {
   type Device,
 } from 'shared-types'
 import { messageFieldsOf, serverMessage, type ServerMessage } from 'shared-types'
-import { YOUTUBE_VIDEO_ID_RE } from 'shared-types'
 import { createBackupService, realBackupDeps, type BackupService } from './backup.js'
 import { deleteAudioFile, readAudioFile, writeAudioFile } from './audioStore.js'
 import { readPersistedActiveWorkspace } from './activeWorkspaceStateStore.js'
@@ -57,7 +55,7 @@ import { certFingerprint } from './certFingerprint.js'
 import { startMdnsResponder } from './mdnsResponder.js'
 import { startPingLoop } from './pingLoop.js'
 import { LOOKUP_CATALOG } from './plugins/lookupCatalog.js'
-import { bandHasAddon, ULTIMATE_GUITAR_PLUGIN_ID, ULTIMATE_GUITAR_PROVIDER, YOUTUBE_DOWNLOAD_PLUGIN_ID } from './plugins/importAddons.js'
+import { bandHasAddon, ULTIMATE_GUITAR_PLUGIN_ID, ULTIMATE_GUITAR_PROVIDER } from './plugins/importAddons.js'
 import { runYtDlpSearch } from './ytDlp.js'
 import { LookupRegistry } from './plugins/lookupRegistry.js'
 import { lookupErrorBody } from './plugins/lookupError.js'
@@ -444,8 +442,8 @@ export async function buildApp(options: { backupService?: BackupService; databas
       hostId,
       needsOf: (job) => runners.needsOfJob(job),
       addonMethods,
-      // The YouTube download as an add-on in a sandbox (#964, docs/32 §6) - opt in with STAGEBOARD_ADDON_SANDBOX=1 until it has run for hours on a real host.
-      ...(process.env.STAGEBOARD_ADDON_SANDBOX === '1' ? { youtubeDownload: createYoutubeAddonDownload(pluginLog), stemSeparate: createStemAddonSeparate(pluginLog) } : {}),
+      // Stem separation as an add-on in a sandbox (#964, docs/32 §6) - opt in with STAGEBOARD_ADDON_SANDBOX=1 until it has run for hours on a real host.
+      ...(process.env.STAGEBOARD_ADDON_SANDBOX === '1' ? { stemSeparate: createStemAddonSeparate(pluginLog) } : {}),
       canDo: (needs) => canDoFromCapabilities(hostCapabilities(runners))(needs),
       hasPeers: async () => {
         const workspaceId = workspaceHardware.getActiveWorkspaceId()
@@ -848,27 +846,6 @@ export async function buildApp(options: { backupService?: BackupService; databas
   }
 
 
-  /** The YouTube add-on (#546) for this band, or the refusal - like `lookupRefusal` for UG. */
-  async function youtubeRefusal(workspace: string | undefined): Promise<ServerMessage | null> {
-    if (!workspace || !/^[a-z0-9_-]+$/i.test(workspace)) return serverMessage('youtube.bandMissing')
-    const installed = await bandHasAddon(database, workspace, YOUTUBE_DOWNLOAD_PLUGIN_ID).catch(() => false)
-    return installed ? null : serverMessage('youtube.addonMissing')
-  }
-
-  // YouTube search for "Track hinzufügen" (#618): the same yt-dlp as the download, metadata only.
-  app.get('/youtube/search', async (request, reply) => {
-    const { q, workspace } = request.query as { q?: string; workspace?: string }
-    if (!q?.trim()) return reply.status(400).send({ status: 'error', message: 'Missing query parameter q' })
-    const refusal = await youtubeRefusal(workspace)
-    if (refusal) return reply.status(403).send({ status: 'error', ...refusal })
-    try {
-      return await runYtDlpSearch(q.trim().slice(0, 200))
-    } catch (err) {
-      app.log.error({ err, q }, 'YouTube search failed')
-      return reply.status(502).send({ status: 'error', ...messageFieldsOf(err) })
-    }
-  })
-
   // An add-on's method, answered by its work script in a sandbox on this device (docs/36 §3, #964). The add-on must be installed for the band; what
   // comes back is the add-on's own answer or its own error - this route knows no add-on's domain.
   app.post('/addons/:id/methods/:method', async (request, reply) => {
@@ -878,24 +855,6 @@ export async function buildApp(options: { backupService?: BackupService; databas
     if (!addonMethods.has(id)) return reply.status(404).send({ ok: false, error: { code: 'addon.unknown', message: `No add-on "${id}" on this host`, params: { addon: id } } })
     if (!(await bandHasAddon(database, workspace, id).catch(() => false))) return reply.status(403).send({ status: 'error', ...serverMessage('addon.notInstalled', { addon: id }) })
     return addonMethods.call(id, method, request.body ?? {})
-  })
-
-  // The hits' thumbnails through the Host (#618): the tablets on stage often have no
-  // internet of their own, only the server does.
-  app.get('/youtube/thumbnail', async (request, reply) => {
-    const { id } = request.query as { id?: string }
-    if (!id || !YOUTUBE_VIDEO_ID_RE.test(id)) return reply.status(400).send({ status: 'error', message: 'Invalid video id' })
-    try {
-      const response = await fetch(`https://i.ytimg.com/vi/${id}/mqdefault.jpg`, { signal: AbortSignal.timeout(10_000) })
-      if (!response.ok) return reply.status(404).send({ status: 'error', message: `Thumbnail HTTP ${response.status}` })
-      return reply
-        .type(response.headers.get('content-type') ?? 'image/jpeg')
-        .header('cache-control', 'public, max-age=86400')
-        .send(Buffer.from(await response.arrayBuffer()))
-    } catch (err) {
-      app.log.warn({ err, id }, 'YouTube thumbnail failed')
-      return reply.status(502).send({ status: 'error', message: 'Thumbnail not reachable' })
-    }
   })
 
   // Provisions a brand-new workspace: its database, `_security` doc, roster validation doc, and

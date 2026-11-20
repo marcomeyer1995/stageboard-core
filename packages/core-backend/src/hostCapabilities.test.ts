@@ -22,9 +22,9 @@ describe('hostCapabilities (docs/25 §6, 2026-11-07)', () => {
   })
 
   it('names per job whether this machine can do it: a missing tool is what a job lacks, everything else a Node machine does (#962)', () => {
-    const caps = hostCapabilities(createJobRunners([{ id: 'youtube-download', kind: 'job', missing: () => 'yt-dlp' }, { id: 'speech', kind: 'job' }, { id: 'backup', kind: 'job' }]), [])
-    expect(caps.jobs.find((job) => job.id === 'youtube-download')).toEqual({ id: 'youtube-download', available: false, needs: 'yt-dlp' })
-    expect(caps.jobs.find((job) => job.id === 'speech')).toEqual({ id: 'speech', available: true, needs: null })
+    const caps = hostCapabilities(createJobRunners([{ id: 'speech', kind: 'job', missing: () => 'piper' }, { id: 'lookup', kind: 'job' }, { id: 'backup', kind: 'job' }]), [])
+    expect(caps.jobs.find((job) => job.id === 'speech')).toEqual({ id: 'speech', available: false, needs: 'piper' })
+    expect(caps.jobs.find((job) => job.id === 'lookup')).toEqual({ id: 'lookup', available: true, needs: null })
     expect(caps.jobs.find((job) => job.id === 'backup')).toEqual({ id: 'backup', available: true, needs: null })
   })
 })
@@ -52,7 +52,7 @@ describe('the runners a Node host ships with (#964)', () => {
 
   it('says which background job type each heavy runner works on, so the queue knows what a job needs', () => {
     const runners = builtinRunners()
-    expect(runners.needsOfJob({ type: 'youtube-extract' })).toBe('youtube-download')
+    expect(runners.needsOfJob({ type: 'audio-import', addonId: 'youtube-download' })).toBe('plugin:youtube-download')
     expect(runners.needsOfJob({ type: 'stem-separation' })).toBe('plugin:stem-separation')
     expect(runners.needsOfJob({ type: 'opus-convert' })).toBeNull()
   })

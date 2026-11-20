@@ -3,7 +3,7 @@ import type { AsyncJob } from 'shared-types'
 import { getAllAsyncJobs, putAsyncJob } from './asyncJobsDb'
 import { getDeviceId } from './deviceId'
 import { nextOpusConvertJob, runOpusConvert } from './opusConvertDevice'
-import { activeDeviceJobs, leftoverDeviceJobs } from './youtubeDevice'
+import { activeDeviceJobs, leftoverDeviceJobs } from './deviceJobs'
 import { getTrack, getTrackMeta, putTrack } from './songVariantsDb'
 import { useAsyncJobsStore } from '../store/useAsyncJobsStore'
 

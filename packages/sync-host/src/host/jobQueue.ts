@@ -13,7 +13,7 @@ import type { AsyncJob } from 'shared-types'
  *   of them, so after the claim has settled each host reads the job again and goes on **only if it is still the runner** (`stillMine`).
  */
 
-/** What a job type needs from its host when the host has no runners to ask (its default): YouTube a download tool, stems the stem plugin; a
+/** What a job type needs from its host when the host has no runners to ask (its default): an add-on's audio that add-on (`plugin:<addonId>`), stems the stem plugin; a
  * device's conversion nothing. A host that registers runners answers from them (`JobRunners.needsOfJob`, jobRunners.ts) - see `needsOf`. */
 /** What the queue needs to know of a job to say what it needs: its type, and for an add-on's job the add-on. */
 export type JobRef = Pick<AsyncJob, 'type'> & { addonId?: string }
@@ -23,8 +23,6 @@ export function jobNeeds(job: JobRef): string | null {
     // An add-on's audio (#964): the host needs that add-on's capability, whatever it is.
     case 'audio-import':
       return job.addonId ? `plugin:${job.addonId}` : null
-    case 'youtube-extract':
-      return 'youtube-download'
     case 'stem-separation':
       return 'plugin:stem-separation'
     default:

@@ -143,11 +143,11 @@ describe('runYtDlpExtract', () => {
     await expect(promise).resolves.toEqual({ filePath: '/tmp/job-1/track.m4a' })
   })
 
-  it('rejects with a clear message when yt-dlp skips a file over the size limit', async () => {
+  it('rejects with the code youtube.tooLarge when yt-dlp skips a file over the size limit (the add-on words it)', async () => {
     const { promise } = run()
     fakeChild.stdout.emit('data', Buffer.from('[download] File is larger than max-filesize (300000000 bytes > 209715200 bytes). Aborting.\n'))
     fakeChild.emit('close', 0)
-    await expect(promise).rejects.toThrow(/größer als das Limit/)
+    await expect(promise).rejects.toMatchObject({ name: 'YtDlpFailure', code: 'youtube.tooLarge', params: { mb: expect.any(Number) } })
   })
 
   it('kills a stalled yt-dlp after the timeout and rejects', async () => {
@@ -157,7 +157,7 @@ describe('runYtDlpExtract', () => {
       fakeChild.kill.mockImplementation(() => fakeChild.emit('close', null))
       vi.advanceTimersByTime(1_000)
       expect(fakeChild.kill).toHaveBeenCalledWith('SIGKILL')
-      await expect(promise).rejects.toThrow(/abgebrochen/)
+      await expect(promise).rejects.toMatchObject({ name: 'YtDlpFailure', code: 'youtube.downloadTimeout', params: { minutes: expect.any(Number) } })
     } finally {
       vi.useRealTimers()
     }

@@ -16,10 +16,10 @@ describe('Host messages in the device language (#679)', () => {
   })
 
   it('translates a known code with its values, in the chosen language', async () => {
-    const reply = { status: 'error', ...serverMessage('youtube.tooLarge', { mb: 80 }) }
-    expect(serverText(reply)).toBe('Die Audiospur ist größer als das Limit von 80 MB.')
+    const reply = { status: 'error', ...serverMessage('speech.notInstalled', { voice: 'thorsten' }) }
+    expect(serverText(reply)).toBe('Piper oder Stimme thorsten nicht installiert')
     await i18n.changeLanguage('en')
-    expect(serverText(reply)).toMatch(/80 MB/)
+    expect(serverText(reply)).toMatch(/thorsten/)
     expect(serverErrorText({ error: 'Durch einen Neustart des Hosts unterbrochen.', errorCode: 'job.interrupted' })).toBe('Interrupted by a restart of the Host.')
   })
 

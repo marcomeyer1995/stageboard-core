@@ -21,7 +21,6 @@ export interface AddonManifest {
 const addonFile = (name: string) => fileURLToPath(new URL(`../../scripts/addons/${name}.js`, import.meta.url))
 
 export const BUILTIN_ADDONS = {
-  youtubeDownload: { id: 'youtube-download', file: addonFile('youtube-download'), helpers: ['yt-dlp'], permissions: ['helper:yt-dlp'] },
   speechSynthesis: { id: 'piper-speech', file: addonFile('speech-synthesis'), helpers: ['piper'], permissions: ['helper:piper'] },
   metadataLookup: { id: 'metadata-lookup', file: addonFile('musicbrainz-lookup'), helpers: [], permissions: ['http:https://musicbrainz.org'] },
   ultimateGuitarLookup: { id: 'ultimate-guitar-scraper', file: addonFile('ultimate-guitar-lookup'), helpers: ['ug-page'], permissions: ['helper:ug-page'] },

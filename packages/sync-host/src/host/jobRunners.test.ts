@@ -48,10 +48,11 @@ describe('what a host can do, from the runners it has (#964)', () => {
 describe('which capability a background job needs, from the runners (#964)', () => {
   it('is the id of the runner that works on that job type - a plugin as plugin:<id>', () => {
     const runners = createJobRunners([
-      { id: 'youtube-download', kind: 'job', asyncJobType: 'youtube-extract' },
       { id: 'stem-separation', kind: 'plugin', asyncJobType: 'stem-separation' },
     ])
-    expect(runners.needsOfJob({ type: 'youtube-extract' })).toBe('youtube-download')
+    // An add-on's audio needs that add-on - from the job itself, no runner has to name the job type.
+    expect(runners.needsOfJob({ type: 'audio-import', addonId: 'some-addon' })).toBe('plugin:some-addon')
+    expect(runners.needsOfJob({ type: 'audio-import' })).toBeNull()
     expect(runners.needsOfJob({ type: 'stem-separation' })).toBe('plugin:stem-separation')
   })
 

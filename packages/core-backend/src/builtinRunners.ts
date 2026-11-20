@@ -34,7 +34,6 @@ export const BUILTIN_RUNNERS: readonly JobRunner[] = [
   // What a Node machine does without any extra tool.
   ...['backup', 'measure-inputs', 'calibration', 'lookup', 'plugin-runtime', 'hardware', 'osc-in', 'host-lookup'].map((id): JobRunner => ({ id, kind: 'job' })),
   { id: 'speech', kind: 'job', missing: () => needs(serverSpeech.available(), 'piper') },
-  { id: 'youtube-download', kind: 'job', missing: ytDlpMissing, asyncJobType: 'youtube-extract' },
   // The heavy plugins and the tools they need.
   { id: STEM_SEPARATION_PLUGIN_ID, kind: 'plugin', missing: () => needs(stemsAvailable(), 'demucs'), asyncJobType: 'stem-separation' },
   { id: PIPER_SPEECH_PLUGIN_ID, kind: 'plugin', missing: () => needs(serverSpeech.available(), 'piper') },

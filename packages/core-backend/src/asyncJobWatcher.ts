@@ -1,17 +1,16 @@
 import { randomUUID } from 'node:crypto'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { extname, join } from 'node:path'
-import { AsyncJobSchema, messageFieldsOf, ServerMessageError, type AsyncJob, type AudioImportJob, type OpusConvertJob, type StemSeparationJob, type TrackMeta, type YoutubeExtractJob } from 'shared-types'
+import { join } from 'node:path'
+import { AsyncJobSchema, messageFieldsOf, ServerMessageError, type AsyncJob, type AudioImportJob, type OpusConvertJob, type StemSeparationJob, type TrackMeta } from 'shared-types'
 import { allDocs, getDoc, putDocWithRetry, waitForChange, type DatabaseConfig, type DatabaseDoc } from './database.js'
 import { workspaceDbName } from './workspaceProvisioning.js'
-import { runYtDlpExtract } from './ytDlp.js'
 import { deleteAudioFile, isSafeAudioId, readAudioFile, writeAudioFile } from './audioStore.js'
 import type { AddonMethods } from './addons/addonMethods.js'
-import { hostRunner, type JobRef, pickNextClaimable, runAudioImport, type SeparatedStem, runStemSeparation as runStemSeparationRecipe, runYoutubeExtract, stillMine, stuckJobsOfHost } from 'sync-host'
+import { hostRunner, type JobRef, pickNextClaimable, runAudioImport, type SeparatedStem, runStemSeparation as runStemSeparationRecipe, stillMine, stuckJobsOfHost } from 'sync-host'
 import { readInstallations } from './plugins/pluginSync.js'
 import { STEM_SEPARATION_PLUGIN_ID } from './plugins/stemSeparationPlugin.js'
-import { bandHasAddon, YOUTUBE_DOWNLOAD_PLUGIN_ID } from './plugins/importAddons.js'
+import { bandHasAddon } from './plugins/importAddons.js'
 import { runStemSeparation } from './stems/stemSeparation.js'
 
 const CHANGES_TIMEOUT_MS = 30_000
@@ -28,11 +27,6 @@ export interface AsyncJobWatcherOptions {
   workspaceId: string
   /** This host's id: the runner it writes into a job it takes (`host:<id>`, sync-host's queue rules, #964). */
   hostId?: string
-  /**
-   * Download for the YouTube job through something else than the built-in `yt-dlp` call - the sandboxed add-on (`addons/youtubeAddon.ts`, #964). Absent: the
-   * built-in call, as before.
-   */
-  youtubeDownload?: (url: string, onProgress: (fraction: number) => void) => Promise<{ data: Uint8Array; ext: string }>
   /** Stem separation through the sandboxed add-on (`addons/stemAddon.ts`, #964). Absent: the built-in call. */
   stemSeparate?: (audio: Uint8Array, options: { model: 'standard' | 'extended'; splitGuitar: boolean }, onProgress: (fraction: number) => void) => Promise<{ stems: SeparatedStem[] }>
   /** The add-ons this host can ask for audio (`audio-import` jobs, docs/36 §7, #964): their work scripts run in a sandbox of their own. Absent: such jobs fail with a message. */
@@ -115,7 +109,7 @@ export function createAsyncJobWatcher(options: AsyncJobWatcherOptions): AsyncJob
 
   async function patchJob(id: string, patch: JobPatch): Promise<void> {
     await putDocWithRetry<Record<string, unknown> & DatabaseDoc>(database, workspaceDb, jobDocId(id), (existing) => {
-      const base = existing ?? { id, type: 'youtube-extract', status: 'queued', progress: 0, createdAt: Date.now(), updatedAt: Date.now(), variantId: '', url: '', label: '' }
+      const base = existing ?? { id, type: 'audio-import', status: 'queued', progress: 0, createdAt: Date.now(), updatedAt: Date.now(), variantId: '', addonId: '', method: '', args: {}, label: '' }
       return { ...base, ...patch, updatedAt: Date.now(), _id: jobDocId(id), _rev: existing?._rev }
     })
   }
@@ -153,8 +147,7 @@ export function createAsyncJobWatcher(options: AsyncJobWatcherOptions): AsyncJob
   async function processJob(job: AsyncJob): Promise<void> {
     if (job.type === 'stem-separation') return processStemJob(job)
     if (job.type === 'opus-convert') return // a device's (pickNextQueuedJob never hands one out)
-    if (job.type === 'audio-import') return processAudioImportJob(job)
-    return processYoutubeJob(job)
+    return processAudioImportJob(job)
   }
 
   /** Throttled, chained progress writes - awaited before a job's final write, so a late one can
@@ -228,43 +221,6 @@ export function createAsyncJobWatcher(options: AsyncJobWatcherOptions): AsyncJob
         writeAudio: (variantId, trackId, data) => writeAudioFile(variantId, trackId, Buffer.from(data.buffer, data.byteOffset, data.byteLength)),
         deleteAudio: deleteAudioFile,
         replaceStems,
-        newId: randomUUID,
-        now: Date.now,
-        progressIntervalMs: PROGRESS_WRITE_INTERVAL_MS,
-      })
-    } finally {
-      currentJobId = null
-    }
-    await pickUpNext()
-  }
-
-  /**
-   * The YouTube job: the recipe is sync-host's (`runYoutubeExtract` - the order of the steps, the checks, the clean-up, the errors), run
-   * here with this host's ports: the band's documents over the database client, the audio store on disk, and yt-dlp for the download.
-   */
-  async function processYoutubeJob(job: YoutubeExtractJob): Promise<void> {
-    currentJobId = job.id
-    try {
-      await runYoutubeExtract(job, {
-        log,
-        patchJob: (patch) => patchJob(job.id, patch),
-        bandHasAddon: () => bandHasAddon(database, workspaceId, YOUTUBE_DOWNLOAD_PLUGIN_ID),
-        isSafeVariantId: isSafeAudioId,
-        variantExists,
-        download: options.youtubeDownload ?? (async (url, onProgress) => {
-          const workDir = await mkdtemp(join(tmpdir(), 'stageboard-yt-'))
-          try {
-            const { filePath } = await runYtDlpExtract(url, join(workDir, 'track.%(ext)s'), onProgress)
-            return { data: await readFile(filePath), ext: extname(filePath).replace(/^\./, ''), dispose: () => rm(workDir, { recursive: true, force: true }) }
-          } catch (err) {
-            await rm(workDir, { recursive: true, force: true }).catch(() => {})
-            throw err
-          }
-        }),
-        writeAudio: (variantId, trackId, data) => writeAudioFile(variantId, trackId, Buffer.from(data.buffer, data.byteOffset, data.byteLength)),
-        deleteAudio: deleteAudioFile,
-        appendTrack,
-        queueOpusConvert,
         newId: randomUUID,
         now: Date.now,
         progressIntervalMs: PROGRESS_WRITE_INTERVAL_MS,

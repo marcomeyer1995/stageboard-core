@@ -6,8 +6,6 @@ const db = vi.hoisted(() => ({ putAsyncJob: vi.fn(async () => {}), removeAsyncJo
 vi.mock('../lib/asyncJobsDb', () => db)
 const variants = vi.hoisted(() => ({ putTrack: vi.fn(async () => {}), removeTrack: vi.fn(), updateStem: vi.fn(), getTrack: vi.fn() }))
 vi.mock('../lib/songVariantsDb', () => variants)
-const youtube = vi.hoisted(() => ({ searchYoutube: vi.fn(), youtubeThumbnailUrl: (id: string) => `https://server/youtube/thumbnail?id=${id}`, formatVideoLength: (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` }))
-vi.mock('../lib/youtubeSearch', () => youtube)
 const addonMethods = vi.hoisted(() => ({ callAddonMethod: vi.fn() }))
 // Which host (if any) can run the add-on's methods, and what this device could do itself (docs/36 §2).
 const hostFor = vi.hoisted(() => ({ value: { base: 'https://host' } as { base: string } | { base: null; message: string } }))
@@ -29,11 +27,6 @@ vi.mock('../lib/addonUi/slotHost', async (importOriginal) => {
 vi.mock('../lib/measureAudioDuration', () => ({ measureAudioDurationMs: vi.fn(async () => 180_000) }))
 // The upload converts to Ogg Opus (#775) - here the file passes as it is (trackFile.test.ts tests the conversion).
 vi.mock('../lib/engine/trackFile', () => ({ toTrackFile: vi.fn(async (f: Blob) => f), TRACK_MIME: 'audio/ogg; codecs=opus', NoEncoderError: class extends Error {} }))
-// Where YouTube runs (useYoutubeRoute.ts): by default unknown - the host is asked, as before.
-const route = vi.hoisted(() => ({ value: { route: null as 'server' | 'device' | 'none' | null, helper: null as unknown, trusted: [] as readonly string[] } }))
-vi.mock('../lib/useYoutubeRoute', () => ({ useYoutubeRoute: () => route.value }))
-const device = vi.hoisted(() => ({ searchOnDevice: vi.fn(), runOnDevice: vi.fn(async () => {}) }))
-vi.mock('../lib/youtubeDevice', async (importOriginal) => ({ ...(await importOriginal<typeof import('../lib/youtubeDevice')>()), ...device }))
 vi.mock('pouchdb-browser', () => ({
   default: class FakePouchDB {
     sync() {
@@ -52,7 +45,6 @@ const stemPlugin = { id: 'stem-separation', name: 'Spuren trennen', version: '0.
 beforeEach(() => {
   vi.clearAllMocks()
   usePluginsStore.setState({ installed: [] })
-  route.value = { route: null, helper: null, trusted: [] }
   hostFor.value = { base: 'https://host' }
   local.canRun.mockResolvedValue(false)
 })
@@ -141,7 +133,6 @@ describe('TrackManagerField - YouTube search in "Track hinzufügen" (#618)', () 
 
   it('with a host: the add-on\'s own dialog (its view script, drawn by the editor) searches through the add-on\'s method, lists the hits, and a tap queues the generic audio-import job', async () => {
     usePluginsStore.setState({ installed: [ytPlugin] })
-    route.value = { route: 'server', helper: null, trusted: [] }
     addonMethods.callAddonMethod.mockResolvedValueOnce({
       ok: true,
       body: { hits: [{ id: '9Ht5RZpzPqw', title: 'blink-182 - All The Small Things', channel: 'blink-182', durationSec: 171, url: 'https://www.youtube.com/watch?v=9Ht5RZpzPqw' }] },
@@ -169,7 +160,6 @@ describe('TrackManagerField - YouTube search in "Track hinzufügen" (#618)', () 
 
   it('with no host that can, this device runs the job itself when it has the add-on\'s helper: a running job of its own, the track put by this device', async () => {
     usePluginsStore.setState({ installed: [ytPlugin] })
-    route.value = { route: 'server', helper: null, trusted: [] }
     hostFor.value = { base: null, message: 'Missing: yt-dlp.' }
     local.canRun.mockResolvedValue(true)
     local.call.mockResolvedValue({ ok: false, error: { code: 'youtube.noAudio', message: 'YouTube bietet zu diesem Video keine ladbare Audiospur an.' } })
@@ -185,7 +175,6 @@ describe('TrackManagerField - YouTube search in "Track hinzufügen" (#618)', () 
 
   it('with no host and no helper on this device the person is told what is missing - no job is created', async () => {
     usePluginsStore.setState({ installed: [ytPlugin] })
-    route.value = { route: 'server', helper: null, trusted: [] }
     hostFor.value = { base: null, message: 'Missing: yt-dlp.' }
     render(<TrackManagerField variantId="v1" tracks={[]} disabled={false} searchQuery="https://youtu.be/dQw4w9WgXcQ" />)
     fireEvent.click(screen.getByRole('button', { name: /Track hinzufügen/ }))
@@ -197,7 +186,6 @@ describe('TrackManagerField - YouTube search in "Track hinzufügen" (#618)', () 
 
   it('a pasted link is queued without a search - the add-on knows which links are its own; any other text is searched', async () => {
     usePluginsStore.setState({ installed: [ytPlugin] })
-    route.value = { route: 'server', helper: null, trusted: [] }
     render(<TrackManagerField variantId="v1" tracks={[]} disabled={false} searchQuery="https://youtu.be/dQw4w9WgXcQ" />)
     fireEvent.click(screen.getByRole('button', { name: /Track hinzufügen/ }))
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'YouTube' }))
@@ -208,7 +196,6 @@ describe('TrackManagerField - YouTube search in "Track hinzufügen" (#618)', () 
 
   it('shows the add-on\'s own words when its search fails (e.g. no host, no internet)', async () => {
     usePluginsStore.setState({ installed: [ytPlugin] })
-    route.value = { route: 'server', helper: null, trusted: [] }
     addonMethods.callAddonMethod.mockResolvedValueOnce({ ok: false, error: { code: 'youtube.searchTimeout', message: 'Die YouTube-Suche hat nicht geantwortet - ist das Gerät online?' } })
     render(<TrackManagerField variantId="v1" tracks={[]} disabled={false} searchQuery="x" />)
     fireEvent.click(screen.getByRole('button', { name: /Track hinzufügen/ }))
@@ -224,54 +211,9 @@ describe('TrackManagerField - YouTube search in "Track hinzufügen" (#618)', () 
     expect(addonsForSlot('device.panel', ['youtube-download'])).toEqual([])
   })
 
-  it('without a host that can, this device searches and downloads with its helper (docs/25 §6b)', async () => {
-    usePluginsStore.setState({ installed: [ytPlugin] })
-    const helper = { package: 'de.stageboard.helper.youtube', certSha256: 'c'.repeat(64), apiVersion: 1 }
-    // The trust list travels with the route (useYoutubeRoute reads it from the installed manifest, #756).
-    route.value = { route: 'device', helper, trusted: ['c'.repeat(64)] }
-    device.searchOnDevice.mockResolvedValueOnce([{ id: '9Ht5RZpzPqw', title: 'blink-182 - All The Small Things', channel: 'blink-182', durationSec: 171, url: 'https://www.youtube.com/watch?v=9Ht5RZpzPqw' }])
-    render(<TrackManagerField variantId="v1" tracks={[]} disabled={false} searchQuery="All the small things" />)
-    fireEvent.click(screen.getByRole('button', { name: /Track hinzufügen/ }))
-    const dialog = screen.getByRole('dialog')
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Suchen' }))
-    expect(device.searchOnDevice).toHaveBeenCalledWith(helper, 'All the small things', ['c'.repeat(64)])
-    expect(youtube.searchYoutube).not.toHaveBeenCalled()
-    const hit = await within(dialog).findByRole('button', { name: /All The Small Things/ })
-    // The picture straight from YouTube - the device has the internet when it searched itself.
-    expect(hit.querySelector('img')?.getAttribute('src')).toBe('https://i.ytimg.com/vi/9Ht5RZpzPqw/mqdefault.jpg')
-    fireEvent.click(hit)
-    await waitFor(() => expect(device.runOnDevice).toHaveBeenCalled())
-    // Its own job, created running: no Host picks it up.
-    expect(db.putAsyncJob).toHaveBeenCalledWith(expect.objectContaining({ type: 'youtube-extract', status: 'running', runner: expect.stringMatching(/^device:/), url: 'https://www.youtube.com/watch?v=9Ht5RZpzPqw' }))
-  })
-
-  it('says where YouTube is missing when neither the host nor this device can', async () => {
-    usePluginsStore.setState({ installed: [ytPlugin] })
-    route.value = { route: 'none', helper: null, trusted: [] }
+  it('no YouTube entry without the add-on installed', () => {
     render(<TrackManagerField variantId="v1" tracks={[]} disabled={false} searchQuery="x" />)
     fireEvent.click(screen.getByRole('button', { name: /Track hinzufügen/ }))
-    fireEvent.click(screen.getByRole('button', { name: 'Suchen' }))
-    expect(await screen.findByText(/kein yt-dlp.*Hilfsprogramm nicht installiert/)).toBeInTheDocument()
-    expect(youtube.searchYoutube).not.toHaveBeenCalled()
-  })
-
-  it('"Erweitert": this device only - without its helper the message says so and how to change it (#822)', async () => {
-    usePluginsStore.setState({ installed: [ytPlugin] })
-    route.value = { route: 'none', helper: null, trusted: [] }
-    render(<TrackManagerField variantId="v1" tracks={[]} disabled={false} searchQuery="x" />)
-    fireEvent.click(screen.getByRole('button', { name: /Track hinzufügen/ }))
-    fireEvent.click(screen.getByText('Erweitert'))
-    fireEvent.click(screen.getByRole('radio', { name: 'Dieses Gerät' }))
-    expect(localStorage.getItem('sb:youtube:where')).toBe('device')
-    fireEvent.click(screen.getByRole('button', { name: 'Suchen' }))
-    expect(await screen.findByText(/Auf diesem Gerät fehlt das YouTube-Hilfsprogramm/)).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('radio', { name: 'Automatisch' }))
-    expect(localStorage.getItem('sb:youtube:where')).toBeNull()
-  })
-
-  it('no search without the add-on', () => {
-    render(<TrackManagerField variantId="v1" tracks={[]} disabled={false} searchQuery="x" />)
-    fireEvent.click(screen.getByRole('button', { name: /Track hinzufügen/ }))
-    expect(screen.queryByRole('searchbox', { name: 'YouTube durchsuchen' })).not.toBeInTheDocument()
+    expect(within(screen.getByRole('dialog')).queryByRole('button', { name: 'YouTube' })).not.toBeInTheDocument()
   })
 })

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { AsyncJob, SlotId } from 'shared-types'
 import { callAddonMethod } from '../lib/addonMethodClient'
 import { addonsForSlot, type BuiltinAddon } from '../lib/addonUi/builtinAddons'
@@ -8,6 +8,7 @@ import { randomId } from '../lib/id'
 import { localAddonMethods } from '../lib/addonWork'
 import { newDeviceAudioImportJob, runAudioImportOnDevice } from '../lib/addonWork/audioImportDevice'
 import { getDeviceId } from '../lib/deviceId'
+import { leftoverDeviceJobs, activeDeviceJobs } from '../lib/deviceJobs'
 import { NO_HOST_MESSAGE } from '../lib/hostUrl'
 import { resolveHostFor } from '../lib/jobHost'
 import { putTrack } from '../lib/songVariantsDb'
@@ -17,6 +18,7 @@ import { usePluginsStore } from '../store/usePluginsStore'
 import { Button } from './ui'
 
 const SLOT: SlotId = 'song-editor.track-source'
+let leftoversCleared = false
 
 /**
  * The places the song editor offers to get a track from an add-on (docs/36 §6 slot `song-editor.track-source`, #964). Each installed add-on that
@@ -30,6 +32,14 @@ export function TrackSourceSlots({ variantId, query, createWorker }: { variantId
   const [open, setOpen] = useState<{ addon: BuiltinAddon } | null>(null)
   const jobs = useAsyncJobsStore((s) => s.jobs)
   const sources = useMemo(() => ({ jobs: Object.fromEntries(jobs.map((j) => [j.id, j as unknown as Record<string, unknown>])), state: {} }), [jobs])
+  // Once per app session: a job this device was running when it last stopped will not finish - the band sees it end instead of run for ever.
+  useEffect(() => {
+    if (leftoversCleared) return
+    leftoversCleared = true
+    for (const job of leftoverDeviceJobs(useAsyncJobsStore.getState().jobs, getDeviceId(), activeDeviceJobs).filter((j) => j.type === 'audio-import')) {
+      void putAsyncJob({ ...job, status: 'error', error: 'interrupted', errorCode: 'job.interrupted', updatedAt: Date.now() }).catch(() => {})
+    }
+  }, [])
   if (entries.length === 0) return null
 
   /** What the add-on's view script may ask of the app: its own methods, and the two things only the app can do. */

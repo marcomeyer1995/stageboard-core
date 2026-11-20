@@ -1,6 +1,20 @@
 import { existsSync } from 'node:fs'
 import { spawn } from 'node:child_process'
-import { ServerMessageError, YOUTUBE_VIDEO_ID_RE, type YoutubeSearchResult } from 'shared-types'
+import { YOUTUBE_VIDEO_ID_RE, type YoutubeSearchResult } from 'shared-types'
+
+/**
+ * What the yt-dlp program did wrong in a way a person should hear about: a **code** with parameters, never words - the add-on that asked for the
+ * helper says it in its own words (docs/36 §5, #964). The core's message catalog holds none of it.
+ */
+export class YtDlpFailure extends Error {
+  constructor(
+    readonly code: 'youtube.downloadTimeout' | 'youtube.tooLarge' | 'youtube.searchTimeout',
+    readonly params: Record<string, string | number> = {},
+  ) {
+    super(code)
+    this.name = 'YtDlpFailure'
+  }
+}
 
 /** Same "find whichever binary is already on the host" pattern as addons/browserHelper.ts's
  * `resolveChromeExecutable` - yt-dlp is not bundled or auto-installed (fetching an executable
@@ -138,11 +152,11 @@ export function runYtDlpExtract(
       clearTimeout(timer)
       if (pendingLine) handleLine(pendingLine)
       if (timedOut) {
-        reject(new ServerMessageError('youtube.downloadTimeout', { minutes: Math.round(timeoutMs / 60_000) }))
+        reject(new YtDlpFailure('youtube.downloadTimeout', { minutes: Math.round(timeoutMs / 60_000) }))
         return
       }
       if (tooLarge) {
-        reject(new ServerMessageError('youtube.tooLarge', { mb: Math.round(maxExtractBytes() / (1024 * 1024)) }))
+        reject(new YtDlpFailure('youtube.tooLarge', { mb: Math.round(maxExtractBytes() / (1024 * 1024)) }))
         return
       }
       if (code !== 0) {
@@ -211,7 +225,7 @@ export function runYtDlpSearch(query: string, timeoutMs: number = YT_DLP_SEARCH_
     })
     child.on('close', (code) => {
       clearTimeout(timer)
-      if (timedOut) return reject(new ServerMessageError('youtube.searchTimeout'))
+      if (timedOut) return reject(new YtDlpFailure('youtube.searchTimeout'))
       if (code !== 0) return reject(new Error(`yt-dlp exited with code ${code}: ${ytDlpErrorSummary(stderrTail)}`))
       try {
         resolve(parseYtDlpSearch(stdout))

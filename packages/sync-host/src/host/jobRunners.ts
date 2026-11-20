@@ -38,7 +38,7 @@ export interface JobRunners {
   register(runner: JobRunner): void
   get(kind: JobRunner['kind'], id: string): JobRunner | undefined
   all(): readonly JobRunner[]
-  /** The capability a background job needs from its host (`youtube-download`, `plugin:stem-separation`), or null - not a host's job. */
+  /** The capability a background job needs from its host (`speech`, `plugin:stem-separation`), or null - not a host's job. */
   needsOfJob(job: JobRef): string | null
   /**
    * The capabilities answer. `jobs` lists every job id of sync-host's `JOB_ROUTES` (a job nobody registered is unavailable and says

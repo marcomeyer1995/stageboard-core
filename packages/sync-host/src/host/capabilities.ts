@@ -33,8 +33,6 @@ export const JOB_ROUTES: readonly JobRoute[] = [
   { method: 'POST', pattern: '/speech/voices/:key/install', job: 'speech' },
   { method: 'GET', pattern: '/lookup/:provider/search', job: 'lookup' },
   { method: 'GET', pattern: '/lookup/:provider/detail', job: 'lookup' },
-  { method: 'GET', pattern: '/youtube/search', job: 'youtube-download' },
-  { method: 'GET', pattern: '/youtube/thumbnail', job: 'youtube-download' },
   { method: 'GET', pattern: '/plugins', job: 'plugin-runtime' },
   { method: 'GET', pattern: '/plugins/:id/client.js', job: 'plugin-runtime' },
   { method: 'POST', pattern: '/plugins/:name/trigger', job: 'plugin:name' },

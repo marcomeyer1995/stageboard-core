@@ -3,16 +3,17 @@ import type { AsyncJob } from 'shared-types'
 import { hostRunner, jobNeeds, jobsNobodyCanDo, pickNextClaimable, stillMine, stuckJobsOfHost } from './jobQueue.js'
 
 const job = (over: Record<string, unknown> = {}): AsyncJob =>
-  ({ id: 'j', type: 'youtube-extract', status: 'queued', progress: 0, createdAt: 1, updatedAt: 1, variantId: 'v', url: 'u', label: 'l', ...over }) as AsyncJob
+  ({ id: 'j', type: 'audio-import', status: 'queued', progress: 0, createdAt: 1, updatedAt: 1, variantId: 'v', addonId: 'tool', method: 'fetchAudio', args: {}, label: 'l', ...over }) as AsyncJob
 const stem = (over: Record<string, unknown> = {}): AsyncJob => job({ type: 'stem-separation', sourceTrackId: 't', model: 'standard', splitGuitar: false, ...over })
 const convert = (over: Record<string, unknown> = {}): AsyncJob => job({ type: 'opus-convert', trackId: 't', ...over })
 
 const laptop = { hostId: 'laptop', canDo: () => true }
-const weak = { hostId: 'tablet', canDo: (needs: string) => needs === 'youtube-download' }
+const weak = { hostId: 'tablet', canDo: (needs: string) => needs === 'plugin:tool' }
 
 describe('what a job needs from its host (#964)', () => {
   it('says which capability each host job needs, and that a device\'s conversion needs none', () => {
-    expect(jobNeeds(job())).toBe('youtube-download')
+    expect(jobNeeds(job())).toBe('plugin:tool') // an add-on's audio needs that add-on, whatever it is
+    expect(jobNeeds(job({ addonId: 'other' }))).toBe('plugin:other')
     expect(jobNeeds(stem())).toBe('plugin:stem-separation')
     expect(jobNeeds(convert())).toBeNull()
   })

@@ -3,8 +3,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { extname, join } from 'node:path'
 import { runStemSeparation } from '../stems/stemSeparation.js'
-import { messageFieldsOf } from 'shared-types'
-import { runYtDlpExtract, runYtDlpSearch } from '../ytDlp.js'
+import { runYtDlpExtract, runYtDlpSearch, YtDlpFailure } from '../ytDlp.js'
 import { BrowserError, createBrowserReader } from './browserHelper.js'
 import { runPiperProgram } from '../speech/piperSpeech.js'
 
@@ -51,8 +50,7 @@ const ytDlp: HelperRun = async (args, onProgress) => {
       return { result: { ext }, files: [{ name: `track.${ext}`, bytes: new Uint8Array(await readFile(filePath)) }] }
     })
   } catch (err) {
-    const { messageCode, messageParams } = messageFieldsOf(err)
-    if (messageCode) return { result: { error: { code: messageCode, params: messageParams ?? {} } }, files: [] }
+    if (err instanceof YtDlpFailure) return { result: { error: { code: err.code, params: err.params } }, files: [] }
     throw err
   }
 }

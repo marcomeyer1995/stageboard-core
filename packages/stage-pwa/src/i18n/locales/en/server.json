@@ -46,18 +46,6 @@
     "invalidVariantId": "Invalid song variant id.",
     "invalidIds": "Invalid song or track id."
   },
-  "youtube": {
-    "addonMissing": "The \"YouTube download\" add-on is not installed for this band.",
-    "bandMissing": "The YouTube search is missing the band (add-on check).",
-    "urlOnly": "Only youtube.com/youtu.be links are supported.",
-    "downloadTimeout": "yt-dlp had not finished after {{minutes}} minutes and was stopped.",
-    "tooLarge": "The audio is larger than the limit of {{mb}} MB.",
-    "searchTimeout": "The YouTube search did not answer - is the Host online?",
-    "noAudio": "YouTube offers no downloadable audio for this video.",
-    "convertFailed": "The audio could not be converted to Opus on this device.",
-    "failed": "The YouTube download failed.",
-    "interrupted": "The download was interrupted (app closed) - please start it again."
-  },
   "ug": {
     "addonMissing": "The \"Ultimate Guitar Import\" add-on is not installed for this band.",
     "bandMissing": "Ultimate Guitar is missing the band (add-on check)."
@@ -75,5 +63,8 @@
   },
   "addon": {
     "notInstalled": "The add-on “{{addon}}” is not installed for this band."
+  },
+  "audio": {
+    "convertFailed": "The audio could not be converted to Opus on this device."
   }
 }

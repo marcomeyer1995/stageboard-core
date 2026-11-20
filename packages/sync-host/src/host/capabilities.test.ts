@@ -40,7 +40,7 @@ describe('jobs a host can be asked for (#962)', () => {
   })
 
   it('every job of the table is one a host has to say something about, and the schema accepts the answer', () => {
-    expect(JOB_IDS).toEqual(expect.arrayContaining(['backup', 'measure-inputs', 'calibration', 'speech', 'lookup', 'youtube-download', 'plugin-runtime', 'hardware', 'osc-in', 'host-lookup']))
+    expect(JOB_IDS).toEqual(expect.arrayContaining(['backup', 'measure-inputs', 'calibration', 'speech', 'lookup', 'plugin-runtime', 'hardware', 'osc-in', 'host-lookup']))
     expect(new Set(JOB_ROUTES.map((r) => `${r.method} ${r.pattern}`)).size).toBe(JOB_ROUTES.length)
     expect(HostCapabilitiesSchema.parse(tablet)).toEqual(tablet)
   })
@@ -77,8 +77,8 @@ describe('what an add-on needs from the device that hosts it (#962)', () => {
 
 describe('what a device can do, as a yes/no for the job queue (#964)', () => {
   it('says yes only for what the device lists as available - jobs and plugins', () => {
-    const can = canDoFromCapabilities({ ...tablet, jobs: [{ id: 'youtube-download', available: true, needs: null }, { id: 'speech', available: false, needs: 'piper' }], plugins: [{ id: 'stem-separation', available: true, needs: null }] })
-    expect(can('youtube-download')).toBe(true)
+    const can = canDoFromCapabilities({ ...tablet, jobs: [{ id: 'lookup', available: true, needs: null }, { id: 'speech', available: false, needs: 'piper' }], plugins: [{ id: 'stem-separation', available: true, needs: null }] })
+    expect(can('lookup')).toBe(true)
     expect(can('speech')).toBe(false)
     expect(can('plugin:stem-separation')).toBe(true)
     expect(can('plugin:unknown')).toBe(false)
