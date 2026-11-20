@@ -9,6 +9,11 @@ vi.mock('../lib/songVariantsDb', () => variants)
 const youtube = vi.hoisted(() => ({ searchYoutube: vi.fn(), youtubeThumbnailUrl: (id: string) => `https://server/youtube/thumbnail?id=${id}`, formatVideoLength: (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` }))
 vi.mock('../lib/youtubeSearch', () => youtube)
 const addonMethods = vi.hoisted(() => ({ callAddonMethod: vi.fn() }))
+// Which host (if any) can run the add-on's methods, and what this device could do itself (docs/36 §2).
+const hostFor = vi.hoisted(() => ({ value: { base: 'https://host' } as { base: string } | { base: null; message: string } }))
+vi.mock('../lib/jobHost', () => ({ resolveHostFor: async () => hostFor.value }))
+const local = vi.hoisted(() => ({ canRun: vi.fn(async () => false), call: vi.fn() }))
+vi.mock('../lib/addonWork', () => ({ localAddonMethods: local }))
 vi.mock('../lib/addonMethodClient', () => addonMethods)
 // The add-on's view script runs in a Worker on a device; here the same script runs in-process behind the same message interface.
 vi.mock('../lib/addonUi/slotHost', async (importOriginal) => {
@@ -48,6 +53,8 @@ beforeEach(() => {
   vi.clearAllMocks()
   usePluginsStore.setState({ installed: [] })
   route.value = { route: null, helper: null, trusted: [] }
+  hostFor.value = { base: 'https://host' }
+  local.canRun.mockResolvedValue(false)
 })
 
 describe('TrackManagerField - stems (#9)', () => {
@@ -158,6 +165,34 @@ describe('TrackManagerField - YouTube search in "Track hinzufügen" (#618)', () 
     )
     // The progress is the job document's, not a message to the add-on.
     expect(await within(youtubeDialog).findByRole('progressbar')).toHaveAttribute('aria-valuenow', '0')
+  })
+
+  it('with no host that can, this device runs the job itself when it has the add-on\'s helper: a running job of its own, the track put by this device', async () => {
+    usePluginsStore.setState({ installed: [ytPlugin] })
+    route.value = { route: 'server', helper: null, trusted: [] }
+    hostFor.value = { base: null, message: 'Missing: yt-dlp.' }
+    local.canRun.mockResolvedValue(true)
+    local.call.mockResolvedValue({ ok: false, error: { code: 'youtube.noAudio', message: 'YouTube bietet zu diesem Video keine ladbare Audiospur an.' } })
+    render(<TrackManagerField variantId="v1" tracks={[]} disabled={false} searchQuery="https://youtu.be/dQw4w9WgXcQ" />)
+    fireEvent.click(screen.getByRole('button', { name: /Track hinzufügen/ }))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'YouTube' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Suchen' }))
+    await waitFor(() => expect(local.call).toHaveBeenCalledWith('youtube-download', 'fetchAudio', { url: 'https://youtu.be/dQw4w9WgXcQ' }, expect.anything()))
+    // The job is this device's own (running, runner device:...), never queued for a host; the add-on's words end it.
+    expect(db.putAsyncJob).toHaveBeenCalledWith(expect.objectContaining({ type: 'audio-import', status: 'running', runner: expect.stringMatching(/^device:/) }))
+    await waitFor(() => expect(db.putAsyncJob).toHaveBeenCalledWith(expect.objectContaining({ status: 'error', error: 'YouTube bietet zu diesem Video keine ladbare Audiospur an.' })))
+  })
+
+  it('with no host and no helper on this device the person is told what is missing - no job is created', async () => {
+    usePluginsStore.setState({ installed: [ytPlugin] })
+    route.value = { route: 'server', helper: null, trusted: [] }
+    hostFor.value = { base: null, message: 'Missing: yt-dlp.' }
+    render(<TrackManagerField variantId="v1" tracks={[]} disabled={false} searchQuery="https://youtu.be/dQw4w9WgXcQ" />)
+    fireEvent.click(screen.getByRole('button', { name: /Track hinzufügen/ }))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'YouTube' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Suchen' }))
+    expect(await screen.findByText('Missing: yt-dlp.')).toBeInTheDocument()
+    expect(db.putAsyncJob).not.toHaveBeenCalled()
   })
 
   it('a pasted link is queued without a search - the add-on knows which links are its own; any other text is searched', async () => {

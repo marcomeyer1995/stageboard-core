@@ -5,6 +5,12 @@ import { addonsForSlot, type BuiltinAddon } from '../lib/addonUi/builtinAddons'
 import { AddonSlot, type RequestHandler, type ViewWorkerFactory } from '../lib/addonUi/slotHost'
 import { putAsyncJob } from '../lib/asyncJobsDb'
 import { randomId } from '../lib/id'
+import { localAddonMethods } from '../lib/addonWork'
+import { newDeviceAudioImportJob, runAudioImportOnDevice } from '../lib/addonWork/audioImportDevice'
+import { getDeviceId } from '../lib/deviceId'
+import { NO_HOST_MESSAGE } from '../lib/hostUrl'
+import { resolveHostFor } from '../lib/jobHost'
+import { putTrack } from '../lib/songVariantsDb'
 import i18n from '../i18n'
 import { useAsyncJobsStore } from '../store/useAsyncJobsStore'
 import { usePluginsStore } from '../store/usePluginsStore'
@@ -33,11 +39,19 @@ export function TrackSourceSlots({ variantId, query, createWorker }: { variantId
       const { label, args } = body as { label?: string; args?: Record<string, unknown> }
       const method = Object.keys(addon.contributes.methods).includes('fetchAudio') ? 'fetchAudio' : null
       if (!method || typeof label !== 'string' || typeof args !== 'object' || args === null) return { ok: false, error: { code: 'request.invalid', message: 'core.queueAudioImport needs {label, args}' } }
+      const input = { variantId, addonId: addon.id, method, args, label: label.trim() || addon.name }
+      // A host of the band that can takes the job; with none, this device does it itself if it has what the add-on needs (docs/36 §7).
+      const host = await resolveHostFor('POST', `/addons/${encodeURIComponent(addon.id)}/methods/${method}`)
+      if (host.base === null && (await localAddonMethods.canRun(addon.id))) {
+        const job = newDeviceAudioImportJob(input, getDeviceId())
+        void runAudioImportOnDevice(job, { call: (a, m, a2, onProgress) => localAddonMethods.call(a, m, a2, onProgress ? { onProgress } : {}), putJob: putAsyncJob, putTrack })
+        return { ok: true, body: { jobId: job.id } }
+      }
+      if (host.base === null) return { ok: false, error: { code: 'host.none', message: host.message === 'no-host' ? NO_HOST_MESSAGE : host.message } }
       const now = Date.now()
-      const jobId = randomId()
-      const job: AsyncJob = { id: jobId, type: 'audio-import', status: 'queued', progress: 0, createdAt: now, updatedAt: now, variantId, addonId: addon.id, method, args, label: label.trim() || addon.name }
+      const job: AsyncJob = { id: randomId(), type: 'audio-import', status: 'queued', progress: 0, createdAt: now, updatedAt: now, ...input }
       await putAsyncJob(job)
-      return { ok: true, body: { jobId } }
+      return { ok: true, body: { jobId: job.id } }
     }
     // Only methods the add-on declared leave the app; the host checks the same list again.
     if (!Object.prototype.hasOwnProperty.call(addon.contributes.methods, method)) return { ok: false, error: { code: 'method.undeclared', message: `The add-on declared no method "${method}".` } }

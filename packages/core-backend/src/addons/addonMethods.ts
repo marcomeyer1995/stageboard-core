@@ -1,8 +1,8 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
+import { callMethod, type MethodResult, type MethodSandbox } from 'sync-host'
 import { parseContributes, type AddonError, type Contributes } from 'shared-types'
 import { BUILTIN_ADDONS, createAddonHost, type AddonManifest, type Log } from './addonHost.js'
-import { callMethod, type MethodResult, type MethodSandbox } from './methodBoundary.js'
 import type { NodeSandbox } from './nodeSandbox.js'
 
 /**
