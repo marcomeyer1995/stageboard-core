@@ -141,7 +141,7 @@ describe('TrackManagerField - YouTube search in "Track hinzufügen" (#618)', () 
     fireEvent.click(screen.getByRole('button', { name: /Track hinzufügen/ }))
     // The entry the add-on declared for the slot; opening it runs its view script in a stand-in Worker.
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'YouTube' }))
-    const youtubeDialog = screen.getByRole('dialog')
+    const youtubeDialog = await screen.findByRole('dialog')
     expect(await within(youtubeDialog).findByLabelText('Titel Band oder YouTube-Link')).toHaveValue('All the small things Blink-182')
     fireEvent.click(within(youtubeDialog).getByRole('button', { name: 'Suchen' }))
     await waitFor(() => expect(addonMethods.callAddonMethod).toHaveBeenCalledWith('youtube-download', 'search', { query: 'All the small things Blink-182' }))

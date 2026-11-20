@@ -13,6 +13,8 @@ import { useDialogStore } from '../store/useDialogStore'
 import { usePluginsStore } from '../store/usePluginsStore'
 import { StemSeparationDialog } from './StemSeparationDialog'
 import { TrackSourceSlots } from './TrackSourceSlots'
+import { AddonSourceDialog } from './AddonSourceDialog'
+import type { BuiltinAddon } from '../lib/addonUi/builtinAddons'
 import { INPUT } from './ui/styles'
 import { AddRow, Button, Dialog, IconButton } from './ui'
 import { useTranslation } from 'react-i18next'
@@ -75,6 +77,8 @@ export function TrackManagerField({ variantId, tracks, disabled, searchQuery = '
   // "+ Track hinzufügen" (#604): kind, then a file or a YouTube link - in a dialog, not squeezed
   // into the section.
   const [adding, setAdding] = useState(false)
+  // An add-on's dialog replaces the 'Track hinzufügen' dialog - never on top of it. Going back reopens this one.
+  const [sourceAddon, setSourceAddon] = useState<{ addon: BuiltinAddon; query: string } | null>(null)
   const query = searchQuery
   const [separating, setSeparating] = useState<TrackMeta | null>(null)
   const [uploadProgress, setUploadProgress] = useState<string | null>(null)
@@ -314,9 +318,17 @@ export function TrackManagerField({ variantId, tracks, disabled, searchQuery = '
               <span className="text-sm text-ink-faint">{t('tm.multi')}</span>
             )}
             {/* An add-on's own way to get a track (docs/36 §6, #964): the editor draws its description and knows nothing of the service. */}
-            <TrackSourceSlots variantId={variantId} query={query} />
+            <TrackSourceSlots query={query} onOpen={(addon, q) => (setSourceAddon({ addon, query: q }), setAdding(false))} />
           </div>
         </Dialog>
+      )}
+      {sourceAddon && (
+        <AddonSourceDialog
+          addon={sourceAddon.addon}
+          variantId={variantId}
+          query={sourceAddon.query}
+          onLeave={() => (setSourceAddon(null), setAdding(true))}
+        />
       )}
       {separating && (
         <StemSeparationDialog
