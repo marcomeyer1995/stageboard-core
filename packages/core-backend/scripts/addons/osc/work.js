@@ -18,17 +18,19 @@ var TEXT = {
   },
 }
 function say(key, params) { return (TEXT[LANG] || TEXT.en)[key](params || {}) }
-function refuse(id, key, params) { self.postMessage({ type: 'call-result', id: id, ok: false, message: say(key, params) }) }
-var pending = {}
-var nextRequest = 1
+var waiting = {}
+var nextId = 1
 var enc = new TextEncoder()
 
+// An OSC string: UTF-8, NUL-terminated, padded to a multiple of 4 bytes.
 function oscString(s) {
   var bytes = enc.encode(s)
   var out = new Uint8Array(Math.ceil((bytes.length + 1) / 4) * 4)
   out.set(bytes)
   return out
 }
+
+function refuse(id, code, key, params) { self.postMessage({ kind: 'response', id: id, ok: false, error: { code: code, message: say(key, params) } }) }
 
 function parseArgs(text) {
   var tokens = text.match(/"[^"]*"|\S+/g) || []
@@ -60,24 +62,32 @@ function encode(address, args) {
   return out
 }
 
+function helper(args, files) {
+  return new Promise(function (resolve, reject) {
+    var id = nextId++
+    waiting[id] = { resolve: resolve, reject: reject }
+    self.postMessage({ kind: 'request', id: id, method: 'capability.helper', body: { helper: 'udp-send', args: args, files: files } })
+  })
+}
+
 self.onmessage = function (e) {
   var m = e.data
   if (m.type === 'init') {
     LANG = m.language === 'en' ? 'en' : 'de'
-  } else if (m.type === 'call' && m.method === 'send') {
-    var address = String(m.args.address || '').trim()
-    if (!/^\/[^\s#*,?[\]{}]*$/.test(address)) return refuse(m.id, 'address', { address: address })
-    if (!m.args.host || !m.args.port) return refuse(m.id, 'noTarget')
-    var packet = encode(address, parseArgs(String(m.args.args || '')))
-    var request = nextRequest++
-    pending[request] = { id: m.id, host: m.args.host, port: m.args.port }
-    self.postMessage({ type: 'helper-run', id: m.id, request: request, helper: 'udp-send', args: [String(m.args.host), String(m.args.port)], files: [{ name: 'packet', bytes: packet }] })
-  } else if (m.type === 'helper-result') {
-    var p = pending[m.request]
-    delete pending[m.request]
-    if (m.error) refuse(p.id, 'failed', { host: p.host, port: p.port, error: m.error })
-    else self.postMessage({ type: 'call-result', id: p.id, ok: true, data: { sent: true } })
-  } else if (m.type === 'call') {
-    refuse(m.id, 'unknown', { type: m.method })
+  } else if (m.kind === 'response') {
+    var w = waiting[m.id]
+    delete waiting[m.id]
+    if (w) { if (m.ok) w.resolve(m.body); else w.reject(new Error(m.error.message)) }
+  } else if (m.kind === 'request' && m.method === 'send') {
+    var address = String(m.body.address || '').trim()
+    if (!/^\/[^\s#*,?[\]{}]*$/.test(address)) return refuse(m.id, 'osc.address', 'address', { address: address })
+    if (!m.body.host || !m.body.port) return refuse(m.id, 'osc.no-target', 'noTarget')
+    var packet = encode(address, parseArgs(String(m.body.args || '')))
+    helper([String(m.body.host), String(m.body.port)], [{ name: 'packet', bytes: packet }]).then(
+      function () { self.postMessage({ kind: 'response', id: m.id, ok: true, body: { sent: true } }) },
+      function (err) { refuse(m.id, 'osc.failed', 'failed', { host: m.body.host, port: m.body.port, error: err.message }) },
+    )
+  } else if (m.kind === 'request') {
+    refuse(m.id, 'method.unknown', 'unknown', { type: m.method })
   }
 }

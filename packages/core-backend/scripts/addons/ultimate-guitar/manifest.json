@@ -1,0 +1,52 @@
+{
+  "id": "ultimate-guitar-scraper",
+  "name": "Ultimate Guitar Import",
+  "version": "1.0.0",
+  "protocol": 3,
+  "workFile": "work.js",
+  "permissions": [
+    "helper:ug-page"
+  ],
+  "contributes": {
+    "methods": {
+      "search": {
+        "in": {
+          "type": "object",
+          "required": [
+            "query"
+          ],
+          "properties": {
+            "query": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300
+            }
+          }
+        },
+        "out": {
+          "type": "array"
+        },
+        "timeoutMs": 90000
+      },
+      "fetchDetail": {
+        "in": {
+          "type": "object",
+          "required": [
+            "id"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 600
+            }
+          }
+        },
+        "out": {
+          "type": "object"
+        },
+        "timeoutMs": 90000
+      }
+    }
+  }
+}

@@ -279,23 +279,24 @@ function score(rating, votes) {
   return (v * rating + 50 * 4) / (v + 50)
 }
 
+// The page is read by the device's helper `ug-page` (a real Chrome); `then` turns what it saw into the answer - or into a failure with a code and our words.
 function ask(id, url, then) {
   var request = nextRequest++
   pending[request] = { id: id, then: then }
-  self.postMessage({ type: 'helper-run', id: id, request: request, helper: 'ug-page', args: [url] })
+  self.postMessage({ kind: 'request', id: request, method: 'capability.helper', body: { helper: 'ug-page', args: [url], files: [] } })
 }
 
 function finish(id, outcome) {
-  if (outcome && outcome.__fail) self.postMessage({ type: 'call-result', id: id, ok: false, message: outcome.__fail.message, messageCode: outcome.__fail.code })
-  else self.postMessage({ type: 'call-result', id: id, ok: true, data: outcome })
+  if (outcome && outcome.__fail) self.postMessage({ kind: 'response', id: id, ok: false, error: { code: outcome.__fail.code, message: outcome.__fail.message } })
+  else self.postMessage({ kind: 'response', id: id, ok: true, body: outcome })
 }
 
 self.onmessage = function (e) {
   var m = e.data
   if (m.type === 'init') {
     LANG = m.language === 'en' ? 'en' : 'de'
-  } else if (m.type === 'call' && m.method === 'search') {
-    ask(m.id, 'https://www.ultimate-guitar.com/search.php?search_type=title&value=' + encodeURIComponent(String(m.args.query || '')), function (page) {
+  } else if (m.kind === 'request' && m.method === 'search') {
+    ask(m.id, 'https://www.ultimate-guitar.com/search.php?search_type=title&value=' + encodeURIComponent(String(m.body.query || '')), function (page) {
       if (!page.hasData) return missingData(page.title)
       // Entries with no `type` are the paid "official"/"TabPro" listings. "Pro"/"Official"/"Video" have no plain text to import - excluded upfront
       // rather than left to fail after the musician picked one. Best-rated first.
@@ -309,10 +310,10 @@ self.onmessage = function (e) {
         return o
       })
     })
-  } else if (m.type === 'call' && m.method === 'fetchDetail') {
-    var id = String(m.args.id || '')
+  } else if (m.kind === 'request' && m.method === 'fetchDetail') {
+    var id = String(m.body.id || '')
     var sep = id.indexOf('::')
-    if (sep === -1) return self.postMessage({ type: 'call-result', id: m.id, ok: false, message: 'Malformed ultimate-guitar-scraper result id: ' + id })
+    if (sep === -1) return self.postMessage({ kind: 'response', id: m.id, ok: false, error: { code: 'lookup.bad-id', message: 'Malformed ultimate-guitar-scraper result id: ' + id } })
     var tabUrl = id.slice(sep + 2)
     ask(m.id, tabUrl, function (page) {
       if (!page.hasData) return missingData(page.title)
@@ -330,15 +331,19 @@ self.onmessage = function (e) {
         chordProContent: convertUltimateGuitarContent(content),
       }
     })
-  } else if (m.type === 'helper-result') {
-    var p = pending[m.request]
-    delete pending[m.request]
-    if (m.error) return self.postMessage({ type: 'call-result', id: p.id, ok: false, message: m.error })
-    if (m.result && m.result.error) {
-      var known = HELPER_CODES[m.result.error.code]
-      return finish(p.id, known ? fail(known[0], known[1], m.result.error.params) : { __fail: { code: 'failed', message: String(m.result.error.code) } })
+  } else if (m.kind === 'response') {
+    var p = pending[m.id]
+    delete pending[m.id]
+    if (!p) return
+    if (!m.ok) return self.postMessage({ kind: 'response', id: p.id, ok: false, error: { code: 'lookup.failed', message: m.error.message } })
+    var result = m.body.result
+    if (result && result.error) {
+      var known = HELPER_CODES[result.error.code]
+      return finish(p.id, known ? fail(known[0], known[1], result.error.params) : { __fail: { code: 'failed', message: String(result.error.code) } })
     }
-    try { finish(p.id, p.then(m.result)) }
-    catch (err) { self.postMessage({ type: 'call-result', id: p.id, ok: false, message: String(err && err.message || err) }) }
+    try { finish(p.id, p.then(result)) }
+    catch (err) { self.postMessage({ kind: 'response', id: p.id, ok: false, error: { code: 'lookup.failed', message: String(err && err.message || err) } }) }
+  } else if (m.kind === 'request') {
+    self.postMessage({ kind: 'response', id: m.id, ok: false, error: { code: 'method.unknown', message: 'Unknown method ' + m.method } })
   }
 }

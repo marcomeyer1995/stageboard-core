@@ -1,0 +1,47 @@
+{
+  "id": "osc",
+  "name": "OSC",
+  "version": "1.0.0",
+  "protocol": 3,
+  "workFile": "work.js",
+  "permissions": [
+    "helper:udp-send"
+  ],
+  "contributes": {
+    "methods": {
+      "send": {
+        "in": {
+          "type": "object",
+          "required": [
+            "address"
+          ],
+          "properties": {
+            "address": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "args": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "host": {
+              "type": "string",
+              "maxLength": 255
+            },
+            "port": {
+              "type": "integer"
+            }
+          }
+        },
+        "out": {
+          "type": "object",
+          "required": [
+            "sent"
+          ],
+          "properties": {}
+        },
+        "timeoutMs": 8000
+      }
+    }
+  }
+}

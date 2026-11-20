@@ -1,0 +1,52 @@
+{
+  "id": "metadata-lookup",
+  "name": "Musik-Metadaten (MusicBrainz)",
+  "version": "1.0.0",
+  "protocol": 3,
+  "workFile": "work.js",
+  "permissions": [
+    "http:https://musicbrainz.org"
+  ],
+  "contributes": {
+    "methods": {
+      "search": {
+        "in": {
+          "type": "object",
+          "required": [
+            "query"
+          ],
+          "properties": {
+            "query": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300
+            }
+          }
+        },
+        "out": {
+          "type": "array"
+        },
+        "timeoutMs": 30000
+      },
+      "fetchDetail": {
+        "in": {
+          "type": "object",
+          "required": [
+            "id"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          }
+        },
+        "out": {
+          "type": "object"
+        },
+        "timeoutMs": 30000
+      }
+    }
+  }
+}

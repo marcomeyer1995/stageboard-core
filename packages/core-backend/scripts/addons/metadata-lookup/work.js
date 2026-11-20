@@ -31,10 +31,10 @@ self.onmessage = function (e) {
     if (m.settings && typeof m.settings.baseUrl === 'string') base = m.settings.baseUrl
     return
   }
-  if (m.type !== 'call') return
+  if (m.kind !== 'request') return
   var done
   if (m.method === 'search') {
-    done = request('recording/?query=' + encodeURIComponent(String(m.args.query || '')) + '&fmt=json&limit=10').then(function (body) {
+    done = request('recording/?query=' + encodeURIComponent(String(m.body.query || '')) + '&fmt=json&limit=10').then(function (body) {
       return (body.recordings || []).map(function (r) {
         var sub = [artist(r), r['first-release-date']].filter(Boolean).join(' · ')
         var out = { id: r.id, title: r.title, sourceUrl: 'https://musicbrainz.org/recording/' + r.id }
@@ -43,7 +43,7 @@ self.onmessage = function (e) {
       })
     })
   } else if (m.method === 'fetchDetail') {
-    var id = String(m.args.id || '')
+    var id = String(m.body.id || '')
     done = request('recording/' + encodeURIComponent(id) + '?fmt=json&inc=artist-credits').then(function (r) {
       return { title: r.title || null, artist: artist(r) || null, firstReleaseDate: r['first-release-date'] || null, sourceUrl: 'https://musicbrainz.org/recording/' + id }
     })
@@ -51,7 +51,7 @@ self.onmessage = function (e) {
     done = Promise.reject(new Error('Unknown method ' + m.method))
   }
   done.then(
-    function (data) { self.postMessage({ type: 'call-result', id: m.id, ok: true, data: data }) },
-    function (err) { self.postMessage({ type: 'call-result', id: m.id, ok: false, message: String(err && err.message || err) }) },
+    function (data) { self.postMessage({ kind: 'response', id: m.id, ok: true, body: data }) },
+    function (err) { self.postMessage({ kind: 'response', id: m.id, ok: false, error: { code: 'lookup.failed', message: String(err && err.message || err) } }) },
   )
 }

@@ -2,19 +2,56 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { callMethod, type MethodResult, type MethodSandbox } from 'sync-host'
 import { parseContributes, type AddonError, type Contributes } from 'shared-types'
-import { BUILTIN_ADDONS, createAddonHost, type AddonManifest, type Log } from './addonHost.js'
-import type { NodeSandbox } from './nodeSandbox.js'
+import { createCapabilities } from './capabilities.js'
+import { helperRunnerFor } from './helpers.js'
+import { startNodeSandbox, type NodeSandbox } from './nodeSandbox.js'
+
+/** What runs a helper for an add-on: this device's own programs (`helpers.ts`), or a test's stand-in. */
+export type HelperRunFn = ReturnType<typeof helperRunnerFor>
 
 /**
  * The add-ons this device can answer method calls for (docs/36 §3, #964): each one a work script in a sandbox of its own, with the methods its
- * manifest declared. The device runs a method only if it has what the add-on needs (its helpers) - otherwise the answer says so and the caller can
- * go to another device. Until installing from a repository exists these are the add-ons that ship with the device; the manifests are the same files
- * a repository add-on would bring.
+ * manifest declared and the permissions the band confirmed. Everything about an add-on is its directory under `scripts/addons/` - `manifest.json` and
+ * `work.js` - so a device that installs one from a repository (#17) registers the same two files. The device runs a method only if it has what the
+ * add-on needs (its helpers); otherwise the answer says so and the caller can go to another device.
  */
-const manifestJson = (name: string) => JSON.parse(readFileSync(fileURLToPath(new URL(`../../scripts/addons/${name}/manifest.json`, import.meta.url)), 'utf8')) as { contributes?: unknown }
+export type Log = { info: (msg: string, meta?: Record<string, unknown>) => void; error: (msg: string, meta?: Record<string, unknown>) => void }
 
-const METHOD_ADDONS: Record<string, { manifest: AddonManifest; manifestDir: string }> = {
-  [BUILTIN_ADDONS.youtube.id]: { manifest: BUILTIN_ADDONS.youtube, manifestDir: 'youtube' },
+/** The add-ons that ship with a device, by directory. */
+const ADDON_DIRS = ['youtube', 'metadata-lookup', 'ultimate-guitar', 'osc', 'piper-speech', 'stem-separation'] as const
+
+interface ManifestFile {
+  id: string
+  name?: string
+  workFile?: string
+  permissions?: string[]
+  contributes?: unknown
+}
+
+interface Entry {
+  id: string
+  workFile: string
+  permissions: string[]
+  helpers: string[]
+  contributes: Contributes
+}
+
+const scriptsDir = (dir: string, file: string) => fileURLToPath(new URL(`../../scripts/addons/${dir}/${file}`, import.meta.url))
+
+function loadEntries(): Map<string, Entry> {
+  const entries = new Map<string, Entry>()
+  for (const dir of ADDON_DIRS) {
+    const manifest = JSON.parse(readFileSync(scriptsDir(dir, 'manifest.json'), 'utf8')) as ManifestFile
+    const permissions = manifest.permissions ?? []
+    entries.set(manifest.id, {
+      id: manifest.id,
+      workFile: scriptsDir(dir, manifest.workFile ?? 'work.js'),
+      permissions,
+      helpers: permissions.filter((p) => p.startsWith('helper:')).map((p) => p.slice('helper:'.length)),
+      contributes: parseContributes(manifest.contributes).contributes,
+    })
+  }
+  return entries
 }
 
 /** `callMethod`'s view of a Node sandbox: the contract's request with a timeout and progress. */
@@ -30,33 +67,59 @@ export interface AddonMethods {
   call(addonId: string, method: string, body: unknown, options?: { onProgress?: (fraction: number) => void }): Promise<MethodResult>
 }
 
-export function createAddonMethods(log?: Log): AddonMethods {
-  const hosts = new Map<string, () => Promise<NodeSandbox>>()
-  const declared = new Map<string, Contributes>()
-  const entry = (id: string) => (Object.hasOwn(METHOD_ADDONS, id) ? METHOD_ADDONS[id] : undefined)
-  const contributesOf = (id: string): Contributes | null => {
-    const found = entry(id)
-    if (!found) return null
-    let contributes = declared.get(id)
-    if (!contributes) {
-      contributes = parseContributes(manifestJson(found.manifestDir).contributes).contributes
-      declared.set(id, contributes)
+export interface AddonMethodsOptions {
+  log?: Log
+  /** The helpers an add-on gets instead of this device's own (a test stands in for Chrome, yt-dlp, Piper ...). */
+  runHelper?: (addonId: string) => HelperRunFn | undefined
+  /** Permissions on top of the manifest's, per add-on (a test points a look-up at a local server: that origin is declared like any other). */
+  extraPermissions?: Record<string, string[]>
+  /** What an add-on gets in `init`, per add-on. */
+  settings?: Record<string, Record<string, unknown>>
+}
+
+export function createAddonMethods(options: AddonMethodsOptions = {}): AddonMethods {
+  const entries = loadEntries()
+  const sandboxes = new Map<string, Promise<NodeSandbox>>()
+  const entry = (id: string): Entry | undefined => entries.get(id)
+
+  const sandboxOf = (found: Entry): Promise<NodeSandbox> => {
+    const running = sandboxes.get(found.id)
+    const start = async (): Promise<NodeSandbox> => {
+      const permissions = [...found.permissions, ...(options.extraPermissions?.[found.id] ?? [])]
+      const runHelper = options.runHelper?.(found.id) ?? helperRunnerFor(found.helpers)
+      return startNodeSandbox({
+        addonFile: found.workFile,
+        name: found.id,
+        permissions,
+        language: 'de',
+        capabilities: createCapabilities({ permissions, helpers: runHelper }),
+        ...(options.settings?.[found.id] ? { settings: options.settings[found.id]! } : {}),
+        ...(options.log ? { log: options.log } : {}),
+      })
     }
-    return contributes
+    // A sandbox that died is started again with the next call.
+    const next = running ? running.then((sandbox) => (sandbox.alive() ? sandbox : start())) : start()
+    sandboxes.set(found.id, next)
+    return next
   }
+
   return {
     has: (id) => entry(id) !== undefined,
-    contributes: contributesOf,
-    async call(id, method, body, options) {
+    contributes: (id) => entry(id)?.contributes ?? null,
+    async call(id, method, body, callOptions) {
       const found = entry(id)
-      const contributes = contributesOf(id)
-      if (!found || !contributes) return { ok: false, error: { code: 'addon.unknown', message: `No add-on "${id}" on this device`, params: { addon: id } } satisfies AddonError }
-      let host = hosts.get(id)
-      if (!host) {
-        host = createAddonHost(found.manifest, log)
-        hosts.set(id, host)
-      }
-      return callMethod(asMethodSandbox(await host()), contributes, method, body, options)
+      if (!found) return { ok: false, error: { code: 'addon.unknown', message: `No add-on "${id}" on this device`, params: { addon: id } } satisfies AddonError }
+      return callMethod(asMethodSandbox(await sandboxOf(found)), found.contributes, method, body, callOptions)
     },
   }
+}
+
+let shared: AddonMethods | null = null
+/**
+ * The one set of add-on sandboxes of this process: every adapter (look-ups, OSC, speech, stems) and the job watcher call through it, so an add-on runs
+ * once. The first caller may bring the logger.
+ */
+export function sharedAddonMethods(log?: Log): AddonMethods {
+  shared ??= createAddonMethods(log ? { log } : {})
+  return shared
 }

@@ -72,7 +72,8 @@ describe('what the add-on says when it cannot send - its own words, nothing sent
 
   it('a device with no host and port, and an unknown command', async () => {
     expect(await plugin().trigger(cue({ address: '/x' }, 'no-such-device'))).toEqual({ status: 'error', message: 'Für dieses OSC-Gerät fehlen Host und Port (Bühne).' })
-    expect(await plugin().trigger({ type: 'kemper.tuner' } as never)).toMatchObject({ status: 'error', message: 'Unbekannter OSC-Befehl: kemper.tuner' })
+    // A command the add-on never declared is refused at the contract's boundary - the add-on is not even asked.
+    expect(await plugin().trigger({ type: 'kemper.tuner' } as never)).toMatchObject({ status: 'error', message: expect.stringContaining('kemper.tuner') })
   })
 
   it('a send that fails is reported with host, port and the reason', async () => {

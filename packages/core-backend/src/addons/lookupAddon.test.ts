@@ -2,9 +2,11 @@ import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { createMusicBrainzAddonPlugin } from './lookupAddon.js'
+import { createAddonMethods } from './addonMethods.js'
 
 let server: Server
 let baseUrl: string
+let methods: ReturnType<typeof createAddonMethods>
 const seen: { url: string; ua: string | undefined }[] = []
 
 beforeAll(async () => {
@@ -17,12 +19,14 @@ beforeAll(async () => {
   })
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', r))
   baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}/ws/2/`
+  // A local server stands in for MusicBrainz: its origin is declared like any other, and the add-on is told where to look.
+  methods = createAddonMethods({ extraPermissions: { 'metadata-lookup': [`http:${new URL(baseUrl).origin}`] }, settings: { 'metadata-lookup': { baseUrl } } })
 })
 afterAll(() => void server.close())
 
 describe('the metadata look-up add-on in the sandbox (#964)', () => {
   it('searches over the network from inside the sandbox, with a User-Agent, and maps the results', async () => {
-    const plugin = createMusicBrainzAddonPlugin({ baseUrl })
+    const plugin = createMusicBrainzAddonPlugin({ methods })
     const results = await plugin.search('Wonder wall')
     expect(results).toEqual([
       { id: 'mbid-1', title: 'Wonderwall', subtitle: 'Oasis · 1995-10-02', sourceUrl: 'https://musicbrainz.org/recording/mbid-1' },
@@ -33,10 +37,10 @@ describe('the metadata look-up add-on in the sandbox (#964)', () => {
   })
 
   it('fetches the detail of one recording', async () => {
-    expect(await createMusicBrainzAddonPlugin({ baseUrl }).fetchDetail('mbid-1')).toEqual({ title: 'Wonderwall', artist: 'Oasis', firstReleaseDate: '1995-10-02', sourceUrl: 'https://musicbrainz.org/recording/mbid-1' })
+    expect(await createMusicBrainzAddonPlugin({ methods }).fetchDetail('mbid-1')).toEqual({ title: 'Wonderwall', artist: 'Oasis', firstReleaseDate: '1995-10-02', sourceUrl: 'https://musicbrainz.org/recording/mbid-1' })
   })
 
   it('an HTTP error is an error ', async () => {
-    await expect(createMusicBrainzAddonPlugin({ baseUrl }).fetchDetail('bad')).rejects.toThrow('MusicBrainz request failed: HTTP 503')
+    await expect(createMusicBrainzAddonPlugin({ methods }).fetchDetail('bad')).rejects.toThrow('MusicBrainz request failed: HTTP 503')
   })
 })

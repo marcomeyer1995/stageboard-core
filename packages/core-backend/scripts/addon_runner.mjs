@@ -9,6 +9,9 @@ import vm from 'node:vm'
 
 const addonFile = process.argv[2]
 const send = (message) => process.send?.(message)
+// Log lines and health are contract notifications (docs/36 §4), like everything else that crosses the boundary.
+const log = (parts) => send({ kind: 'notify', topic: 'log', body: { line: parts.join(' ') } })
+const health = (status, message) => send({ kind: 'notify', topic: 'health', body: { status, ...(message ? { message } : {}) } })
 const self = {
   postMessage: (message) => send(message),
   onmessage: null,
@@ -21,7 +24,7 @@ const listeners = []
 const sandboxGlobals = {
   self,
   postMessage: self.postMessage,
-  console: { log: (...a) => send({ type: 'log', line: a.join(' ') }), warn: (...a) => send({ type: 'log', line: a.join(' ') }), error: (...a) => send({ type: 'log', line: a.join(' ') }) },
+  console: { log: (...a) => log(a), warn: (...a) => log(a), error: (...a) => log(a) },
   setTimeout,
   clearTimeout,
   setInterval,
@@ -34,19 +37,18 @@ const sandboxGlobals = {
 try {
   vm.runInNewContext(readFileSync(addonFile, 'utf8'), sandboxGlobals, { filename: addonFile })
 } catch (err) {
-  send({ type: 'health', status: 'error', message: `The add-on could not start: ${err?.message ?? err}` })
+  health('error', `The add-on could not start: ${err?.message ?? err}`)
   process.exit(1)
 }
 // The host is gone (it was stopped, or killed): so is the add-on. An add-on that holds a timer open must not outlive the host.
 process.on('disconnect', () => process.exit(0))
-// Both protocols pass through untouched: a protocol 2 message (`type`) and a contract envelope (`kind`) are the add-on's business, and the sandbox
-// routes by shape (#964, docs/36 §9). The runner never rewrites a message, so the same script works in a Worker and here.
+// Messages pass through untouched - the same script works in a Worker and here. The runner never rewrites one.
 process.on('message', (data) => {
   try {
     self.onmessage?.({ data })
     for (const listener of listeners) listener({ data })
   } catch (err) {
-    send({ type: 'health', status: 'error', message: `The add-on threw: ${err?.message ?? err}` })
+    health('error', `The add-on threw: ${err?.message ?? err}`)
   }
 })
-send({ type: 'health', status: 'online' })
+health('online')
