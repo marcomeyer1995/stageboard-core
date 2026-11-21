@@ -31,13 +31,13 @@ beforeEach(() => {
 
 describe('the device panel of an add-on (#964, docs/36 §5a, §6)', () => {
   it('shows nothing for a device when no installed add-on offers a panel', () => {
-    const { container } = render(<DevicePanelSlots logicalDeviceId="lights" createWorker={inProcess} />)
+    const { container } = render(<DevicePanelSlots logicalDeviceId="lights" pluginId="osc" createWorker={inProcess} />)
     expect(container).toBeEmptyDOMElement()
   })
 
   it('draws the OSC add-on\'s panel from its description and follows the device\'s live state without asking the add-on again', async () => {
     usePluginsStore.setState({ installed: [osc] })
-    render(<DevicePanelSlots logicalDeviceId="lights" createWorker={inProcess} />)
+    render(<DevicePanelSlots logicalDeviceId="lights" pluginId="osc" createWorker={inProcess} />)
     expect(await screen.findByText('Zuletzt gesendet')).toBeInTheDocument()
     // Bound to state:lights.lastCue - nothing published yet, then the host says a cue went out, then a newer one.
     act(() => useDeviceStateStore.getState().apply({ device: 'lights', key: 'lastCue', value: '/cue/12/go 1', at: 1 }))
@@ -49,16 +49,25 @@ describe('the device panel of an add-on (#964, docs/36 §5a, §6)', () => {
 
   it('shows only the state of ITS device - another device\'s cue never appears in this panel', async () => {
     usePluginsStore.setState({ installed: [osc] })
-    render(<DevicePanelSlots logicalDeviceId="lights" createWorker={inProcess} />)
+    render(<DevicePanelSlots logicalDeviceId="lights" pluginId="osc" createWorker={inProcess} />)
     await screen.findByText('Zuletzt gesendet')
     act(() => useDeviceStateStore.getState().apply({ device: 'video', key: 'lastCue', value: '/video/play', at: 1 }))
     await act(async () => undefined)
     expect(screen.queryByText('/video/play')).toBeNull()
   })
 
+  it('shows only the panel of the add-on the device belongs to - a device of another add-on, or of none, gets none', () => {
+    usePluginsStore.setState({ installed: [osc] })
+    for (const pluginId of ['kemper-profiler', null]) {
+      const { container, unmount } = render(<DevicePanelSlots logicalDeviceId="lights" pluginId={pluginId} createWorker={inProcess} />)
+      expect(container, String(pluginId)).toBeEmptyDOMElement()
+      unmount()
+    }
+  })
+
   it('a disabled add-on offers no panel', () => {
     usePluginsStore.setState({ installed: [{ ...osc, enabled: false }] })
-    const { container } = render(<DevicePanelSlots logicalDeviceId="lights" createWorker={inProcess} />)
+    const { container } = render(<DevicePanelSlots logicalDeviceId="lights" pluginId="osc" createWorker={inProcess} />)
     expect(container).toBeEmptyDOMElement()
   })
 })

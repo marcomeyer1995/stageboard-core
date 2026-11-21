@@ -10,10 +10,10 @@ import { usePluginsStore } from '../store/usePluginsStore'
  * device - drawn from a description, bound to the device's live state (`{bind: "state:<device>.<key>"}`), so the panel follows the device without asking the
  * add-on again. The caller says which logical device it is and where to put this; it knows nothing of what a panel shows.
  */
-export function DevicePanelSlots({ logicalDeviceId, createWorker }: { logicalDeviceId: string; createWorker?: ViewWorkerFactory }) {
+export function DevicePanelSlots({ logicalDeviceId, pluginId, createWorker }: { logicalDeviceId: string; /** The add-on the device belongs to: only its panel is shown for it - another add-on's panel says nothing about this device. */ pluginId: string | null; createWorker?: ViewWorkerFactory }) {
   const installed = usePluginsStore((s) => s.installed)
   const values = useDeviceStateStore((s) => s.values)
-  const entries = useMemo(() => addonsForSlot('device.panel', installed.filter((p) => p.enabled).map((p) => p.id)), [installed])
+  const entries = useMemo(() => addonsForSlot('device.panel', installed.filter((p) => p.enabled && p.id === pluginId).map((p) => p.id)), [installed, pluginId])
   const sources = useMemo(() => ({ jobs: {}, state: values }), [values])
   if (entries.length === 0) return null
   return (
