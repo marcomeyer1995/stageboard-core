@@ -125,7 +125,7 @@ describe('createAsyncJobWatcher', () => {
   beforeEach(() => {
     store.clear()
     // The YouTube jobs below run for a band with the YouTube-Download add-on (#546).
-    store.set('plugins:youtube-download', { _id: 'plugins:youtube-download', id: 'youtube-download', name: 'YouTube-Download', version: '0.0.1', enabled: true, runtime: 'server', installedAt: 1, capabilities: ['video-download'], transports: [], hardwareIds: [] })
+    store.set('plugins:youtube-download', { _id: 'plugins:youtube-download', id: 'youtube-download', name: 'YouTube-Download', version: '0.0.1', enabled: true, runtime: 'host', installedAt: 1, capabilities: ['video-download'], transports: [], hardwareIds: [] })
     fake.call.mockReset()
     vi.mocked(writeAudioFile).mockClear()
     vi.mocked(deleteAudioFile).mockClear()
@@ -341,7 +341,7 @@ describe('createAsyncJobWatcher', () => {
 
   describe('stem separation (#9)', () => {
     const stemJob = { id: 'stem-1', type: 'stem-separation', status: 'queued', progress: 0, createdAt: 1, updatedAt: 1, variantId: 'variant-1', sourceTrackId: 'mix-1', model: 'extended', splitGuitar: true }
-    const installPlugin = () => store.set('plugins:stem-separation', { _id: 'plugins:stem-separation', id: 'stem-separation', name: 'Spuren trennen', version: '0.0.1', enabled: true, runtime: 'server', installedAt: 1, capabilities: ['stem-separation'], transports: [], hardwareIds: [] })
+    const installPlugin = () => store.set('plugins:stem-separation', { _id: 'plugins:stem-separation', id: 'stem-separation', name: 'Spuren trennen', version: '0.0.1', enabled: true, runtime: 'host', installedAt: 1, capabilities: ['stem-separation'], transports: [], hardwareIds: [] })
 
     beforeEach(() => {
       fake.call.mockReset()
@@ -387,7 +387,7 @@ describe('createAsyncJobWatcher', () => {
 describe('a host without add-ons (#964)', () => {
   it('ends a stem job with a message instead of hanging - the separation is the add-on\'s method and there is none to ask', async () => {
     store.clear()
-    store.set('plugins:stem-separation', { _id: 'plugins:stem-separation', id: 'stem-separation', name: 'Spuren trennen', version: '0.0.1', enabled: true, runtime: 'server', capabilities: ['stem-separation'], installedAt: 1, source: 'builtin' })
+    store.set('plugins:stem-separation', { _id: 'plugins:stem-separation', id: 'stem-separation', name: 'Spuren trennen', version: '0.0.1', enabled: true, runtime: 'host', capabilities: ['stem-separation'], installedAt: 1, source: 'builtin' })
     store.set('song-variants:variant-1', { _id: 'song-variants:variant-1', tracks: [{ id: 'mix-1', kind: 'band-mix' }] })
     store.set('async-jobs:stem-2', { id: 'stem-2', type: 'stem-separation', status: 'queued', progress: 0, createdAt: 1, updatedAt: 1, variantId: 'variant-1', sourceTrackId: 'mix-1', model: 'standard', splitGuitar: false, _id: 'async-jobs:stem-2' })
     const watcher = createAsyncJobWatcher({ database: { url: 'http://database', user: 'u', password: 'p' }, workspaceId: 'ws', log: { info: vi.fn(), error: vi.fn() } })

@@ -6,11 +6,11 @@ import { DiscoveryTriggerSchema } from './discoveryTrigger.js'
 import { CapabilityTimingSchema } from './timing.js'
 
 /**
- * Where a plugin actually runs. WebMIDI is a browser API and therefore lives on the
- * tablet; a mixer adapter talks to hardware and lives on the Host. That
- * difference decides who reports the plugin's health (see pluginHealth.ts).
+ * Where a plugin actually runs: on a `device` (WebMIDI is a browser API), on a `host` (a mixer adapter talks to hardware the host's computer has), or
+ * `both`. That decides who reports the plugin's health (see pluginHealth.ts). Older documents and manifests say `client` and `server`; they still read
+ * (#964) and mean `device` and `host`.
  */
-export const PluginRuntimeSchema = z.enum(['client', 'server', 'both'])
+export const PluginRuntimeSchema = z.preprocess((value) => (value === 'client' ? 'device' : value === 'server' ? 'host' : value), z.enum(['device', 'host', 'both']))
 export type PluginRuntime = z.infer<typeof PluginRuntimeSchema>
 
 /**

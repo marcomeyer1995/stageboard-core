@@ -22,7 +22,7 @@ const MIXER: PluginInstallation = {
   id: 'mock-mixer',
   name: 'Mock Mixer',
   version: '0.0.1',
-  runtime: 'server',
+  runtime: 'host',
   capabilities: ['mixer'],
   transports: [],
   hardwareIds: [],

@@ -285,7 +285,7 @@ export function StageMap() {
     return plugin && !installedPlugins.some((p) => p.id === plugin.id && p.enabled) ? [title(e)] : []
   })
   const liveOutputs = useMemo(
-    () => logicalDevices.filter((d) => !BUILT_IN_CAPABILITIES.includes(d.capability)).map((d) => ({ id: d.id, name: d.name, pluginId: d.pluginId, client: installedPlugins.find((p) => p.id === d.pluginId)?.runtime === 'client' })),
+    () => logicalDevices.filter((d) => !BUILT_IN_CAPABILITIES.includes(d.capability)).map((d) => ({ id: d.id, name: d.name, pluginId: d.pluginId, client: installedPlugins.find((p) => p.id === d.pluginId)?.runtime === 'device' })),
     [logicalDevices, installedPlugins],
   )
   const live = useStageLive(checking, { equipment: onStage, setup, flows, outputs: liveOutputs, builtInIds: BUILT_IN_IDS })

@@ -14,7 +14,7 @@ function manifest(over: Record<string, unknown> = {}) {
     id: 'nux-mg30',
     name: 'NUX MG-30',
     version: '0.1.0',
-    runtime: 'client',
+    runtime: 'device',
     capabilities: ['mg30-control'],
     apiVersion: 1,
     permissions: ['midi-out:NUX MG-30'],

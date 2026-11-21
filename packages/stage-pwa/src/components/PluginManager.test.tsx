@@ -13,7 +13,7 @@ const { PluginManager } = await import('./PluginManager')
 const { usePluginsStore } = await import('../store/usePluginsStore')
 const { useDialogStore } = await import('../store/useDialogStore')
 
-const plugin = (id: string, name: string, capabilities: string[]) => ({ id, name, version: '0.0.1', runtime: 'client', capabilities, transports: [], hardwareIds: [], enabled: true, installedAt: 1 })
+const plugin = (id: string, name: string, capabilities: string[]) => ({ id, name, version: '0.0.1', runtime: 'device', capabilities, transports: [], hardwareIds: [], enabled: true, installedAt: 1 })
 
 describe('PluginManager (System cleanup 2026-10-16)', () => {
   it('shows readable capabilities, marks test plugins, and removes only after asking, from ⋯', async () => {

@@ -225,7 +225,7 @@ describe('CustomTriggerWidget', () => {
     const mixer = device({ id: 'mixer-1', name: 'Mixer', capability: 'lighting' })
     useLogicalDevicesStore.setState({ devices: [mixer] })
     usePluginsStore.setState({
-      installed: [plugin({ id: 'mock-lighting', runtime: 'server', capabilities: ['lighting'] })],
+      installed: [plugin({ id: 'mock-lighting', runtime: 'host', capabilities: ['lighting'] })],
     })
 
     render(

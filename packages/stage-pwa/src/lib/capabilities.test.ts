@@ -9,7 +9,7 @@ function plugin(overrides: Partial<PluginInstallation> = {}): PluginInstallation
     id: 'mock-mixer',
     name: 'Mock Mixer',
     version: '0.0.1',
-    runtime: 'server',
+    runtime: 'host',
     capabilities: ['mixer'],
     transports: [],
     hardwareIds: [],
@@ -58,7 +58,7 @@ describe('resolveCapabilities', () => {
   it('judges client-side plugins by the local probe, not the server heartbeat', () => {
     const webmidi = plugin({
       id: 'generic-webmidi',
-      runtime: 'client',
+      runtime: 'device',
       capabilities: ['midi-input'],
     })
     expect(

@@ -22,7 +22,7 @@ const inProcess: ViewWorkerFactory = (code) => {
   new Function('self', code)(scope)
   return worker
 }
-const osc = { id: 'osc', name: 'OSC', version: '0.1.0', enabled: true, runtime: 'server', installedAt: 0, capabilities: ['osc'], transports: [], hardwareIds: [] } as unknown as PluginInstallation
+const osc = { id: 'osc', name: 'OSC', version: '0.1.0', enabled: true, runtime: 'host', installedAt: 0, capabilities: ['osc'], transports: [], hardwareIds: [] } as unknown as PluginInstallation
 
 beforeEach(() => {
   usePluginsStore.setState({ installed: [] })

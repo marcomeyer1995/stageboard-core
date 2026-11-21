@@ -29,7 +29,7 @@ export function useCapabilities(): Map<CapabilityId, CapabilityStatus> {
   // resolution below never waits on this, it trusts the local probe directly, unchanged.
   useEffect(() => {
     for (const plugin of installed) {
-      if (!plugin.enabled || plugin.runtime !== 'client') continue
+      if (!plugin.enabled || plugin.runtime !== 'device') continue
       if (!apiVersionFits(plugin)) {
         void reportClientHealth(workspaceId, plugin.id, 'error', API_VERSION_MISMATCH_CODE)
         continue

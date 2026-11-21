@@ -3,7 +3,7 @@ import type { LogicalDevice, PluginInstallation } from 'shared-types'
 import { capabilityTiming, cueLatencyMs } from './capabilityTiming'
 
 function plugin(overrides: Partial<PluginInstallation> & Pick<PluginInstallation, 'id' | 'capabilities'>): PluginInstallation {
-  return { name: overrides.id, version: '1', runtime: 'client', transports: [], hardwareIds: [], enabled: true, installedAt: 0, ...overrides }
+  return { name: overrides.id, version: '1', runtime: 'device', transports: [], hardwareIds: [], enabled: true, installedAt: 0, ...overrides }
 }
 
 describe('capabilityTiming (docs/21)', () => {

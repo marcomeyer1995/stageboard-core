@@ -62,7 +62,7 @@ const job = (over: Partial<AudioImportJob> = {}): AudioImportJob => ({
 })
 const putJob = (over: Partial<AudioImportJob> = {}) => store.set(`async-jobs:${job(over).id}`, { ...job(over), _id: `async-jobs:${job(over).id}` })
 const stored = (id: string) => store.get(`async-jobs:${id}`) as (AudioImportJob & { runner?: string; errorCode?: string; errorParams?: unknown }) | undefined
-const installAddon = () => store.set('plugins:youtube-download', { _id: 'plugins:youtube-download', id: 'youtube-download', name: 'YouTube', version: '1.0.0', enabled: true, runtime: 'server', capabilities: [], installedAt: 1, source: 'builtin' })
+const installAddon = () => store.set('plugins:youtube-download', { _id: 'plugins:youtube-download', id: 'youtube-download', name: 'YouTube', version: '1.0.0', enabled: true, runtime: 'host', capabilities: [], installedAt: 1, source: 'builtin' })
 
 beforeEach(() => {
   store.clear()

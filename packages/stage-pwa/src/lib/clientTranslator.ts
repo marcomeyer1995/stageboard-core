@@ -59,7 +59,7 @@ async function applyClickTrackEvent(event: ShowControlEvent): Promise<ShowContro
 /**
  * What a client-side plugin does with a fired event, running entirely on this tablet - the
  * browser-side sibling of core-backend's `IShowControlPlugin.trigger` (#98). Every entry here
- * corresponds 1:1 to a `runtime: 'client' | 'both'` catalog entry in PluginManager.tsx, and is
+ * corresponds 1:1 to a `runtime: 'device' | 'both'` catalog entry in PluginManager.tsx, and is
  * exactly what that plugin's Translator does today - the two mock capabilities' still-bundled
  * stand-in for a real plugin's own `ClientPluginModule.registerTranslator` (#101/#109), which a
  * *dynamically* loaded plugin provides instead, via `dynamicTranslators` below.
@@ -142,7 +142,7 @@ export function hasClientTranslator(installed: PluginInstallation[], capability:
   return installed.some(
     (plugin) =>
       plugin.enabled &&
-      (plugin.runtime === 'client' || plugin.runtime === 'both') &&
+      (plugin.runtime === 'device' || plugin.runtime === 'both') &&
       plugin.capabilities.includes(capability),
   )
 }

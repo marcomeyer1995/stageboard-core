@@ -43,7 +43,7 @@ export function PluginManager({ kind = 'extensions' }: { kind?: PluginKind }) {
 
   function healthLabel(plugin: PluginInstallation): string {
     if (!apiVersionFits(plugin)) return t('apiVersionMismatch')
-    if (plugin.runtime === 'client') return t('onTablet')
+    if (plugin.runtime === 'device') return t('onTablet')
     const entry = health.plugins[plugin.id]
     if (!entry) return t('noHeartbeat')
     if (entry.status !== 'online') return entry.message === API_VERSION_MISMATCH_CODE ? t('apiVersionMismatch') : (entry.message ?? entry.status)

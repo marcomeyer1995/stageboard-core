@@ -71,7 +71,7 @@ export function reconcile(
 
   for (const installation of installations) {
     // Client-side plugins (WebMIDI) run on the tablet; the server has nothing to start.
-    if (!installation.enabled || installation.runtime === 'client') continue
+    if (!installation.enabled || installation.runtime === 'device') continue
     if (!catalog.includes(installation.id)) {
       unavailable.push(installation.id)
       continue

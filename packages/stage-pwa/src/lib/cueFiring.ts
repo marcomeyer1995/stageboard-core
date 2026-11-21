@@ -84,7 +84,7 @@ export async function fireCue(cue: ShowCue, ctx: FireContext): Promise<CueOutcom
       // An add-on that only runs on a tablet (the Kemper's USB-MIDI) has nothing on the
       // Host to send it - the cue came back as "Unknown plugin: kemper-profiler"
       // (Rig-Check, 2026-10-29). Missed, and why, in words.
-      if (ctx.installed.find((p) => p.id === pluginId)?.runtime === 'client') return { target, ok: false, message: TABLET_ONLY_MESSAGE }
+      if (ctx.installed.find((p) => p.id === pluginId)?.runtime === 'device') return { target, ok: false, message: TABLET_ONLY_MESSAGE }
       // The Host's gateway holds it until scheduledAt (core-backend index.ts) - server time
       // is what scheduledAt is in, so no conversion.
       return outcome(await triggerShowControl(pluginId, scheduledAt === undefined ? event : { ...event, scheduledAt }))

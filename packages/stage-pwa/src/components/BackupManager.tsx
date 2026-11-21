@@ -72,7 +72,7 @@ export function BackupManager() {
   }
 
   function healthLabel(plugin: PluginInstallation): string {
-    if (plugin.runtime === 'client') return t('bk.onTablet')
+    if (plugin.runtime === 'device') return t('bk.onTablet')
     const entry = health.plugins[plugin.id]
     if (!entry) return t('bk.noHeartbeat')
     if (entry.status !== 'online') return entry.message ?? entry.status

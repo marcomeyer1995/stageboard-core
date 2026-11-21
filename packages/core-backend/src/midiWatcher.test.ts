@@ -76,7 +76,7 @@ const KEMPER: PluginInstallation = {
   id: 'kemper-profiler',
   name: 'Kemper Profiler',
   version: '0.0.1',
-  runtime: 'client',
+  runtime: 'device',
   capabilities: ['kemper-control'],
   transports: [{ id: 'usb-midi', label: 'USB-MIDI', fields: [{ key: 'midiOutputId', label: 'MIDI-Ausgang', type: 'text' }] }],
   hardwareIds: [{ kind: 'webmidi', namePattern: 'Kemper' }],

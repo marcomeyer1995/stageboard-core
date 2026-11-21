@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { ADDON_API_VERSION, androidHelperCerts, apiVersionFits, HelpersSchema, PermissionSchema, PluginInstallationSchema } from './pluginInstallation.js'
+import { ADDON_API_VERSION, androidHelperCerts, apiVersionFits, HelpersSchema, PermissionSchema, PluginInstallationSchema, PluginRuntimeSchema } from './pluginInstallation.js'
 
-const base = { id: 'x', name: 'X', version: '1.0.0', runtime: 'client', installedAt: 0 }
+const base = { id: 'x', name: 'X', version: '1.0.0', runtime: 'device', installedAt: 0 }
 const cert = 'ab'.repeat(32)
 
 describe('PluginInstallationSchema - apiVersion, permissions, helpers (#756)', () => {
@@ -42,5 +42,15 @@ describe('androidHelperCerts', () => {
     expect(androidHelperCerts({})).toEqual([])
     expect(androidHelperCerts({ helpers: { desktop: { program: 'yt-dlp' } } })).toEqual([])
     expect(androidHelperCerts({ helpers: { android: { package: 'p', certSha256: [cert] } } })).toEqual([cert])
+  })
+})
+
+describe('PluginRuntimeSchema (#964)', () => {
+  it('reads the old words as device and host, and the new ones as they are', () => {
+    expect(PluginRuntimeSchema.parse('client')).toBe('device')
+    expect(PluginRuntimeSchema.parse('server')).toBe('host')
+    expect(PluginRuntimeSchema.parse('both')).toBe('both')
+    expect(PluginRuntimeSchema.parse('device')).toBe('device')
+    expect(PluginRuntimeSchema.safeParse('cloud').success).toBe(false)
   })
 })

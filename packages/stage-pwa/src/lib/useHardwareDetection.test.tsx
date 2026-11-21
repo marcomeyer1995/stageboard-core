@@ -61,7 +61,7 @@ const GENERIC_MIDI: PluginInstallation = {
   id: 'generic-webmidi',
   name: 'Generic WebMIDI Input',
   version: '0.0.1',
-  runtime: 'client',
+  runtime: 'device',
   capabilities: ['midi-input'],
   transports: [{ id: 'usb-midi', label: 'USB-MIDI', fields: [{ key: 'midiOutputId', label: 'MIDI-Ausgang', type: 'text' }] }],
   hardwareIds: [{ kind: 'webmidi' }],

@@ -140,7 +140,7 @@ export const PLUGIN_CATALOG: Array<Omit<PluginInstallation, 'installedAt' | 'ena
     id: 'generic-webmidi',
     name: 'Generic WebMIDI Input',
     version: '0.0.1',
-    runtime: 'client',
+    runtime: 'device',
     capabilities: [CAPABILITIES.midiInput],
     transports: [
       {
@@ -158,7 +158,7 @@ export const PLUGIN_CATALOG: Array<Omit<PluginInstallation, 'installedAt' | 'ena
     id: 'kemper-profiler',
     name: 'Kemper Profiler',
     version: '0.0.1',
-    runtime: 'client',
+    runtime: 'device',
     // Own dedicated capability (kemperTranslator.ts), not CAPABILITIES.midiInput/showControl -
     // a device-specific plugin brings its own vocabulary (capability.ts's doc comment).
     capabilities: ['kemper-control'],
@@ -193,7 +193,7 @@ export const PLUGIN_CATALOG: Array<Omit<PluginInstallation, 'installedAt' | 'ena
     id: 'cq18t-mixer',
     name: 'Allen & Heath CQ-18T',
     version: '0.0.1',
-    runtime: 'client',
+    runtime: 'device',
     // Own dedicated capability (cq18tTranslator.ts) - see its own doc comment for why not
     // CAPABILITIES.mixer (that slot is a fixed, single local translator, not plugin-swappable).
     capabilities: ['cq18t-control'],
@@ -232,7 +232,7 @@ export const PLUGIN_CATALOG: Array<Omit<PluginInstallation, 'installedAt' | 'ena
     id: 'nux-mg30',
     name: 'NUX MG-30',
     version: '0.0.1',
-    runtime: 'client',
+    runtime: 'device',
     // Own dedicated capability (mg30Translator.ts) - a multi-effects unit's patch/knob
     // vocabulary doesn't fit any of capability.ts's core CAPABILITIES.
     capabilities: ['mg30-control'],
@@ -258,7 +258,7 @@ export const PLUGIN_CATALOG: Array<Omit<PluginInstallation, 'installedAt' | 'ena
     id: 'boss-rc500',
     name: 'BOSS RC-500',
     version: '0.0.1',
-    runtime: 'client',
+    runtime: 'device',
     // Own dedicated capability (rc500Translator.ts) - a looper's memory/track vocabulary
     // doesn't fit any of capability.ts's core CAPABILITIES.
     capabilities: ['rc500-control'],
@@ -285,7 +285,7 @@ export const PLUGIN_CATALOG: Array<Omit<PluginInstallation, 'installedAt' | 'ena
     id: 'soundcraft-ui24r',
     name: 'Soundcraft Ui24R',
     version: '0.0.1',
-    runtime: 'client',
+    runtime: 'device',
     // Own dedicated capability (ui24rTranslator.ts), same reasoning cq18t-mixer above
     // already documents for why not CAPABILITIES.mixer.
     capabilities: ['ui24r-control'],
@@ -333,7 +333,7 @@ export const PLUGIN_CATALOG: Array<Omit<PluginInstallation, 'installedAt' | 'ena
     id: 'mock-backup',
     name: 'Mock Backup',
     version: '0.0.1',
-    runtime: 'server',
+    runtime: 'host',
     capabilities: [CAPABILITIES.backup],
     transports: [],
     hardwareIds: [],
@@ -342,7 +342,7 @@ export const PLUGIN_CATALOG: Array<Omit<PluginInstallation, 'installedAt' | 'ena
     id: 'mock-playback',
     name: 'Mock Playback',
     version: '0.0.1',
-    runtime: 'server',
+    runtime: 'host',
     capabilities: [CAPABILITIES.audioPlayback],
     timing: [{ capability: CAPABILITIES.audioPlayback, timingClass: 'sample', honoursScheduledAt: false }],
     transports: [],
@@ -358,7 +358,7 @@ export const PLUGIN_CATALOG: Array<Omit<PluginInstallation, 'installedAt' | 'ena
     // import() only once this plugin is installed and "Track analysieren" is actually run - no
     // `source`/`clientSource` needed. The built-in detector and the timeline always work without
     // this plugin; installing it only makes "Track analysieren" more accurate.
-    runtime: 'client',
+    runtime: 'device',
     capabilities: [CAPABILITIES.audioAnalysis],
     transports: [],
     hardwareIds: [],
@@ -372,7 +372,7 @@ export const PLUGIN_CATALOG: Array<Omit<PluginInstallation, 'installedAt' | 'ena
     // case, same as audio-playback) - this catalog entry exists only so `click-track` is a
     // selectable "Typ" in the Hardware Setup Wizard when routing to the Host (#25's
     // still-unbuilt hardware-routed half - a real server-side click/MIDI-Clock plugin).
-    runtime: 'server',
+    runtime: 'host',
     capabilities: [CAPABILITIES.clickTrack],
     timing: [{ capability: CAPABILITIES.clickTrack, timingClass: 'sample', honoursScheduledAt: false }],
     transports: [],
@@ -382,7 +382,7 @@ export const PLUGIN_CATALOG: Array<Omit<PluginInstallation, 'installedAt' | 'ena
     id: 'midi-clock',
     name: 'MIDI-Clock',
     version: '0.0.1',
-    runtime: 'client',
+    runtime: 'device',
     // Generic (#478, Marco 2026-10-13): one "MIDI-Clock" device per piece of gear that should
     // follow the song tempo, bound to that gear's MIDI port - its own capability, no switch on the
     // gear's own device. 24 ticks per beat need exact timing: sent with WebMIDI timestamps.
@@ -402,7 +402,7 @@ export const PLUGIN_CATALOG: Array<Omit<PluginInstallation, 'installedAt' | 'ena
     id: 'midi-controller',
     name: 'MIDI-Controller',
     version: '0.0.1',
-    runtime: 'client',
+    runtime: 'device',
     // Generic (#547, docs/23 §7): a foot controller, pad or keyboard plugged into a tablet - its
     // buttons trigger actions ("Knöpfe belegen" in the device's ⋯). Listens only; sends nothing.
     capabilities: [CAPABILITIES.midiController],
@@ -422,7 +422,7 @@ export const PLUGIN_CATALOG: Array<Omit<PluginInstallation, 'installedAt' | 'ena
     // The Host generates the voice for spoken announcements (#63) with Piper, an offline
     // speech program installed next to it (docs/21 §9) - each text once, as a clip every device
     // downloads. Without Piper on the server the plugin installs, but announcements stay silent.
-    runtime: 'server',
+    runtime: 'host',
     capabilities: [CAPABILITIES.speechSynthesis],
     transports: [],
     hardwareIds: [],
@@ -435,7 +435,7 @@ export const PLUGIN_CATALOG: Array<Omit<PluginInstallation, 'installedAt' | 'ena
     // Sent as UDP by the Host (core-backend oscPlugin.ts) - a browser can't send UDP - so the
     // device runs on the Host; host and port are set in Bühnentechnik. Its own capability
     // (like the MIDI-Clock, #478): one device per program that listens.
-    runtime: 'server',
+    runtime: 'host',
     capabilities: ['osc'],
     // The server holds a cue until its moment (scheduledAt) and sends it then.
     timing: [{ capability: 'osc', timingClass: 'realtime', honoursScheduledAt: true }],
@@ -459,7 +459,7 @@ export const PLUGIN_CATALOG: Array<Omit<PluginInstallation, 'installedAt' | 'ena
     // sends to the Host's OSC port (8000); its buttons fire actions like a pedal or a MIDI
     // controller - "Knöpfe belegen" in Bühnentechnik. A transport without fields: the server's port
     // is fixed (STAGEBOARD_OSC_IN_PORT) - it makes this a driver, offered as a device type.
-    runtime: 'server',
+    runtime: 'host',
     capabilities: ['osc-input'],
     transports: [{ id: 'network-osc-in', label: 'Netzwerk (OSC an den Host)', fields: [] }],
     hardwareIds: [],
@@ -471,7 +471,7 @@ export const PLUGIN_CATALOG: Array<Omit<PluginInstallation, 'installedAt' | 'ena
     // Splits a song's track into stems - drums, bass, vocals, rest, optionally guitar (left/right)
     // and keys - on the Host with Demucs (#9, docs/03). Heavy (~1 GB, about a minute of
     // full CPU per song), so a plugin: without it the song editor offers no "Spuren trennen".
-    runtime: 'server',
+    runtime: 'host',
     capabilities: [CAPABILITIES.stemSeparation],
     transports: [],
     hardwareIds: [],
@@ -482,7 +482,7 @@ export const PLUGIN_CATALOG: Array<Omit<PluginInstallation, 'installedAt' | 'ena
     version: '0.0.1',
     // Search Ultimate Guitar for chord sheets under "Song importieren" (#546). An add-on: it reads a
     // third party's website (docs/16), so a band only has it when it installs it.
-    runtime: 'server',
+    runtime: 'host',
     capabilities: [CAPABILITIES.chordImport],
     transports: [],
     hardwareIds: [],
@@ -517,7 +517,7 @@ export const PLUGIN_CATALOG: Array<Omit<PluginInstallation, 'installedAt' | 'ena
     version: '0.0.1',
     // "Chorus", "Bridge" a bar before the part, in the in-ears (#63): built into stage-pwa
     // (useAnnouncementDriver.ts), switched on by installing; the voice comes from piper-speech.
-    runtime: 'client',
+    runtime: 'device',
     capabilities: [CAPABILITIES.sectionAnnouncements],
     timing: [{ capability: CAPABILITIES.sectionAnnouncements, timingClass: 'sample', honoursScheduledAt: false }],
     transports: [],

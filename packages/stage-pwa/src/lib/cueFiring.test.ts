@@ -144,7 +144,7 @@ describe('fireCue', () => {
 
   it('a tablet-only add-on with no tablet chosen is missed in words - never sent to the Host', async () => {
     const kemper: LogicalDevice = { id: 'kemper', name: 'Kemper', capability: 'kemper-control', pluginId: 'kemper-profiler', executionTarget: null }
-    const installed = [plugin({ id: 'kemper-profiler', name: 'Kemper Profiler', runtime: 'client', capabilities: ['kemper-control'] })]
+    const installed = [plugin({ id: 'kemper-profiler', name: 'Kemper Profiler', runtime: 'device', capabilities: ['kemper-control'] })]
     expect(await fireCue(cue({ targetLogicalDeviceId: 'kemper' }), { deviceId: 'me', logicalDevices: [kemper], installed, sendsServerCues: true })).toEqual({ target: 'Kemper', ok: false, message: TABLET_ONLY_MESSAGE })
     expect(await fireCue(cue({ targetLogicalDeviceId: 'kemper' }), { deviceId: 'me', logicalDevices: [kemper], installed, sendsServerCues: false })).toBeNull()
     expect(triggerShowControl).not.toHaveBeenCalled()

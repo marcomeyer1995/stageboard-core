@@ -14,7 +14,7 @@ const manifest: AddonReleaseManifest = {
   id: 'nux-mg30',
   name: 'NUX MG-30',
   version: '0.1.0',
-  runtime: 'client',
+  runtime: 'device',
   capabilities: ['mg30-control'],
   transports: [],
   hardwareIds: [],

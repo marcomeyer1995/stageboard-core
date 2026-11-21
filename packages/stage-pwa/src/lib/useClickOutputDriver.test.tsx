@@ -210,7 +210,7 @@ describe('useClickOutputDriver', () => {
             id: 'mock-click',
             name: 'Mock Click',
             version: '0.0.1',
-            runtime: 'server',
+            runtime: 'host',
             capabilities: [CAPABILITIES.clickTrack],
             transports: [],
             hardwareIds: [],
