@@ -7,6 +7,7 @@ import { getTranslator, supportsLocalExecution } from '../lib/clientTranslator'
 import { triggerDeviceControl } from '../lib/deviceControlClient'
 import { useDynamicTranslatorPreload } from '../lib/useDynamicTranslatorPreload'
 import { resolveHardwareEngine } from '../lib/hardwareRouting'
+import { useTargetWorld } from '../lib/targetWorld'
 import { useHardwareBindingFor } from '../lib/useHardwareBindingFor'
 import { triggerShowControl } from '../lib/showControlClient'
 import { usePluginsStore } from '../store/usePluginsStore'
@@ -65,7 +66,8 @@ export function QuickActionsWidget({ config }: { config: CueGridConfig }) {
   const deviceId = useShowStateStore((state) => state.deviceId)
   const binding = useHardwareBindingFor(CAPABILITIES.lighting)
   const pluginId = binding === null ? pluginProviding(installed, CAPABILITIES.showControl) : null
-  const engine = resolveHardwareEngine(binding, deviceId, pluginId, supportsLocalExecution(installed, CAPABILITIES.lighting))
+  const world = useTargetWorld()
+  const engine = resolveHardwareEngine(binding, deviceId, pluginId, supportsLocalExecution(installed, CAPABILITIES.lighting), world)
   const [error, setError] = useState<string | null>(null)
   const baseFontSize = useContentFontSizeStore((state) => state.baseFontSize)
   const fontSize = stageFontSize(baseFontSize * (config.sizeRatio ?? DEFAULT_SIZE_RATIO))

@@ -42,6 +42,15 @@ describe('capabilityTiming (docs/21)', () => {
     expect(cueLatencyMs(cue('gone'), devices, [dmx])).toBe(0)
   })
 
+  it("a host's own hardware finds its latency under the host id, and still under the legacy word (#964)", () => {
+    const devices: LogicalDevice[] = [{ id: 'front', name: 'Frontlicht', capability: 'lighting', pluginId: null, executionTarget: 'stage-pc' }]
+    const cue = { id: 'c', timeMs: 0, type: 'x', targetLogicalDeviceId: 'front' }
+    const world = { hostIds: ['stage-pc'], deviceIds: [] }
+    const under = (deviceId: string, latencyMs: number) => [{ id: `${deviceId}:front:-`, deviceId, output: 'front', route: null, latencyMs, source: 'measured' as const }]
+    expect(cueLatencyMs(cue, devices, [], under('stage-pc', 33), world)).toBe(33)
+    expect(cueLatencyMs(cue, devices, [], under('server', 41), world)).toBe(41)
+  })
+
   it('a stored latency of the executing device beats the plugin value (#491)', () => {
     const dmx = plugin({ id: 'dmx', capabilities: ['lighting'], timing: [{ capability: 'lighting', timingClass: 'realtime', honoursScheduledAt: false, defaultLatencyMs: 25 }] })
     const devices: LogicalDevice[] = [

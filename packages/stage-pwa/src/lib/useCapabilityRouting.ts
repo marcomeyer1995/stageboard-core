@@ -1,4 +1,5 @@
-import { mapPlays, SERVER_EXECUTION_TARGET, type CapabilityId } from 'shared-types'
+import { isHostTarget, mapPlays, type CapabilityId } from 'shared-types'
+import { useTargetWorld } from './targetWorld'
 import { supportsLocalExecution } from './clientTranslator'
 import { pluginProviding } from './capabilities'
 import { masterPlays, resolveBuiltInBinding, resolveExecutionEngine, resolveHardwareBinding, STAND_IN_PLUGIN_IDS, type HardwareRoutingEngine } from './hardwareRouting'
@@ -38,12 +39,13 @@ export function useCapabilityRouting(capability: CapabilityId, mode: 'gig' | 'pr
   // Klick / Backing-Track can play on several tablets at once: the role naming this one counts here.
   const binding = builtIn ? resolveBuiltInBinding(logicalDevices, capability, deviceId) : resolveHardwareBinding(logicalDevices, capability)
 
+  const world = useTargetWorld()
   const target = binding?.executionTarget ?? null
-  const usesDeviceOutput = mode === 'gig' && target !== null && target !== SERVER_EXECUTION_TARGET
+  const usesDeviceOutput = mode === 'gig' && target !== null && !isHostTarget(target, world)
   const provider = mode === 'gig' && !usesDeviceOutput ? pluginProviding(installed, capability) : null
   // Klick / Backing-Track never go to a stand-in that plays nothing.
   const pluginId = builtIn && provider && STAND_IN_PLUGIN_IDS.includes(provider) ? null : provider
-  const engine = resolveExecutionEngine(mode, binding, deviceId, pluginId, supportsLocalExecution(installed, capability), builtIn ? { drivesAutomation: drives } : undefined)
+  const engine = resolveExecutionEngine(mode, binding, deviceId, pluginId, supportsLocalExecution(installed, capability), builtIn ? { drivesAutomation: drives } : undefined, world)
   // The stage map decides who plays Klick and Track in the Gig (docs/31 §6 step 2, 2026-11-07):
   // the device's matrix in the active setup - not the roles, not the master. Without a map (or
   // before it loaded) the old rules above still apply.

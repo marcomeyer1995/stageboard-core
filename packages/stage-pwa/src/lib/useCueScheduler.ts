@@ -1,4 +1,5 @@
 import { jumpBoundaryMs, type SectionJump } from './playbackTransport'
+import { currentTargetWorld } from './targetWorld'
 import { chaseCues } from './cueChase'
 import { useEffect, useRef } from 'react'
 import type { ShowCue } from 'shared-types'
@@ -97,7 +98,7 @@ export function useCueScheduler(): void {
     const clock = gig ? getServerTime : Date.now
     const toServerTime = (at: number) => (gig ? at : at + (getServerTime() - Date.now()))
     const capabilityOf = (cue: ShowCue) => logicalDevices.find((device) => device.id === cue.targetLogicalDeviceId)?.capability
-    const fireContext = { deviceId, logicalDevices, installed, sendsServerCues: gig && isMaster }
+    const fireContext = { deviceId, logicalDevices, installed, sendsServerCues: gig && isMaster, world: currentTargetWorld() }
 
     let sessionKey: number | string | null = activeEntryStartedAt
     if (!gig) {
@@ -150,7 +151,7 @@ export function useCueScheduler(): void {
       const fired = firedRef.current.ids
       const now = clock()
       if (!gig) practiceStoodRef.current = { variantId, ms: jump && now >= jump.at && afterTransport ? songTimeAt(afterTransport, now) : songTimeAt(transport, now) }
-      const latencyMs = (cue: ShowCue) => cueLatencyMs(cue, logicalDevices, installed, latencyProfiles)
+      const latencyMs = (cue: ShowCue) => cueLatencyMs(cue, logicalDevices, installed, latencyProfiles, currentTargetWorld())
       const jumpFired = jumpFiredRef.current
       const chaseDue =
         jump && jumpFired

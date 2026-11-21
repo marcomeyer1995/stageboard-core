@@ -1,4 +1,5 @@
-import { CAPABILITIES, SERVER_EXECUTION_TARGET, type CapabilityId, type LogicalDevice } from 'shared-types'
+import { CAPABILITIES, isHostTarget, type CapabilityId, type LogicalDevice, type TargetWorld } from 'shared-types'
+import { NO_WORLD } from './targetWorldOf'
 
 /**
  * Where a capability's triggers actually go, given a Logical Device's own live binding
@@ -77,9 +78,11 @@ export function resolveHardwareEngine(
   deviceId: string,
   pluginId: string | null,
   supportsLocalExecution: boolean,
+  /** Who the hosts and tablets are (#964): a binding to a host's own hardware runs through its plug-in. */
+  world: TargetWorld = NO_WORLD,
 ): HardwareRoutingEngine {
   const executionTarget = logicalDevice?.executionTarget ?? null
-  if (!executionTarget || executionTarget === SERVER_EXECUTION_TARGET) return pluginId ? 'plugin' : 'none'
+  if (!executionTarget || isHostTarget(executionTarget, world)) return pluginId ? 'plugin' : 'none'
   if (!supportsLocalExecution) return 'none'
   return executionTarget === deviceId ? 'local-mine' : 'local-other'
 }
@@ -106,14 +109,15 @@ export function resolveExecutionEngine(
   supportsLocalExecution: boolean,
   /** Klick / Backing-Track only (`masterPlays`): whether this device runs the show. */
   masterFallback?: { drivesAutomation: boolean },
+  world: TargetWorld = NO_WORLD,
 ): HardwareRoutingEngine {
   if (mode === 'practice') return supportsLocalExecution ? 'local-mine' : 'none'
   const target = logicalDevice?.executionTarget ?? null
   // No tablet chosen for Klick / Backing-Track (and no real server plugin): the device that runs
   // the show plays it (System split, Marco 2026-10-16) - before, Gig sent it to the do-nothing
   // server stand-in and nobody heard it.
-  if (masterFallback && (target === null || target === SERVER_EXECUTION_TARGET) && !pluginId) return masterFallback.drivesAutomation ? 'local-mine' : 'local-other'
-  return resolveHardwareEngine(logicalDevice, deviceId, pluginId, supportsLocalExecution)
+  if (masterFallback && (target === null || isHostTarget(target, world)) && !pluginId) return masterFallback.drivesAutomation ? 'local-mine' : 'local-other'
+  return resolveHardwareEngine(logicalDevice, deviceId, pluginId, supportsLocalExecution, world)
 }
 
 /** Klick and Backing-Track are built in (Bühnentechnik): no plugin needed, a role only says which
