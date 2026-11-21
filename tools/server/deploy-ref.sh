@@ -24,6 +24,7 @@ build_and_restart() {
   if ! git diff --quiet HEAD "$1" -- package-lock.json; then echo "$1 changes dependencies - run npm ci there first"; exit 1; fi
   git checkout -q --detach "$1"
   npm run build -w shared-types >/dev/null
+  npm run build -w sync-host >/dev/null # core-backend and stage-pwa import it: a stale build starts the host with the wrong code
   npm run build -w core-backend >/dev/null
   npm run build -w stage-pwa >/dev/null
   systemctl --user restart stageboard

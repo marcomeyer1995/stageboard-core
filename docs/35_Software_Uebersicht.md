@@ -136,7 +136,7 @@ Decisions and measurements live in docs/29 (sync), docs/30 (output, incl. native
 ## 7. Extending the app: three mechanisms
 
 1. **Widgets** (65 files in `widgets/`, 33 of them widget components, `widgets/registry`): what a dashboard shows. Each declares what it `requires` from the capabilities.
-2. **Plugins and add-ons:** add-ons replicate as documents; the device file runs on every device in a sandbox of its own (a Worker); the jobs file runs on any device that satisfies `runsOn` (there is no server); a heavy library gets a separate native helper program. A manifest may say what its jobs file needs from the device (`runsOn`, docs/34 §4, docs/32).
+2. **Plugins and add-ons:** add-ons replicate as documents; a built-in add-on is a directory (`manifest.json`, `work.js`, for UI also `view.js`, docs/36): the **view script** runs on every device that shows the add-on, in a Worker of its own; the **work script** runs on any device that has what it needs (`runsOn`, its helpers) - in a Node `--permission` process on a laptop, in a Worker of the app on a tablet (there is no server); a heavy program is a **helper** the device runs for the add-on (never the add-on itself). The add-on holds no network, file or program: it asks StageBoard (`capability.*`), which checks the band's permissions. See docs/36 (the contract) and docs/32 (manifest, versions, distribution).
 3. **Jobs behind capabilities:** anything that needs an operating-system tool (docs/34 §1).
 
 ## 8. Where the weak spots are (judgement, with the evidence)

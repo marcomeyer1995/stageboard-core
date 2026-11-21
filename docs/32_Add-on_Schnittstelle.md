@@ -96,15 +96,17 @@ Antwort (`ShowControlResult`): `status: 'ok' | 'error'`, Meldung als Text oder b
 
 **Timing-Klassen** (`timing[]`, docs/21): `sample` (±2 ms, Audio), `realtime` (±10 ms, Klick-nahe Geräte, Licht im Takt), `soft` (±100 ms, Preset-Wechsel), `none` (wann es ankommt). Dazu die bekannte Latenz und wie man sie misst (Licht-, Ton-, MIDI-Rückweg- oder Kamera-Sensor) – StageBoard sendet entsprechend früher.
 
-## 6. Hintergrund-Aufgaben (Jobs) – *eingebaut; die Sandbox dafür in Arbeit (#964)*
+## 6. Methoden, Jobs und Hilfsprogramme – *gebaut (#964); die Schnittstelle steht in docs/36*
 
-**Es gibt keinen Server.** Ein Add-on läuft auf den Geräten, die es können, und auf anderen nicht: `runsOn` im Manifest (Plattform, Kerne, Speicher) und die Hilfsprogramme (§8) entscheiden, nicht eine Rolle des Geräts. Dasselbe JavaScript-Add-on läuft in derselben Art Sandbox (§4) - auf einem Tablet in einem Worker der App, auf einem Laptop in einem eigenen Node-Prozess mit Nodes Permission-Modell (`--permission`: nur erlaubte Verzeichnisse, kein Starten von Programmen außer den angemeldeten Hilfsprogrammen) - und spricht dieselben Nachrichten.
+**Es gibt keinen Server.** Ein Add-on läuft auf den Geräten, die es können, und auf anderen nicht: `runsOn` im Manifest (Plattform, Kerne, Speicher) und die Hilfsprogramme (§8) entscheiden, nicht eine Rolle des Geräts. Dasselbe Skript spricht dieselben Nachrichten (die **Hülle** des Vertrags, `shared-types/addonContract.ts`) - auf einem Tablet in einem Worker der App, auf einem Laptop in einem eigenen Node-Prozess mit Nodes Permission-Modell (`--permission`: nur die eigene Datei lesbar, nichts schreibbar, kein Programmstart, keine Umgebung).
 
-**Gebaut:** Aufgaben für Geräte (§4: Ereignisse an ein MIDI-Gerät) und die eingebauten Hintergrund-Aufgaben (YouTube, Stem-Trennung, Sprache): `IShowControlPlugin` (`init`, `trigger`, `shutdown`), die Rezepte in `sync-host/jobs/` laufen **ohne Sandbox** im Prozess des Geräts, das die Aufgabe nimmt; welche es gibt, steht fest im Code (`core-backend/src/plugins/catalog.ts`).
+**Ein eingebautes Add-on ist ein Ordner** unter `core-backend/scripts/addons/<id>/`: `manifest.json` (Rechte, `contributes.methods` mit Schema, Zeitlimit, Fortschritt, `callableByDevices`, Geräte und ihr Zustand, UI-Plätze) und `work.js`; Add-ons mit Oberfläche haben zusätzlich `view.js`. `addons/addonMethods.ts` lädt die Ordner und beantwortet jeden Aufruf über die eine Grenze (`callMethod` in sync-host: Eingabe und Antwort werden gegen das Manifest geprüft). Heute so gebaut: YouTube (mit Dialog im Song-Editor), MusicBrainz, Ultimate Guitar, OSC (mit Gerätezustand und Panel), Sprache, Stem-Trennung.
 
-**In Arbeit (#964):** die Aufgaben-Nachrichten (`job`, `job-progress`, `job-result`, `helper-run`) im gemeinsamen Protokoll (`shared-types/addonProtocol.ts`) und die Laufzeit dafür auf Node (`--permission`). Die Datei dafür heißt im Manifest `jobsFile` (früher `serverFile`).
+**Was ein Add-on von der Welt bekommt, fragt es an** (`capability.http`, `capability.udp`, `capability.helper`) und StageBoard prüft es gegen die Rechte der Band (§7). Hilfsprogramme (§8) startet StageBoard, nie das Add-on.
 
-Lange Aufgaben (Stems trennen, Download) laufen als **Job**: ein Band-Dokument mit Status und Fortschritt (`asyncJob.ts`), das jedes Gerät sieht; welches Gerät es nimmt, entscheidet seine Fähigkeit (`sync-host/jobQueue.ts`, docs/25 #964).
+**Lange Aufgaben** laufen als **Job**: ein Band-Dokument mit Status und Fortschritt (`asyncJob.ts`), das jedes Gerät sieht; welches Gerät es nimmt, entscheidet seine Fähigkeit (`sync-host/jobQueue.ts`). Der allgemeine Typ ist `audio-import` (ein Add-on holt Audio, der Kern macht eine Spur daraus) - der Kern kennt keinen Dienst.
+
+*Noch nicht so:* Stem-Trennung und Sprache haben neben dem Add-on noch ihre eingebaute Umsetzung; der Add-on-Weg läuft nur mit `STAGEBOARD_ADDON_SANDBOX=1` (docs/25). Add-ons aus einem Repository zu laden ist die nächste Aufgabe (#17).
 
 ## 7. Rechte – *Feld gebaut (#756), Durchsetzung geplant*
 
@@ -199,8 +201,8 @@ Today the catalogue is fixed in code (`core-backend/src/plugins/catalog.ts`, `st
 A GitHub repository whose **releases** are the versions. The latest release that is not a pre-release is the current version, and its tag is the version (`v1.3.0` → `1.3.0`, SemVer).
 
 - **`stageboard-addon.json`** in each release (as a release asset, so a version's manifest never changes afterwards): the manifest of §2 (`id`, `name`, `version`, `apiVersion`, `runtime`, `capabilities`, `transports`, `hardwareIds`, `timing`, `permissions`, `helpers`, settings schema), plus
-  - `files`: every file of this version with its **SHA-256** and size: the device file (`client.js`), the jobs file (`jobs.js`), assets. Each `name` is an asset of the same release - a plain file name, no folders (a release's assets are flat, and a name can never leave the version's folder on the host).
-  - `clientFile` / `jobsFile`: which of `files` is the device file every device loads, and the jobs file that any device satisfying `runsOn` runs (there is no server; #964).
+  - `files`: every file of this version with its **SHA-256** and size: the device file (`client.js`), the work script (`work.js`, docs/36), assets. Each `name` is an asset of the same release - a plain file name, no folders (a release's assets are flat, and a name can never leave the version's folder on the host).
+  - `clientFile` / `jobsFile` (older names) and `viewFile` / `workFile` (docs/36): which of `files` is the file a device loads for the add-on's UI, and the file that any device satisfying `runsOn` runs (there is no server; #964). Both name pairs are read.
   - *Built (2026-11-17, #852 steps 1-2):* `AddonReleaseManifestSchema` / `AddonSourceSchema` in `shared-types/src/addonRelease.ts`; the host's part in `core-backend/src/addons/addonStore.ts` - read the latest release, check the manifest (schema, version = tag, `apiVersion`, every file present), download, check each SHA-256, keep under `<state>/addons/<id>/<version>/`, keep two versions; routes `GET /addons/:id/:version/:file`, `POST /workspaces/:id/addons/preview` and `…/install` (admin only).
   - `changes`: a short text of what is new (shown with the update).
   - `minStageBoard`: the oldest StageBoard version it runs on, optional.
