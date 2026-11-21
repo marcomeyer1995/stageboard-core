@@ -113,10 +113,10 @@ describe('DialogHost', () => {
     render(<DialogHost />)
     let promise!: Promise<void>
     act(() => {
-      promise = useDialogStore.getState().alert('Stage-Server nicht erreichbar.')
+      promise = useDialogStore.getState().alert('Host nicht erreichbar.')
     })
 
-    expect(screen.getByText('Stage-Server nicht erreichbar.')).toBeInTheDocument()
+    expect(screen.getByText('Host nicht erreichbar.')).toBeInTheDocument()
     expect(screen.queryByText('Abbrechen')).not.toBeInTheDocument()
     fireEvent.click(screen.getByText('OK'))
 

@@ -12,7 +12,7 @@ function cacheKeyFor(plugin: Pick<PluginInstallation, 'id' | 'version'>): string
   return `https://stageboard-plugin-cache.internal/${plugin.id}@${encodeURIComponent(plugin.version)}`
 }
 
-/** The Stage-Server's local mirror when one is configured (never needs this tablet's own
+/** The Host's local mirror when one is configured (never needs this tablet's own
  * internet access), `clientSource` directly otherwise - the solo/home case (docs/00 §1's
  * Dry-Run Listener), fetched once over whatever internet this one device has, then cached. */
 /** An add-on installed from its own repository: its client bundle is the host's checked copy
@@ -23,12 +23,12 @@ export function isRepositoryAddon(plugin: Pick<PluginInstallation, 'clientSource
 
 export function resolveClientBundleUrl(
   plugin: Pick<PluginInstallation, 'id' | 'clientSource'>,
-  stageServerUrl: string | null,
+  hostUrl: string | null,
 ): string | null {
   if (!plugin.clientSource) return null
   // An add-on from its own repository (#852): the host keeps its files - always from there.
-  if (isRepositoryAddon(plugin)) return stageServerUrl ? `${stageServerUrl.replace(/\/$/, '')}${plugin.clientSource}` : null
-  return stageServerUrl ? `${stageServerUrl}/plugins/${plugin.id}/client.js` : plugin.clientSource
+  if (isRepositoryAddon(plugin)) return hostUrl ? `${hostUrl.replace(/\/$/, '')}${plugin.clientSource}` : null
+  return hostUrl ? `${hostUrl}/plugins/${plugin.id}/client.js` : plugin.clientSource
 }
 
 /**
@@ -42,9 +42,9 @@ export function resolveClientBundleUrl(
  */
 export async function fetchClientBundle(
   plugin: Pick<PluginInstallation, 'id' | 'version' | 'clientSource'>,
-  stageServerUrl: string | null,
+  hostUrl: string | null,
 ): Promise<Blob | null> {
-  const url = resolveClientBundleUrl(plugin, stageServerUrl)
+  const url = resolveClientBundleUrl(plugin, hostUrl)
   if (!url) return null
 
   const cache = await caches.open(CACHE_NAME)
@@ -67,9 +67,9 @@ export async function fetchClientBundle(
  */
 export async function loadClientPlugin(
   plugin: Pick<PluginInstallation, 'id' | 'version' | 'clientSource'>,
-  stageServerUrl: string | null,
+  hostUrl: string | null,
 ): Promise<ClientPluginModule | null> {
-  const blob = await fetchClientBundle(plugin, stageServerUrl)
+  const blob = await fetchClientBundle(plugin, hostUrl)
   if (!blob) return null
 
   const blobUrl = URL.createObjectURL(blob)

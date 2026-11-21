@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useBandSettingsStore } from '../store/useBandSettingsStore'
-import { useStageServerStore } from '../store/useStageServerStore'
+import { useHostUrlStore } from '../store/useHostUrlStore'
 import { probeHost } from './hostFollow'
 import { describeHosts, type HostOverview, type HostProbe } from './hostOverview'
-import { getStageServerUrl } from './stageServer'
+import { getHostUrl } from './hostUrl'
 
 /** While the map's "Prüfen" is open only - a host that is on standby should see next to no traffic. */
 const POLL_MS = 3_000
@@ -16,7 +16,7 @@ const POLL_MS = 3_000
 export function useHostOverview(active: boolean): HostOverview | null {
   const hosts = useBandSettingsStore((state) => state.settings.hosts)
   // The address this device is on can change (the follower moves it); it must follow.
-  const serverOverride = useStageServerStore((state) => state.url)
+  const serverOverride = useHostUrlStore((state) => state.url)
   const [overview, setOverview] = useState<HostOverview | null>(null)
 
   useEffect(() => {
@@ -27,7 +27,7 @@ export function useHostOverview(active: boolean): HostOverview | null {
     let alive = true
     const poll = async () => {
       const entries = await Promise.all(hosts.map(async (h) => [h.url, (await probeHost(h.url)) as HostProbe | null] as const))
-      if (alive) setOverview(describeHosts(hosts, Object.fromEntries(entries), getStageServerUrl()))
+      if (alive) setOverview(describeHosts(hosts, Object.fromEntries(entries), getHostUrl()))
     }
     void poll()
     const timer = setInterval(() => void poll(), POLL_MS)

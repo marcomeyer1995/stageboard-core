@@ -35,7 +35,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(NativeHelperPlugin.class);
         registerPlugin(LocalHostPlugin.class);
         super.onCreate(savedInstanceState);
-        // The Stage-Server's self-signed certificate is trusted only as pinned at pairing (#348).
+        // The Host's self-signed certificate is trusted only as pinned at pairing (#348).
         bridge.setWebViewClient(new PinnedWebViewClient(bridge));
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         // Always draw into the camera notch's edge - the page keeps it clear itself with the

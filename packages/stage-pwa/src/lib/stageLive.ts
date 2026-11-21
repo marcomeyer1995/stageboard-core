@@ -62,7 +62,7 @@ export interface StageLiveInput {
   deviceInfo: DeviceInfo
   /** Server time, ms. */
   now: number
-  /** Whether the Stage-Server answers - null: none is set, or not asked yet. */
+  /** Whether the Host answers - null: none is set, or not asked yet. */
   serverReachable: boolean | null
   health: PluginHealth
   ownDeviceId: string
@@ -93,7 +93,7 @@ const SOURCE_OF_PORT: Readonly<Record<string, SilencedSource>> = { klick: 'click
 
 /** The app that sends for a device box: the one in front, else its first (as mapRoute). */
 function appOf(box: StageEquipment, front: Readonly<Record<string, string>>): string | null {
-  if (box.kind === 'stage-server') return SERVER_EXECUTION_TARGET
+  if (box.kind === 'host-computer') return SERVER_EXECUTION_TARGET
   const apps = appsOf(box)
   const inFront = front[box.id]
   return inFront && apps.includes(inFront) ? inFront : (box.deviceId ?? apps[0] ?? null)
@@ -105,7 +105,7 @@ function appOf(box: StageEquipment, front: Readonly<Record<string, string>>): st
  *
  * - A StageBoard device: app open (its report is fresh), its condition (audio, band time, memory),
  *   battery. Not there counts as a fault: the check asks whether the stage is complete.
- * - The Stage-Server: answers or not.
+ * - The Host: answers or not.
  * - Other equipment: the driver (plugin) of every output that reaches it, and its MIDI port.
  * - A cable: its MIDI port is there on the sending device (red when not), and how good the
  *   latency value of what runs over it is.
@@ -151,7 +151,7 @@ export function stageLive(input: StageLiveInput): StageLive {
   for (const link of setup.links) {
     const notes: LiveNote[] = [...(linkNotes.get(link.id) ?? [])]
     const ends = [byId.get(link.from.equipmentId), byId.get(link.to.equipmentId)]
-    const box = ends.find((e) => e && (e.kind === 'stageboard' || e.kind === 'stage-server'))
+    const box = ends.find((e) => e && (e.kind === 'stageboard' || e.kind === 'host-computer'))
     const other = ends.find((e) => e && e !== box)
     if (link.midiName && box) {
       const app = appOf(box, front)
@@ -165,7 +165,7 @@ export function stageLive(input: StageLiveInput): StageLive {
     for (const flow of flows) {
       if (!flow.hops.some((h) => h.linkId === link.id)) continue
       const origin = byId.get(flow.originEquipmentId)
-      if (!origin || (origin.kind !== 'stageboard' && origin.kind !== 'stage-server')) continue
+      if (!origin || (origin.kind !== 'stageboard' && origin.kind !== 'host-computer')) continue
       const app = appOf(origin, front)
       if (!app) continue
       const virtualId = flow.key.slice(flow.originEquipmentId.length + 1)
@@ -199,7 +199,7 @@ export function stageLive(input: StageLiveInput): StageLive {
 
   for (const e of equipment) {
     const notes: LiveNote[] = []
-    if (e.kind === 'stage-server') {
+    if (e.kind === 'host-computer') {
       notes.push(serverReachable === null ? { status: 'off', key: 'noServer' } : serverReachable ? { status: 'ok', key: 'serverOnline' } : { status: 'error', key: 'serverOffline' })
     } else if (e.kind === 'stageboard') {
       const apps = appsOf(e).filter((id) => id !== SERVER_EXECUTION_TARGET)
@@ -208,7 +208,7 @@ export function stageLive(input: StageLiveInput): StageLive {
         const app = appOf(e, front)
         const info = (app && app !== SERVER_EXECUTION_TARGET ? fresh(app) : null) ?? apps.map(fresh).find((i) => i !== null) ?? null
         // This device is open - it is the one looking - even while its own report does not get
-        // through (no Stage-Server, Wi-Fi gone): never "offline" for itself.
+        // through (no Host, Wi-Fi gone): never "offline" for itself.
         const self = apps.includes(ownDeviceId)
         if (!info && self) {
           notes.push({ status: 'ok', key: 'online' })

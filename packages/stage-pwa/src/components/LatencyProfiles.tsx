@@ -38,7 +38,7 @@ export function LatencySummary({ deviceId }: { deviceId: string }) {
 const CHECK_TOLERANCE_MS = 15
 
 /**
- * Measure / check this device's own audio latency with the Stage-Server's microphone (docs/21 §4,
+ * Measure / check this device's own audio latency with the Host's microphone (docs/21 §4,
  * #491) - only on the device itself, it has to play the clicks. "Messen" finds the raw latency of
  * the current route; "Prüfen" plays with the stored value and should land near 0 (soundcheck).
  */
@@ -129,7 +129,7 @@ function AudioCalibrationSection({ deviceId }: { deviceId: string }) {
 }
 
 /**
- * Enter or remove latencies for one device (or the Stage-Server) by hand - values from a
+ * Enter or remove latencies for one device (or the Host) by hand - values from a
  * measurement (docs/21 §8.4) until automatic calibration exists. Audio is per route; every other
  * output is a Logical Device this device drives.
  */

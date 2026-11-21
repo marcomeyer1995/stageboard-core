@@ -50,7 +50,7 @@ export interface StatusBarInput {
 }
 
 /** Faults first (they matter most, whatever the transport does), then the transport state.
- * Offline only counts in Gig mode - Solo Üben runs fine without the Stage-Server. */
+ * Offline only counts in Gig mode - Solo Üben runs fine without the Host. */
 export function statusBarState(input: StatusBarInput): StatusBarState {
   if (input.audioError) return { kind: 'fault', label: 'audioError' }
   if (input.audioFallback) return { kind: 'fault', label: 'audioFallback' }

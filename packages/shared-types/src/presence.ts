@@ -53,7 +53,7 @@ export type MasterHeartbeatReport = z.infer<typeof MasterHeartbeatReportSchema>
  * Keyed by deviceId, not profileId: the whole point is telling apart "one device online" from
  * "the same account open on three tablets at once", something a single per-profile flag
  * couldn't represent. Same pattern as PluginHealth (pluginHealth.ts) - a heartbeat has no
- * offline/multi-master value, so it doesn't belong in synced CouchDB docs either.
+ * offline/multi-master value, so it doesn't belong in synced the database docs either.
  */
 /** Who has answered the currently open Ready Check (#60). `checkId` is ShowState.readyCheckId at the
  * time - readers ignore a snapshot whose id is not the one ShowState currently names. */
@@ -82,7 +82,7 @@ export const DEFAULT_PRESENCE: Presence = { devices: {} }
 
 /** How long a heartbeat stays valid - see PluginHealth's identical HEALTH_TIMEOUT_MS. Longer
  * than that one: which profile is active is far less time-critical than hardware reachability,
- * and every logged-in tablet reports here, not just one Stage-Server, so a longer interval
+ * and every logged-in tablet reports here, not just one Host, so a longer interval
  * keeps the aggregate report traffic modest for a full band. */
 export const PRESENCE_TIMEOUT_MS = 30_000
 

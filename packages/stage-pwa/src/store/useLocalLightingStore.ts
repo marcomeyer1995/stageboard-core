@@ -8,7 +8,7 @@ interface LocalLightingState {
 
 /**
  * Client-side mirror of core-backend's mockLightingPlugin.ts, for when *this* device is the
- * claimed `lighting` target (#10, generalized beyond audio) instead of a Stage-Server plugin -
+ * claimed `lighting` target (#10, generalized beyond audio) instead of a Host plugin -
  * LightingCuesWidget reads `lastCue` from here rather than local component state so the display
  * stays correct regardless of which tablet actually fired the cue.
  */

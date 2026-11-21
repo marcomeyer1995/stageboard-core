@@ -1,6 +1,6 @@
 import i18n from '../i18n'
 import { useEffect, useState } from 'react'
-import { getStageServerUrl } from '../lib/stageServer'
+import { getHostUrl } from '../lib/hostUrl'
 import { serverErrorText } from '../lib/serverMessage'
 import { useTranslation } from 'react-i18next'
 
@@ -23,7 +23,7 @@ function ago(iso: string, now = Date.now()): string {
 }
 
 /**
- * "Letztes Backup" of the Stage-Server (#363), from scripts/backup.mjs' status file: green when
+ * "Letztes Backup" of the Host (#363), from scripts/backup.mjs' status file: green when
  * the last run worked (and is younger than two days), red with the reason when it failed or is
  * stale, a hint when backups were never set up.
  */
@@ -32,7 +32,7 @@ export function BackupStatusLine() {
   const [status, setStatus] = useState<BackupStatus | null | undefined>(undefined)
 
   useEffect(() => {
-    const base = getStageServerUrl()
+    const base = getHostUrl()
     if (!base) return
     let cancelled = false
     fetch(`${base}/server/backup-status`)

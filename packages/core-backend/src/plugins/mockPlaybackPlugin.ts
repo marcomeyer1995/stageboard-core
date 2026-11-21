@@ -15,7 +15,7 @@ interface PlaybackState {
 }
 
 /**
- * Hardware-mock per docs/03: stands in for the Stage-Server's real audio-playback engine
+ * Hardware-mock per docs/03: stands in for the Host's real audio-playback engine
  * (docs/01 "Flexible Audio-Routing-Matrix" - internal soundcard, USB interface, or
  * direct-to-mixer). A real implementation swaps the state below for an actual decoder/output
  * stream behind the exact same IShowControlPlugin.trigger() contract.

@@ -6,7 +6,7 @@ import { ExecutionTargetSchema } from './executionTarget.js'
  * A named piece of gear a widget/cue targets - e.g. "Marco's Kemper". Both a *role*
  * (`name`/`capability`, independent of any particular physical unit) and, as of the guided
  * Hardware Setup Wizard redesign, its one live binding: `pluginId` (which installed plugin
- * fulfills it - the wizard's "type" step) and `executionTarget` (which tablet or the Stage-Server
+ * fulfills it - the wizard's "type" step) and `executionTarget` (which tablet or the Host
  * actually runs it - the wizard's "connection" step). Earlier versions of this schema kept that
  * routing in a separate, named-and-switchable `HardwareSetup` (multiple swappable configs, e.g.
  * "Festival" vs "Acoustic Solo") - deliberately dropped (Marco, explicit call): one live setup

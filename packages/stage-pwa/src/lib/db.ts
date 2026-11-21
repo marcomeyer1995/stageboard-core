@@ -47,7 +47,7 @@ export async function seedDummySongsIfEmpty(): Promise<void> {
 
 /**
  * A song's backing track (docs/08 Phase 2, home rehearsal + docs/01 audio-playback) rides as
- * a PouchDB attachment on its own document rather than a field in `Song` - CouchDB replicates
+ * a PouchDB attachment on its own document rather than a field in `Song` - the database replicates
  * it over the same mesh as everything else, with no second transport path, but it stays out
  * of the Zod content schema since it's storage, not song data.
  */

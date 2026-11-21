@@ -1,5 +1,7 @@
 # Meilensteinplan & Roadmap (StageBoard)
 
+> **Verlaufsprotokoll.** Dieses Dokument beschreibt den Stand zu den genannten Daten. Bis #960 (2026-11) lag die Datenbank in CouchDB; seitdem gibt es nur noch den eingebauten Datenbank-Host (`packages/sync-host`, docs/25) - Erwähnungen von CouchDB hier sind Geschichte, nicht der heutige Stand.
+
 Dieser Plan definiert die groben Entwicklungsphasen von StageBoard. Er ist so strukturiert, dass nach jedem Meilenstein ein funktionsfähiges, testbares Inkrement entsteht. Wir entwickeln strikt nach dem Prinzip: Core First, UI Second, Plugins Third.
 
 ## Phase 1: Das Fundament & "Offline-First" (Woche 1) — ✅ Abgeschlossen

@@ -10,7 +10,7 @@ afterEach(() => {
 
 describe('reportPresence', () => {
   it('POSTs the deviceId and profileId to the workspace-scoped presence report endpoint', async () => {
-    vi.stubEnv('VITE_STAGE_SERVER_URL', 'https://stage.example')
+    vi.stubEnv('VITE_HOST_URL', 'https://stage.example')
     const fetchMock = vi.fn().mockResolvedValue({ ok: true })
     vi.stubGlobal('fetch', fetchMock)
 
@@ -25,8 +25,8 @@ describe('reportPresence', () => {
     )
   })
 
-  it('does nothing when no Stage-Server is configured', async () => {
-    vi.stubEnv('VITE_STAGE_SERVER_URL', '')
+  it('does nothing when no Host is configured', async () => {
+    vi.stubEnv('VITE_HOST_URL', '')
     const fetchMock = vi.fn()
     vi.stubGlobal('fetch', fetchMock)
 
@@ -35,8 +35,8 @@ describe('reportPresence', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
-  it('does not report a band the Stage-Server does not have (#897)', async () => {
-    vi.stubEnv('VITE_STAGE_SERVER_URL', 'https://stage.example')
+  it('does not report a band the Host does not have (#897)', async () => {
+    vi.stubEnv('VITE_HOST_URL', 'https://stage.example')
     const fetchMock = vi.fn()
     vi.stubGlobal('fetch', fetchMock)
     useSyncStore.setState({ notOnServer: { 'band-a': true } })
@@ -47,7 +47,7 @@ describe('reportPresence', () => {
   })
 
   it('swallows a network failure - the caller has no fallback to run', async () => {
-    vi.stubEnv('VITE_STAGE_SERVER_URL', 'https://stage.example')
+    vi.stubEnv('VITE_HOST_URL', 'https://stage.example')
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network down')))
 
     await expect(reportPresence('band-a', 'device-1', 'p1')).resolves.toBeUndefined()

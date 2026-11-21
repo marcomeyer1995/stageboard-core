@@ -101,7 +101,7 @@
     "noProfile": "No profile chosen - this device cannot answer.",
     "ready": "I am ready",
     "close": "Close",
-    "failed": "No connection to the Stage server - please tap again.",
+    "failed": "No connection to the Host - please tap again.",
     "askTitle": "Ask every tablet whether the band is ready",
     "short": "Ready",
     "unknown": "Unknown",
@@ -111,7 +111,7 @@
     "end": "End"
   },
   "up": {
-    "available": "New app version {{version}} on the Stage server",
+    "available": "New app version {{version}} on the Host",
     "failed": "The update could not be loaded – try again later. ({{reason}})",
     "loading": "Loading…",
     "update": "Update",

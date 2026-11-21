@@ -1,109 +1,42 @@
-import { randomBytes, randomInt } from 'node:crypto'
+import { randomInt } from 'node:crypto'
+import type { BandAccounts } from 'sync-host'
+import { ROSTER_VALIDATOR_SOURCE } from 'sync-host'
 import {
-  allDocs,
-  createUser,
   deleteDb,
-  deleteUser,
   ensureDb,
   getDoc,
   listDbs,
   putDoc,
   putDocWithRetry,
   putSecurity,
-  resetUserPassword,
-  setUserRoles,
-  userExists,
-  type CouchConfig,
-  type CouchDoc,
-} from './couch.js'
+  type DatabaseConfig,
+  type DatabaseDoc,
+} from './database.js'
+import { saveDeletedBand } from './deletedBand.js'
 import { recordDeletedWorkspace } from './provisioningAuth.js'
 
-/** Matches `localDbName()`/the CouchDB username convention in stage-pwa's workspaceDb.ts -
- * client and server must derive the same names from a workspaceId independently. */
-export function workspaceDbName(workspaceId: string): string {
-  return `stageboard-${workspaceId}`
-}
-
-/**
- * Per-person-accounts follow-up: every roster member gets their own CouchDB user, not a
- * shared one - `profileId` (the roster entry's own id, from `Profile.id`/`profiles:<id>` doc
- * ids, see `workspaceCollection.ts`'s `${kind}:${id}` scheme) makes each username unique per
- * person per workspace.
- */
-export function memberUsername(workspaceId: string, profileId: string): string {
-  return `${workspaceDbName(workspaceId)}-${profileId}`
-}
-
-/**
- * One CouchDB account per *device*, not per person (found live, 2026-09-04: sharing a single
- * account across a musician's several tablets meant any device (re-)joining silently rotated
- * the one password every other device had cached, locking them all out one at a time). The
- * `memberUsername` account still exists per profile - now purely an "anchor": for an admin, its
- * password is the human-memorable PIN, checked (never rotated by a device join) to authorize
- * minting a device account; for a non-admin it's just a stable "has this profile been touched
- * before" marker. Neither anchor is ever handed to a client for actual syncing - see
- * `provisionDevice` below, which is. `~` can't collide with either half: both `profileId` and
- * `deviceId` are `crypto.randomUUID()` values, which never contain it.
- */
-export function deviceUsername(workspaceId: string, profileId: string, deviceId: string): string {
-  return `${memberUsername(workspaceId, profileId)}~${deviceId}`
-}
+/** The names every device derives on its own from a workspace id (stage-pwa's workspaceDb.ts, #960): one definition, in sync-host. */
+export { deviceUsername, memberUsername, workspaceDbName } from 'sync-host'
+import { workspaceDbName } from 'sync-host'
 
 const PROFILE_ID_PREFIX = 'profiles:'
 
-/**
- * `_design/roster`'s validator, set at workspace founding and brought up to date at every server
- * start (`updateRosterValidators`, for rules added later) - a role check, not a name check, so it never needs to change as
- * members are added/removed/promoted. `userCtx.roles` reflects the authenticated user's own
- * CouchDB roles (whatever `createUser`/`setUserRoles` gave them), the same mechanism a true
- * CouchDB server admin's `_admin` role is exposed through (verified live against a real
- * instance - a *database*-level `_security.admins` entry, unlike a server admin, is NOT
- * automatically exempt from validate_doc_update, so this still has to check explicitly - it
- * just checks a role now instead of one hardcoded username). Deliberately plain ES5 - runs
- * inside CouchDB's own sandboxed JS engine, not Node.
- */
-export const ROSTER_VALIDATOR_SOURCE = `function(newDoc, oldDoc, userCtx) {
-  var isAdmin = userCtx.roles.indexOf('admin') !== -1 || userCtx.roles.indexOf('_admin') !== -1;
-  if (newDoc._id.indexOf('profiles:') === 0 && !isAdmin) {
-    throw({forbidden: 'Only a band admin may edit the roster.'});
-  }
-  if (newDoc._id === 'host-accounts' && userCtx.roles.indexOf('_admin') === -1) {
-    throw({forbidden: 'Only the Stage-Server writes the host accounts.'});
-  }
-  if (newDoc._id.indexOf('hosts:') === 0 && userCtx.roles.indexOf('_admin') === -1) {
-    var device = newDoc._id.slice(6);
-    var own = typeof userCtx.name === 'string' && userCtx.name.slice(-(device.length + 1)) === '~' + device;
-    if (!own && !(newDoc._deleted && isAdmin)) {
-      throw({forbidden: 'Only the tablet itself announces itself as a server.'});
-    }
-  }
-  if (newDoc._id.indexOf('band-settings:') === 0 && !isAdmin) {
-    throw({forbidden: 'Only a band admin may change the band settings.'});
-  }
-  if (newDoc._id.indexOf('dashboards:') === 0 && !isAdmin) {
-    if (oldDoc && oldDoc.isReadOnly) {
-      throw({forbidden: 'Only a band admin may change a protected dashboard template.'});
-    }
-    if (newDoc.isReadOnly) {
-      throw({forbidden: 'Only a band admin may protect a dashboard as a template.'});
-    }
-  }
-}`
+export { ROSTER_VALIDATOR_SOURCE } from 'sync-host'
 
 /**
  * Brings `_design/roster` of every band on this server up to the current validator - it used to be
  * written once at founding only, so bands founded before a rule was added (protected dashboard
  * templates, #16) would never get it. Returns the bands whose validator was replaced.
  */
-export async function updateRosterValidators(config: CouchConfig, onError?: (db: string, err: unknown) => void): Promise<string[]> {
+export async function updateRosterValidators(config: DatabaseConfig, onError?: (db: string, err: unknown) => void): Promise<string[]> {
   const updated: string[] = []
   for (const db of await listDbs(config)) {
     if (!db.startsWith('stageboard-')) continue
     // One band's database failing must not leave every band after it on the old rules (#401 review).
     try {
-      const current = await getDoc<CouchDoc & { validate_doc_update?: string }>(config, db, '_design/roster')
+      const current = await getDoc<DatabaseDoc & { validate_doc_update?: string }>(config, db, '_design/roster')
       if (current === null || current.validate_doc_update === ROSTER_VALIDATOR_SOURCE) continue
-      await putDocWithRetry<CouchDoc & { validate_doc_update?: string }>(config, db, '_design/roster', (existing) => ({
+      await putDocWithRetry<DatabaseDoc & { validate_doc_update?: string }>(config, db, '_design/roster', (existing) => ({
         ...(existing ?? { _id: '_design/roster' }),
         validate_doc_update: ROSTER_VALIDATOR_SOURCE,
       }))
@@ -127,28 +60,13 @@ export interface WorkspaceCredentialPair {
   password: string
 }
 
-function randomPassword(): string {
-  return randomBytes(24).toString('base64url')
-}
-
-/** A fresh 4-digit numeric PIN (2026-09-02 second follow-up) - zero-padded, so always exactly 4
- * characters (`randomInt(0, 10_000)` alone would drop leading zeros). Used anywhere a *human*
- * needs to read/retype an admin PIN (the "Passwort zurücksetzen" panel action, and as the
- * initial PIN when an admin account is first provisioned with none supplied); the silent,
- * never-typed reissue paths (a non-admin's every pick, or an admin logging in via the universal
- * recovery code) keep using `randomPassword()` instead - there's no reason to burn a short,
- * guessable PIN on a value nobody will ever need to type. */
-function randomPin(): string {
-  return randomInt(0, 10_000).toString().padStart(4, '0')
-}
-
 /**
  * Creates a workspace: its database, a `_security` doc, a `_design/roster` validator, the
- * founding device's own personal CouchDB account (`roles: ['member', 'admin']` - the founder is
+ * founding device's own personal account (`roles: ['member', 'admin']` - the founder is
  * this band's first admin, same "first profile is admin" rule `useProfilesStore.ts`'s `create`
  * already applies to the roster doc itself), and its standing access code (`workspace:access`
  * doc, see `getOrCreateAccessCode` below - 2026-09-01 WiFi-style redesign). `config` must carry
- * admin credentials - only core-backend's own trusted `couch` config is ever passed here, never
+ * admin credentials - only core-backend's own trusted `database` config is ever passed here, never
  * anything reachable from a tablet.
  *
  * `_security` and the roster validator are role-based (see `ROSTER_VALIDATOR_SOURCE` above) - every
@@ -161,21 +79,20 @@ function randomPin(): string {
  * instead, since silently changing it would lock out a tablet that already paired with it.
  */
 export async function provisionWorkspace(
-  config: CouchConfig,
+  config: DatabaseConfig,
   workspaceId: string,
   founderId: string,
   workspaceName: string,
+  /** The founding device gets its own login (an admin's), like every device. */
+  founder: { accounts: BandAccounts; deviceId: string },
 ): Promise<WorkspaceCredentialPair> {
-  const username = memberUsername(workspaceId, founderId)
+  const db = workspaceDbName(workspaceId)
 
-  if (await userExists(config, username)) {
+  // A band that already has its database is already provisioned: founding it again would hand a stranger an admin login.
+  if ((await listDbs(config)).includes(db)) {
     throw new WorkspaceAlreadyProvisionedError(workspaceId)
   }
 
-  const password = randomPassword()
-  const db = workspaceDbName(workspaceId)
-
-  await createUser(config, username, password, ['member', 'admin'])
   await ensureDb(config, db)
   await putSecurity(config, db, {
     admins: { names: [], roles: ['admin'] },
@@ -184,12 +101,12 @@ export async function provisionWorkspace(
   await putDoc(config, db, { _id: '_design/roster', validate_doc_update: ROSTER_VALIDATOR_SOURCE })
   await createAccessCodeDoc(config, workspaceId, workspaceName)
 
-  return { username, password }
+  return founder.accounts.provisionDevice(founderId, founder.deviceId, true)
 }
 
 const ACCESS_CODE_DOC_ID = 'workspace:access'
 
-interface AccessCodeDoc extends CouchDoc {
+interface AccessCodeDoc extends DatabaseDoc {
   code: string
   name: string
   /** #85 - absent means 'device'. */
@@ -199,7 +116,7 @@ interface AccessCodeDoc extends CouchDoc {
 function generateAccessCode(): string {
   // 8 digits, zero-padded - the "WiFi password" a band writes down/prints once, not a
   // cryptographically-unguessable secret on its own (its real protection is that it's only
-  // ever handed out over the LAN the Stage-Server itself controls, same trust level the old
+  // ever handed out over the LAN the Host itself controls, same trust level the old
   // ephemeral invite code and the raw workspace password before it both already had).
   return randomInt(0, 100_000_000).toString().padStart(8, '0')
 }
@@ -207,12 +124,12 @@ function generateAccessCode(): string {
 /** Always writes a fresh code, overwriting any existing doc's - the initial creation at
  * `provisionWorkspace` time, and the "lazy backfill" fallback in `getOrCreateAccessCode` below
  * share this. Not exported: every real caller goes through one of those two, which know exactly
- * when a fresh doc is actually warranted. Uses `putDocWithRetry` (couch.ts) rather than a plain
- * fetch-then-put - CouchDB rejects a PUT to an existing doc with no `_rev` as a 409 (confirmed
+ * when a fresh doc is actually warranted. Uses `putDocWithRetry` (database.ts) rather than a plain
+ * fetch-then-put - the database rejects a PUT to an existing doc with no `_rev` as a 409 (confirmed
  * against a real instance; the mocked tests here don't catch this on their own), and unlike
  * `rotateAccessCode`/`renameWorkspace` below there's no separate earlier read whose `_rev` this
  * could reuse, so `putDocWithRetry`'s own fetch-then-put is exactly what's needed here too. */
-async function createAccessCodeDoc(config: CouchConfig, workspaceId: string, name: string): Promise<string> {
+async function createAccessCodeDoc(config: DatabaseConfig, workspaceId: string, name: string): Promise<string> {
   const code = generateAccessCode()
   await putDocWithRetry<AccessCodeDoc>(config, workspaceDbName(workspaceId), ACCESS_CODE_DOC_ID, (existing) => ({
     _id: ACCESS_CODE_DOC_ID,
@@ -227,7 +144,7 @@ async function createAccessCodeDoc(config: CouchConfig, workspaceId: string, nam
 /** Reads a workspace's standing access code and display name - `null` if this workspace
  * predates the 2026-09-01 redesign and has never had one created (see `getOrCreateAccessCode`
  * below for the lazy-backfill path that actually every real caller uses). */
-export async function getAccessCode(config: CouchConfig, workspaceId: string): Promise<{ code: string; name: string } | null> {
+export async function getAccessCode(config: DatabaseConfig, workspaceId: string): Promise<{ code: string; name: string } | null> {
   const doc = await getDoc<AccessCodeDoc>(config, workspaceDbName(workspaceId), ACCESS_CODE_DOC_ID)
   return doc ? { code: doc.code, name: doc.name } : null
 }
@@ -246,7 +163,7 @@ export async function getAccessCode(config: CouchConfig, workspaceId: string): P
  * by ID even if the display name isn't pretty.
  */
 export async function getOrCreateAccessCode(
-  config: CouchConfig,
+  config: DatabaseConfig,
   workspaceId: string,
   fallbackName: string,
 ): Promise<{ code: string; name: string }> {
@@ -262,7 +179,7 @@ export async function getOrCreateAccessCode(
  * Reads the existing name from the same fetch `putDocWithRetry` already needs for `_rev` -
  * rather than a separate `getAccessCode` call first - so this costs exactly one round trip per
  * attempt, not two. */
-export async function rotateAccessCode(config: CouchConfig, workspaceId: string): Promise<string> {
+export async function rotateAccessCode(config: DatabaseConfig, workspaceId: string): Promise<string> {
   const code = generateAccessCode()
   await putDocWithRetry<AccessCodeDoc>(config, workspaceDbName(workspaceId), ACCESS_CODE_DOC_ID, (existing) => ({
     _id: ACCESS_CODE_DOC_ID,
@@ -283,7 +200,7 @@ export async function rotateAccessCode(config: CouchConfig, workspaceId: string)
  * old, client-only `renameWorkspace`. A workspace with no `workspace:access` doc yet
  * (pre-2026-09-01, never backfilled) gets one created on the spot, same lazy-backfill approach
  * as `getOrCreateAccessCode`. */
-export async function renameWorkspace(config: CouchConfig, workspaceId: string, name: string): Promise<void> {
+export async function renameWorkspace(config: DatabaseConfig, workspaceId: string, name: string): Promise<void> {
   await putDocWithRetry<AccessCodeDoc>(config, workspaceDbName(workspaceId), ACCESS_CODE_DOC_ID, (existing) => ({
     _id: ACCESS_CODE_DOC_ID,
     _rev: existing?._rev,
@@ -294,7 +211,7 @@ export async function renameWorkspace(config: CouchConfig, workspaceId: string, 
 }
 
 /** Sets who holds the Master-Token (#85) on the band's access doc, keeping code and name. */
-export async function setMasterMode(config: CouchConfig, workspaceId: string, masterMode: 'device' | 'account'): Promise<void> {
+export async function setMasterMode(config: DatabaseConfig, workspaceId: string, masterMode: 'device' | 'account'): Promise<void> {
   await putDocWithRetry<AccessCodeDoc>(config, workspaceDbName(workspaceId), ACCESS_CODE_DOC_ID, (existing) => ({
     _id: ACCESS_CODE_DOC_ID,
     _rev: existing?._rev,
@@ -304,12 +221,12 @@ export async function setMasterMode(config: CouchConfig, workspaceId: string, ma
   }))
 }
 
-/** Every workspace the Stage-Server hosts, with a real (or lazily-backfilled) display name -
+/** Every workspace the Host hosts, with a real (or lazily-backfilled) display name -
  * `GET /workspaces`, the WiFi "which networks are in range" listing, public/no auth by design
  * (see `WorkspaceSummarySchema`'s doc comment - a band's name alone isn't sensitive on a LAN
- * the Stage-Server itself controls). Filters `_all_dbs` down to `stageboard-*` databases
- * (matching `workspaceDbName`), excluding CouchDB's own system databases. */
-export async function listWorkspaces(config: CouchConfig): Promise<Array<{ workspaceId: string; workspaceName: string }>> {
+ * the Host itself controls). Filters `_all_dbs` down to `stageboard-*` databases
+ * (matching `workspaceDbName`), excluding the database's own system databases. */
+export async function listWorkspaces(config: DatabaseConfig): Promise<Array<{ workspaceId: string; workspaceName: string }>> {
   const dbs = await listDbs(config)
   const workspaceIds = dbs.filter((db) => db.startsWith('stageboard-')).map((db) => db.slice('stageboard-'.length))
 
@@ -322,157 +239,13 @@ export async function listWorkspaces(config: CouchConfig): Promise<Array<{ works
 }
 
 /**
- * Provisions one additional roster member's personal CouchDB account (see per-person-accounts
- * follow-up) - nothing else needs touching, `_security`/`_design/roster` are role-based and
- * already cover any user created with the right role. `createUser` itself is already idempotent
- * (swallows "already exists", never rotates a password), so this doesn't need its own guard.
+ * Deletes a band: its database - and with it every login and PIN verifier, which are documents of that database
+ * (#960) - and records the id so it is never provisioned again through POST /workspaces (#364). A copy is kept first
+ * (`saveDeletedBand`, #362) - the database host destroys what it deletes - and a band whose copy could not be made is
+ * not deleted.
  */
-export async function provisionMember(
-  config: CouchConfig,
-  workspaceId: string,
-  profileId: string,
-  password: string,
-  isAdmin: boolean,
-): Promise<WorkspaceCredentialPair> {
-  const username = memberUsername(workspaceId, profileId)
-  await createUser(config, username, password, isAdmin ? ['member', 'admin'] : ['member'])
-  return { username, password }
-}
-
-/** Generates a fresh random password for a new member - split out from `provisionMember` so a
- * caller (index.ts's member-creation route) can decide *when* to use a random one vs. an
- * admin-supplied PIN before provisioning. */
-export function generateMemberPassword(): string {
-  return randomPassword()
-}
-
-/**
- * Sets an already-provisioned member's password to an explicit, caller-chosen value - the
- * building block for both self-service PIN assignment (`index.ts`'s `set-pin` route: an admin
- * choosing their *own* new 4-digit PIN) and the admin-panel reset below (choosing a *fresh*
- * value on someone else's behalf). Unlike `provisionMember`/`createUser`, this *does* rotate an
- * existing account's password on purpose - any device already synced with the old one stops
- * authenticating until it's told the new one.
- */
-export async function setMemberPassword(
-  config: CouchConfig,
-  workspaceId: string,
-  profileId: string,
-  password: string,
-): Promise<WorkspaceCredentialPair> {
-  const username = memberUsername(workspaceId, profileId)
-  await resetUserPassword(config, username, password)
-  return { username, password }
-}
-
-/**
- * Mints (or, for a device re-authenticating that already has one, silently reissues) *this
- * device's own* CouchDB account for a profile - what `resolveOutcome` (index.ts) actually hands
- * back to a client on every successful join/activate, admin or not. Long, random, never typed
- * by a human either way. Reissuing only ever touches this one device's own account (looked up by
- * its own username, which nothing else shares), so unlike the old shared-account model, no other
- * device's session is ever collateral damage.
- */
-export async function provisionDevice(
-  config: CouchConfig,
-  workspaceId: string,
-  profileId: string,
-  deviceId: string,
-  isAdmin: boolean,
-): Promise<WorkspaceCredentialPair> {
-  const username = deviceUsername(workspaceId, profileId, deviceId)
-  const password = randomPassword()
-  if (await userExists(config, username)) {
-    await resetUserPassword(config, username, password)
-  } else {
-    await createUser(config, username, password, isAdmin ? ['member', 'admin'] : ['member'])
-  }
-  return { username, password }
-}
-
-/** Every CouchDB username provisioned for a profile's individual devices (not the profile's own
- * anchor account) - the fan-out list `deprovisionMember`/`deprovisionWorkspace`/`setMemberAdmin`
- * below need, since a profile can now have any number of them. CouchDB has no wildcard delete, so
- * this is a plain `_users` prefix scan on `deviceUsername`'s own `~`-separated scheme. */
-async function listDeviceUsernames(config: CouchConfig, workspaceId: string, profileId: string): Promise<string[]> {
-  const prefix = deviceUsername(workspaceId, profileId, '')
-  const docs = await allDocs<CouchDoc & { name: string }>(config, '_users', {
-    startkey: `org.couchdb.user:${prefix}`,
-    endkey: `org.couchdb.user:${prefix}￰`,
-  })
-  return docs.map((doc) => doc.name)
-}
-
-/**
- * Resets another admin's PIN to a fresh, *human-relayable* 4-digit one - the admin-panel
- * "Passwort zurücksetzen" escape hatch (BandManagementView.tsx), for when a locked-out admin has
- * another admin's help available. Deliberately a short PIN, not `provisionDevice`'s long random
- * one: the whole point here is that a person reads this value off one screen and retypes it into
- * another, which a 24-byte base64 string makes needlessly painful. Only ever touches the target's
- * *anchor* account (the PIN's home), never any of their already-provisioned devices' own
- * accounts - those keep working exactly as before.
- */
-export async function resetAdminPin(config: CouchConfig, workspaceId: string, profileId: string): Promise<WorkspaceCredentialPair> {
-  return setMemberPassword(config, workspaceId, profileId, randomPin())
-}
-
-/** Grants or revokes admin for one already-provisioned member (see per-person-accounts
- * follow-up) - updates the anchor's roles *and* every one of that profile's already-provisioned
- * per-device accounts (`listDeviceUsernames`), so a promotion/demotion actually takes effect on
- * every tablet that profile is already logged into, not just future ones. Caller is responsible
- * for the "at least one admin must remain" check (index.ts's routes, since only they know the
- * full current admin count from the roster). */
-export async function setMemberAdmin(
-  config: CouchConfig,
-  workspaceId: string,
-  profileId: string,
-  isAdmin: boolean,
-): Promise<void> {
-  const roles = isAdmin ? ['member', 'admin'] : ['member']
-  await setUserRoles(config, memberUsername(workspaceId, profileId), roles)
-  for (const username of await listDeviceUsernames(config, workspaceId, profileId)) {
-    await setUserRoles(config, username, roles)
-  }
-}
-
-/** Deprovisions one member entirely - their anchor account *and* every device account it's ever
- * minted (`listDeviceUsernames`), so removing a roster member doesn't leave any of their tablets
- * still able to sync. `_security`/`_design/roster` need no change (role-based, and a deleted
- * user obviously can't authenticate as anyone regardless). */
-export async function deprovisionMember(config: CouchConfig, workspaceId: string, profileId: string): Promise<void> {
-  const deviceUsernames = await listDeviceUsernames(config, workspaceId, profileId)
-  await deleteUser(config, memberUsername(workspaceId, profileId))
-  for (const username of deviceUsernames) {
-    await deleteUser(config, username)
-  }
-}
-
-/**
- * Irreversibly destroys a workspace: every member's personal CouchDB account, then the database
- * itself. Caller (index.ts's `DELETE /workspaces/:id` route) is responsible for verifying the
- * requester actually holds an admin credential before calling this - this function itself just
- * does the deletion, no further authorization check.
- *
- * Reads the roster *first* (has to - once the database is gone there's nothing left to read) to
- * find every member's `profileId` and derive their username, since core-backend keeps no
- * separate registry of who's been provisioned - the roster itself is the only record.
- *
- * Doesn't - and can't - notify any other device that already joined this workspace; they only
- * discover it's gone the next time their own sync fails. No mechanism for that exists yet.
- */
-export async function deprovisionWorkspace(config: CouchConfig, workspaceId: string): Promise<void> {
-  const db = workspaceDbName(workspaceId)
-  const profiles = await allDocs<CouchDoc>(config, db, {
-    startkey: PROFILE_ID_PREFIX,
-    endkey: `${PROFILE_ID_PREFIX}￰`,
-  }).catch(() => [])
-
-  await deleteDb(config, db)
-  // Never provisioned again through POST /workspaces (#364).
+export async function deprovisionWorkspace(config: DatabaseConfig, workspaceId: string): Promise<void> {
+  await saveDeletedBand(config, workspaceId, process.env.STAGEBOARD_STATE_DIR ?? './data')
+  await deleteDb(config, workspaceDbName(workspaceId))
   recordDeletedWorkspace(workspaceId)
-
-  for (const profile of profiles) {
-    const profileId = profile._id.slice(PROFILE_ID_PREFIX.length)
-    await deprovisionMember(config, workspaceId, profileId)
-  }
 }

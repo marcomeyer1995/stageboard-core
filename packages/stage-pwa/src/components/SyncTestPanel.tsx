@@ -17,7 +17,7 @@ function defaultChannel(): number {
 
 /**
  * Sync test (docs/21 §4): marks every full second of server time with a MIDI note and/or the real
- * click, on every device started at once - a laptop logs it against the Stage-Server's clock
+ * click, on every device started at once - a laptop logs it against the Host's clock
  * (scripts/midi-timing-probe/sync-receiver.py).
  */
 export function SyncTestPanel() {

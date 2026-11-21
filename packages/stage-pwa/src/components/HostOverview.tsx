@@ -20,7 +20,7 @@ export function HostOverview({ active = true }: { active?: boolean }) {
   const alert = useDialogStore((state) => state.alert)
   const playing = useShowStateStore((state) => state.state.playbackStatus === 'playing')
   const workspace = useWorkspaceStore((state) => state.workspaces.find((w) => w.id === state.activeWorkspaceId))
-  const admin = workspace?.isAdmin && workspace.username && workspace.couchPassword ? { adminUsername: workspace.username, adminPassword: workspace.couchPassword } : null
+  const admin = workspace?.isAdmin && workspace.username && workspace.password ? { adminUsername: workspace.username, adminPassword: workspace.password } : null
 
   /** The one thing the admin can do at a host, or null: take over on a backup that stands by, hand back on a primary that is back. */
   const actionOf = (row: HostRow): 'take-over' | 'hand-back' | null => (row.state === 'standby' ? 'take-over' : row.state === 'outdated' ? 'hand-back' : null)

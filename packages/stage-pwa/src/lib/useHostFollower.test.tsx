@@ -2,7 +2,7 @@ import { renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BandHostEntry } from 'shared-types'
 import { useBandSettingsStore } from '../store/useBandSettingsStore'
-import { useStageServerStore } from '../store/useStageServerStore'
+import { useHostUrlStore } from '../store/useHostUrlStore'
 import { useHostEpochStore } from './hostEpoch'
 
 vi.mock('../store/useBandSettingsStore', async () => {
@@ -35,7 +35,7 @@ function stubEpochs(byUrl: Record<string, number>) {
 beforeEach(() => {
   vi.useFakeTimers()
   native.value = false
-  useStageServerStore.setState({ url: primary.url })
+  useHostUrlStore.setState({ url: primary.url })
   useBandSettingsStore.setState({ settings: { id: 'band', hosts: [primary, backup] } })
   useHostEpochStore.setState({ highestEpoch: 1, currentEpoch: 1, staleHost: false })
 })
@@ -49,14 +49,14 @@ describe('useHostFollower (#916)', () => {
     stubEpochs({ [backup.url]: 2 })
     renderHook(() => useHostFollower())
     await vi.advanceTimersByTimeAsync(5_100)
-    expect(useStageServerStore.getState().url).toBe(backup.url)
+    expect(useHostUrlStore.getState().url).toBe(backup.url)
   })
 
   it('stays while the other host announces the same epoch', async () => {
     stubEpochs({ [backup.url]: 1 })
     renderHook(() => useHostFollower())
     await vi.advanceTimersByTimeAsync(11_000)
-    expect(useStageServerStore.getState().url).toBe(primary.url)
+    expect(useHostUrlStore.getState().url).toBe(primary.url)
   })
 
   describe('in the native app (#916)', () => {
@@ -105,6 +105,6 @@ describe('useHostFollower (#916)', () => {
     const { unmount } = renderHook(() => useHostFollower())
     unmount()
     await vi.advanceTimersByTimeAsync(11_000)
-    expect(useStageServerStore.getState().url).toBe(primary.url)
+    expect(useHostUrlStore.getState().url).toBe(primary.url)
   })
 })

@@ -18,7 +18,7 @@ const PING_TIMEOUT_S = 1
  * already carries whatever capability it needs).
  *
  * One process-wide loop, not per-workspace - `deviceInfoStore` is already keyed by workspaceId
- * internally, and this needs no CouchDB access at all (purely refreshes the in-memory store),
+ * internally, and this needs no the database access at all (purely refreshes the in-memory store),
  * so unlike pluginSync.ts/midiWatcher.ts it doesn't need a configured `STAGEBOARD_WORKSPACE`.
  *
  * Deliberately a second, independent signal from `lastSeenAt`'s "is the app open" (see

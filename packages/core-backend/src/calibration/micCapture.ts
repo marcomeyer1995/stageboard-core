@@ -29,7 +29,7 @@ export function fallbackMicDevice(): string {
 }
 
 /**
- * Records one channel of a Stage-Server audio input (ALSA `arecord`; #662: device and channel as
+ * Records one channel of a Host audio input (ALSA `arecord`; #662: device and channel as
  * chosen under System → Rig-Check, else CALIBRATION_AUDIO_DEVICE / `default`, channel 0) and
  * detects click onsets on the fly. For channel n it records n+1 channels and keeps the last - an
  * interface's input 2 is the second channel of its stream. Frame -> server time comes from the
@@ -49,9 +49,9 @@ export function startMicCapture(device = fallbackMicDevice(), channel = 0): MicC
   const proc = spawn('arecord', ['-q', '-D', device, '-f', 'S16_LE', '-r', String(SAMPLE_RATE), '-c', String(channels), '-t', 'raw', '--period-size', String(CHUNK_FRAMES), '--buffer-size', String(CHUNK_FRAMES * 4)])
   let stderr = ''
   proc.stderr.on('data', (d: Buffer) => (stderr += d.toString()))
-  proc.on('error', (err) => (failure = `Mikrofon am Stage-Server nicht verfügbar (arecord: ${err.message})`))
+  proc.on('error', (err) => (failure = `Mikrofon am Host nicht verfügbar (arecord: ${err.message})`))
   proc.on('exit', (code) => {
-    if (!gotData && code !== null && code !== 0 && !failure) failure = `Mikrofon am Stage-Server nicht verfügbar (arecord: ${stderr.trim() || `Code ${code}`})`
+    if (!gotData && code !== null && code !== 0 && !failure) failure = `Mikrofon am Host nicht verfügbar (arecord: ${stderr.trim() || `Code ${code}`})`
   })
   proc.stdout.on('data', (chunk: Buffer) => {
     const readAt = nowMs()

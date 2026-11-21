@@ -5,7 +5,8 @@ import type { ActiveWorkspaceAdmins, AdminPinProof, ServerInfo, WorkspaceRoster,
 import { getDeviceId } from '../lib/deviceId'
 import { randomId } from '../lib/id'
 import { isNativeApp } from '../lib/native'
-import { getStageServerUrl } from '../lib/stageServer'
+import { getHostUrl } from '../lib/hostUrl'
+import { capabilityRefusal } from '../lib/capabilityRefusal'
 import { destroyLocalWorkspaceDb } from '../lib/workspaceDb'
 import { getWorkspaceAccessDoc, watchWorkspaceAccessDoc } from '../lib/workspaceAccessDoc'
 import { persist } from 'zustand/middleware'
@@ -17,13 +18,13 @@ const LIST_TIMEOUT_MS = 8_000
 export interface Workspace {
   id: string
   name: string
-  /** CouchDB password for this workspace's sync user (see #12). Undefined until either
+  /** the database password for this workspace's sync user (see #12). Undefined until either
    * `addWorkspace` provisions it (new workspace) or `joinWithPassword`/`joinAsMember` records
    * one entered for an already-existing workspace (join flow). */
-  couchPassword?: string
-  /** This device's own personal CouchDB username (per-person-accounts follow-up) - no longer
+  password?: string
+  /** This device's own personal the database username (per-person-accounts follow-up) - no longer
    * derivable from a fixed formula the way `workspaceUsername()` used to be, since every
-   * roster member now has their own account. Always set alongside `couchPassword`. */
+   * roster member now has their own account. Always set alongside `password`. */
   username?: string
   /** The roster `Profile.id` of the founder's own first profile, set only by `addWorkspace`
    * (the founder's own profile reuses the id `RosterSetupView.tsx`/`useProfilesStore.ts`'s
@@ -38,7 +39,7 @@ export interface Workspace {
    * Any device other than the founder's should derive its own profileId via
    * `deriveOwnProfileId` below instead, on demand, never persisted here. */
   ownProfileId?: string
-  /** Whether this device's account holds the admin role. CouchDB enforces the real
+  /** Whether this device's account holds the admin role. the database enforces the real
    * consequences of this itself (`_design/roster`'s validator checks `userCtx.roles`, not this
    * flag) - `isAdmin` here only decides what the UI *offers*; a wrong value here can't grant
    * unearned access, only mis-show/hide controls that would fail server-side anyway. */
@@ -47,7 +48,7 @@ export interface Workspace {
   masterMode?: 'device' | 'account'
 }
 
-/** The message for a 429 from the Stage-Server's temporary admin-PIN lockout, with how long is
+/** The message for a 429 from the Host's temporary admin-PIN lockout, with how long is
  * left (its `Retry-After`, in seconds) rounded up to whole minutes. */
 function pinLockoutMessage(response: Response): string {
   const seconds = Number(response.headers.get('retry-after'))
@@ -100,7 +101,7 @@ interface WorkspaceState {
   setLocalAdminFlag: (workspaceId: string, isAdmin: boolean) => void
   addWorkspace: (name: string) => Promise<Workspace | null>
   /** Provisions this already-locally-founded workspace's founder account against a real
-   * Stage-Server for the first time (see the Tier-A local-only-founding follow-up) - the
+   * Host for the first time (see the Tier-A local-only-founding follow-up) - the
    * workspace/founder ids were already decided locally at founding time, so this just calls the
    * same `POST /workspaces` route `addWorkspace` calls for a brand-new one, only later. Does
    * NOT touch any other roster member's account - useProfilesStore.ts's `connectToServer`
@@ -153,7 +154,7 @@ interface WorkspaceState {
    * follow-up, at Marco's explicit request: "Bei Admins ... [ein] 4 stelliger Code, der selbst
    * vergeben werden kann"). Strictly self-service - only works while this device is already
    * authenticated as the exact admin profile being changed (uses its own current
-   * `couchPassword` as proof); to set someone *else's* PIN, use `resetMemberPassword` instead.
+   * `password` as proof); to set someone *else's* PIN, use `resetMemberPassword` instead.
    * `null` on failure (not currently this profile, wrong current PIN, or unreachable). */
   setOwnPin: (workspaceId: string, profileId: string, newPin: string) => Promise<{ username: string; password: string } | null>
   /** Fetches a workspace's *current* standing access code (2026-09-01 WiFi-style redesign, at
@@ -166,18 +167,18 @@ interface WorkspaceState {
   /** Rotates a workspace's standing access code to a fresh one (e.g. "the code leaked") -
    * admin-only, immediately invalidates the old code for anyone who only knew that one. */
   rotateAccessCode: (workspaceId: string) => Promise<{ code: string } | null>
-  /** Every band the currently-configured Stage-Server hosts, with no code needed at all - the
+  /** Every band the currently-configured Host hosts, with no code needed at all - the
    * WiFi "which networks are in range" step, `JoinBandView.tsx`'s first screen. */
   listWorkspaces: () => Promise<WorkspaceSummary[] | null>
-  /** Which workspace (if any) this specific Stage-Server's local hardware - plugin sync,
+  /** Which workspace (if any) this specific Host's local hardware - plugin sync,
    * Discovery Mode's MIDI watcher - currently serves. `null` on a fetch failure; a resolved
    * `activeWorkspaceId: null` is a valid answer (nothing activated on that box yet). */
   fetchActiveWorkspaceHardware: () => Promise<{ activeWorkspaceId: string | null } | null>
   /** This box's own address/name (`GET /server-info`) - `null` on a fetch failure, same
    * "collapse not-configured and unreachable into one null" shape as every other fetch* action
-   * here (useStageServerStatus.ts is what turns that into a displayed reachability state). */
+   * here (useHostUrlStatus.ts is what turns that into a displayed reachability state). */
   fetchServerInfo: () => Promise<ServerInfo | null>
-  /** The admins (id + name) of the band this Stage-Server is currently serving, with no band code
+  /** The admins (id + name) of the band this Host is currently serving, with no band code
    * (`GET /server/active-workspace/admins`) - what lets the hardware-switch wizard show whose PIN
    * closes that band. `null` on any failure, including nothing being active; the caller falls
    * back to the code-gated roster. Silent (no alert): a failure just means "ask for the code". */
@@ -186,7 +187,7 @@ interface WorkspaceState {
    * that workspace" (own PIN or the band code's last 4 digits). Lets the hardware-switch wizard
    * reject a wrong PIN at the step it was typed. Alerts on failure, like the other actions here. */
   verifyAdminPin: (workspaceId: string, profileId: string, pin: string) => Promise<boolean>
-  /** Switches this Stage-Server's hardware to serve `workspaceId` (one box, one band at a time -
+  /** Switches this Host's hardware to serve `workspaceId` (one box, one band at a time -
    * SwitchServerBandWizard.tsx). `opening` is an admin of that workspace; `closing` is an admin of
    * the band currently active on the box, only needed (and only sent) when switching away from
    * one - proof the caller may interrupt whatever's actually live. Both are verified server-side
@@ -226,17 +227,17 @@ interface WorkspaceState {
 
 /**
  * Which workspace (band) is active on this device. Data isolation itself lives in
- * workspaceDb.ts (separate PouchDB/CouchDB databases per workspace) - this store only tracks
+ * workspaceDb.ts (separate PouchDB databases per workspace) - this store only tracks
  * the selection and credentials, persisted so each tablet remembers its last-used band and
  * doesn't have to be told its password again.
  *
- * Per-person-accounts follow-up: every roster member has their own CouchDB account now, not a
+ * Per-person-accounts follow-up: every roster member has their own account now, not a
  * shared one - `Workspace.username`/`ownProfileId` track *this device's* specific account.
- * `isAdmin` decides which UI is offered; CouchDB itself is what actually enforces admin-only
+ * `isAdmin` decides which UI is offered; the database itself is what actually enforces admin-only
  * writes (`_design/roster`'s role-based validator, core-backend's `verifyAdmin`).
  *
  * Starts with zero known workspaces (see #21's onboarding rework) - a brand-new device out of
- * the box, or fresh from a Stage-Server it's never talked to, genuinely knows nothing yet;
+ * the box, or fresh from a Host it's never talked to, genuinely knows nothing yet;
  * `JoinBandView.tsx` is what it sees first, offering both "join" and "start a new band" equally.
  */
 let nameChangesHandle: LocalChangesHandle<{ code: string; name: string }> | null = null
@@ -250,21 +251,21 @@ function noServerMessage(): string {
 }
 
 /**
- * `POST /workspaces` with proof (#364): after the first band, the Stage-Server only founds a band
+ * `POST /workspaces` with proof (#364): after the first band, the Host only founds a band
  * for an admin of a band on it (or a request from the server machine itself) - this sends an
  * admin login this device already has. `null` = not provisioned (already told the user).
  */
 async function provisionWithProof(
   base: string,
-  body: { workspaceId: string; founderId: string; workspaceName: string },
+  body: { workspaceId: string; founderId: string; workspaceName: string; deviceId: string },
   known: Workspace[],
 ): Promise<{ username: string; password: string } | null> {
   const dialogs = useDialogStore.getState()
-  // The admin logins this device has belong to its Stage-Server (one per device, #84) - never hand
+  // The admin logins this device has belong to its Host (one per device, #84) - never hand
   // them to another server typed in by hand when connecting a solo band there (#396 review).
-  const sameServer = base.replace(/\/+$/, '') === (getStageServerUrl() ?? '').replace(/\/+$/, '')
-  const admin = sameServer ? known.find((w) => w.isAdmin && w.username && w.couchPassword) : undefined
-  const proof = admin ? { adminUsername: admin.username!, adminPassword: admin.couchPassword! } : {}
+  const sameServer = base.replace(/\/+$/, '') === (getHostUrl() ?? '').replace(/\/+$/, '')
+  const admin = sameServer ? known.find((w) => w.isAdmin && w.username && w.password) : undefined
+  const proof = admin ? { adminUsername: admin.username!, adminPassword: admin.password! } : {}
   const response = await fetch(`${base}/workspaces`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -286,6 +287,22 @@ async function provisionWithProof(
   throw new Error(`HTTP ${response.status}`)
 }
 
+/** What a device saved under an older version of the store. Version 1 (#960): the saved password was called
+ * `couchPassword` - the field was renamed with the database, and a device must not lose its login over it. */
+export function migrateWorkspaceState(saved: unknown, version: number): unknown {
+  if (version >= 1 || typeof saved !== 'object' || saved === null) return saved
+  const state = saved as { workspaces?: Record<string, unknown>[] }
+  if (!Array.isArray(state.workspaces)) return saved
+  return {
+    ...state,
+    workspaces: state.workspaces.map((workspace) => {
+      if (!('couchPassword' in workspace)) return workspace
+      const { couchPassword, ...rest } = workspace
+      return { ...rest, password: couchPassword }
+    }),
+  }
+}
+
 export const useWorkspaceStore = create<WorkspaceState>()(
   persist(
     (set, get) => ({
@@ -296,8 +313,8 @@ export const useWorkspaceStore = create<WorkspaceState>()(
         set({ workspaces: get().workspaces.map((w) => (w.id === workspaceId ? { ...w, isAdmin } : w)) })
       },
       // See the Tier-A local-only-founding follow-up: `docs/02`'s Stufe 1 promises this works
-      // with zero hardware, so when no Stage-Server is configured at all, this founds the band
-      // entirely locally instead of refusing - same Workspace shape, `username`/`couchPassword`
+      // with zero hardware, so when no Host is configured at all, this founds the band
+      // entirely locally instead of refusing - same Workspace shape, `username`/`password`
       // just stay unset (App.tsx's startSync guard already no-ops correctly on that). The
       // workspace/founder ids are decided right here either way, so `connectWorkspace` below can
       // provision this exact workspace against a real server later without anything changing.
@@ -306,7 +323,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
       addWorkspace: async (name) => {
         const id = randomId()
         const founderId = randomId()
-        const base = getStageServerUrl()
+        const base = getHostUrl()
 
         if (!base) {
           const workspace: Workspace = { id, name, ownProfileId: founderId, isAdmin: true }
@@ -316,7 +333,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
 
         let credentials: { username: string; password: string }
         try {
-          const provisioned = await provisionWithProof(base, { workspaceId: id, founderId, workspaceName: name }, get().workspaces)
+          const provisioned = await provisionWithProof(base, { workspaceId: id, founderId, workspaceName: name, deviceId: getDeviceId() }, get().workspaces)
           if (!provisioned) return null
           credentials = provisioned
         } catch (err) {
@@ -331,7 +348,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
         const workspace: Workspace = {
           id,
           name,
-          couchPassword: credentials.password,
+          password: credentials.password,
           username: credentials.username,
           ownProfileId: founderId,
           isAdmin: true,
@@ -346,14 +363,14 @@ export const useWorkspaceStore = create<WorkspaceState>()(
         try {
           const credentials = await provisionWithProof(
             serverUrl,
-            { workspaceId, founderId: workspace.ownProfileId, workspaceName: workspace.name },
+            { workspaceId, founderId: workspace.ownProfileId, workspaceName: workspace.name, deviceId: getDeviceId() },
             get().workspaces,
           )
           if (!credentials) return false
 
           set({
             workspaces: get().workspaces.map((w) =>
-              w.id === workspaceId ? { ...w, couchPassword: credentials.password, username: credentials.username } : w,
+              w.id === workspaceId ? { ...w, password: credentials.password, username: credentials.username } : w,
             ),
           })
           return true
@@ -365,7 +382,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
       },
       // Admin-only in the UI (BandManagementView.tsx checks isAdmin before offering this) and
       // admin-verified server-side too (core-backend's DELETE /workspaces/:id). Irreversible:
-      // the Stage-Server destroys the workspace's CouchDB database and every member's personal
+      // the Host destroys the workspace's database and every member's personal
       // account (workspaceProvisioning.ts's deprovisionWorkspace) - any other device that
       // already joined only discovers it's gone the next time its own sync fails, there's no
       // mechanism to notify them. A local-only workspace (Tier-A follow-up) has no server-side
@@ -376,14 +393,14 @@ export const useWorkspaceStore = create<WorkspaceState>()(
         if (!workspace?.isAdmin) return false
 
         if (workspace.username) {
-          const base = getStageServerUrl()
-          if (!base || !workspace.couchPassword) return false
+          const base = getHostUrl()
+          if (!base || !workspace.password) return false
 
           try {
             const response = await fetch(`${base}/workspaces/${encodeURIComponent(id)}`, {
               method: 'DELETE',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ adminUsername: workspace.username, adminPassword: workspace.couchPassword }),
+              body: JSON.stringify({ adminUsername: workspace.username, adminPassword: workspace.password }),
             })
             if (!response.ok) throw new Error(`HTTP ${response.status}`)
           } catch (err) {
@@ -402,13 +419,13 @@ export const useWorkspaceStore = create<WorkspaceState>()(
       },
       setMasterMode: async (id, masterMode) => {
         const workspace = get().workspaces.find((w) => w.id === id)
-        const base = getStageServerUrl()
-        if (!workspace?.isAdmin || !workspace.username || !workspace.couchPassword || !base) return false
+        const base = getHostUrl()
+        if (!workspace?.isAdmin || !workspace.username || !workspace.password || !base) return false
         try {
           const response = await fetch(`${base}/workspaces/${encodeURIComponent(id)}/master-mode`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ adminUsername: workspace.username, adminPassword: workspace.couchPassword, masterMode }),
+            body: JSON.stringify({ adminUsername: workspace.username, adminPassword: workspace.password, masterMode }),
           })
           if (!response.ok) throw new Error(`HTTP ${response.status}`)
         } catch (err) {
@@ -428,16 +445,16 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           return true
         }
 
-        if (!workspace.isAdmin || !workspace.couchPassword) return false
+        if (!workspace.isAdmin || !workspace.password) return false
 
-        const base = getStageServerUrl()
+        const base = getHostUrl()
         if (!base) return false
 
         try {
           const response = await fetch(`${base}/workspaces/${encodeURIComponent(id)}/name`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ adminUsername: workspace.username, adminPassword: workspace.couchPassword, name }),
+            body: JSON.stringify({ adminUsername: workspace.username, adminPassword: workspace.password, name }),
           })
           if (!response.ok) {
             if (response.status === 403) {
@@ -485,14 +502,14 @@ export const useWorkspaceStore = create<WorkspaceState>()(
       // device doesn't know about locally yet, so unlike a plain update this has to be able to
       // add a brand-new entry too. Needs a username now (per-person-accounts follow-up - there's
       // no longer one fixed, derivable username per workspace) and a self-declared `isAdmin`
-      // (nothing here verifies it - a wrong guess only mis-shows UI, CouchDB enforces the real
+      // (nothing here verifies it - a wrong guess only mis-shows UI, the database enforces the real
       // thing). `name` falls back to the raw id since there's nowhere to look up a real display
       // name for this path (unlike listWorkspaces/joinAsMember, which get one from the server).
       joinWithPassword: (id, username, password, isAdmin) => {
         const existing = get().workspaces.find((w) => w.id === id)
         const workspace: Workspace = existing
-          ? { ...existing, couchPassword: password, username, isAdmin }
-          : { id, name: id, couchPassword: password, username, isAdmin }
+          ? { ...existing, password: password, username, isAdmin }
+          : { id, name: id, password: password, username, isAdmin }
         set({
           workspaces: existing
             ? get().workspaces.map((w) => (w.id === id ? workspace : w))
@@ -500,14 +517,14 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           activeWorkspaceId: id,
         })
       },
-      // Provisions one new roster member's personal CouchDB account (see per-person-accounts
+      // Provisions one new roster member's personal account (see per-person-accounts
       // follow-up). Does NOT write the `profiles:<profileId>` roster doc itself - the caller
       // (BandManagementView.tsx) does that via its own already-admin sync connection right
       // after this resolves, same as any other roster edit.
       createMember: async (workspaceId, options) => {
-        const base = getStageServerUrl()
+        const base = getHostUrl()
         const workspace = get().workspaces.find((w) => w.id === workspaceId)
-        if (!base || !workspace?.isAdmin || !workspace.couchPassword || !workspace.username) {
+        if (!base || !workspace?.isAdmin || !workspace.password || !workspace.username) {
           return null
         }
 
@@ -517,7 +534,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               adminUsername: workspace.username,
-              adminPassword: workspace.couchPassword,
+              adminPassword: workspace.password,
               profileId: options.profileId,
               password: options.password,
               isAdmin: options.isAdmin,
@@ -542,9 +559,9 @@ export const useWorkspaceStore = create<WorkspaceState>()(
       // that would leave zero admins (see core-backend's countOtherAdmins) - that specific
       // failure gets its own message, everything else falls back to a generic one.
       setMemberAdmin: async (workspaceId, profileId, isAdmin) => {
-        const base = getStageServerUrl()
+        const base = getHostUrl()
         const workspace = get().workspaces.find((w) => w.id === workspaceId)
-        if (!base || !workspace?.isAdmin || !workspace.couchPassword || !workspace.username) {
+        if (!base || !workspace?.isAdmin || !workspace.password || !workspace.username) {
           return false
         }
 
@@ -552,7 +569,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           const response = await fetch(`${base}/workspaces/${encodeURIComponent(workspaceId)}/members/${encodeURIComponent(profileId)}/admin`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ adminUsername: workspace.username, adminPassword: workspace.couchPassword, isAdmin }),
+            body: JSON.stringify({ adminUsername: workspace.username, adminPassword: workspace.password, isAdmin }),
           })
           if (!response.ok) {
             if (response.status === 400) {
@@ -571,12 +588,12 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           return false
         }
       },
-      // Deprovisions one member's personal CouchDB account. Same last-admin rejection as
+      // Deprovisions one member's personal account. Same last-admin rejection as
       // setMemberAdmin above. The roster doc itself is removed separately by the caller.
       removeMember: async (workspaceId, profileId) => {
-        const base = getStageServerUrl()
+        const base = getHostUrl()
         const workspace = get().workspaces.find((w) => w.id === workspaceId)
-        if (!base || !workspace?.isAdmin || !workspace.couchPassword || !workspace.username) {
+        if (!base || !workspace?.isAdmin || !workspace.password || !workspace.username) {
           return false
         }
 
@@ -584,7 +601,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           const response = await fetch(`${base}/workspaces/${encodeURIComponent(workspaceId)}/members/${encodeURIComponent(profileId)}`, {
             method: 'DELETE',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ adminUsername: workspace.username, adminPassword: workspace.couchPassword }),
+            body: JSON.stringify({ adminUsername: workspace.username, adminPassword: workspace.password }),
           })
           if (!response.ok) {
             if (response.status === 400) {
@@ -604,9 +621,9 @@ export const useWorkspaceStore = create<WorkspaceState>()(
         }
       },
       resetMemberPassword: async (workspaceId, profileId) => {
-        const base = getStageServerUrl()
+        const base = getHostUrl()
         const workspace = get().workspaces.find((w) => w.id === workspaceId)
-        if (!base || !workspace?.isAdmin || !workspace.couchPassword || !workspace.username) {
+        if (!base || !workspace?.isAdmin || !workspace.password || !workspace.username) {
           return null
         }
 
@@ -616,7 +633,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
             {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ adminUsername: workspace.username, adminPassword: workspace.couchPassword }),
+              body: JSON.stringify({ adminUsername: workspace.username, adminPassword: workspace.password }),
             },
           )
           if (!response.ok) {
@@ -637,9 +654,9 @@ export const useWorkspaceStore = create<WorkspaceState>()(
         }
       },
       setOwnPin: async (workspaceId, profileId, newPin) => {
-        const base = getStageServerUrl()
+        const base = getHostUrl()
         const workspace = get().workspaces.find((w) => w.id === workspaceId)
-        if (!base || !workspace?.couchPassword || !workspace.username) {
+        if (!base || !workspace?.password || !workspace.username) {
           return null
         }
 
@@ -650,13 +667,13 @@ export const useWorkspaceStore = create<WorkspaceState>()(
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               callerUsername: workspace.username,
-              callerPassword: workspace.couchPassword,
+              callerPassword: workspace.password,
               newPin,
               deviceId: getDeviceId(),
             }),
           })
         } catch (err) {
-          console.error('Failed to reach Stage-Server to set PIN', err)
+          console.error('Failed to reach Host to set PIN', err)
           void useDialogStore
             .getState()
             .alert(i18n.t('band:err.offline'))
@@ -677,7 +694,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
 
         try {
           const resolved = (await response.json()) as { username: string; password: string; isAdmin: boolean }
-          const updated: Workspace = { ...workspace, couchPassword: resolved.password, username: resolved.username, isAdmin: resolved.isAdmin }
+          const updated: Workspace = { ...workspace, password: resolved.password, username: resolved.username, isAdmin: resolved.isAdmin }
           set({ workspaces: get().workspaces.map((w) => (w.id === workspaceId ? updated : w)) })
           return { username: resolved.username, password: resolved.password }
         } catch (err) {
@@ -687,9 +704,9 @@ export const useWorkspaceStore = create<WorkspaceState>()(
         }
       },
       getAccessCode: async (workspaceId) => {
-        const base = getStageServerUrl()
+        const base = getHostUrl()
         const workspace = get().workspaces.find((w) => w.id === workspaceId)
-        if (!base || !workspace?.isAdmin || !workspace.couchPassword || !workspace.username) {
+        if (!base || !workspace?.isAdmin || !workspace.password || !workspace.username) {
           return null
         }
 
@@ -697,7 +714,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           const response = await fetch(`${base}/workspaces/${encodeURIComponent(workspaceId)}/access-code`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ adminUsername: workspace.username, adminPassword: workspace.couchPassword }),
+            body: JSON.stringify({ adminUsername: workspace.username, adminPassword: workspace.password }),
           })
           if (!response.ok) throw new Error(`HTTP ${response.status}`)
           return (await response.json()) as { code: string }
@@ -707,9 +724,9 @@ export const useWorkspaceStore = create<WorkspaceState>()(
         }
       },
       rotateAccessCode: async (workspaceId) => {
-        const base = getStageServerUrl()
+        const base = getHostUrl()
         const workspace = get().workspaces.find((w) => w.id === workspaceId)
-        if (!base || !workspace?.isAdmin || !workspace.couchPassword || !workspace.username) {
+        if (!base || !workspace?.isAdmin || !workspace.password || !workspace.username) {
           return null
         }
 
@@ -717,7 +734,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           const response = await fetch(`${base}/workspaces/${encodeURIComponent(workspaceId)}/access-code/rotate`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ adminUsername: workspace.username, adminPassword: workspace.couchPassword }),
+            body: JSON.stringify({ adminUsername: workspace.username, adminPassword: workspace.password }),
           })
           if (!response.ok) throw new Error(`HTTP ${response.status}`)
           return (await response.json()) as { code: string }
@@ -730,7 +747,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
       // Public, no auth (2026-09-01 WiFi-style redesign) - the "which networks are in range"
       // step. Doesn't touch local state at all; JoinBandView.tsx just renders the result.
       listWorkspaces: async () => {
-        const base = getStageServerUrl()
+        const base = getHostUrl()
         // A background load (band list, join screen, "Aktive Band") - no pop-up without a server:
         // the screens say themselves that pairing is missing.
         if (!base) return null
@@ -738,10 +755,10 @@ export const useWorkspaceStore = create<WorkspaceState>()(
         let response: Response
         try {
           // A host that is gone answers nothing - without a limit the join screen waited forever
-          // instead of saying the Stage-Server can't be reached (#782).
+          // instead of saying the Host can't be reached (#782).
           response = await fetch(`${base}/workspaces`, { signal: AbortSignal.timeout(LIST_TIMEOUT_MS) })
         } catch (err) {
-          console.error('Failed to reach Stage-Server for workspace list', err)
+          console.error('Failed to reach Host for workspace list', err)
           void useDialogStore
             .getState()
             .alert(i18n.t('band:err.offline'))
@@ -763,7 +780,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
         }
       },
       fetchActiveWorkspaceHardware: async () => {
-        const base = getStageServerUrl()
+        const base = getHostUrl()
         if (!base) return null
 
         try {
@@ -776,7 +793,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
         }
       },
       fetchServerInfo: async () => {
-        const base = getStageServerUrl()
+        const base = getHostUrl()
         if (!base) return null
 
         try {
@@ -789,7 +806,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
         }
       },
       fetchActiveWorkspaceAdmins: async () => {
-        const base = getStageServerUrl()
+        const base = getHostUrl()
         if (!base) return null
 
         try {
@@ -802,7 +819,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
         }
       },
       verifyAdminPin: async (workspaceId, profileId, pin) => {
-        const base = getStageServerUrl()
+        const base = getHostUrl()
         if (!base) return false
 
         try {
@@ -827,7 +844,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
         }
       },
       activateWorkspaceHardware: async (workspaceId, opening, closing) => {
-        const base = getStageServerUrl()
+        const base = getHostUrl()
         if (!base) return false
 
         try {
@@ -837,7 +854,10 @@ export const useWorkspaceStore = create<WorkspaceState>()(
             body: JSON.stringify({ opening, closing }),
           })
           if (!response.ok) {
-            if (response.status === 403) {
+            const refusal = await capabilityRefusal(response)
+            if (refusal) {
+              void useDialogStore.getState().alert(refusal)
+            } else if (response.status === 403) {
               void useDialogStore.getState().alert(i18n.t('band:err.proofRejected'))
             } else if (response.status === 429) {
               void useDialogStore.getState().alert(pinLockoutMessage(response))
@@ -854,7 +874,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
         }
       },
       fetchRoster: async (workspaceId, code) => {
-        const base = getStageServerUrl()
+        const base = getHostUrl()
         if (!base) {
           void useDialogStore.getState().alert(noServerMessage())
           return null
@@ -873,7 +893,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
             body: JSON.stringify({ code }),
           })
         } catch (err) {
-          console.error('Failed to reach Stage-Server for roster', err)
+          console.error('Failed to reach Host for roster', err)
           void useDialogStore
             .getState()
             .alert(i18n.t('band:err.offline'))
@@ -899,7 +919,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
         }
       },
       joinAsMember: async (workspaceId, workspaceName, code, profileId, password) => {
-        const base = getStageServerUrl()
+        const base = getHostUrl()
         if (!base) {
           void useDialogStore.getState().alert(noServerMessage())
           return null
@@ -913,7 +933,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
             body: JSON.stringify({ code, password, deviceId: getDeviceId() }),
           })
         } catch (err) {
-          console.error('Failed to reach Stage-Server to join', err)
+          console.error('Failed to reach Host to join', err)
           void useDialogStore
             .getState()
             .alert(i18n.t('band:err.offline'))
@@ -937,11 +957,11 @@ export const useWorkspaceStore = create<WorkspaceState>()(
 
           const existing = get().workspaces.find((w) => w.id === workspaceId)
           const workspace: Workspace = existing
-            ? { ...existing, couchPassword: resolved.password, username: resolved.username, isAdmin: resolved.isAdmin }
+            ? { ...existing, password: resolved.password, username: resolved.username, isAdmin: resolved.isAdmin }
             : {
                 id: workspaceId,
                 name: workspaceName,
-                couchPassword: resolved.password,
+                password: resolved.password,
                 username: resolved.username,
                 isAdmin: resolved.isAdmin,
               }
@@ -959,9 +979,9 @@ export const useWorkspaceStore = create<WorkspaceState>()(
         }
       },
       activateProfile: async (workspaceId, profileId, password) => {
-        const base = getStageServerUrl()
+        const base = getHostUrl()
         const workspace = get().workspaces.find((w) => w.id === workspaceId)
-        if (!base || !workspace?.username || !workspace.couchPassword) {
+        if (!base || !workspace?.username || !workspace.password) {
           return null
         }
 
@@ -972,13 +992,13 @@ export const useWorkspaceStore = create<WorkspaceState>()(
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               callerUsername: workspace.username,
-              callerPassword: workspace.couchPassword,
+              callerPassword: workspace.password,
               password,
               deviceId: getDeviceId(),
             }),
           })
         } catch (err) {
-          console.error('Failed to reach Stage-Server to activate profile', err)
+          console.error('Failed to reach Host to activate profile', err)
           void useDialogStore
             .getState()
             .alert(i18n.t('band:err.offline'))
@@ -1001,7 +1021,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           const resolved = (await response.json()) as { username: string; password: string; isAdmin: boolean }
           const updated: Workspace = {
             ...workspace,
-            couchPassword: resolved.password,
+            password: resolved.password,
             username: resolved.username,
             isAdmin: resolved.isAdmin,
           }
@@ -1014,6 +1034,9 @@ export const useWorkspaceStore = create<WorkspaceState>()(
         }
       },
     }),
-    { name: 'stageboard-workspaces' },
+    { name: 'stageboard-workspaces', version: 1, migrate: migrateWorkspaceState as never },
   ),
 )
+
+// For measuring and testing over USB (tools/cdp, tools/host-test): the store the app runs on, like the other `__sb*` hooks.
+if (typeof window !== 'undefined') (window as unknown as { __sbWorkspace: typeof useWorkspaceStore }).__sbWorkspace = useWorkspaceStore

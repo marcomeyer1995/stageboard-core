@@ -37,9 +37,9 @@ const DEVICE_INFO_ENTRY = {
 
 beforeEach(() => {
   useWorkspaceStore.setState({
-    workspaces: [{ id: 'band-a', name: 'Band A', couchPassword: 'admin-pw', username: 'stageboard-band-a-p1', isAdmin: true }],
+    workspaces: [{ id: 'band-a', name: 'Band A', password: 'admin-pw', username: 'stageboard-band-a-p1', isAdmin: true }],
     activeWorkspaceId: 'band-a',
-    // useStageServerStatus.ts fires all three on every mount (the new "Stage-Server" row) -
+    // useHostUrlStatus.ts fires all three on every mount (the new "Host" row) -
     // same "every test needs some stub for it" reasoning as JoinBandView.test.tsx's default
     // for listWorkspaces(); a test that doesn't care about this row gets a deterministic
     // "unreachable" state instead of a stray real fetch.
@@ -135,7 +135,7 @@ describe('DeviceLedgerView', () => {
 
   it('hides the ⋯ menu for a non-admin session', () => {
     useWorkspaceStore.setState({
-      workspaces: [{ id: 'band-a', name: 'Band A', couchPassword: 'member-pw', username: 'stageboard-band-a-p2', isAdmin: false }],
+      workspaces: [{ id: 'band-a', name: 'Band A', password: 'member-pw', username: 'stageboard-band-a-p2', isAdmin: false }],
       activeWorkspaceId: 'band-a',
     })
     render(<DeviceLedgerView />)
@@ -241,7 +241,7 @@ describe('DeviceLedgerView', () => {
     useDeviceInfoStore.setState({ deviceInfo: { devices: {}, collectingSince: Date.now() - 60_000 } })
     render(<DeviceLedgerView />)
     expect(screen.getByRole('button', { name: 'Inaktive entfernen (0)' })).toBeDisabled()
-    expect(screen.getByText(/Der Stage-Server wurde gerade gestartet/)).toBeInTheDocument()
+    expect(screen.getByText(/Der Host wurde gerade gestartet/)).toBeInTheDocument()
   })
 
   it('before the first device report nothing counts as inactive (#426 review)', () => {
@@ -310,10 +310,10 @@ describe('DeviceLedgerView', () => {
     await waitFor(() => expect(alert).toHaveBeenCalled())
   })
 
-  describe('Stage-Server row', () => {
+  describe('Host row', () => {
     it('shows "keine Verbindung" while unreachable', async () => {
       render(<DeviceLedgerView />)
-      await waitFor(() => expect(screen.getByText('Keine Verbindung zum Stage-Server.')).toBeInTheDocument())
+      await waitFor(() => expect(screen.getByText('Keine Verbindung zum Host.')).toBeInTheDocument())
     })
 
     it('says the server is slow to answer, not that the connection is gone, while requests are merely late', async () => {
@@ -330,8 +330,8 @@ describe('DeviceLedgerView', () => {
         await vi.advanceTimersByTimeAsync(8100)
       })
 
-      expect(screen.getByText('Stage-Server antwortet langsam…')).toBeInTheDocument()
-      expect(screen.queryByText('Keine Verbindung zum Stage-Server.')).not.toBeInTheDocument()
+      expect(screen.getByText('Host antwortet langsam…')).toBeInTheDocument()
+      expect(screen.queryByText('Keine Verbindung zum Host.')).not.toBeInTheDocument()
       vi.useRealTimers()
     })
 

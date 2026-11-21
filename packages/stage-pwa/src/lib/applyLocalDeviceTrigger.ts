@@ -3,7 +3,7 @@ import { getTranslator } from './clientTranslator'
 
 /** Routes a relayed trigger (deviceTriggerStream.ts) to this device's translator for that
  * capability - the client-side counterpart to core-backend's PluginRegistry.trigger, for
- * capabilities this device is claimed for instead of a Stage-Server plugin. Every capability with a
+ * capabilities this device is claimed for instead of a Host plugin. Every capability with a
  * local translator (Kemper, CQ-18T, MG-30, RC-500, Ui24R, the mock mixer/lighting …), not just the
  * two mocks it used to know - a Custom-Trigger for a Kemper bound to another tablet was dropped
  * there without a word (#408 review). The event keeps its logicalDeviceId, so the translator

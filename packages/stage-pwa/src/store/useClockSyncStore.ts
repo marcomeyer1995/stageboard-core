@@ -20,12 +20,12 @@ interface ClockSyncState {
    * at the 60s resync interval) - this, not `jitterMs`, is what actually indicates whether the
    * synced offset can be trusted: a burst's own lowest-RTT sample is already a robust estimate
    * on its own (min-RTT selection filters out the noisy samples), so what would actually mean
-   * trouble is that estimate *moving* between syncs - a real Stage-Server clock jump or a
+   * trouble is that estimate *moving* between syncs - a real Host clock jump or a
    * genuinely drifting device, not one noisy burst. null until at least 2 syncs have
    * completed (nothing to compare yet). */
   driftMs: number | null
   /** When the last successful burst completed - null before the first one. A failed burst
-   * (no Stage-Server configured, or every sample unreachable) leaves this untouched, so a
+   * (no Host configured, or every sample unreachable) leaves this untouched, so a
    * widget can show "how stale is this" rather than silently going blank. */
   lastSyncedAt: number | null
   setSync: (result: { offsetMs: number; rttMs: number; jitterMs: number; driftMs: number | null }) => void

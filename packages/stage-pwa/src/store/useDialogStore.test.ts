@@ -75,11 +75,11 @@ describe('confirm / acceptConfirm / cancel', () => {
 
 describe('alert / acceptAlert / cancel', () => {
   it('resolves (with no value) when acknowledged', async () => {
-    const promise = useDialogStore.getState().alert('Stage-Server nicht erreichbar.')
+    const promise = useDialogStore.getState().alert('Host nicht erreichbar.')
     const request = useDialogStore.getState().request
     expect(request?.kind).toBe('alert')
     if (request?.kind !== 'alert') throw new Error('expected an alert request')
-    expect(request.title).toBe('Stage-Server nicht erreichbar.')
+    expect(request.title).toBe('Host nicht erreichbar.')
 
     useDialogStore.getState().acceptAlert()
 

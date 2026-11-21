@@ -10,7 +10,7 @@ vi.mock('pouchdb-browser', () => ({
     }
   },
 }))
-vi.mock('../lib/stageServer', () => ({ getStageServerUrl: () => 'https://server' }))
+vi.mock('../lib/hostUrl', () => ({ getHostUrl: () => 'https://server' }))
 const { useWorkspaceStore } = await import('../store/useWorkspaceStore')
 const { ServerBackupTargets } = await import('./ServerBackupTargets')
 
@@ -33,7 +33,7 @@ let calls: Array<{ url: string; body: Record<string, unknown> }>
 function admin(isAdmin: boolean) {
   useWorkspaceStore.setState({
     activeWorkspaceId: 'w1',
-    workspaces: [{ id: 'w1', name: 'Band', username: 'marco', couchPassword: 'pw', isAdmin } as never],
+    workspaces: [{ id: 'w1', name: 'Band', username: 'marco', password: 'pw', isAdmin } as never],
   })
 }
 

@@ -1,7 +1,7 @@
 import { EventEmitter } from 'node:events'
 import { spawn } from 'node:child_process'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { buildYtDlpArgs, buildYtDlpSearchArgs, parseYtDlpSearch, mimeTypeForExt, parseYtDlpProgress, resolveYtDlpExecutable, runYtDlpExtract, toTrackFormat, ytDlpErrorSummary } from './ytDlp.js'
+import { buildYtDlpArgs, buildYtDlpSearchArgs, parseYtDlpSearch, mimeTypeForExt, parseYtDlpProgress, resolveYtDlpExecutable, runYtDlpExtract, ytDlpErrorSummary } from './ytDlp.js'
 
 vi.mock('node:child_process', async (importOriginal) => ({
   ...(await importOriginal<typeof import('node:child_process')>()),
@@ -143,11 +143,11 @@ describe('runYtDlpExtract', () => {
     await expect(promise).resolves.toEqual({ filePath: '/tmp/job-1/track.m4a' })
   })
 
-  it('rejects with a clear message when yt-dlp skips a file over the size limit', async () => {
+  it('rejects with the code youtube.tooLarge when yt-dlp skips a file over the size limit (the add-on words it)', async () => {
     const { promise } = run()
     fakeChild.stdout.emit('data', Buffer.from('[download] File is larger than max-filesize (300000000 bytes > 209715200 bytes). Aborting.\n'))
     fakeChild.emit('close', 0)
-    await expect(promise).rejects.toThrow(/größer als das Limit/)
+    await expect(promise).rejects.toMatchObject({ name: 'YtDlpFailure', code: 'youtube.tooLarge', params: { mb: expect.any(Number) } })
   })
 
   it('kills a stalled yt-dlp after the timeout and rejects', async () => {
@@ -157,7 +157,7 @@ describe('runYtDlpExtract', () => {
       fakeChild.kill.mockImplementation(() => fakeChild.emit('close', null))
       vi.advanceTimersByTime(1_000)
       expect(fakeChild.kill).toHaveBeenCalledWith('SIGKILL')
-      await expect(promise).rejects.toThrow(/abgebrochen/)
+      await expect(promise).rejects.toMatchObject({ name: 'YtDlpFailure', code: 'youtube.downloadTimeout', params: { minutes: expect.any(Number) } })
     } finally {
       vi.useRealTimers()
     }
@@ -182,27 +182,5 @@ describe('YouTube search (#618)', () => {
       { id: '9Ht5RZpzPqw', title: 'blink-182 - All The Small Things', channel: 'blink-182', durationSec: 171, url: 'https://www.youtube.com/watch?v=9Ht5RZpzPqw' },
       { id: 'r8RxevrNrbs', title: 'Lyrics', channel: '7clouds Rock', durationSec: null, url: 'https://www.youtube.com/watch?v=r8RxevrNrbs' },
     ])
-  })
-})
-
-describe('toTrackFormat', () => {
-  it('re-wraps WebM with Opus as Ogg Opus - the same audio, exact length', async () => {
-    const { readFileSync } = await import('node:fs')
-    const { join } = await import('node:path')
-    const { oggOpusInfo } = await import('shared-types')
-    // ffmpeg's libopus + WebM muxer, 72000 frames (shared-types' remux test file).
-    const webm = readFileSync(join(__dirname, '../../shared-types/src/__fixtures__/stereo.webm'))
-    const track = toTrackFormat(webm, 'webm')
-    expect(track.remuxed).toBe(true)
-    expect(track.mimeType).toBe('audio/ogg')
-    expect(track.data.subarray(0, 4).toString()).toBe('OggS')
-    expect(oggOpusInfo(new Uint8Array(track.data))).toEqual({ channels: 2, preSkip: 312, frames: 72000 })
-  })
-
-  it('keeps anything else as downloaded - the server has no decoder to encode it anew', () => {
-    const m4a = Buffer.from('not webm')
-    expect(toTrackFormat(m4a, 'm4a')).toEqual({ data: m4a, mimeType: 'audio/mp4', remuxed: false })
-    // WebM without Opus (or damaged) stays WebM.
-    expect(toTrackFormat(m4a, 'webm')).toEqual({ data: m4a, mimeType: 'audio/webm', remuxed: false })
   })
 })

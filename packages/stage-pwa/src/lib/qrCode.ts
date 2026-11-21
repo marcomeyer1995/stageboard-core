@@ -18,7 +18,7 @@ export function decodeQrFrame(imageData: ImageData): string | null {
 
 /** Builds the URL an invite QR code encodes (see #21 seventh follow-up, at Marco's explicit
  * request) - a real `https://` URL, not just `workspaceId:code` text, so a phone's *native*
- * camera app can open it directly and land on the right Stage-Server before the PWA is even
+ * camera app can open it directly and land on the right Host before the PWA is even
  * running, not just the in-app scanner. `host` is normally the server's own current LAN IP
  * (`InviteBandView.tsx` fetches it fresh via `fetchLanIp()` every time the screen opens) -
  * baking in an address that might later change is exactly why re-opening "Einladen" always

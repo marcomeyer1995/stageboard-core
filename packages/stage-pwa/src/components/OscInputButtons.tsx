@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import type { LogicalDevice } from 'shared-types'
 import type { Behavior } from '../lib/actions'
 import { describeOscTrigger, oscTriggerFrom, sameOscTrigger, type OscInputRule, type OscTrigger } from '../lib/oscInput'
-import { getStageServerUrl } from '../lib/stageServer'
+import { getHostUrl } from '../lib/hostUrl'
 import { oscLearn } from '../lib/useOscInput'
 import { useOscInputRulesStore } from '../store/useOscInputRulesStore'
 import { BehaviorEditor, useDescribeBehavior } from './BehaviorEditor'
@@ -14,11 +14,11 @@ function newRuleId(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
 }
 
-/** The Stage-Server's OSC port, to tell the controller where to send (#484). */
+/** The Host's OSC port, to tell the controller where to send (#484). */
 function useOscInPort(): number | null {
   const [port, setPort] = useState<number | null>(null)
   useEffect(() => {
-    const base = getStageServerUrl()
+    const base = getHostUrl()
     if (!base) return
     let cancelled = false
     fetch(`${base}/osc-in/info`)
@@ -35,7 +35,7 @@ function useOscInPort(): number | null {
 /**
  * "Knöpfe belegen" for an OSC-Eingang (#484, docs/23 §4): its addresses and what each does -
  * band-wide, like the device. A button is learned by pressing it on the controller (the message
- * arrives through the Stage-Server on any tablet), or its address is typed in.
+ * arrives through the Host on any tablet), or its address is typed in.
  */
 export function OscInputButtonsDialog({ device, onClose }: { device: LogicalDevice; onClose: () => void }) {
   const { t } = useTranslation('hardware')
@@ -47,7 +47,7 @@ export function OscInputButtonsDialog({ device, onClose }: { device: LogicalDevi
   const [editing, setEditing] = useState<OscInputRule | 'new' | null>(null)
   const host = (() => {
     try {
-      return new URL(getStageServerUrl() ?? '').hostname
+      return new URL(getHostUrl() ?? '').hostname
     } catch {
       return t('server')
     }

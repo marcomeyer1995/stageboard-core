@@ -114,10 +114,10 @@ describe('stageLive (#747, docs/31 §9)', () => {
     expect(live.links.usb!.path).toBe('manual')
   })
 
-  it('the Stage-Server answers, does not, or none is set', () => {
+  it('the Host answers, does not, or none is set', () => {
     const withServer = (serverReachable: boolean | null) => {
       const input = stage({ serverReachable })
-      const server = equipmentFrom(BUILTIN_MODELS.find((m) => m.kind === 'stage-server')!, 'server', 'Stage-Server')
+      const server = equipmentFrom(BUILTIN_MODELS.find((m) => m.kind === 'host-computer')!, 'server', 'Host')
       return stageLive({ ...input, equipment: [...input.equipment, server] }).equipment.server
     }
     expect(withServer(true)).toMatchObject({ status: 'ok', notes: [{ key: 'serverOnline' }] })
@@ -152,7 +152,7 @@ describe('stageLive (#747, docs/31 §9)', () => {
     expect(old.equipment['device:redmi']!.notes).toContainEqual({ status: 'warning', key: 'vitals', issue: 'clockUnsure' })
   })
 
-  it('this device is never offline for itself, even when its report does not get through (no Stage-Server)', () => {
+  it('this device is never offline for itself, even when its report does not get through (no Host)', () => {
     const live = stageLive(stage({ ownDeviceId: 'redmi', ownSilenced: ['track'], deviceInfo: { devices: {} } }))
     expect(live.equipment['device:redmi']!.notes).toEqual([{ status: 'ok', key: 'online' }, { status: 'error', key: 'outputMissing', sources: ['track'] }])
     expect(live.equipment['device:fire']).toMatchObject({ status: 'error', notes: [{ key: 'offline' }] })

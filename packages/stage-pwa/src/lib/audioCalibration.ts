@@ -6,7 +6,7 @@ import { getServerTime } from './clockSync'
 import { getDeviceId } from './deviceId'
 import { getSharedAudioContext, holdAudioOutputAwake } from './sharedAudioContext'
 import { serverText } from './serverMessage'
-import { getStageServerUrl } from './stageServer'
+import { getHostUrl } from './hostUrl'
 import { useAudioRouteStore } from '../store/useAudioRouteStore'
 
 const AHEAD_MS = 500
@@ -22,14 +22,14 @@ export function measureInputFor(route: AudioRoute): MeasureInputKind {
 export type AudioCalibrationOutcome = { ok: true; status: CalibrationRunStatus } | { ok: false; message: string; busy?: boolean }
 
 /**
- * Measures this device's audio output latency with the Stage-Server's microphone (docs/21 §4,
+ * Measures this device's audio output latency with the Host's microphone (docs/21 §4,
  * #491): the server hands out an irregular list of click times and records; this device plays the
  * real click (same tone and clock mapping as the Gig click) at those times; the server reports the
  * delay at which what it heard fits the pattern. `earlierByMs` > 0 plays the clicks that much
  * earlier - the check of a stored value ("Prüfen"), which should then come out near 0.
  */
 export async function runAudioCalibration(earlierByMs = 0, onProgress?: (msLeft: number) => void): Promise<AudioCalibrationOutcome> {
-  const base = getStageServerUrl()
+  const base = getHostUrl()
   if (!base) return { ok: false, message: i18n.t('messages:noServer') }
   let run: CalibrationRunStart
   try {

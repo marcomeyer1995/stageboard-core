@@ -1,7 +1,7 @@
 {
   "extensions": {
     "title": "Add-ons",
-    "text": "Software ohne eigenes Gerät für die ganze Band, z. B. Sprachausgabe, Ansagen oder Spuren trennen - Geräte stehen unter „Bühne“. Installierte Add-ons gelten auf allen Tablets und dem Stage-Server; deaktivierte verschwinden aus der Widget-Bibliothek.",
+    "text": "Software ohne eigenes Gerät für die ganze Band, z. B. Sprachausgabe, Ansagen oder Spuren trennen - Geräte stehen unter „Bühne“. Installierte Add-ons gelten auf allen Tablets und dem Host; deaktivierte verschwinden aus der Widget-Bibliothek.",
     "empty": "Noch kein Add-on installiert."
   },
   "drivers": {
@@ -15,7 +15,7 @@
     "empty": "Kein Test-Plugin installiert."
   },
   "onTablet": "läuft auf dem Tablet",
-  "noHeartbeat": "kein Heartbeat — Stage-Server offline?",
+  "noHeartbeat": "kein Heartbeat — Host offline?",
   "apiVersionMismatch": "passt nicht zu dieser StageBoard-Version",
   "staleHeartbeat": "Heartbeat veraltet",
   "explain": "Erklärung: {{title}}",
@@ -47,7 +47,7 @@
     "tempo": "Tempo (BPM)",
     "making": "Erzeuge…",
     "playFlow": "▶ Ablauf anhören",
-    "failed": "Konnte nicht abgespielt werden - Stage-Server und Sprachausgabe-Plugin prüfen.",
+    "failed": "Konnte nicht abgespielt werden - Host und Sprachausgabe-Plugin prüfen.",
     "rowAria": "Ansage {{name}}",
     "announce": "Ansagen",
     "spoken": "Gesprochen",
@@ -84,9 +84,9 @@
   },
   "voice": {
     "title": "Sprachausgabe - Stimme",
-    "intro": "Mit dieser Stimme sagen alle Geräte die Songteile an. Eine Stimme wird einmal auf den Stage-Server geladen (Internet nötig, am besten zu Hause), danach geht alles offline.",
-    "noPiper": "Piper ist auf dem Stage-Server nicht installiert (docs/21 §9.1).",
-    "noCatalog": "Stimmenliste nicht erreichbar - Stage-Server offline. Gezeigt werden nur die schon geladenen Stimmen.",
+    "intro": "Mit dieser Stimme sagen alle Geräte die Songteile an. Eine Stimme wird einmal auf den Host geladen (Internet nötig, am besten zu Hause), danach geht alles offline.",
+    "noPiper": "Piper ist auf dem Host nicht installiert (docs/21 §9.1).",
+    "noCatalog": "Stimmenliste nicht erreichbar - Host offline. Gezeigt werden nur die schon geladenen Stimmen.",
     "loading": "Lade Stimmen…",
     "speed": "Sprechtempo",
     "language": "Sprache",
@@ -94,12 +94,12 @@
     "subtitle": "{{language}} · Qualität {{quality}} · {{size}}",
     "band": "Band",
     "loaded": "geladen",
-    "cantPlay": "Konnte nicht abgespielt werden - ist die Stimme geladen und der Stage-Server erreichbar?",
+    "cantPlay": "Konnte nicht abgespielt werden - ist die Stimme geladen und der Host erreichbar?",
     "chosen": "Gewählte Stimme",
     "license": "Lizenz: {{license}}",
     "unknown": "unbekannt",
     "finetuned": " · weitertrainiert aus {{base}} (dessen Lizenz gilt evtl. mit)",
-    "download": "Auf den Stage-Server laden ({{size}})",
+    "download": "Auf den Host laden ({{size}})",
     "failed": "Fehlgeschlagen: {{error}}",
     "otherLoading": "Erst lädt noch eine andere Stimme.",
     "sample": "Text zum Probehören",
@@ -138,8 +138,8 @@
     "runsLabel": "Läuft",
     "runs": {
       "client": "auf den Geräten",
-      "server": "auf dem Stage-Server",
-      "both": "auf den Geräten und dem Stage-Server"
+      "server": "auf dem Host",
+      "both": "auf den Geräten und dem Host"
     },
     "helperAndroid": "braucht auf Android das Hilfsprogramm {{name}}",
     "helperDesktop": "braucht auf dem Laptop {{name}}",
@@ -160,7 +160,7 @@
       "songsWrite": "Songs ändern"
     },
     "err": {
-      "offline": "Stage-Server nicht erreichbar.",
+      "offline": "Host nicht erreichbar.",
       "not-admin": "Nur ein Admin der Band installiert Add-ons.",
       "bad-repository": "Das ist keine GitHub-Adresse eines Repositorys (github.com/anbieter/name).",
       "no-release": "Das Repository hat keine Version (Release).",

@@ -53,7 +53,7 @@ const LOOKAHEAD_MS = 150
  * Spoken section announcements (#63): "Chorus", "Bridge" a bar before the part, on the device
  * that plays the click - into the same output, so whoever hears the click hears them (until the
  * audio-output routing of docs/21 §9 lets them go to a channel of their own). Needs the
- * section-announcements plugin, and the Stage-Server's piper-speech plugin for the voice; without
+ * section-announcements plugin, and the Host's piper-speech plugin for the voice; without
  * a clip an announcement is simply skipped. Scheduled on the shared AudioContext like the click,
  * the same latency earlier, so the word starts on the downbeat.
  */

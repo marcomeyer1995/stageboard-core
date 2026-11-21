@@ -23,7 +23,7 @@ Result 2026-10-13, Chrome 154 on the laptop: timestamped 0.05 ms jitter (SD), ti
 
 ## Sync test across devices (docs/21 §4)
 
-Diagnose tab → "Synchron-Test" on every device at once: each full second of server time is marked with a MIDI note (note = second mod 128, one MIDI channel per device) and optionally the real click. On the laptop that runs the Stage-Server (its clock = server time), with the tablets in USB mode "MIDI":
+Diagnose tab → "Synchron-Test" on every device at once: each full second of server time is marked with a MIDI note (note = second mod 128, one MIDI channel per device) and optionally the real click. On the laptop that runs the Host (its clock = server time), with the tablets in USB mode "MIDI":
 
 ```sh
 "$HOME/Device Emulators/BOSS RC500 Emulator/.venv/bin/python3" sync-receiver.py Fire,Redmi --mic > sync.log

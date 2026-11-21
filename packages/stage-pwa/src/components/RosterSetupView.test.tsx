@@ -12,10 +12,10 @@ vi.mock('pouchdb-browser', () => ({
 }))
 
 // The final phase reuses InviteBandView.tsx, whose fetchLanIp() would otherwise pick up the
-// real .env's VITE_STAGE_SERVER_URL and make a live, self-signed-cert network call no test here
+// real .env's VITE_HOST_URL and make a live, self-signed-cert network call no test here
 // cares about - see InviteBandView.test.tsx's identical stub.
 beforeEach(() => {
-  vi.stubEnv('VITE_STAGE_SERVER_URL', '')
+  vi.stubEnv('VITE_HOST_URL', '')
 })
 
 afterEach(() => {
@@ -38,7 +38,7 @@ function seedStores(options: { connected?: boolean; profiles?: Array<{ id: strin
         name: 'Band A',
         ownProfileId: 'founder-id',
         isAdmin: true,
-        ...(connected ? { username: 'stageboard-band-a-founder-id', couchPassword: 'random-founding-pw' } : {}),
+        ...(connected ? { username: 'stageboard-band-a-founder-id', password: 'random-founding-pw' } : {}),
       },
     ],
     activeWorkspaceId: 'band-a',
@@ -112,7 +112,7 @@ describe('RosterSetupView', () => {
       expect(useActiveProfileStore.getState().byWorkspace['band-a']).toBe('founder-id')
     })
 
-    it('local-only founding (no Stage-Server) still collects the PIN, but never calls setOwnPin - there is no account to set it on yet', async () => {
+    it('local-only founding (no Host) still collects the PIN, but never calls setOwnPin - there is no account to set it on yet', async () => {
       const setOwnPin = vi.fn()
       seedStores({ connected: false })
       useWorkspaceStore.setState({ setOwnPin })
@@ -251,7 +251,7 @@ describe('RosterSetupView', () => {
       expect(screen.queryByText('Bandnamen falsch eingegeben? Neu anfangen')).not.toBeInTheDocument()
     })
 
-    it('"Weiter" advances to the summary screen when connected to a Stage-Server', async () => {
+    it('"Weiter" advances to the summary screen when connected to a Host', async () => {
       useWorkspaceStore.setState({ getAccessCode: vi.fn().mockResolvedValue({ code: '12345678' }) })
       await renderAtMembers()
 

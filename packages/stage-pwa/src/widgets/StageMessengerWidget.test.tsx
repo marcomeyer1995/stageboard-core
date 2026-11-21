@@ -2,8 +2,8 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('../lib/useActiveProfile', () => ({ useActiveProfile: () => ({ name: 'Marco' }) }))
-vi.mock('../lib/stageServer', () => ({ getStageServerUrl: () => 'https://stage' }))
-vi.mock('../store/useWorkspaceStore', () => ({ useWorkspaceStore: (select: (s: object) => unknown) => select({ activeWorkspaceId: 'band-a', workspaces: [{ id: 'band-a', username: 'stageboard-band-a-p1~d1', couchPassword: 'secret' }] }) }))
+vi.mock('../lib/hostUrl', () => ({ getHostUrl: () => 'https://stage' }))
+vi.mock('../store/useWorkspaceStore', () => ({ useWorkspaceStore: (select: (s: object) => unknown) => select({ activeWorkspaceId: 'band-a', workspaces: [{ id: 'band-a', username: 'stageboard-band-a-p1~d1', password: 'secret' }] }) }))
 
 vi.mock('../store/useProfilesStore', () => ({
   useProfilesStore: (select: (s: object) => unknown) => select({ profiles: [{ id: 'p1', name: 'Marco' }, { id: 'p2', name: 'Caro' }, { id: 'p3', name: 'Kapper' }] }),

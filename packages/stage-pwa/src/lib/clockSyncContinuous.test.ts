@@ -16,7 +16,7 @@ function fakeNetwork(opts: { ppm: number; offsetMs: number; seed?: number }) {
   const random = () => ((rnd = (rnd * 16807) % 2147483647) / 2147483647)
   const server = (t: number) => t + opts.offsetMs + (t - 1_000_000) * opts.ppm * 1e-6
   vi.spyOn(Date, 'now').mockImplementation(() => local)
-  vi.stubEnv('VITE_STAGE_SERVER_URL', 'https://stage.example')
+  vi.stubEnv('VITE_HOST_URL', 'https://stage.example')
   vi.stubGlobal(
     'fetch',
     vi.fn().mockImplementation(async () => {
@@ -117,7 +117,7 @@ describe('continuous clock sync (docs/29 §5.6, step 4)', () => {
       await sampleClock()
     }
     const before = getServerTime() - net.local()
-    // The server's clock is set half a second later (a Stage-Server restart with a corrected clock).
+    // The server's clock is set half a second later (a Host restart with a corrected clock).
     vi.stubGlobal('fetch', vi.fn().mockImplementation(async () => { net.advance(6); const serverTime = net.local() + 1_500; net.advance(6); return { ok: true, json: async () => ({ serverTime }) } }))
     // Band time moves smoothly (≤ 2 ms/s) while the estimate is near; a step bigger than that is a jump.
     let firstJump: number | null = null

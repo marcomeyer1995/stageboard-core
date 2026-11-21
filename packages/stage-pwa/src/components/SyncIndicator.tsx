@@ -10,14 +10,14 @@ const STATUS_ICON: Record<SyncStatus, IconName> = { idle: 'check', syncing: 'clo
 
 /**
  * Discreet by design (docs/07): a text row inside AppMenu, not a floating badge over the
- * live dashboard - see #33. Reflects the worst status across every live PouchDB<->CouchDB
+ * live dashboard - see #33. Reflects the worst status across every live PouchDB<->the database
  * stream (trackedSync.ts / useSyncStore.ts), not just one collection. The percentage is a
- * best-effort addition (#49 follow-up): CouchDB only reports it for pull batches, so it's
+ * best-effort addition (#49 follow-up): the database only reports it for pull batches, so it's
  * shown only once at least one stream has actually reported a number, never a fake 0%.
  *
  * "Reparieren" (found live, 2026-09-09): a 401/403 is fatal to PouchDB's replication engine -
  * unlike a network drop, it never retries, so `error` here means genuinely dead, not just
- * temporarily stuck. The usual cause is this device's own cached CouchDB password going stale
+ * temporarily stuck. The usual cause is this device's own cached the database password going stale
  * (e.g. an admin resetting a PIN elsewhere reissues it) - previously the only fix was deleting
  * the whole band and rejoining. `joinAsMember` already handles "this workspace exists locally,
  * refresh its credentials" correctly (BandManagementView.tsx's own join path reuses it the same

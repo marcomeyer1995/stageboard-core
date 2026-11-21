@@ -33,7 +33,7 @@ export function parseMaxChannels(text: string): number | null {
   return Number(match[1] ?? match[2])
 }
 
-/** Every audio input the Stage-Server sees (docs/24 §7.2): a laptop mic, a USB interface, a mixer
+/** Every audio input the Host sees (docs/24 §7.2): a laptop mic, a USB interface, a mixer
  * with interface function. Channels are probed per device; a busy one stays unknown. */
 export async function listAudioInputs(exec: Exec = realExec): Promise<AudioInputInfo[]> {
   const { stdout } = await exec('arecord', ['-l']).catch(() => ({ stdout: '', stderr: '' }))
@@ -54,7 +54,7 @@ export async function listAudioInputs(exec: Exec = realExec): Promise<AudioInput
 const NONE: MeasureInputs = { mic: null, cable: null }
 
 /**
- * The chosen measuring inputs (#662), kept by the Stage-Server itself - they are its hardware, not
+ * The chosen measuring inputs (#662), kept by the Host itself - they are its hardware, not
  * the band's - in STAGEBOARD_STATE_DIR/measure-inputs.json.
  */
 export class MeasureInputStore {

@@ -8,7 +8,7 @@ const keyFile = fileURLToPath(new URL('../../certs/dev-key.pem', import.meta.url
 
 // getUserMedia() (Tuner) and requestMIDIAccess() (WebMIDI) require a secure context - see
 // #34. Reads the shared cert `scripts/generate-dev-certs.sh` writes, same file Fastify and
-// CouchDB present, so all three agree on one self-signed origin. Falls back to plain HTTP
+// the database present, so all three agree on one self-signed origin. Falls back to plain HTTP
 // if the certs haven't been generated yet, rather than crashing `npm run dev` outright -
 // hardware features degrade gracefully; core song/setlist work over LAN IP does not need
 // a secure context and should keep working today for anyone who hasn't run the cert script.
@@ -59,7 +59,7 @@ export default defineConfig({
       output: {
         // A chunk is named after its module's folder, and @soundtouchjs ships in ".dist/" - a file
         // starting with a dot is left out of the Android app (aapt skips dotfiles), so the Loop's
-        // import failed there while the browser, served by the Stage-Server, had it.
+        // import failed there while the browser, served by the Host, had it.
         chunkFileNames: (chunk) => `assets/${chunk.name.replace(/^\.+/, '') || 'chunk'}-[hash].js`,
       },
     },

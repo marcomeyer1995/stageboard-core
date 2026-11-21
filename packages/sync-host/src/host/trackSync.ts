@@ -1,4 +1,4 @@
-/** An id becomes part of a storage key, so no separators or control characters (the Stage-Server's rule). */
+/** An id becomes part of a storage key, so no separators or control characters (the Host's rule). */
 const isSafeAudioId = (id: string): boolean => /^[a-zA-Z0-9-]+$/.test(id)
 
 /**

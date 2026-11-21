@@ -10,7 +10,7 @@ afterEach(() => {
 
 describe('syncClock / getServerTime', () => {
   it('computes the offset from a single round trip (server time minus the RTT midpoint)', async () => {
-    vi.stubEnv('VITE_STAGE_SERVER_URL', 'https://stage.example')
+    vi.stubEnv('VITE_HOST_URL', 'https://stage.example')
 
     let now = 0
     vi.spyOn(Date, 'now').mockImplementation(() => now)
@@ -36,7 +36,7 @@ describe('syncClock / getServerTime', () => {
   })
 
   it('picks the lowest-RTT sample from a burst, ignoring noisier ones, and records the jitter', async () => {
-    vi.stubEnv('VITE_STAGE_SERVER_URL', 'https://stage.example')
+    vi.stubEnv('VITE_HOST_URL', 'https://stage.example')
 
     let now = 0
     vi.spyOn(Date, 'now').mockImplementation(() => now)
@@ -66,7 +66,7 @@ describe('syncClock / getServerTime', () => {
   })
 
   it('corrects for a systematically asymmetric path via linear extrapolation, not just the min-RTT sample (#31 second follow-up)', async () => {
-    vi.stubEnv('VITE_STAGE_SERVER_URL', 'https://stage.example')
+    vi.stubEnv('VITE_HOST_URL', 'https://stage.example')
 
     let now = 0
     vi.spyOn(Date, 'now').mockImplementation(() => now)
@@ -97,7 +97,7 @@ describe('syncClock / getServerTime', () => {
   })
 
   it('falls back to the min-RTT sample when the burst has too few samples to fit a line', async () => {
-    vi.stubEnv('VITE_STAGE_SERVER_URL', 'https://stage.example')
+    vi.stubEnv('VITE_HOST_URL', 'https://stage.example')
 
     let now = 0
     vi.spyOn(Date, 'now').mockImplementation(() => now)
@@ -123,7 +123,7 @@ describe('syncClock / getServerTime', () => {
   })
 
   it('falls back to the min-RTT sample when the burst\'s RTT spread is too tight to extrapolate from', async () => {
-    vi.stubEnv('VITE_STAGE_SERVER_URL', 'https://stage.example')
+    vi.stubEnv('VITE_HOST_URL', 'https://stage.example')
 
     let now = 0
     vi.spyOn(Date, 'now').mockImplementation(() => now)
@@ -150,7 +150,7 @@ describe('syncClock / getServerTime', () => {
   })
 
   it('derives driftMs from the spread across recent bursts\' offsets, not from jitterMs (#31 follow-up)', async () => {
-    vi.stubEnv('VITE_STAGE_SERVER_URL', 'https://stage.example')
+    vi.stubEnv('VITE_HOST_URL', 'https://stage.example')
 
     let now = 0
     vi.spyOn(Date, 'now').mockImplementation(() => now)
@@ -181,7 +181,7 @@ describe('syncClock / getServerTime', () => {
   })
 
   it('caps the drift window at the last 5 bursts, so an old outlier eventually rolls off', async () => {
-    vi.stubEnv('VITE_STAGE_SERVER_URL', 'https://stage.example')
+    vi.stubEnv('VITE_HOST_URL', 'https://stage.example')
 
     let now = 0
     vi.spyOn(Date, 'now').mockImplementation(() => now)
@@ -209,8 +209,8 @@ describe('syncClock / getServerTime', () => {
     expect(useClockSyncStore.getState().driftMs).toBeCloseTo(4, 6) // offset 0 has rolled out of the window
   })
 
-  it('does nothing and keeps the previous sync state when no Stage-Server is configured', async () => {
-    vi.stubEnv('VITE_STAGE_SERVER_URL', '')
+  it('does nothing and keeps the previous sync state when no Host is configured', async () => {
+    vi.stubEnv('VITE_HOST_URL', '')
     const fetchMock = vi.fn()
     vi.stubGlobal('fetch', fetchMock)
 
@@ -221,7 +221,7 @@ describe('syncClock / getServerTime', () => {
   })
 
   it('keeps offset 0 and no sync timestamp when every sample in the burst fails', async () => {
-    vi.stubEnv('VITE_STAGE_SERVER_URL', 'https://stage.example')
+    vi.stubEnv('VITE_HOST_URL', 'https://stage.example')
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network down')))
 
     const offset = await syncClock(3)

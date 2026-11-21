@@ -1,7 +1,7 @@
 {
   "extensions": {
     "title": "Add-ons",
-    "text": "Software without a device of its own for the whole band, e.g. speech output, announcements or stem separation - devices are under Stage. Installed add-ons apply on every tablet and the Stage server; disabled ones disappear from the widget library.",
+    "text": "Software without a device of its own for the whole band, e.g. speech output, announcements or stem separation - devices are under Stage. Installed add-ons apply on every tablet and the Host; disabled ones disappear from the widget library.",
     "empty": "No add-on installed yet."
   },
   "drivers": {
@@ -15,7 +15,7 @@
     "empty": "No test plug-in installed."
   },
   "onTablet": "runs on the tablet",
-  "noHeartbeat": "no heartbeat - Stage server offline?",
+  "noHeartbeat": "no heartbeat - Host offline?",
   "apiVersionMismatch": "does not match this StageBoard version",
   "staleHeartbeat": "heartbeat outdated",
   "explain": "Explanation: {{title}}",
@@ -47,7 +47,7 @@
     "tempo": "Tempo (BPM)",
     "making": "Generating…",
     "playFlow": "▶ Hear the sequence",
-    "failed": "Could not be played - check the Stage server and the speech output plug-in.",
+    "failed": "Could not be played - check the Host and the speech output plug-in.",
     "rowAria": "Announcement {{name}}",
     "announce": "Announce",
     "spoken": "Spoken",
@@ -84,9 +84,9 @@
   },
   "voice": {
     "title": "Speech output - voice",
-    "intro": "With this voice every device announces the song parts. A voice is loaded onto the Stage server once (internet needed, best at home), after that everything works offline.",
-    "noPiper": "Piper is not installed on the Stage server (docs/21 §9.1).",
-    "noCatalog": "Voice list unreachable - Stage server offline. Only the voices already loaded are shown.",
+    "intro": "With this voice every device announces the song parts. A voice is loaded onto the Host once (internet needed, best at home), after that everything works offline.",
+    "noPiper": "Piper is not installed on the Host (docs/21 §9.1).",
+    "noCatalog": "Voice list unreachable - Host offline. Only the voices already loaded are shown.",
     "loading": "Loading voices…",
     "speed": "Speaking rate",
     "language": "Language",
@@ -94,12 +94,12 @@
     "subtitle": "{{language}} · quality {{quality}} · {{size}}",
     "band": "Band",
     "loaded": "loaded",
-    "cantPlay": "Could not be played - is the voice loaded and the Stage server reachable?",
+    "cantPlay": "Could not be played - is the voice loaded and the Host reachable?",
     "chosen": "Chosen voice",
     "license": "Licence: {{license}}",
     "unknown": "unknown",
     "finetuned": " · fine-tuned from {{base}} (its licence may apply too)",
-    "download": "Load onto the Stage server ({{size}})",
+    "download": "Load onto the Host ({{size}})",
     "failed": "Failed: {{error}}",
     "otherLoading": "Another voice is still loading.",
     "sample": "Text to listen to",
@@ -138,8 +138,8 @@
     "runsLabel": "Runs",
     "runs": {
       "client": "on the devices",
-      "server": "on the Stage-Server",
-      "both": "on the devices and the Stage-Server"
+      "server": "on the Host",
+      "both": "on the devices and the Host"
     },
     "helperAndroid": "needs the helper {{name}} on Android",
     "helperDesktop": "needs {{name}} on the laptop",
@@ -160,7 +160,7 @@
       "songsWrite": "change songs"
     },
     "err": {
-      "offline": "Stage-Server not reachable.",
+      "offline": "Host not reachable.",
       "not-admin": "Only an admin of the band installs add-ons.",
       "bad-repository": "That's not the GitHub address of a repository (github.com/owner/name).",
       "no-release": "The repository has no version (release).",

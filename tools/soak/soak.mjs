@@ -1,0 +1,349 @@
+#!/usr/bin/env node
+/**
+ * Soak test for a Host's database host (#960): several simulated devices write to one band at the same time,
+ * replicate both ways with real PouchDB, join and check PINs, upload tracks - for hours - while the server's memory,
+ * answer times and errors are recorded. It answers "does the built-in database host hold up on a laptop", with numbers.
+ *
+ *   node tools/soak/soak.mjs --url https://127.0.0.1:8449 --pid <server pid> --hours 3 --out /tmp/soak
+ *
+ * Needs the server's own machine (it founds the band as the server itself - POST /workspaces from the machine needs no
+ * login) and `NODE_TLS_REJECT_UNAUTHORIZED=0` for the self-signed certificate. Writes `<out>/samples.csv` (one line
+ * every `--sample` seconds) and `<out>/summary.json` at the end, and prints the summary. Exit code 1 when a check fails:
+ * the devices did not end up with the same documents, or the server's memory kept growing.
+ *
+ * What it does not claim: it is one laptop, one network card and synthetic devices - not a gig. Real tablets, audio
+ * output and clock sync stay "needs device verification".
+ */
+import { mkdirSync, readFileSync, writeFileSync, appendFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { execSync } from 'node:child_process'
+import PouchDB from 'pouchdb-core'
+import HttpAdapter from 'pouchdb-adapter-http'
+import MemoryAdapter from 'pouchdb-adapter-memory'
+import Replication from 'pouchdb-replication'
+
+PouchDB.plugin(HttpAdapter).plugin(MemoryAdapter).plugin(Replication)
+
+const arg = (name, fallback) => {
+  const i = process.argv.indexOf(`--${name}`)
+  return i > 0 ? process.argv[i + 1] : fallback
+}
+const url = arg('url', 'https://127.0.0.1:8449').replace(/\/+$/, '')
+const pid = Number(arg('pid', '0'))
+const hours = Number(arg('hours', '3'))
+// Two profiles (Marco, 2026-11-20: a soak must demand clearly MORE than a gig does, or it proves nothing):
+//   --profile stress     (default) 8 devices, loops 4x faster, show state 4x per second, big documents - several times a real band.
+//                        Judged by: the host must not crash, must stay reachable, and the devices must end with the same documents.
+//                        Latency under it is reported, not required to stay flat.
+//   --profile realistic  3 devices, show state every 4 s - the baseline of what a gig really sends (what latency can be held to).
+const profile = arg('profile', 'stress')
+const PROFILES = { stress: { writers: 8, speed: 4, showStateHz: 4 }, realistic: { writers: 3, speed: 1, showStateHz: 0.25 } }
+if (!PROFILES[profile]) throw new Error(`--profile stress|realistic, not ${profile}`)
+const writers = Number(arg('writers', String(PROFILES[profile].writers)))
+const sampleSeconds = Number(arg('sample', '30'))
+const out = arg('out', '/tmp/soak')
+const band = arg('band', `soak${Date.now().toString(36)}`)
+const songs = 150
+// `--speed 8` runs the device loops eight times as fast: a 4 h soak's writes in half an hour (finding what grows).
+const speed = Number(arg('speed', String(PROFILES[profile].speed)))
+// How often the master writes the show state: the app writes it on actions (play, next, claim), a few per minute at most. The first
+// soaks wrote it 4 times a second (57,000 revisions of one document in 4 h) - far beyond a gig, and what made them slow down.
+const showStateHz = Number(arg('show-state-hz', String(PROFILES[profile].showStateHz)))
+
+mkdirSync(out, { recursive: true })
+const started = Date.now()
+const endAt = started + hours * 3_600_000
+const stop = () => Date.now() >= endAt
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+const basic = (user, password) => `Basic ${Buffer.from(`${user}:${password}`).toString('base64')}`
+
+const stats = { requests: 0, conflicts: 0, failures: {}, latencies: { time: [], read: [], write: [], join: [] } }
+// PouchDB's memory adapter (the soak's own simulated devices, not the host) can throw 'Unable to resolve latest revision' from a callback
+// when the same document is written locally while it replicates - seen at revision 566 of show-state with default settings. It is an
+// uncaught exception that would end the whole soak and say nothing about the host, so it is counted as its own kind of failure and the
+// run goes on. A host that dies is still caught: the final liveness check fails the verdict.
+process.on('uncaughtException', (err) => {
+  stats.failures['soak client (PouchDB memory adapter) threw'] = (stats.failures['soak client (PouchDB memory adapter) threw'] ?? 0) + 1
+  if (!firstMessage['soak client threw']) {
+    firstMessage['soak client threw'] = String(err?.message ?? err).slice(0, 200)
+    console.log('first uncaught exception in the soak process:', firstMessage['soak client threw'])
+  }
+})
+const firstMessage = {}
+const fail = (what, detail) => {
+  stats.failures[what] = (stats.failures[what] ?? 0) + 1
+  // The first text of each kind of failure: a count alone says nothing about why (the tablet soak showed 10,000 of them).
+  if (detail && !firstMessage[what]) {
+    firstMessage[what] = String(detail).slice(0, 300)
+    console.log(`first "${what}" at ${new Date().toISOString()}: ${firstMessage[what]}`)
+  }
+}
+/** One timed request; failures are counted by what failed, never thrown into the test. */
+async function timed(kind, label, run) {
+  const t0 = performance.now()
+  try {
+    const result = await run()
+    stats.requests += 1
+    stats.latencies[kind].push(performance.now() - t0)
+    return result
+  } catch (err) {
+    // Three writers edit the same 150 songs: a 409 is the database doing its job (the writer reads again), not a failure.
+    if (err?.status === 409) {
+      stats.conflicts += 1
+      return null
+    }
+    fail(`${label}: ${err?.status ?? err?.code ?? err?.message ?? err}`, err?.message ?? err?.name ?? JSON.stringify(err))
+    return null
+  }
+}
+const json = async (path, init = {}) => {
+  const response = await fetch(`${url}${path}`, { ...init, headers: { 'Content-Type': 'application/json', ...(init.headers ?? {}) } })
+  const text = await response.text()
+  return { status: response.status, body: text ? JSON.parse(text) : null }
+}
+const must = (condition, message) => {
+  if (!condition) throw new Error(message)
+}
+
+// ---- the band ---------------------------------------------------------------------------------------------------
+const founded = await json('/workspaces', { method: 'POST', body: JSON.stringify({ workspaceId: band, founderId: 'f1', workspaceName: 'Soak', deviceId: 'soak-founder' }) })
+must(founded.status === 201, `could not found the band: HTTP ${founded.status} ${JSON.stringify(founded.body)}`)
+const admin = { username: founded.body.username, password: founded.body.password }
+const adminHeader = { Authorization: basic(admin.username, admin.password) }
+const bandDb = `stageboard-${band}`
+await json(`/db/${bandDb}/profiles:f1`, { method: 'PUT', headers: adminHeader, body: JSON.stringify({ _id: 'profiles:f1', id: 'f1', name: 'Founder', stageRoles: ['admin'] }) })
+for (const n of ['p2', 'p3']) await json(`/db/${bandDb}/profiles:${n}`, { method: 'PUT', headers: adminHeader, body: JSON.stringify({ _id: `profiles:${n}`, id: n, name: n, stageRoles: [] }) })
+const code = (await json(`/workspaces/${band}/access-code`, { method: 'POST', body: JSON.stringify({ adminUsername: admin.username, adminPassword: admin.password }) })).body?.code
+must(code, 'no access code')
+console.log(`band ${band} founded; ${writers} devices, ${hours} h, samples every ${sampleSeconds} s -> ${out}`)
+
+// ---- devices: real PouchDB, replicating both ways with the server ---------------------------------------------------
+const devices = []
+for (let i = 0; i < writers; i++) {
+  // Each device is a plain member with its own login, like a tablet.
+  const joined = await json(`/workspaces/${band}/join/p2`, { method: 'POST', body: JSON.stringify({ code, deviceId: `soak-dev-${i}` }) })
+  must(joined.status === 200 || joined.status === 201, `device ${i} could not join: ${joined.status}`)
+  const local = new PouchDB(`soak-local-${band}-${i}`, { adapter: 'memory' })
+  // Node's own fetch: PouchDB's bundled node-fetch drops keep-alive connections on current Node ("socket hang up"),
+  // which is a problem of that client library, not of the server - a tablet or browser never goes through it.
+  const remote = new PouchDB(`${url}/db/${bandDb}`, { auth: { username: joined.body.username, password: joined.body.password }, fetch: (input, init) => globalThis.fetch(input, init) })
+  const sync = local.sync(remote, { live: true, retry: true })
+  sync.on('error', () => fail(`device ${i} sync error`))
+  sync.on('denied', () => fail(`device ${i} denied`))
+  devices.push({ i, local, remote, sync, writes: 0, conflicts: 0 })
+}
+
+/** A device editing the shared songs the way a band would: pick a song, bump a field, sometimes at the same moment as
+ * another device (a real conflict, resolved by CouchDB's rule - the same on every device and the host). */
+async function writer(device) {
+  while (!stop()) {
+    const id = `songs:${Math.floor(Math.random() * songs)}`
+    const result = await timed('write', `device ${device.i} write`, async () => {
+      const existing = await device.local.get(id).catch(() => null)
+      return device.local.put({ _id: id, ...(existing ? { _rev: existing._rev } : {}), title: `Song ${id}`, by: device.i, n: (existing?.n ?? 0) + 1, notes: 'x'.repeat(1_800 + Math.floor(Math.random() * 400)) })
+    })
+    if (result) device.writes += 1
+    await sleep((120 + Math.random() * 160) / speed)
+  }
+}
+/** Show state from one device at `--show-state-hz` (default one write per 4 s - already more than a band does). */
+async function showState(device) {
+  let n = 0
+  while (!stop()) {
+    await timed('write', 'show-state', async () => {
+      const existing = await device.local.get('show-state').catch(() => null)
+      return device.local.put({ _id: 'show-state', ...(existing ? { _rev: existing._rev } : {}), playbackStatus: 'playing', tick: ++n })
+    })
+    await sleep(1000 / showStateHz / speed)
+  }
+}
+/** Reads through the proxy as a device does (the changes feed is held by the live sync). */
+async function reader() {
+  while (!stop()) {
+    await timed('read', 'read', async () => {
+      const response = await fetch(`${url}/db/${bandDb}/songs:${Math.floor(Math.random() * songs)}`, { headers: adminHeader })
+      if (response.status !== 200 && response.status !== 404) throw new Error(`HTTP ${response.status}`)
+      await response.arrayBuffer()
+    })
+    await sleep(100 / speed)
+  }
+}
+/** `/time` is what the whole band's clock sync leans on: the answer time that matters most. */
+async function clock() {
+  while (!stop()) {
+    await timed('time', 'time', async () => {
+      const response = await fetch(`${url}/time`)
+      if (!response.ok) throw new Error(`HTTP ${response.status}`)
+      await response.arrayBuffer()
+    })
+    await sleep(500 / speed)
+  }
+}
+/** Joining and PIN checks cost PBKDF2 on the server: bursts of them must not stall the rest. */
+async function accounts() {
+  let n = 0
+  while (!stop()) {
+    n += 1
+    await timed('join', 'join', async () => {
+      const joined = await json(`/workspaces/${band}/join/p3`, { method: 'POST', body: JSON.stringify({ code, deviceId: `churn-${n % 40}` }) })
+      if (joined.status !== 200 && joined.status !== 201) throw new Error(`HTTP ${joined.status}`)
+    })
+    await timed('join', 'verify-pin', async () => {
+      const checked = await json(`/workspaces/${band}/verify-admin-pin`, { method: 'POST', body: JSON.stringify({ profileId: 'f1', pin: code.slice(-4) }) })
+      if (checked.status !== 200 && checked.status !== 403) throw new Error(`HTTP ${checked.status}`)
+    })
+    await sleep(2_000 / speed)
+  }
+}
+/** A 3 MB track every minute: big bodies are what exhausts memory on a small host. */
+async function tracks() {
+  const body = Buffer.alloc(3 * 1024 * 1024, 7)
+  let n = 0
+  while (!stop()) {
+    n += 1
+    const trackId = `t${n % 5}`
+    await timed('write', 'audio upload', async () => {
+      const put = await fetch(`${url}/audio/soakvar/${trackId}`, { method: 'PUT', headers: { 'Content-Type': 'application/octet-stream', ...adminHeader }, body })
+      if (!put.ok) throw new Error(`PUT HTTP ${put.status}`)
+      const get = await fetch(`${url}/audio/soakvar/${trackId}`, { headers: adminHeader })
+      if (!get.ok) throw new Error(`GET HTTP ${get.status}`)
+      const got = Buffer.from(await get.arrayBuffer())
+      if (got.length !== body.length) throw new Error(`track came back ${got.length} bytes, not ${body.length}`)
+    })
+    await sleep(60_000)
+  }
+}
+
+// ---- samples ----------------------------------------------------------------------------------------------------
+// `--mem-cmd "<shell command printing MB>"` samples any process by a command instead of /proc (a tablet host over adb:
+//   --mem-cmd "adb -s <serial> shell dumpsys meminfo <package> | awk '/TOTAL PSS:/ {print int(\$3/1024)}'").
+const memCmd = arg('mem-cmd', '')
+const rssMb = () => {
+  if (memCmd) {
+    try {
+      const mb = Number(execSync(memCmd, { encoding: 'utf-8', timeout: 20_000 }).trim())
+      return Number.isFinite(mb) && mb > 0 ? mb : null
+    } catch {
+      return null
+    }
+  }
+  if (!pid) return null
+  try {
+    const kb = /VmRSS:\s+(\d+) kB/.exec(readFileSync(`/proc/${pid}/status`, 'utf-8'))?.[1]
+    return kb ? Math.round(Number(kb) / 1024) : null
+  } catch {
+    return null
+  }
+}
+const percentile = (values, p) => {
+  if (values.length === 0) return null
+  const sorted = [...values].sort((a, b) => a - b)
+  return Math.round(sorted[Math.min(sorted.length - 1, Math.floor((p / 100) * sorted.length))] * 10) / 10
+}
+const csv = join(out, 'samples.csv')
+writeFileSync(csv, 'minute,rss_mb,requests,failures,time_p95_ms,write_p95_ms,device_writes\n')
+const rss = []
+async function sampler() {
+  let last = { time: 0, write: 0 }
+  while (!stop()) {
+    await sleep(sampleSeconds * 1_000)
+    const minute = Math.round((Date.now() - started) / 60_000)
+    const memory = rssMb()
+    if (memory !== null) rss.push({ minute, memory })
+    const recent = (kind) => stats.latencies[kind].slice(-200)
+    const failures = Object.values(stats.failures).reduce((a, b) => a + b, 0)
+    appendFileSync(csv, `${minute},${memory ?? ''},${stats.requests},${failures},${percentile(recent('time'), 95) ?? ''},${percentile(recent('write'), 95) ?? ''},${devices.reduce((a, d) => a + d.writes, 0)}\n`)
+    last = { time: stats.latencies.time.length, write: stats.latencies.write.length }
+  }
+}
+
+/** Stress only: now and then a device loses its connection for a while and comes back (a tablet going to sleep, WiFi dropping), and a
+ * 2 MB document is written (a big song with embedded data) - recovery is part of the test. */
+/** The simulated devices keep every revision body in memory (PouchDB's memory adapter), which a real app's storage does not: eight devices
+ * with 2 MB documents ran the soak process out of memory at 4 GB after 45 minutes (a result lost). Every two minutes each device compacts
+ * its own copy - an explicit, supported call that drops old bodies and keeps the revision tree. The host is never compacted here: what the
+ * soak measures is how the host behaves. */
+async function compactDevices() {
+  while (!stop()) {
+    await sleep(120_000)
+    for (const device of devices) await device.local.compact().catch(() => {})
+  }
+}
+
+async function faults() {
+  if (profile !== 'stress') return
+  let n = 0
+  while (!stop()) {
+    await sleep(Number(arg('fault-every', '5')) * 60_000)
+    if (stop()) break
+    const device = devices[n++ % devices.length]
+    device.sync.cancel()
+    await sleep(20_000)
+    device.sync = device.local.sync(device.remote, { live: true, retry: true })
+    device.sync.on('error', () => fail(`device ${device.i} sync error after reconnect`, 'sync error'))
+    await timed('write', 'big document', async () => {
+      const id = `songs:big-${n % 3}`
+      const existing = await device.local.get(id).catch(() => null)
+      return device.local.put({ _id: id, ...(existing ? { _rev: existing._rev } : {}), blob: 'y'.repeat(2 * 1024 * 1024) })
+    })
+  }
+}
+
+await Promise.all([compactDevices(), faults(), sampler(), clock(), reader(), accounts(), tracks(), showState(devices[0]), ...devices.map(writer)])
+
+// A host that died must show up as a verdict, not as a pile of "fetch failed" (the first stress runs lost the host this way).
+const hostAliveAtEnd = await fetch(`${url}/time`, { signal: AbortSignal.timeout(5000) }).then((r) => r.ok).catch(() => false)
+if (!hostAliveAtEnd) fail('host not answering at the end', 'the host process is gone or stuck')
+
+// ---- the end: do the devices agree? -----------------------------------------------------------------------------------
+for (const device of devices) device.sync.cancel()
+await sleep(1_000)
+// One last full exchange, with nobody writing any more: every device must end with exactly what the host holds.
+const settled = []
+for (const device of devices) {
+  await device.local.replicate.from(device.remote).catch(() => fail(`final pull ${device.i}`))
+  await device.local.replicate.to(device.remote).catch(() => fail(`final push ${device.i}`))
+}
+for (const device of devices) await device.local.replicate.from(device.remote).catch(() => fail(`settle pull ${device.i}`))
+const heads = async (db) => Object.fromEntries((await db.allDocs({ startkey: 'songs:', endkey: 'songs:￰' })).rows.map((row) => [row.id, row.value.rev]))
+const hostHeads = await heads(devices[0].remote).catch((err) => {
+  fail('final read of the host', err?.message ?? err?.name ?? JSON.stringify(err))
+  return null
+})
+// null: the host could not be read at the end - that is a failure of its own, not "no difference".
+let diverged = hostHeads === null ? null : 0
+for (const device of hostHeads === null ? [] : devices) {
+  const mine = await heads(device.local)
+  const ids = new Set([...Object.keys(mine), ...Object.keys(hostHeads)])
+  for (const id of ids) if (mine[id] !== hostHeads[id]) diverged += 1
+  settled.push({ device: device.i, songs: Object.keys(mine).length })
+}
+
+const first = rss.find((r) => r.minute >= 5)?.memory ?? rss[0]?.memory ?? null
+const peak = rss.length ? Math.max(...rss.map((r) => r.memory)) : null
+const last = rss.at(-1)?.memory ?? null
+// Growth over the second half only: warm-up and caches settle early, a leak keeps climbing.
+const half = rss.slice(Math.floor(rss.length / 2))
+const slope = half.length > 4 ? (half.at(-1).memory - half[0].memory) / Math.max(1, (half.at(-1).minute - half[0].minute) / 60) : null
+const summary = {
+  band,
+  hours,
+  profile,
+  load: { writers, speed, showStateHz },
+  startedAt: new Date(started).toISOString(),
+  requests: stats.requests,
+  failures: stats.failures,
+  firstFailureMessages: firstMessage,
+  writeConflicts: stats.conflicts,
+  deviceWrites: devices.map((d) => d.writes),
+  latencyMs: Object.fromEntries(Object.entries(stats.latencies).map(([k, v]) => [k, { n: v.length, p50: percentile(v, 50), p95: percentile(v, 95), p99: percentile(v, 99), max: v.length ? Math.round(v.reduce((m, x) => (x > m ? x : m), 0)) : null }])),
+  rssMb: { afterWarmup: first, peak, last, growthPerHourSecondHalf: slope === null ? null : Math.round(slope * 10) / 10 },
+  songsPerDevice: settled,
+  divergedSongs: diverged,
+}
+// Fails when the devices disagree with the host, or memory keeps climbing by more than 30 MB an hour in the second half.
+summary.hostAliveAtEnd = hostAliveAtEnd
+summary.ok = hostAliveAtEnd && diverged === 0 && (profile === 'stress' || slope === null || slope < 30) && Object.keys(stats.failures).filter((k) => !k.startsWith('soak client') && (profile === 'realistic' || /host not answering|final|settle/.test(k))).length === 0
+writeFileSync(join(out, 'summary.json'), JSON.stringify(summary, null, 2))
+console.log(JSON.stringify(summary, null, 2))
+process.exit(summary.ok ? 0 : 1)

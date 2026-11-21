@@ -1,6 +1,5 @@
 import type { ILookupPlugin } from 'shared-types'
-import { createMusicBrainzPlugin } from './musicBrainzPlugin.js'
-import { createUltimateGuitarPlugin } from './ultimateGuitarPlugin.js'
+import { createMusicBrainzAddonPlugin, createUltimateGuitarAddonPlugin } from '../addons/lookupAddon.js'
 import { SALE_BUILD, ULTIMATE_GUITAR_PROVIDER } from './importAddons.js'
 
 /**
@@ -12,6 +11,6 @@ import { SALE_BUILD, ULTIMATE_GUITAR_PROVIDER } from './importAddons.js'
  * metadata only and stays built in.
  */
 export const LOOKUP_CATALOG: Record<string, () => ILookupPlugin> = {
-  ...(SALE_BUILD ? {} : { [ULTIMATE_GUITAR_PROVIDER]: createUltimateGuitarPlugin }),
-  'metadata-lookup': createMusicBrainzPlugin,
+  ...(SALE_BUILD ? {} : { [ULTIMATE_GUITAR_PROVIDER]: createUltimateGuitarAddonPlugin }),
+  'metadata-lookup': createMusicBrainzAddonPlugin,
 }

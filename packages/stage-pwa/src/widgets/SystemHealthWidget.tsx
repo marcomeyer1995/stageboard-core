@@ -38,7 +38,7 @@ const DRIFT_WARN_THRESHOLD_MS = 15
 /**
  * The "Cockpit-Dashboard" traffic-light overview from docs/08 Use Case 3.1 - every
  * capability the band's installed plugins provide, at a glance, plus this tablet's own
- * NTP-style clock sync to the Stage-Server (#31, docs/00 §4) - not a plugin capability, but
+ * NTP-style clock sync to the Host (#31, docs/00 §4) - not a plugin capability, but
  * the same kind of "can I trust this system status" question. Crew/tech-facing (see
  * relevantRoles in registry.tsx), used during setup/soundcheck, not something a
  * performing musician needs cluttering their own Station.

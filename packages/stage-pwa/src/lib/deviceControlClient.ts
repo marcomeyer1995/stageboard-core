@@ -1,9 +1,9 @@
 import type { ShowControlEvent, ShowControlResult } from 'shared-types'
 import { serverText } from './serverMessage'
-import { getStageServerUrl, NO_STAGE_SERVER_MESSAGE } from './stageServer'
+import { getHostUrl, NO_HOST_MESSAGE } from './hostUrl'
 
-/** Fires a trigger through the Stage-Server relay (#10 - see deviceRelay.ts) at whichever
- * tablet the active HardwareSetup binds `capability` to, rather than a Stage-Server plugin -
+/** Fires a trigger through the Host relay (#10 - see deviceRelay.ts) at whichever
+ * tablet the active HardwareSetup binds `capability` to, rather than a Host plugin -
  * same error-handling shape as showControlClient.ts's triggerShowControl. */
 export async function triggerDeviceControl(
   workspaceId: string,
@@ -11,8 +11,8 @@ export async function triggerDeviceControl(
   capability: string,
   event: ShowControlEvent,
 ): Promise<ShowControlResult> {
-  const base = getStageServerUrl()
-  if (!base) return { status: 'error', message: NO_STAGE_SERVER_MESSAGE }
+  const base = getHostUrl()
+  if (!base) return { status: 'error', message: NO_HOST_MESSAGE }
 
   try {
     const response = await fetch(`${base}/workspaces/${workspaceId}/devices/${deviceId}/trigger`, {

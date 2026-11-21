@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { MeasureInputSchema, MeasureInputsSchema } from './timing.js'
 
 /**
- * Backup targets of a Stage-Server (#363, Marco 2026-10-08): the admin chooses where the server's
+ * Backup targets of a Host (#363, Marco 2026-10-08): the admin chooses where the server's
  * backups go - one or several targets, so e.g. a ZFS folder and a NAS together (redundancy alone is
  * no backup: a deleted band is deleted on the mirror too).
  *

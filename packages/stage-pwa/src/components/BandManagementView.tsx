@@ -8,12 +8,12 @@ import { JoinBandView } from './JoinBandView'
 import { RowActionButton, RowActionsMenu, RowMenuButton } from './RowActionsMenu'
 import { STAGE_ROLE_LABELS } from '../lib/stageRoleLabels'
 import { useNow } from '../lib/useNow'
-import { getAutomaticStageServerUrl, normalizeStageServerUrl, overrideForTypedUrl } from '../lib/stageServer'
+import { getAutomaticHostUrl, normalizeHostUrl, overrideForTypedUrl } from '../lib/hostUrl'
 import { useActiveProfileStore } from '../store/useActiveProfileStore'
 import { useDialogStore } from '../store/useDialogStore'
 import { usePresenceStore } from '../store/usePresenceStore'
 import { useProfilesStore } from '../store/useProfilesStore'
-import { useStageServerStore } from '../store/useStageServerStore'
+import { useHostUrlStore } from '../store/useHostUrlStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { useBackHandler } from '../lib/backNavigation'
 import { MASTER_MODE_LABEL, MasterModeDialog } from './MasterModeDialog'
@@ -26,7 +26,7 @@ import { useTranslation } from 'react-i18next'
  * *management* action lives here now: create a band (open to everyone, matches
  * `addWorkspace`'s existing rules), delete a band, invite people to it, and
  * create/rename/adjust-stage-roles/delete a roster member (all admin-only, enforced
- * server-side already by #56's CouchDB validation - the `isAdmin` checks here are just the UI
+ * server-side already by #56's the database validation - the `isAdmin` checks here are just the UI
  * not offering a control that would fail).
  *
  * 2026-09-02 follow-up, at Marco's explicit request: this is now also where switching *which*
@@ -62,7 +62,7 @@ import { useTranslation } from 'react-i18next'
  *
  * Per-person-accounts follow-up (2026-08-30): "Admin" lives right in `stageRoles` alongside the
  * others, same checkbox dialog - but unlike the others it's not just a label. Every roster
- * member now has their own real CouchDB account (not a shared one - see useWorkspaceStore.ts's
+ * member now has their own real account (not a shared one - see useWorkspaceStore.ts's
  * doc comment on `Workspace.username`), and toggling 'admin' in `useProfilesStore.ts`'s
  * `updateStageRoles` actually changes that account's role server-side first, which is what
  * `_design/roster`'s validator really checks. "Löschen" is disabled for the sole remaining admin
@@ -76,7 +76,7 @@ import { useTranslation } from 'react-i18next'
  * standing, non-expiring access code (`InviteBandView.tsx`, `useWorkspaceStore.ts`'s
  * `getAccessCode`/`rotateAccessCode`), WiFi-QR-style, that covers *anyone* joining that band,
  * admin or not, new or already-provisioned, indefinitely (until an admin deliberately rotates
- * it). The joining device browses the Stage-Server's workspace list with no code at all
+ * it). The joining device browses the Host's workspace list with no code at all
  * (JoinBandView.tsx's first step), then looks up that one band's roster with the code and
  * self-service-picks who it is - see the second follow-up above for what picking a non-admin vs.
  * an admin entry actually needs. "+ Neues Mitglied" only creates the roster entry now (no PIN
@@ -96,7 +96,7 @@ import { useTranslation } from 'react-i18next'
  * the new value. For the "no other admin session exists at all" case, the universal recovery
  * code (above) is what actually solves it.
  *
- * Tier-A local-only-founding follow-up (2026-08-30): a band with no Stage-Server configured
+ * Tier-A local-only-founding follow-up (2026-08-30): a band with no Host configured
  * founds and builds its roster entirely locally - `activeWorkspace.username` unset is that
  * state, not an error. The "Diese Band läuft nur lokal" banner below is the one way out of it:
  * "Verbinden" provisions just the founder's own account (`useProfilesStore.ts`'s
@@ -182,7 +182,7 @@ export function BandManagementView() {
   const updateStageRoles = useProfilesStore((state) => state.updateStageRoles)
   const removeProfile = useProfilesStore((state) => state.remove)
   const connectToServer = useProfilesStore((state) => state.connectToServer)
-  const setStageServerUrl = useStageServerStore((state) => state.setUrl)
+  const setHostUrl = useHostUrlStore((state) => state.setUrl)
   const activeProfileId = useActiveProfileStore((state) => state.byWorkspace[activeWorkspaceId])
   const setActiveProfile = useActiveProfileStore((state) => state.setActive)
   const presence = usePresenceStore((state) => state.presence)
@@ -249,7 +249,7 @@ export function BandManagementView() {
     setActivatePasswordInput('')
   }
 
-  // A local-only band (Tier-A follow-up) has no Stage-Server account to authenticate against at
+  // A local-only band (Tier-A follow-up) has no Host account to authenticate against at
   // all - picking a profile there stays the old zero-credential-check behavior, same as the
   // removed ProfileSwitcher.tsx always was. Once connected: a non-admin profile has no password
   // concept at all anymore (2026-09-02 second follow-up), so picking one activates it right
@@ -275,7 +275,7 @@ export function BandManagementView() {
     <div className="flex flex-col gap-6 p-4 text-ink">
       <h1 className="text-2xl font-bold">{t('title')}</h1>
 
-      {/* Which band the Stage-Server's hardware serves is shown once, with "Band wechseln…", in
+      {/* Which band the Host's hardware serves is shown once, with "Band wechseln…", in
           Einstellungen - this line said the same again (System cleanup, 2026-10-16). */}
 
       <section className="space-y-2">
@@ -335,7 +335,7 @@ export function BandManagementView() {
                     {t('rename')}
                   </RowActionButton>
                 )}
-                {/* Only once this band has a real Stage-Server account to invite anyone
+                {/* Only once this band has a real Host account to invite anyone
                     to - a local-only band (Tier-A follow-up) has nothing to hand out yet. Also
                     admin-only, unlike "Von diesem Gerät entfernen" below: inviting is a band-
                     management action, not something a plain member does. */}
@@ -439,16 +439,16 @@ export function BandManagementView() {
               </p>
               <Button onClick={async () => {
                   // Pre-filled with the address this app was loaded from - on a tablet that opened
-                  // the app from the Stage-Server that is already the right one, just confirm.
+                  // the app from the Host that is already the right one, just confirm.
                   const serverUrl = await promptText(t('connectTitle'), {
                     label: t('serverAddress'),
-                    defaultValue: getAutomaticStageServerUrl() ?? '',
+                    defaultValue: getAutomaticHostUrl() ?? '',
                   })
                   if (!serverUrl?.trim()) return
-                  // Only a *different* address becomes a manual override (stageServer.ts's
+                  // Only a *different* address becomes a manual override (hostUrl.ts's
                   // overrideForTypedUrl) - confirming the automatic one must not pin it.
-                  setStageServerUrl(overrideForTypedUrl(serverUrl))
-                  await connectToServer(normalizeStageServerUrl(serverUrl))
+                  setHostUrl(overrideForTypedUrl(serverUrl))
+                  await connectToServer(normalizeHostUrl(serverUrl))
                 }}>
                 {t('connect')}
               </Button>
@@ -530,7 +530,7 @@ export function BandManagementView() {
                           onClick={async () => {
                             setActionsMenuProfileId(null)
                             // Your own admin rights stay: only another admin can take them away
-                            // (Marco, 2026-10-07; the Stage-Server refuses it too).
+                            // (Marco, 2026-10-07; the Host refuses it too).
                             const keepOwnAdmin = isActiveProfile && isAdminProfile
                             const result = await promptFields(t('rolesTitle'), [
                               {

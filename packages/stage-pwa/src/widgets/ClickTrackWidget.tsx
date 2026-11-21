@@ -45,7 +45,7 @@ const OVERRIDE_OPTIONS: Array<{ value: 'on' | 'off' | null; label: string }> = [
  * useClickOutputDriver.ts uses for the actual routing decision, so the two can no longer drift
  * out of sync with each other the way their previous hand-copied versions did - this widget's
  * own copy hardcoded `pluginId` to `null`, so a click-track device bound through the
- * Stage-Server (rather than a specific tablet) always showed "Kein Klick-Ausgabegerät
+ * Host (rather than a specific tablet) always showed "Kein Klick-Ausgabegerät
  * eingerichtet" here even though it was correctly configured. The override control is
  * a shared, Master-gated ShowState write in Gig mode (works from *any* tablet regardless of
  * which one actually produces the sound, same as Play/Pause), a local per-device choice in

@@ -14,7 +14,7 @@ vi.mock('pouchdb-browser', () => ({
 // The MIDI ports this tablet sees (WebMIDI isn't in happy-dom).
 vi.mock('../lib/webMidiOutput', async (importOriginal) => ({ ...(await importOriginal<object>()), listMidiOutputs: async () => [{ id: 'k1', name: 'Kemper Player' }] }))
 
-// What the devices report to the Stage-Server (the map's "Prüfen", #747).
+// What the devices report to the Host (the map's "Prüfen", #747).
 const reported = { devices: {} as Record<string, unknown> }
 vi.mock('../lib/fetchDeviceInfo', () => ({ fetchDeviceInfo: async () => ({ devices: { ...reported.devices } }) }))
 

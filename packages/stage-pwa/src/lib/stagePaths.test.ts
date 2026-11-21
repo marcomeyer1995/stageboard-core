@@ -24,7 +24,7 @@ const base = {
   ownDeviceId: 'redmi',
   builtIn,
   personAt: (id: string) => ({ fire: 'Kai', redmi: 'Marco' })[id] ?? null,
-  serverName: 'Stage-Server',
+  serverName: 'Host',
 }
 
 describe('stage paths (docs/31)', () => {
@@ -56,7 +56,7 @@ describe('stage paths (docs/31)', () => {
     expect(fire.paths.map((p) => [p.kind, p.route, p.state])).toEqual([['audio', 'speaker', 'missing']])
   })
 
-  it('outputs a device drives (Kemper, lights) are paths of their own, also on the Stage-Server', () => {
+  it('outputs a device drives (Kemper, lights) are paths of their own, also on the Host', () => {
     const groups = stagePaths({
       ...base,
       logicalDevices: [role('kemper', 'amp', 'redmi', 'Kemper'), role('dmx', CAPABILITIES.lighting, SERVER_EXECUTION_TARGET, 'Licht')],

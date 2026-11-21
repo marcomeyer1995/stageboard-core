@@ -1,7 +1,7 @@
 import { watchLocalChanges, type LocalChangesHandle } from './localChanges'
 import { getWorkspaceDb } from './workspaceDb'
 
-/** The one `workspace:access` doc living in a workspace's shared CouchDB database (see
+/** The one `workspace:access` doc living in a workspace's shared database (see
  * core-backend's `workspaceProvisioning.ts`) - holds the standing access code and, since #58,
  * the workspace's real display name. Read-only from the client side on purpose: renaming goes
  * through `useWorkspaceStore.ts`'s `renameWorkspace` (an admin-verified HTTP call to

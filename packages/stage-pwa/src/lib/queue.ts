@@ -177,7 +177,7 @@ export async function playSong(opts: PlayOptions = {}): Promise<void> {
   if (currentSong && !currentArrangement) return
   // Server time, not this device's clock: every tablet - this one included - computes the
   // elapsed time as getServerTime() minus playbackStartedAt (usePlaybackElapsedMs.ts). Stamped
-  // with Date.now(), a Master whose clock ran 2.1 s ahead of the Stage-Server froze every
+  // with Date.now(), a Master whose clock ran 2.1 s ahead of the Host froze every
   // tablet's song clock for 2.1 s after Play and kept it 2.1 s late (measured 2026-09-27 -
   // docs/12's "Uhr-Basis beim Transportstart" risk).
   const now = getServerTime()

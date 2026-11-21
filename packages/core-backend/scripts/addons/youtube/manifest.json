@@ -1,0 +1,91 @@
+{
+  "id": "youtube-download",
+  "name": "YouTube",
+  "version": "1.0.0",
+  "protocol": 3,
+  "viewFile": "view.js",
+  "workFile": "work.js",
+  "permissions": [
+    "helper:yt-dlp",
+    "http:https://i.ytimg.com",
+    "http:https://www.youtube.com"
+  ],
+  "contributes": {
+    "methods": {
+      "search": {
+        "in": {
+          "type": "object",
+          "required": [
+            "query"
+          ],
+          "properties": {
+            "query": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          "additionalProperties": false
+        },
+        "out": {
+          "type": "object",
+          "required": [
+            "hits"
+          ],
+          "properties": {
+            "hits": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "id",
+                  "title",
+                  "url"
+                ]
+              }
+            }
+          }
+        },
+        "timeoutMs": 45000,
+        "callableByDevices": true
+      },
+      "fetchAudio": {
+        "in": {
+          "type": "object",
+          "required": [
+            "url"
+          ],
+          "properties": {
+            "url": {
+              "type": "string",
+              "maxLength": 300
+            }
+          },
+          "additionalProperties": false
+        },
+        "out": {
+          "type": "object",
+          "required": [
+            "audio",
+            "ext"
+          ],
+          "properties": {
+            "ext": {
+              "type": "string"
+            }
+          }
+        },
+        "timeoutMs": 900000,
+        "progress": true
+      }
+    },
+    "ui": [
+      {
+        "slot": "song-editor.track-source",
+        "id": "youtube",
+        "title": "YouTube",
+        "icon": "youtube"
+      }
+    ]
+  }
+}

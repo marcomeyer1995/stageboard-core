@@ -5,7 +5,7 @@ import { normalizeLayout } from './dashboardLayout'
  * Stable ids on purpose. Every device seeds when it finds an empty workspace, so two
  * tablets starting at the same time both seed - with random ids that produces duplicate
  * "Prompter" and "Monitoring" dashboards once replication catches up. With fixed ids the
- * two writes are the same document, and CouchDB resolves them as an ordinary conflict.
+ * two writes are the same document, and the database resolves them as an ordinary conflict.
  */
 const DEFAULT_IDS = {
   prompter: 'default-prompter',

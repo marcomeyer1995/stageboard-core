@@ -30,8 +30,7 @@ export function AndroidHostSettings() {
       <Button disabled={busy} onClick={() => void toggle()}>
         {status.running ? t('server.hostStop') : t('server.hostStart')}
       </Button>
-      {status.error === 'no-band' && <p className="text-sm text-ink-muted">{t('server.hostNoBand')}</p>}
-      {status.error !== null && status.error !== 'no-band' && <p className="text-sm text-danger">{status.error}</p>}
+      {status.error !== null && <p className="text-sm text-danger">{status.error}</p>}
       {status.running && (
         <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
           <dt className="text-ink-muted">{t('server.hostAddress')}</dt>

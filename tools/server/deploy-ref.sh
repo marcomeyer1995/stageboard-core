@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Runs the productive Stage-Server from another git ref for a test, and back (docs/03 "Redeploy").
+# Runs the productive Host from another git ref for a test, and back (docs/03 "Redeploy").
 #   tools/server/deploy-ref.sh status
 #   tools/server/deploy-ref.sh switch origin/<branch>     build that ref in the deploy worktree, restart
 #   tools/server/deploy-ref.sh revert                     back to origin/main
 # Only when the ref adds no dependencies (else `npm ci` first) and its schema changes are
-# optional fields - the data (CouchDB, STAGEBOARD_STATE_DIR) stays as it is. The APK at /app is
+# optional fields - the data (the database in STAGEBOARD_STATE_DIR) stays as it is. The APK at /app is
 # not rebuilt.
 # Env: STAGEBOARD_DEPLOY (default ~/stageboard-deploy), STAGEBOARD_URL (default https://stageboard.local).
 set -euo pipefail
@@ -24,6 +24,7 @@ build_and_restart() {
   if ! git diff --quiet HEAD "$1" -- package-lock.json; then echo "$1 changes dependencies - run npm ci there first"; exit 1; fi
   git checkout -q --detach "$1"
   npm run build -w shared-types >/dev/null
+  npm run build -w sync-host >/dev/null # core-backend and stage-pwa import it: a stale build starts the host with the wrong code
   npm run build -w core-backend >/dev/null
   npm run build -w stage-pwa >/dev/null
   systemctl --user restart stageboard

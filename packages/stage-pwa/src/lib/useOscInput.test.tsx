@@ -11,7 +11,7 @@ vi.mock('pouchdb-browser', () => ({
     }
   },
 }))
-vi.mock('./stageServer', () => ({ getStageServerUrl: () => 'https://stage.test' }))
+vi.mock('./hostUrl', () => ({ getHostUrl: () => 'https://stage.test' }))
 vi.mock('./triggerPress', () => ({ pressTrigger: vi.fn(async () => null), releaseTrigger: vi.fn(async () => null) }))
 vi.mock('./runAction', () => ({ latestTrackedShow: () => ({ show: true }) }))
 

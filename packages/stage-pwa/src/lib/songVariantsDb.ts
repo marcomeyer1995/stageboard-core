@@ -101,7 +101,7 @@ export async function ensureDefaultVariant(song: Song): Promise<SongVariant> {
 }
 
 /**
- * Track audio lives on the Stage-Server's disk now, not as a PouchDB attachment (see #30) -
+ * Track audio lives on the Host's disk now, not as a PouchDB attachment (see #30) -
  * every tablet used to receive every byte of every band's audio catalog through this
  * collection's live sync stream whether it wanted it or not. Uploads to the server, caches
  * the bytes locally through the storage backend (audioStorageManager.ts owns whether that
@@ -125,7 +125,7 @@ export async function getTrackMeta(variantId: string, trackId: string): Promise<
   return variant?.tracks.find((t) => t.id === trackId) ?? null
 }
 
-/** Local cache first, then the Stage-Server. `null` covers both "no such track" and
+/** Local cache first, then the Host. `null` covers both "no such track" and
  * "not cached and currently unreachable" - the caller can't tell those apart, and for
  * playback purposes it doesn't need to. A track fetched here gets cached unconditionally,
  * even in "None" sync mode - the reconciler (audioStorageManager.ts) evicts it again shortly
@@ -221,7 +221,7 @@ export async function updateStem(variantId: string, trackId: string, label: stri
  * Copies a song's own doc and every one of its variants (#178's desktop context menu) - the
  * chart, tempo, cues and click grid all come along, since those are what make
  * a duplicate a genuinely useful starting point (e.g. an "Akustik" arrangement branched off the
- * original). Tracks deliberately don't: audio lives on the Stage-Server's own disk (#30), and
+ * original). Tracks deliberately don't: audio lives on the Host's own disk (#30), and
  * copying it would mean re-uploading every byte through this tablet rather than a cheap
  * metadata copy - the duplicate starts with no audio, same as any other freshly created song.
  */

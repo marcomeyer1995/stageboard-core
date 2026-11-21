@@ -38,7 +38,7 @@ Device serials and ports are in `full.sh`. Raw data of 2026-11-04: `~/stageboard
 The master (here the Redmi, port 9302) plays; every device records. `capture.js` also takes a
 `/time` sample every second while armed, so each device's heard beats map to server time on its
 own, independent of the app's clock sync. `sse-log.mjs` logs the master's show-state pushes
-(`playbackStartedAt` in server time) with the laptop's clock - the laptop is the Stage-Server.
+(`playbackStartedAt` in server time) with the laptop's clock - the laptop is the Host.
 
     node sse-log.mjs https://<server>/workspaces/<id>/show-state/stream <dir>/pushes.jsonl &
     ./gig-take.sh fresh 10 <dir> t01      # Stop → Play on the master, 10 s
@@ -58,7 +58,7 @@ plus a 7-sample burst a minute. `node clock-replay.mjs clocklog-<dev>.json...` r
 each against a line through the fastest 10 % of the whole recording.
 
 ## Laptop browser as a device
-A separate Chrome profile with `--remote-debugging-port=9304` on the Stage-Server's address (join
+A separate Chrome profile with `--remote-debugging-port=9304` on the Host's address (join
 the band by hand once). `node serve-build.mjs 9304 <dist> capture.js` answers the app's own files
 from a local build (same origin, so the band data stays) and registers the capture hook - keep it
 running while measuring.

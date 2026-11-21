@@ -39,7 +39,7 @@ function isModePlaying(sessionMode: SessionMode): boolean {
  * is "does this device's queue/transport touch the shared, synced ShowState at all."
  *
  * Gig mode (default): NextSongWidget/ShowTransportWidget read and write the real, synced
- * ShowState - unchanged from before this existed. Audio only ever comes from a Stage-Server
+ * ShowState - unchanged from before this existed. Audio only ever comes from a Host
  * plugin; a dropped connection shows as disconnected, never silently falls back to this
  * device's own speaker (a random tablet suddenly blasting audio mid-show would be worse than
  * no audio at all).

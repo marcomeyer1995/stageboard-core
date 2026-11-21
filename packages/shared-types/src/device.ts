@@ -26,7 +26,7 @@ export const DeviceSchema = z.object({
   firstSeenAt: z.number().int().nonnegative(),
   /** An admin's decision to kick this device out (Device Ledger, Marco's explicit request) -
    * a *soft*, cooperative kick: this device's own app watches its own entry and locks itself
-   * out (App.tsx's revocation guard) rather than the Stage-Server enforcing it at the auth
+   * out (App.tsx's revocation guard) rather than the Host enforcing it at the auth
    * layer. Deliberately on this synced doc, not an ephemeral store (deviceInfo.ts) - unlike
    * IP/OS/sync-status, this must be durable and reach a currently-offline device the moment it
    * reconnects, the same reason `lastSeenAt`'s doc comment gives for keeping presence-like data

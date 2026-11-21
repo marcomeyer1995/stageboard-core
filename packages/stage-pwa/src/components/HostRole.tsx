@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { assignHostRole, removeHostRole } from '../lib/bandHosts'
 import { fetchBandHost } from '../lib/fetchBandHost'
-import { getStageServerUrl } from '../lib/stageServer'
+import { getHostUrl } from '../lib/hostUrl'
 import { useBandSettingsStore } from '../store/useBandSettingsStore'
 import { useDialogStore } from '../store/useDialogStore'
 import { useShowStateStore } from '../store/useShowStateStore'
@@ -9,7 +9,7 @@ import { Badge, Button } from './ui'
 
 /**
  * Primary and backup host on the stage map (host backup, #914, docs/25 §6e): shown at the box that
- * runs the Stage-Server. The admin names the host's address once; the app reads who it is and its
+ * runs the Host. The admin names the host's address once; the app reads who it is and its
  * certificate fingerprint from the host itself, and saves the entry with this box in the band
  * settings, so every device has the same list. Not changeable while a song plays - a role changing
  * mid-song is what the epoch is there to prevent. A backup needs nothing else from the admin: the
@@ -29,7 +29,7 @@ export function HostRole({ boxId, canEdit }: { boxId: string; canEdit: boolean }
     const address = await promptText(t(role === 'primary' ? 'hostRole.askPrimary' : 'hostRole.askBackup'), {
       label: t('hostRole.address'),
       // The paired server is the natural primary; a backup is another machine, so nothing to suggest.
-      defaultValue: role === 'primary' ? (getStageServerUrl() ?? '') : '',
+      defaultValue: role === 'primary' ? (getHostUrl() ?? '') : '',
       submitLabel: t('hostRole.check'),
     })
     if (address === null) return

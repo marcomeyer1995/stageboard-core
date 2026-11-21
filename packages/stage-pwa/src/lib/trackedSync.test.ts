@@ -28,7 +28,7 @@ function fakeLocalDb() {
 
 /** A PouchDB.Replication.SyncResult<T>-shaped 'change' event payload, with just the fields
  * trackedSync.ts actually reads. `pending` isn't in @types/pouchdb-replication's declared
- * shape but is present at runtime when the remote is CouchDB 2.0+ (see trackedSync.ts). */
+ * shape but is present at runtime when the remote is the database 2.0+ (see trackedSync.ts). */
 function changeInfo(
   docIds: string[],
   options: { direction?: 'push' | 'pull'; pending?: number } = {},

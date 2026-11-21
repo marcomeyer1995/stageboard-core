@@ -29,7 +29,7 @@ export function capabilityTiming(installed: PluginInstallation[], capability: Ca
 
 /** How much earlier than its due moment a cue must be sent so its output really happens on time
  * (docs/21 §3): the stored (measured or entered) latency of the device that drives the output -
- * its executing tablet, or the Stage-Server - else the plugin's declared latency, else 0. */
+ * its executing tablet, or the Host - else the plugin's declared latency, else 0. */
 export function cueLatencyMs(
   cue: Pick<ShowCue, 'targetLogicalDeviceId'>,
   logicalDevices: LogicalDevice[],

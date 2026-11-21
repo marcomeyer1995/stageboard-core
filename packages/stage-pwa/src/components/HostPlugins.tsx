@@ -45,6 +45,7 @@ export function HostPlugins({ canInstall }: { canInstall: boolean }) {
                 <span className="min-w-0 flex-1 text-base">{pluginName(entry)}</span>
                 {isInstalled && <Badge tone="accent">{t('hostPlugins.installed')}</Badge>}
                 {!p.available && <span className="text-base text-ink-muted">{t('hostPlugins.cannot', { needs: p.needs ?? '?' })}</span>}
+                {!p.available && p.note && <p className="basis-full text-sm text-ink-muted">{p.note}</p>}
                 {canInstall && !isInstalled && p.available && <Button onClick={() => void install({ ...entry, enabled: true, installedAt: Date.now() })}>{t('hostPlugins.install')}</Button>}
                 {canInstall && isInstalled && (
                   <Button

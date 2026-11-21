@@ -51,7 +51,7 @@ android {
         // pairing, installed via adb): they never block the release's updates from the
         // Stage-Server, whatever their version code or signing key.
         debug {
-            applicationIdSuffix ".dev"
+            applicationIdSuffix project.findProperty("stageboardAppIdSuffix") ?: ".dev"
         }
         release {
             if (keystorePropertiesFile.exists()) signingConfig signingConfigs.release

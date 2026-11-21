@@ -1,7 +1,7 @@
 import { EventEmitter } from 'node:events'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SERVER_EXECUTION_TARGET, type PluginInstallation } from 'shared-types'
-import type { CouchConfig } from './couch.js'
+import type { DatabaseConfig } from './database.js'
 
 let inputPorts: string[] = []
 let outputPorts: string[] = []
@@ -61,15 +61,15 @@ const reportTriggered = vi.hoisted(() => vi.fn())
 const getSnapshot = vi.hoisted(() => vi.fn())
 const getPlugin = vi.hoisted(() => vi.fn())
 const subscribe = vi.hoisted(() => vi.fn(() => vi.fn()))
-vi.mock('./discoverySessionStore.js', () => ({ reportCandidate, reportTriggered, getSnapshot, getPlugin, subscribe }))
+vi.mock('sync-host', async (importOriginal) => ({ ...(await importOriginal<typeof import('sync-host')>()), discoverySessions: { reportCandidate, reportTriggered, getSnapshot, getPlugin, subscribe } }))
 
 const putDoc = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
 const putDocWithRetry = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
-vi.mock('./couch.js', () => ({ putDoc, putDocWithRetry }))
+vi.mock('./database.js', () => ({ putDoc, putDocWithRetry }))
 
 const { createMidiWatcher } = await import('./midiWatcher.js')
 
-const COUCH: CouchConfig = { url: 'http://couch.local', user: 'admin', password: 'x' }
+const DATABASE: DatabaseConfig = { url: 'http://database.local', user: 'admin', password: 'x' }
 const INACTIVE_SESSION = { active: false, startedAt: null, startedBy: null, candidates: [], identifying: null }
 
 const KEMPER: PluginInstallation = {
@@ -89,7 +89,7 @@ function logStub() {
 }
 
 function watch() {
-  return createMidiWatcher({ couch: COUCH, workspaceId: 'band-a', log: logStub() })
+  return createMidiWatcher({ database: DATABASE, workspaceId: 'band-a', log: logStub() })
 }
 
 /** The trigger-listening FakeInput is always the *last* one constructed once a role is
@@ -169,7 +169,7 @@ describe('createMidiWatcher', () => {
   it('keeps running without native MIDI, logs once, and picks the ports up once access exists (#336)', () => {
     nativeFails = true
     const log = logStub()
-    const watcher = createMidiWatcher({ couch: COUCH, workspaceId: 'band-a', log })
+    const watcher = createMidiWatcher({ database: DATABASE, workspaceId: 'band-a', log })
     vi.advanceTimersByTime(6000)
 
     expect(reportCandidate).not.toHaveBeenCalled()
@@ -183,7 +183,7 @@ describe('createMidiWatcher', () => {
     watcher.stop()
   })
 
-  describe('while a role is identifying and the Stage-Server itself is a contender', () => {
+  describe('while a role is identifying and the Host itself is a contender', () => {
     const IDENTIFYING_SESSION = {
       active: true,
       startedAt: 1,
@@ -266,7 +266,7 @@ describe('createMidiWatcher', () => {
     })
   })
 
-  describe('when one of the Stage-Server\'s own candidates has just won a role', () => {
+  describe('when one of the Host\'s own candidates has just won a role', () => {
     const WON_SESSION = {
       active: true,
       startedAt: 1,
@@ -291,8 +291,8 @@ describe('createMidiWatcher', () => {
       vi.advanceTimersByTime(2000)
 
       expect(putDoc).toHaveBeenCalledTimes(1)
-      const [couchArg, db, doc] = putDoc.mock.calls[0]
-      expect(couchArg).toBe(COUCH)
+      const [dbArg, db, doc] = putDoc.mock.calls[0]
+      expect(dbArg).toBe(DATABASE)
       expect(db).toBe('stageboard-band-a')
       expect(doc).toMatchObject({
         _id: 'device-transport-config:server:marcos-kemper',
@@ -311,8 +311,8 @@ describe('createMidiWatcher', () => {
       vi.advanceTimersByTime(2000)
 
       expect(putDocWithRetry).toHaveBeenCalledTimes(1)
-      const [couchArg, db, docId, build] = putDocWithRetry.mock.calls[0]
-      expect(couchArg).toBe(COUCH)
+      const [dbArg, db, docId, build] = putDocWithRetry.mock.calls[0]
+      expect(dbArg).toBe(DATABASE)
       expect(db).toBe('stageboard-band-a')
       expect(docId).toBe('logical-devices:marcos-kemper')
 
