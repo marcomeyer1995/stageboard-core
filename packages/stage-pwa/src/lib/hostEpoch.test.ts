@@ -53,3 +53,19 @@ describe('useHostEpochStore (#910)', () => {
     expect(useHostEpochStore.getState().currentActive).toBe(true)
   })
 })
+
+describe('the host this device talks to (#964)', () => {
+  it('remembers who the current host is, and follows a switch to another one', () => {
+    useHostEpochStore.setState({ currentHostId: undefined })
+    useHostEpochStore.getState().observe(1, true, 'stage-pc')
+    expect(useHostEpochStore.getState().currentHostId).toBe('stage-pc')
+    useHostEpochStore.getState().observe(2, true, 'tablet-1')
+    expect(useHostEpochStore.getState().currentHostId).toBe('tablet-1')
+  })
+
+  it('keeps the last known id when a host that does not say who it is answers', () => {
+    useHostEpochStore.setState({ currentHostId: 'stage-pc' })
+    useHostEpochStore.getState().observe(3, true)
+    expect(useHostEpochStore.getState().currentHostId).toBe('stage-pc')
+  })
+})
