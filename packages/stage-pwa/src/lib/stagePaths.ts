@@ -1,4 +1,4 @@
-import { AUDIO_OUTPUT, NATIVE_AUDIO_OUTPUT, SERVER_EXECUTION_TARGET, type AudioRoute, type LatencyProfileDoc, type LogicalDevice } from 'shared-types'
+import { AUDIO_OUTPUT, NATIVE_AUDIO_OUTPUT, LEGACY_HOST_TARGET, type AudioRoute, type LatencyProfileDoc, type LogicalDevice } from 'shared-types'
 
 /** ● measured by a sensor, ◐ set by hand (or a plugin's default), ○ no value yet (docs/31 §5). */
 export type StagePathState = 'measured' | 'manual' | 'missing'
@@ -65,12 +65,12 @@ const STALE_MS = 14 * 24 * 60 * 60 * 1000
  */
 export function stagePaths(input: StagePathsInput): StageDevicePaths[] {
   const { devices, ownDeviceId, logicalDevices, profiles, builtIn, personAt, serverName, now = Date.now() } = input
-  const hostApp = input.hostApp ?? SERVER_EXECUTION_TARGET
+  const hostApp = input.hostApp ?? LEGACY_HOST_TARGET
   const all = [...devices.map((d) => ({ id: d.id, name: d.name, lastSeenAt: d.lastSeenAt })), { id: hostApp, name: serverName, lastSeenAt: undefined }]
   const result: StageDevicePaths[] = []
   for (const device of all) {
     // The host's row also takes what is still stored under the legacy word.
-    const is = (id: string | null | undefined) => id === device.id || (device.id === hostApp && id === SERVER_EXECUTION_TARGET)
+    const is = (id: string | null | undefined) => id === device.id || (device.id === hostApp && id === LEGACY_HOST_TARGET)
     const roles = logicalDevices.filter((role) => is(role.executionTarget))
     if (device.id !== ownDeviceId && roles.length === 0 && device.lastSeenAt !== undefined && now - device.lastSeenAt > STALE_MS) continue
     const soundRoles = roles.filter((role) => builtIn.has(role.capability)).map((role) => builtIn.get(role.capability)!)

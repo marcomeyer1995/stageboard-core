@@ -4,8 +4,8 @@ import { CcSequenceSchema } from './discoveryTrigger.js'
 
 /**
  * One physical port a participant (a tablet, or the Host's own native MIDI watcher -
- * see `SERVER_EXECUTION_TARGET` in hardwareSetup.ts) currently sees, as reported into a
- * DiscoverySession. `reporterId` is a `Device.id` or `SERVER_EXECUTION_TARGET`; `hardwareKey` is
+ * see `LEGACY_HOST_TARGET` in hardwareSetup.ts) currently sees, as reported into a
+ * DiscoverySession. `reporterId` is a `Device.id` or `LEGACY_HOST_TARGET`; `hardwareKey` is
  * `hardwareMatching.ts`'s `hardwareKeyFor(detected)` - together they're this candidate's unique
  * identity (the same hardwareKey could coincidentally recur on two different reporters).
  */

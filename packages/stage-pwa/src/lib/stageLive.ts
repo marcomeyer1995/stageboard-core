@@ -3,7 +3,7 @@ import {
   DEVICE_INFO_TIMEOUT_MS,
   HEALTH_TIMEOUT_MS,
   NATIVE_AUDIO_OUTPUT,
-  SERVER_EXECUTION_TARGET,
+  LEGACY_HOST_TARGET,
   appsOf,
   type DeviceInfo,
   type DeviceInfoEntry,
@@ -114,7 +114,7 @@ function appOf(box: StageEquipment, front: Readonly<Record<string, string>>, hos
  */
 export function stageLive(input: StageLiveInput): StageLive {
   const { equipment, setup, flows, outputs, builtInIds, deviceInfo, now, serverReachable, health, ownDeviceId, ownMidiOutputs, ownSilenced, front, profiles } = input
-  const hostApp = input.hostApp ?? SERVER_EXECUTION_TARGET
+  const hostApp = input.hostApp ?? LEGACY_HOST_TARGET
   const byId = new Map(equipment.map((e) => [e.id, e]))
   const fresh = (id: string): DeviceInfoEntry | null => {
     const info = deviceInfo.devices[id]
@@ -172,7 +172,7 @@ export function stageLive(input: StageLiveInput): StageLive {
       const app = appOf(origin, front, hostApp)
       if (!app) continue
       const virtualId = flow.key.slice(flow.originEquipmentId.length + 1)
-      const own = profiles.filter((p) => (p.deviceId === app || (origin.kind === 'host-computer' && p.deviceId === SERVER_EXECUTION_TARGET)) && (builtInIds.includes(virtualId) ? p.output === AUDIO_OUTPUT || p.output === NATIVE_AUDIO_OUTPUT : p.output === virtualId))
+      const own = profiles.filter((p) => (p.deviceId === app || (origin.kind === 'host-computer' && p.deviceId === LEGACY_HOST_TARGET)) && (builtInIds.includes(virtualId) ? p.output === AUDIO_OUTPUT || p.output === NATIVE_AUDIO_OUTPUT : p.output === virtualId))
       const state: StagePathState = own.length === 0 ? 'missing' : own.some((p) => p.source === 'measured') ? 'measured' : 'manual'
       if (path === null || PATH_RANK[state] < PATH_RANK[path]) path = state
     }

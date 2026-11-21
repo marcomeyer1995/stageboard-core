@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { CAPABILITIES, SERVER_EXECUTION_TARGET } from 'shared-types'
+import { CAPABILITIES, LEGACY_HOST_TARGET } from 'shared-types'
 import type { LogicalDevice, PluginInstallation, Song } from 'shared-types'
 import { ClickTrackWidget } from './ClickTrackWidget'
 import { useShowMode } from '../lib/showMode'
@@ -188,7 +188,7 @@ describe('ClickTrackWidget', () => {
 
   it('shows the effective state (not the placeholder) when the click-track device is bound through the Host/a plugin, not a specific tablet (#148: pluginId used to be hardcoded null here, so this binding shape always showed "Kein Klick-Ausgabegerät eingerichtet" even though it was correctly configured)', () => {
     mockLogicalDevices([
-      { id: CLICK_LOGICAL_DEVICE_ID, name: 'Klick', capability: CAPABILITIES.clickTrack, pluginId: null, executionTarget: SERVER_EXECUTION_TARGET },
+      { id: CLICK_LOGICAL_DEVICE_ID, name: 'Klick', capability: CAPABILITIES.clickTrack, pluginId: null, executionTarget: LEGACY_HOST_TARGET },
     ])
     vi.mocked(usePluginsStore).mockImplementation((selector) =>
       selector({

@@ -36,7 +36,7 @@ import { createBandAccountsFor } from './bandAccounts.js'
 import fastifyStatic from '@fastify/static'
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify'
 import {
-  SERVER_EXECUTION_TARGET,
+  LEGACY_HOST_TARGET,
   ActivateWorkspaceHardwareRequestSchema,
   CalibrationRunRequestSchema,
   ShowControlEventSchema,
@@ -70,6 +70,7 @@ import { isLoopback } from './provisioningAuth.js'
 import { listDbs } from './database.js'
 import { decodeOscPacket, oscTargetFromConfig, setOscTargetResolver } from './plugins/oscPlugin.js'
 import { createWorkspaceHardwareController } from './workspaceHardwareController.js'
+import { migrateHostTarget } from './migrations/hostTarget.js'
 import {
   getOrCreateAccessCode,
   updateRosterValidators,
@@ -436,6 +437,15 @@ export async function buildApp(options: { backupService?: BackupService; databas
     database,
     registry,
     log: pluginLog,
+    // Bands from before host ids bound this host's hardware to the word 'server' (#964). The host that is the band's primary - or the only one it
+    // has - rewrites that to its own id; a backup leaves it, because the word meant the primary.
+    afterActivate: async (workspaceId) => {
+      const hosts = (await readBandHosts(workspaceId)) ?? []
+      const primary = hosts.find((h) => h.priority === 1)
+      if (hosts.length > 0 && primary?.hostId !== hostId) return
+      const changed = await migrateHostTarget(database, workspaceId, hostId)
+      if (changed > 0) pluginLog.info('Rewrote the legacy host word to this host id', { workspaceId, hostId, changed })
+    },
     // Background jobs (#964): this host takes the ones its own capabilities say it can do, and leaves the rest queued only when the
     // band lists another host that might. Looked up when asked - the host list and the capabilities can change while it runs.
     jobHost: {
@@ -684,7 +694,9 @@ export async function buildApp(options: { backupService?: BackupService; databas
   setOscTargetResolver(async (logicalDeviceId) => {
     const workspaceId = workspaceHardware.getActiveWorkspaceId()
     if (!workspaceId || !logicalDeviceId) return null
-    return oscTargetFromConfig(await getDoc<DatabaseDoc>(database, workspaceDbName(workspaceId), `device-transport-config:${SERVER_EXECUTION_TARGET}:${logicalDeviceId}`))
+    // Stored under this host's id; a config made before ids (#964) is still under the legacy word.
+    const read = (owner: string) => getDoc<DatabaseDoc>(database, workspaceDbName(workspaceId), `device-transport-config:${owner}:${logicalDeviceId}`)
+    return oscTargetFromConfig((await read(hostId)) ?? (await read(LEGACY_HOST_TARGET)))
   })
 
   async function checkBandAdmin(workspaceId: string, username: string, password: string, remoteAddress?: string): Promise<boolean> {

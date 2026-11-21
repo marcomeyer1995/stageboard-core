@@ -2,7 +2,7 @@ import { Input, Output } from '@julusian/midi'
 import {
   DeviceTransportConfigSchema,
   LogicalDeviceSchema,
-  SERVER_EXECUTION_TARGET,
+  LEGACY_HOST_TARGET,
   hardwareKeyFor,
   type CcSequence,
   type DetectedHardware,
@@ -23,6 +23,8 @@ const LOGICAL_DEVICE_PREFIX = 'logical-devices:'
 export interface MidiWatcherOptions {
   database: DatabaseConfig
   workspaceId: string
+  /** The id this host goes by (`STAGEBOARD_HOST_ID`, #964): what it reports under and what a role it detects is bound to. Absent: the legacy word. */
+  hostId?: string
   log: { info: (msg: string, meta?: Record<string, unknown>) => void; error: (msg: string, meta?: Record<string, unknown>) => void }
 }
 
@@ -47,6 +49,7 @@ function detectedFor(portName: string): DetectedHardware {
  */
 export function createMidiWatcher(options: MidiWatcherOptions): MidiWatcherHandle {
   const { database, workspaceId, log } = options
+  const hostTarget = options.hostId ?? LEGACY_HOST_TARGET
   let stopped = false
   let triggerListener: { input: Input; hardwareKey: string } | null = null
   const written = new Set<string>() // hardwareKeys already written, so a role only gets written once
@@ -86,7 +89,7 @@ export function createMidiWatcher(options: MidiWatcherOptions): MidiWatcherHandl
   function writeWonRoles(): void {
     const session = discoverySessionStore.getSnapshot(workspaceId)
     for (const candidate of session.candidates) {
-      if (candidate.reporterId !== SERVER_EXECUTION_TARGET) continue
+      if (candidate.reporterId !== hostTarget) continue
       if (candidate.status !== 'assigned' || !candidate.assignedLogicalDeviceId) continue
       if (written.has(candidate.hardwareKey)) continue
 
@@ -108,8 +111,8 @@ export function createMidiWatcher(options: MidiWatcherOptions): MidiWatcherHandl
 
         const logicalDeviceId = candidate.assignedLogicalDeviceId
         const doc = DeviceTransportConfigSchema.parse({
-          id: `${SERVER_EXECUTION_TARGET}:${logicalDeviceId}`,
-          deviceId: SERVER_EXECUTION_TARGET,
+          id: `${hostTarget}:${logicalDeviceId}`,
+          deviceId: hostTarget,
           logicalDeviceId,
           transportId: null,
           values: { midiOutputId: output.getPortName(outputIndex) },
@@ -136,7 +139,7 @@ export function createMidiWatcher(options: MidiWatcherOptions): MidiWatcherHandl
               name: existing?.name,
               capability: existing?.capability,
               pluginId: plugin.id,
-              executionTarget: SERVER_EXECUTION_TARGET,
+              executionTarget: hostTarget,
             })
             return { ...merged, _id: logicalDeviceDocId, _rev: existing?._rev }
           },
@@ -155,7 +158,7 @@ export function createMidiWatcher(options: MidiWatcherOptions): MidiWatcherHandl
     try {
       const count = probe.getPortCount()
       for (let i = 0; i < count; i++) {
-        discoverySessionStore.reportCandidate(workspaceId, SERVER_EXECUTION_TARGET, detectedFor(probe.getPortName(i)))
+        discoverySessionStore.reportCandidate(workspaceId, hostTarget, detectedFor(probe.getPortName(i)))
       }
     } catch (err) {
       log.error('Failed to enumerate native MIDI ports', { error: String(err) })
@@ -198,7 +201,7 @@ export function createMidiWatcher(options: MidiWatcherOptions): MidiWatcherHandl
     const identifying = session.identifying
     const ownCandidate = identifying
       ? session.candidates.find(
-          (c) => c.reporterId === SERVER_EXECUTION_TARGET && c.status === 'identifying' && c.matchedPluginId === identifying.pluginId,
+          (c) => c.reporterId === hostTarget && c.status === 'identifying' && c.matchedPluginId === identifying.pluginId,
         )
       : null
 
@@ -224,7 +227,7 @@ export function createMidiWatcher(options: MidiWatcherOptions): MidiWatcherHandl
       }
 
       const handleMessage = makeSequenceMatcher(identifying.matchCcSequence, () => {
-        discoverySessionStore.reportTriggered(workspaceId, SERVER_EXECUTION_TARGET, ownCandidate.hardwareKey)
+        discoverySessionStore.reportTriggered(workspaceId, hostTarget, ownCandidate.hardwareKey)
       })
       probe.on('message', (_deltaTime: number, message: number[]) => handleMessage(message))
       probe.openPort(index)

@@ -1,6 +1,6 @@
 import { EventEmitter } from 'node:events'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { SERVER_EXECUTION_TARGET, type PluginInstallation } from 'shared-types'
+import { LEGACY_HOST_TARGET, type PluginInstallation } from 'shared-types'
 import type { DatabaseConfig } from './database.js'
 
 let inputPorts: string[] = []
@@ -118,18 +118,27 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
+describe('createMidiWatcher on a host with an id (#964)', () => {
+  it('reports its ports under the host id, not under a reserved word', () => {
+    const watcher = createMidiWatcher({ database: DATABASE, workspaceId: 'band-a', hostId: 'stage-pc', log: logStub() })
+    expect(reportCandidate).toHaveBeenCalledWith('band-a', 'stage-pc', expect.objectContaining({ portId: 'Kemper Profiler Emulator' }))
+    expect(reportCandidate).not.toHaveBeenCalledWith('band-a', LEGACY_HOST_TARGET, expect.anything())
+    watcher.stop()
+  })
+})
+
 describe('createMidiWatcher', () => {
   it('reports every currently-visible native port immediately on start', () => {
     const watcher = watch()
 
     expect(reportCandidate).toHaveBeenCalledTimes(2)
-    expect(reportCandidate).toHaveBeenCalledWith('band-a', SERVER_EXECUTION_TARGET, {
+    expect(reportCandidate).toHaveBeenCalledWith('band-a', LEGACY_HOST_TARGET, {
       kind: 'webmidi',
       portId: 'Midi Through Port-0',
       name: 'Midi Through Port-0',
       manufacturer: '',
     })
-    expect(reportCandidate).toHaveBeenCalledWith('band-a', SERVER_EXECUTION_TARGET, {
+    expect(reportCandidate).toHaveBeenCalledWith('band-a', LEGACY_HOST_TARGET, {
       kind: 'webmidi',
       portId: 'Kemper Profiler Emulator',
       name: 'Kemper Profiler Emulator',
@@ -201,7 +210,7 @@ describe('createMidiWatcher', () => {
       },
       candidates: [
         {
-          reporterId: SERVER_EXECUTION_TARGET,
+          reporterId: LEGACY_HOST_TARGET,
           hardwareKey: 'webmidi:Kemper Profiler Emulator',
           name: 'Kemper Profiler Emulator',
           manufacturer: '',
@@ -232,7 +241,7 @@ describe('createMidiWatcher', () => {
       expect(reportTriggered).not.toHaveBeenCalled()
       listener.emit('message', 0, [0xb0, 31, 0])
 
-      expect(reportTriggered).toHaveBeenCalledWith('band-a', SERVER_EXECUTION_TARGET, 'webmidi:Kemper Profiler Emulator')
+      expect(reportTriggered).toHaveBeenCalledWith('band-a', LEGACY_HOST_TARGET, 'webmidi:Kemper Profiler Emulator')
       watcher.stop()
     })
 
@@ -274,7 +283,7 @@ describe('createMidiWatcher', () => {
       identifying: null,
       candidates: [
         {
-          reporterId: SERVER_EXECUTION_TARGET,
+          reporterId: LEGACY_HOST_TARGET,
           hardwareKey: 'webmidi:Kemper Profiler Emulator', // the *input*-side port name
           name: 'Kemper Profiler Emulator',
           manufacturer: '',
@@ -296,7 +305,7 @@ describe('createMidiWatcher', () => {
       expect(db).toBe('stageboard-band-a')
       expect(doc).toMatchObject({
         _id: 'device-transport-config:server:marcos-kemper',
-        deviceId: SERVER_EXECUTION_TARGET,
+        deviceId: LEGACY_HOST_TARGET,
         logicalDeviceId: 'marcos-kemper',
         // The real Output port ("RtMidiIn Client:..."), never the candidate's own hardwareKey
         // ("webmidi:Kemper Profiler Emulator", built from the *input* side).
@@ -331,7 +340,7 @@ describe('createMidiWatcher', () => {
         name: "Marco's Kemper",
         capability: 'kemper-control',
         pluginId: 'kemper-profiler',
-        executionTarget: SERVER_EXECUTION_TARGET,
+        executionTarget: LEGACY_HOST_TARGET,
         _rev: '3-abc',
       })
       watcher.stop()

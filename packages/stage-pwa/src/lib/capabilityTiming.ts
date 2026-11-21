@@ -1,4 +1,4 @@
-import { CAPABILITIES, SERVER_EXECUTION_TARGET, isHostTarget, type TargetWorld, type CapabilityId, type CapabilityTiming, type LatencyProfileDoc, type LogicalDevice, type PluginInstallation, type ShowCue } from 'shared-types'
+import { CAPABILITIES, LEGACY_HOST_TARGET, isHostTarget, type TargetWorld, type CapabilityId, type CapabilityTiming, type LatencyProfileDoc, type LogicalDevice, type PluginInstallation, type ShowCue } from 'shared-types'
 import { NO_WORLD } from './targetWorldOf'
 import { resolveHardwareBindingById } from './hardwareRouting'
 import { findLatencyProfile } from './latencyProfiles'
@@ -42,7 +42,7 @@ export function cueLatencyMs(
   if (!device) return 0
   // The device that drives it: a tablet, or a host - whose profile is stored under its id, or still under the legacy word.
   const target = device.executionTarget
-  const stored = (target ? findLatencyProfile(profiles, target, device.id, null) : null) ?? (!target || isHostTarget(target, world) ? findLatencyProfile(profiles, SERVER_EXECUTION_TARGET, device.id, null) : null)
+  const stored = (target ? findLatencyProfile(profiles, target, device.id, null) : null) ?? (!target || isHostTarget(target, world) ? findLatencyProfile(profiles, LEGACY_HOST_TARGET, device.id, null) : null)
   if (stored) return Math.max(0, stored.latencyMs)
   return capabilityTiming(installed, device.capability, device.pluginId).defaultLatencyMs ?? 0
 }
