@@ -1,8 +1,8 @@
-import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { PiperSpeech, type SpeechConfig } from '../speech/piperSpeech.js'
+import { PiperSpeech, runPiperProgram, type SpeechConfig } from '../speech/piperSpeech.js'
 import { writeWav16Mono } from '../speech/wavTrim.js'
 import { createSpeechAddonSynthesize } from './speechAddon.js'
 
@@ -41,12 +41,17 @@ afterAll(() => {
 })
 
 describe('the speech add-on in the sandbox (#964)', () => {
-  it('gives the same clip as the built-in call: the add-on only asks Piper, the trimming and cache around it are the same', async () => {
-    const builtin = await new PiperSpeech({ ...config, cacheDir: join(dir, 'cache-a') }).speak('Chorus', undefined, 1)
+  it('gives the same clip as the program itself: the add-on only asks Piper, the trimming and cache around it are StageBoard\'s', async () => {
+    const direct = async (text: string, model: string, pace: number): Promise<Uint8Array> => {
+      const out = join(mkdtempSync(join(tmpdir(), 'speech-direct-')), 'clip.wav')
+      await runPiperProgram(model, pace, text, out, config.piperBin)
+      return readFileSync(out)
+    }
+    const viaProgram = await new PiperSpeech({ ...config, cacheDir: join(dir, 'cache-a') }, direct).speak('Chorus', undefined, 1)
     const viaAddon = await new PiperSpeech({ ...config, cacheDir: join(dir, 'cache-b') }, createSpeechAddonSynthesize((model) => (model === config.voice ? '' : model.split('/').pop()!.replace(/\.onnx$/, '')))).speak('Chorus', undefined, 1)
-    expect(builtin.ok && viaAddon.ok).toBe(true)
-    if (builtin.ok && viaAddon.ok) {
-      expect(Buffer.from(viaAddon.wav).equals(Buffer.from(builtin.wav))).toBe(true)
+    expect(viaProgram.ok && viaAddon.ok).toBe(true)
+    if (viaProgram.ok && viaAddon.ok) {
+      expect(Buffer.from(viaAddon.wav).equals(Buffer.from(viaProgram.wav))).toBe(true)
       expect(viaAddon.generated).toBe(true)
     }
   })

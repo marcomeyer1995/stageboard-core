@@ -20,7 +20,6 @@ import { addonHostNeeds, hostCapabilities } from './hostCapabilities.js'
 import { builtinRunners } from './builtinRunners.js'
 import { sharedAddonMethods } from './addons/addonMethods.js'
 import { relayAddonState } from './addons/stateRelay.js'
-import { createStemAddonSeparate } from './addons/stemAddon.js'
 import { createHostLeaseService, getFromHost, postJsonToHost } from './hostLeaseService.js'
 import { createHostRoleStore } from './hostRoleStore.js'
 import { makeLocalBandDb, makeRemoteBandDb } from './bandPouch.js'
@@ -443,8 +442,6 @@ export async function buildApp(options: { backupService?: BackupService; databas
       hostId,
       needsOf: (job) => runners.needsOfJob(job),
       addonMethods,
-      // Stem separation as an add-on in a sandbox (#964, docs/32 §6) - opt in with STAGEBOARD_ADDON_SANDBOX=1 until it has run for hours on a real host.
-      ...(process.env.STAGEBOARD_ADDON_SANDBOX === '1' ? { stemSeparate: createStemAddonSeparate(addonMethods) } : {}),
       canDo: (needs) => canDoFromCapabilities(hostCapabilities(runners))(needs),
       hasPeers: async () => {
         const workspaceId = workspaceHardware.getActiveWorkspaceId()
