@@ -1,4 +1,3 @@
-import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AsyncJob, AudioImportJob } from 'shared-types'
@@ -29,11 +28,8 @@ vi.mock('./audioStore.js', async (importOriginal) => ({
   readAudioFile: vi.fn(async () => Buffer.from('source-audio')),
 }))
 
-vi.mock('./stems/stemSeparation.js', () => ({ runStemSeparation: vi.fn() }))
-
 import { deleteAudioFile, writeAudioFile } from './audioStore.js'
 import { createAsyncJobWatcher, pickNextQueuedJob, readAsyncJobs, stuckRunningJobs } from './asyncJobWatcher.js'
-import { runStemSeparation } from './stems/stemSeparation.js'
 
 function job(overrides: Partial<AudioImportJob> = {}): AudioImportJob {
   return {
@@ -348,7 +344,7 @@ describe('createAsyncJobWatcher', () => {
     const installPlugin = () => store.set('plugins:stem-separation', { _id: 'plugins:stem-separation', id: 'stem-separation', name: 'Spuren trennen', version: '0.0.1', enabled: true, runtime: 'server', installedAt: 1, capabilities: ['stem-separation'], transports: [], hardwareIds: [] })
 
     beforeEach(() => {
-      vi.mocked(runStemSeparation).mockReset()
+      fake.call.mockReset()
     })
 
     it('refuses without the plugin installed - heavy, so only for bands that want it', async () => {
@@ -358,7 +354,7 @@ describe('createAsyncJobWatcher', () => {
       await vi.waitFor(() => expect(storedJob('stem-1')?.status).toBe('error'))
       watcher.stop()
       expect(storedJob('stem-1')?.error).toMatch(/nicht installiert/)
-      expect(runStemSeparation).not.toHaveBeenCalled()
+      expect(fake.call).not.toHaveBeenCalled()
     })
 
     it('attaches the stems to the track and replaces those of an earlier separation', async () => {
@@ -366,15 +362,10 @@ describe('createAsyncJobWatcher', () => {
       const other = { id: 'other-stem', kind: 'stem', parentTrackId: 'another-track' }
       store.set('song-variants:variant-1', { _id: 'song-variants:variant-1', tracks: [{ id: 'mix-1', kind: 'band-mix', durationMs: 170000 }, { id: 'old-drums', kind: 'stem', parentTrackId: 'mix-1' }, other] })
       store.set('async-jobs:stem-1', { ...stemJob, _id: 'async-jobs:stem-1' })
-      vi.mocked(runStemSeparation).mockImplementation(async (...args: unknown[]) => {
-        const [, outDir, , onProgress] = args as [string, string, unknown, (p: number) => void]
-        onProgress(0.5)
-        await writeFile(`${outDir}/drums.opus`, Buffer.from('d'))
-        await writeFile(`${outDir}/guitar-left.opus`, Buffer.from('g'))
-        return [
-          { key: 'drums', path: `${outDir}/drums.opus` },
-          { key: 'guitar-left', path: `${outDir}/guitar-left.opus` },
-        ]
+      // The stem add-on answers its method `separate` with one entry per stem (the Demucs program is its helper, not the watcher's business).
+      fake.call.mockImplementation(async (_addon: string, _method: string, _body: unknown, callOptions?: { onProgress?: (f: number) => void }) => {
+        callOptions?.onProgress?.(0.5)
+        return { ok: true, body: { stems: [{ key: 'drums', opus: true, data: new Uint8Array([100]) }, { key: 'guitar-left', opus: true, data: new Uint8Array([103]) }] } }
       })
       const watcher = createAsyncJobWatcher({ database, workspaceId: 'ws', log, addonMethods: fake })
       await vi.waitFor(() => expect(storedJob('stem-1')?.status).toBe('done'))
@@ -388,7 +379,20 @@ describe('createAsyncJobWatcher', () => {
       expect(stems[0]).toMatchObject({ kind: 'stem', source: 'stem-separation', mimeType: 'audio/ogg', durationMs: 170000, sizeBytes: 1 })
       expect(storedJob('stem-1')?.stemTrackIds).toEqual(stems.map((t) => t.id))
       expect(deleteAudioFile).toHaveBeenCalledWith('variant-1', 'old-drums')
-      expect(runStemSeparation).toHaveBeenCalledWith(expect.any(String), expect.any(String), { model: 'extended', splitGuitar: true }, expect.any(Function))
+      expect(fake.call).toHaveBeenCalledWith('stem-separation', 'separate', expect.objectContaining({ model: 'extended', splitGuitar: true, audio: expect.any(Uint8Array) }), expect.objectContaining({ onProgress: expect.any(Function) }))
     })
+  })
+})
+
+describe('a host without add-ons (#964)', () => {
+  it('ends a stem job with a message instead of hanging - the separation is the add-on\'s method and there is none to ask', async () => {
+    store.clear()
+    store.set('plugins:stem-separation', { _id: 'plugins:stem-separation', id: 'stem-separation', name: 'Spuren trennen', version: '0.0.1', enabled: true, runtime: 'server', capabilities: ['stem-separation'], installedAt: 1, source: 'builtin' })
+    store.set('song-variants:variant-1', { _id: 'song-variants:variant-1', tracks: [{ id: 'mix-1', kind: 'band-mix' }] })
+    store.set('async-jobs:stem-2', { id: 'stem-2', type: 'stem-separation', status: 'queued', progress: 0, createdAt: 1, updatedAt: 1, variantId: 'variant-1', sourceTrackId: 'mix-1', model: 'standard', splitGuitar: false, _id: 'async-jobs:stem-2' })
+    const watcher = createAsyncJobWatcher({ database: { url: 'http://database', user: 'u', password: 'p' }, workspaceId: 'ws', log: { info: vi.fn(), error: vi.fn() } })
+    await vi.waitFor(() => expect((store.get('async-jobs:stem-2') as { status?: string }).status).toBe('error'))
+    watcher.stop()
+    expect((store.get('async-jobs:stem-2') as { error?: string }).error).toBe('This device runs no add-ons')
   })
 })

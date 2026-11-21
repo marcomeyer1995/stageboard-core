@@ -45,13 +45,12 @@ export class PiperSpeech {
   private inFlight = new Map<string, Promise<SpeechResult>>()
 
   /**
-   * @param synthesize How the text becomes Piper's raw WAV (`piper --model --length_scale --output_file`): by default the program is started here;
-   * a device that runs the speech add-on in a sandbox passes a function that asks the add-on instead (#964). Everything around it - the cache, the
-   * queue, the trimming, the errors - is the same either way.
+   * @param synthesize How the text becomes Piper's raw WAV: it asks the speech add-on (`addons/speechAddon.ts`, #964), whose helper runs the Piper program.
+   * Everything around it - the cache, the queue, the trimming of silence, the errors - is StageBoard's, so every device makes the same clip for the same text.
    */
   constructor(
     private readonly config: SpeechConfig,
-    private readonly synthesize: (text: string, model: string, pace: number) => Promise<Uint8Array> = (text, model, pace) => runPiperToBytes(config.piperBin, model, pace, text),
+    private readonly synthesize: (text: string, model: string, pace: number) => Promise<Uint8Array>,
   ) {}
 
   /** Whether the Piper program is installed on this server. */
@@ -118,18 +117,6 @@ export class PiperSpeech {
   /** The model file of a voice, for a helper that runs Piper on this device's behalf (#964); null when it is not installed. */
   voiceModel(voiceKey?: string): string | null {
     return this.voiceFile(voiceKey)
-  }
-}
-
-/** The default `synthesize`: Piper started here, its WAV read back from a temp file. */
-async function runPiperToBytes(piperBin: string, model: string, pace: number, text: string): Promise<Uint8Array> {
-  await mkdir(tmpdir(), { recursive: true })
-  const raw = join(await mkdtemp(join(tmpdir(), 'stageboard-piper-')), 'clip.wav')
-  try {
-    await runPiper(piperBin, model, pace, text, raw)
-    return await readFile(raw)
-  } finally {
-    await rm(dirname(raw), { recursive: true, force: true }).catch(() => {})
   }
 }
 

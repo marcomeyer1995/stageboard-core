@@ -6,12 +6,9 @@ import { SpeechVoices } from '../speech/voiceCatalog.js'
 
 /** The one speech generator of this server - shared by the plugin and the `/speech` route. */
 const config = speechConfigFromEnv()
-// With STAGEBOARD_ADDON_SANDBOX=1 the text becomes a WAV through the sandboxed speech add-on (#964, addons/speechAddon.ts); the cache, queue,
-// trimming and errors around it are the same. The add-on is told the voice by its key ('' = the default voice), never a path.
-export const serverSpeech = new PiperSpeech(
-  config,
-  process.env.STAGEBOARD_ADDON_SANDBOX === '1' ? createSpeechAddonSynthesize((model) => (model === config.voice ? '' : basename(model).replace(/\.onnx$/, ''))) : undefined,
-)
+// The text becomes a WAV through the speech add-on (#964, addons/speechAddon.ts) in its sandbox; the cache, queue, trimming and errors around it are
+// StageBoard's. The add-on is told the voice by its key ('' = the default voice), never a path.
+export const serverSpeech = new PiperSpeech(config, createSpeechAddonSynthesize((model) => (model === config.voice ? '' : basename(model).replace(/\.onnx$/, ''))))
 /** The voices it can speak with - listed, licensed and downloaded on request. */
 export const serverVoices = new SpeechVoices(config.voicesDir)
 

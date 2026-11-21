@@ -29,10 +29,10 @@ Stand 2026-11-21. Das Baseline ist `main` plus der ganze Host-Stapel (#957–#96
 | 1.11 | Ultimate Guitar: Suche, **einzelnen Tab importieren**, ChordPro prüfen | Beste Version zuerst, Pro/Video fehlen; Tab-Import geht (`tabs.ultimate-guitar.com`); Meldungen bei Cloudflare/Timeout auf Deutsch | **nein** (der Tab-Import war bis zur Review kaputt) |
 | 1.12 | OSC: Cue an ein echtes Lichtprogramm (QLC+, Resolume …) | Paket kommt an, Wert/Adresse stimmen; ungültige Adresse → deutsche Meldung, nichts gesendet | **nein** (nur echte UDP-Pakete gegen einen Test-Empfänger) |
 | 1.13 | System → **Bühne** → Zeile eines OSC-Geräts | Unter dem Namen die Karte „Zuletzt gesendet: …“, folgt dem nächsten Cue ohne Neuladen; bei anderen Geräten **keine** Karte | **nein** |
-| 1.14 | Sprachansagen (Piper) | Klang, Cache, Stimme wählen/herunterladen | eingebaute Umsetzung wie vorher; Add-on-Weg nur mit `STAGEBOARD_ADDON_SANDBOX=1` |
-| 1.15 | Stem-Trennung (Demucs) | Stems erscheinen unter der Quelle, Fortschritt | wie 1.14 |
+| 1.14 | Sprachansagen (Piper) | Klang, Cache, Stimme wählen/herunterladen; erste Ansage etwas später (Add-on startet), dann aus dem Cache | **nein – nur mit einem Ersatzprogramm getestet** |
+| 1.15 | Stem-Trennung (Demucs) | Stems erscheinen unter der Quelle, Fortschritt läuft, Dauer wie vorher (ca. ¼ der Songlänge) | **nein – nur mit einem Ersatzprogramm getestet** |
 
-**Mit und ohne** `STAGEBOARD_ADDON_SANDBOX=1` auf dem Test-Host 1.14 und 1.15 wiederholen und vergleichen (Dauer, Ergebnis, Speicher des Hosts). Das ist die Entscheidungsgrundlage, ob der Add-on-Weg zum Standard wird.
+**Wichtig:** Stems und Sprache laufen seit 2026-11-21 **nur noch** über ihr Add-on (die eingebaute Umsetzung ist gelöscht, kein Schalter mehr). 1.14 und 1.15 sind deshalb mit echtem Piper und echtem Demucs der wichtigste Test dieses Plans; vergleiche Dauer und Speicher des Hosts mit deiner Erinnerung von vorher.
 
 ## 2. Host und Band (der Teil von #957–#963)
 

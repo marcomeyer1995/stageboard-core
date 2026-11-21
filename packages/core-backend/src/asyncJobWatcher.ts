@@ -11,7 +11,7 @@ import { hostRunner, type JobRef, pickNextClaimable, runAudioImport, type Separa
 import { readInstallations } from './plugins/pluginSync.js'
 import { STEM_SEPARATION_PLUGIN_ID } from './plugins/stemSeparationPlugin.js'
 import { bandHasAddon } from './plugins/importAddons.js'
-import { runStemSeparation } from './stems/stemSeparation.js'
+import { createStemAddonSeparate } from './addons/stemAddon.js'
 
 const CHANGES_TIMEOUT_MS = 30_000
 const ASYNC_JOB_PREFIX = 'async-jobs:'
@@ -27,8 +27,6 @@ export interface AsyncJobWatcherOptions {
   workspaceId: string
   /** This host's id: the runner it writes into a job it takes (`host:<id>`, sync-host's queue rules, #964). */
   hostId?: string
-  /** Stem separation through the sandboxed add-on (`addons/stemAddon.ts`, #964). Absent: the built-in call. */
-  stemSeparate?: (audio: Uint8Array, options: { model: 'standard' | 'extended'; splitGuitar: boolean }, onProgress: (fraction: number) => void) => Promise<{ stems: SeparatedStem[] }>
   /** The add-ons this host can ask for audio (`audio-import` jobs, docs/36 §7, #964): their work scripts run in a sandbox of their own. Absent: such jobs fail with a message. */
   addonMethods?: AddonMethods
   /** What a job needs from its host - from the host's runners (`JobRunners.needsOfJob`). Absent: sync-host's default table. */
@@ -204,20 +202,11 @@ export function createAsyncJobWatcher(options: AsyncJobWatcherOptions): AsyncJob
         bandHasStemPlugin: stemPluginInstalled,
         readVariant: (variantId) => getDoc<Record<string, unknown> & DatabaseDoc>(database, workspaceDb, `${SONG_VARIANT_PREFIX}${variantId}`),
         readAudio: readAudioFile,
-        separate: options.stemSeparate ?? (async (audio, options, onProgress) => {
-          const workDir = await mkdtemp(join(tmpdir(), 'stageboard-stems-'))
-          const dispose = () => rm(workDir, { recursive: true, force: true })
-          try {
-            const input = join(workDir, 'input')
-            await writeFile(input, audio)
-            const files = await runStemSeparation(input, workDir, options, onProgress)
-            const stems = await Promise.all(files.map(async (file) => ({ key: file.key, data: await readFile(file.path), opus: file.path.endsWith('.opus') })))
-            return { stems, dispose }
-          } catch (err) {
-            await dispose().catch(() => {})
-            throw err
-          }
-        }),
+        // The separation is the stem add-on's method, run in its sandbox on this host (docs/36); the Demucs program is its helper.
+        separate: async (audio, separateOptions, onProgress) => {
+          if (!options.addonMethods) throw new Error('This device runs no add-ons')
+          return createStemAddonSeparate(options.addonMethods)(audio, separateOptions, onProgress)
+        },
         writeAudio: (variantId, trackId, data) => writeAudioFile(variantId, trackId, Buffer.from(data.buffer, data.byteOffset, data.byteLength)),
         deleteAudio: deleteAudioFile,
         replaceStems,
