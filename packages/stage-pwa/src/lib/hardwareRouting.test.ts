@@ -145,4 +145,14 @@ describe('Klick / Backing-Track without a chosen tablet (System split, 2026-10-1
     expect(resolveExecutionEngine('gig', role('tablet-b'), 'me', null, true, { drivesAutomation: true })).toBe('local-other')
     expect(resolveExecutionEngine('gig', role(SERVER_EXECUTION_TARGET), 'me', 'server-player', true, { drivesAutomation: true })).toBe('plugin')
   })
+
+  it("a binding to a host's own id runs through its plug-in; a tablet that is also a host keeps its own output (#964)", () => {
+    const role = (executionTarget: string): LogicalDevice => ({ id: 'l', name: 'Licht', capability: CAPABILITIES.lighting, pluginId: null, executionTarget })
+    const world = { hostIds: ['stage-pc', 'tablet-1'], deviceIds: ['tablet-1', 'me'] }
+    expect(resolveHardwareEngine(role('stage-pc'), 'me', 'dmx', true, world)).toBe('plugin')
+    expect(resolveHardwareEngine(role('tablet-1'), 'me', 'dmx', true, world)).toBe('local-other')
+    expect(resolveHardwareEngine(role('tablet-1'), 'tablet-1', 'dmx', true, world)).toBe('local-mine')
+    // Without a world only the legacy word is a host, as before.
+    expect(resolveHardwareEngine(role('stage-pc'), 'me', 'dmx', true)).toBe('local-other')
+  })
 })

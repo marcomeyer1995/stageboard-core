@@ -1,4 +1,5 @@
 import i18n from '../i18n'
+import { currentTargetWorld } from './targetWorld'
 import { isSongEntry } from 'shared-types'
 import type { Action, Release, SequenceStep, WaitUnit } from './actions'
 import { needsShowControl } from './actions'
@@ -84,7 +85,7 @@ export function scheduleActionAt(action: Action, show: Show, at: number, onFire?
       if (fired) clearTimeout(fired)
     }
   }
-  const sendAt = at - cueLatencyMs(action, useLogicalDevicesStore.getState().devices, usePluginsStore.getState().installed, useLatencyProfilesStore.getState().profiles)
+  const sendAt = at - cueLatencyMs(action, useLogicalDevicesStore.getState().devices, usePluginsStore.getState().installed, useLatencyProfilesStore.getState().profiles, currentTargetWorld())
   const timer = setTimeout(() => void fireDeviceAction(action.targetLogicalDeviceId, action.type, action.payload, sendAt), Math.max(0, sendAt - PLAN_AHEAD_MS - now))
   return () => {
       clearTimeout(timer)

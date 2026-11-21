@@ -7,6 +7,7 @@ import { getTranslator, supportsLocalExecution } from '../lib/clientTranslator'
 import { triggerDeviceControl } from '../lib/deviceControlClient'
 import { useDynamicTranslatorPreload } from '../lib/useDynamicTranslatorPreload'
 import { resolveHardwareEngine } from '../lib/hardwareRouting'
+import { useTargetWorld } from '../lib/targetWorld'
 import { useHardwareBindingFor } from '../lib/useHardwareBindingFor'
 import { triggerShowControl } from '../lib/showControlClient'
 import { useLocalMixerStore } from '../store/useLocalMixerStore'
@@ -45,7 +46,8 @@ export function IemWidget({ config }: { config: IemConfig }) {
   const deviceId = useShowStateStore((state) => state.deviceId)
   const binding = useHardwareBindingFor(CAPABILITIES.mixer)
   const pluginId = binding === null ? pluginProviding(installed, CAPABILITIES.mixer) : null
-  const engine = resolveHardwareEngine(binding, deviceId, pluginId, supportsLocalExecution(installed, CAPABILITIES.mixer))
+  const world = useTargetWorld()
+  const engine = resolveHardwareEngine(binding, deviceId, pluginId, supportsLocalExecution(installed, CAPABILITIES.mixer), world)
   const usesLocalMixerStore = engine === 'local-mine' || engine === 'local-other'
   const localVolumes = useLocalMixerStore((state) => state.volumes)
   const [ownLevels, setOwnLevels] = useState<Record<string, number>>(() =>

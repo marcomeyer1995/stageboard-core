@@ -1,4 +1,5 @@
 import i18n from '../i18n'
+import { currentTargetWorld } from './targetWorld'
 import type { ShowControlEvent } from 'shared-types'
 import { pluginProviding } from './capabilities'
 import { capabilityTiming } from './capabilityTiming'
@@ -30,7 +31,7 @@ export async function fireDeviceAction(targetLogicalDeviceId: string, type: stri
   const device = resolveHardwareBindingById(devices, targetLogicalDeviceId)
   if (!device) return i18n.t('messages:deviceNotFound')
   const pluginId = device.pluginId ?? pluginProviding(installed, device.capability)
-  const engine = resolveHardwareEngine(device, deviceId, pluginId, supportsLocalExecution(installed, device.capability))
+  const engine = resolveHardwareEngine(device, deviceId, pluginId, supportsLocalExecution(installed, device.capability), currentTargetWorld())
   const at = scheduledAt === undefined ? undefined : Math.max(0, Math.round(scheduledAt))
   const timed = at !== undefined && engine !== 'plugin' && !capabilityTiming(installed, device.capability, pluginId).honoursScheduledAt
   if (timed) await waitUntil(at)

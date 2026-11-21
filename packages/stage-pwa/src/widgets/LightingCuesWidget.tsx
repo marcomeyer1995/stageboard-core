@@ -8,6 +8,7 @@ import { getTranslator, supportsLocalExecution } from '../lib/clientTranslator'
 import { triggerDeviceControl } from '../lib/deviceControlClient'
 import { useDynamicTranslatorPreload } from '../lib/useDynamicTranslatorPreload'
 import { resolveHardwareEngine } from '../lib/hardwareRouting'
+import { useTargetWorld } from '../lib/targetWorld'
 import { useHardwareBindingFor } from '../lib/useHardwareBindingFor'
 import { triggerShowControl } from '../lib/showControlClient'
 import { useLocalLightingStore } from '../store/useLocalLightingStore'
@@ -64,7 +65,8 @@ export function LightingCuesWidget({ config }: { config: CueGridConfig }) {
   const deviceId = useShowStateStore((state) => state.deviceId)
   const binding = useHardwareBindingFor(CAPABILITIES.lighting)
   const pluginId = binding === null ? pluginProviding(installed, CAPABILITIES.lighting) : null
-  const engine = resolveHardwareEngine(binding, deviceId, pluginId, supportsLocalExecution(installed, CAPABILITIES.lighting))
+  const world = useTargetWorld()
+  const engine = resolveHardwareEngine(binding, deviceId, pluginId, supportsLocalExecution(installed, CAPABILITIES.lighting), world)
   const lastCue = useLocalLightingStore((state) => state.lastCue)
   const [error, setError] = useState<string | null>(null)
   const baseFontSize = useContentFontSizeStore((state) => state.baseFontSize)
