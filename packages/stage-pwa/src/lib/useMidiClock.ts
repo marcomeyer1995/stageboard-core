@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { adjustedBpm } from './metronome'
 import { clickTimeline, type ClickTimeline } from './beatGrid'
-import { getServerTime } from './clockSync'
+import { getHostTime } from './clockSync'
 import type { CueTransport } from './cueSchedule'
 import { findLatencyProfile } from './latencyProfiles'
 import { MidiClockEngine, type ClockOutput, type MidiClockInput } from './midiClockEngine'
@@ -24,7 +24,7 @@ const NOT_PLAYING: CueTransport = {
 
 /**
  * MIDI beat clock (#478) to every MIDI-Clock device this device drives - local, no relay
- * (docs/00 §6): every device derives its ticks from the same server-synced song time. Runs always
+ * (docs/00 §6): every device derives its ticks from the same host-synced song time. Runs always
  * (Marco: the gear already has the next song's tempo before Play). Ticks are handed to WebMIDI
  * with timestamps 200 ms ahead, so main-thread stalls don't shift them; a hidden page's timers are
  * throttled to ~1 s, though, and the clock then has gaps. Start/Stop/Continue follow the Gig
@@ -89,7 +89,7 @@ export function useMidiClock(): void {
   const active = clockDevices.length > 0
   useEffect(() => {
     if (!active) return
-    const engine = new MidiClockEngine(getServerTime)
+    const engine = new MidiClockEngine(getHostTime)
     const timer = setInterval(() => engine.tick(inputRef.current, outputsRef.current), CLOCK_TICK_MS)
     return () => {
       clearInterval(timer)

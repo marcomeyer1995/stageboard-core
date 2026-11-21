@@ -39,7 +39,7 @@ export function normalizeHostUrl(url: string): string {
  * What a typed-in address should do to the stored override: `null` (= automatic) when it is
  * empty or just the automatic address anyway. Saving the automatic address *as* an override
  * would pin today's address on this device - after an IP change or when the app is opened via
- * `stageboard.local` instead of the IP, every server call would go to the stale, cross-origin
+ * `stageboard.local` instead of the IP, every host call would go to the stale, cross-origin
  * address and fail with nothing pointing back to this setting.
  */
 export function overrideForTypedUrl(typed: string): string | null {

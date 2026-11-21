@@ -3,7 +3,7 @@ import { DeviceTransportConfigSchema, type OscInMessage } from 'shared-types'
 /**
  * Generic OSC sender (#484): cues to lighting and video software (QLC+, Resolume, ProPresenter,
  * grandMA onPC …) go out from the Host as UDP - a browser can't send UDP. The master
- * triggers it like every server cue; the gateway holds it until `scheduledAt` (index.ts), so it
+ * triggers it like every host cue; the gateway holds it until `scheduledAt` (index.ts), so it
  * leaves on time. Where to send is the device's own setting (Bühnentechnik → Netzwerk (OSC): host
  * and port), not the cue's: a new lighting PC changes one device, not every song.
  */

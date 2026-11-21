@@ -29,7 +29,7 @@ function stub(overrides: Partial<Parameters<typeof useWorkspaceStore.setState>[0
   useWorkspaceStore.setState({
     listWorkspaces: vi.fn().mockResolvedValue(bands),
     fetchActiveWorkspaceHardware: vi.fn().mockResolvedValue({ activeWorkspaceId: 'band-a' }),
-    fetchServerInfo: vi.fn().mockResolvedValue(info),
+    fetchHostInfo: vi.fn().mockResolvedValue(info),
     ...overrides,
   })
 }
@@ -75,7 +75,7 @@ describe('useHostUrlStatus', () => {
     stub({
       listWorkspaces: vi.fn().mockResolvedValue(null),
       fetchActiveWorkspaceHardware: vi.fn().mockResolvedValue(null),
-      fetchServerInfo: vi.fn().mockResolvedValue(null),
+      fetchHostInfo: vi.fn().mockResolvedValue(null),
     })
 
     const { result } = renderHook(() => useHostUrlStatus())
@@ -102,7 +102,7 @@ describe('useHostUrlStatus', () => {
     stub({
       listWorkspaces: vi.fn().mockImplementation(never),
       fetchActiveWorkspaceHardware: vi.fn().mockReturnValue(lateActive.promise),
-      fetchServerInfo: vi.fn().mockImplementation(never),
+      fetchHostInfo: vi.fn().mockImplementation(never),
     })
 
     const { result } = renderHook(() => useHostUrlStatus())
@@ -136,7 +136,7 @@ describe('useHostUrlStatus', () => {
     stub({
       listWorkspaces: vi.fn().mockImplementation(hang),
       fetchActiveWorkspaceHardware: vi.fn().mockImplementation(hang),
-      fetchServerInfo: vi.fn().mockImplementation(hang),
+      fetchHostInfo: vi.fn().mockImplementation(hang),
     })
     const second = renderHook(() => useHostUrlStatus())
     await act(async () => {
@@ -159,7 +159,7 @@ describe('useHostUrlStatus', () => {
     stub({
       listWorkspaces: vi.fn().mockImplementation(hang),
       fetchActiveWorkspaceHardware: vi.fn().mockImplementation(hang),
-      fetchServerInfo: vi.fn().mockImplementation(hang),
+      fetchHostInfo: vi.fn().mockImplementation(hang),
     })
     const second = renderHook(() => useHostUrlStatus())
 
@@ -190,7 +190,7 @@ describe('useHostUrlStatus', () => {
     stub({
       listWorkspaces: vi.fn().mockResolvedValue(null),
       fetchActiveWorkspaceHardware: vi.fn().mockResolvedValue(null),
-      fetchServerInfo: vi.fn().mockResolvedValue(null),
+      fetchHostInfo: vi.fn().mockResolvedValue(null),
     })
     const second = renderHook(() => useHostUrlStatus())
     await waitFor(() => expect(second.result.current.status).toBe('unreachable'))
@@ -204,7 +204,7 @@ describe('useHostUrlStatus', () => {
 
   it('reload() resolves only once all three requests have settled', async () => {
     const slowInfo = deferred<typeof info>()
-    stub({ fetchServerInfo: vi.fn().mockReturnValue(slowInfo.promise) })
+    stub({ fetchHostInfo: vi.fn().mockReturnValue(slowInfo.promise) })
     const { result } = renderHook(() => useHostUrlStatus())
     await waitFor(() => expect(result.current.status).toBe('reachable'))
 

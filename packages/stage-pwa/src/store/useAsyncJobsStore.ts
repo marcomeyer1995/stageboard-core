@@ -27,7 +27,7 @@ async function refresh(set: (partial: Partial<AsyncJobsState>) => void) {
 
 /**
  * Every `AsyncJob` replicated into this workspace (#5) - the reactive counterpart to
- * `asyncJobWatcher.ts` on the server. `TrackManagerField.tsx` filters this to the current
+ * `asyncJobWatcher.ts` on the host. `TrackManagerField.tsx` filters this to the current
  * variant to show "YouTube-Extraktion läuft: 42 %"; a job's own resulting track shows up
  * separately, once, through the normal SongVariant sync (the watcher appends it there itself).
  */

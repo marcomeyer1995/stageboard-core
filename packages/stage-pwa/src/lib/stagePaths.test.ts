@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { AUDIO_OUTPUT, CAPABILITIES, NATIVE_AUDIO_OUTPUT, SERVER_EXECUTION_TARGET, latencyProfileId, type LatencyProfileDoc, type LogicalDevice } from 'shared-types'
+import { AUDIO_OUTPUT, CAPABILITIES, NATIVE_AUDIO_OUTPUT, LEGACY_HOST_TARGET, latencyProfileId, type LatencyProfileDoc, type LogicalDevice } from 'shared-types'
 import { stagePaths } from './stagePaths'
 
 function role(id: string, capability: string, executionTarget: string | null, name = id): LogicalDevice {
@@ -59,11 +59,22 @@ describe('stage paths (docs/31)', () => {
   it('outputs a device drives (Kemper, lights) are paths of their own, also on the Host', () => {
     const groups = stagePaths({
       ...base,
-      logicalDevices: [role('kemper', 'amp', 'redmi', 'Kemper'), role('dmx', CAPABILITIES.lighting, SERVER_EXECUTION_TARGET, 'Licht')],
+      logicalDevices: [role('kemper', 'amp', 'redmi', 'Kemper'), role('dmx', CAPABILITIES.lighting, LEGACY_HOST_TARGET, 'Licht')],
       profiles: [profile('redmi', 'kemper', null, 8, 'measured')],
     })
     expect(groups.find((g) => g.deviceId === 'redmi')!.paths.map((p) => [p.kind, p.name, p.latencyMs, p.state])).toEqual([['output', 'Kemper', 8, 'measured']])
-    expect(groups.find((g) => g.deviceId === SERVER_EXECUTION_TARGET)!.paths.map((p) => [p.name, p.state, p.person])).toEqual([['Licht', 'missing', null]])
+    expect(groups.find((g) => g.deviceId === LEGACY_HOST_TARGET)!.paths.map((p) => [p.name, p.state, p.person])).toEqual([['Licht', 'missing', null]])
+  })
+
+  it("the host's row goes by the host's id and still takes what is stored under the legacy word (#964)", () => {
+    const groups = stagePaths({
+      ...base,
+      hostApp: 'stage-pc',
+      logicalDevices: [role('dmx', CAPABILITIES.lighting, 'stage-pc', 'Licht'), role('dmx2', CAPABILITIES.lighting, LEGACY_HOST_TARGET, 'Licht 2')],
+      profiles: [profile(LEGACY_HOST_TARGET, 'dmx2', null, 12, 'measured')],
+    })
+    expect(groups.find((g) => g.deviceId === LEGACY_HOST_TARGET)).toBeUndefined()
+    expect(groups.find((g) => g.deviceId === 'stage-pc')!.paths.map((p) => [p.name, p.state]).sort((a, b) => a[0]!.localeCompare(b[0]!))).toEqual([['Licht', 'missing'], ['Licht 2', 'measured']])
   })
 
   it('leaves out an old device that plays nothing and has only a stored value', () => {

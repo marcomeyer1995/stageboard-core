@@ -4,7 +4,7 @@ import { DEFAULT_SHOW_STATE, type ShowState } from 'shared-types'
 import { clickTimeline } from './beatGrid'
 
 const clock = vi.hoisted(() => ({ now: 0 }))
-vi.mock('./clockSync', () => ({ getServerTime: () => clock.now }))
+vi.mock('./clockSync', () => ({ getHostTime: () => clock.now }))
 
 const store = vi.hoisted(() => {
   const s = {

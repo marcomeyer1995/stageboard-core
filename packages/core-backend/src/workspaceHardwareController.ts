@@ -7,7 +7,9 @@ import { writePersistedActiveWorkspace } from './activeWorkspaceStateStore.js'
 
 export interface WorkspaceHardwareControllerOptions {
   /** Who this host is and what it can do (#964): handed to the job watcher, which takes only the jobs this host can do. */
-  jobHost?: Pick<AsyncJobWatcherOptions, 'hostId' | 'canDo' | 'hasPeers' | 'needsOf' | 'stemSeparate' | 'addonMethods'>
+  jobHost?: Pick<AsyncJobWatcherOptions, 'hostId' | 'canDo' | 'hasPeers' | 'needsOf' | 'addonMethods'>
+  /** Runs once the band's hardware is live (the legacy host word is rewritten here, #964). A failure is logged and never stops the activation. */
+  afterActivate?: (workspaceId: string) => Promise<void>
   database: DatabaseConfig
   registry: PluginRegistry
   log: {
@@ -61,7 +63,7 @@ export function createWorkspaceHardwareController(
     await deactivate()
 
     const sync = createPluginSync({ database, workspaceId, registry, log })
-    const midiWatcher = createMidiWatcher({ database, workspaceId, log })
+    const midiWatcher = createMidiWatcher({ database, workspaceId, log, ...(options.jobHost?.hostId ? { hostId: options.jobHost.hostId } : {}) })
     // #5: practice-track extraction only ever runs for whichever band's hardware is currently
     // active on this box - same one-workspace-at-a-time model everything else here already uses.
     const asyncJobs = createAsyncJobWatcher({ database, workspaceId, log, ...(options.jobHost ?? {}) })
@@ -69,6 +71,7 @@ export function createWorkspaceHardwareController(
 
     writePersistedActiveWorkspace(workspaceId)
     log.info('Activated workspace hardware', { workspaceId })
+    if (options.afterActivate) await options.afterActivate(workspaceId).catch((err: unknown) => log.error('After-activation step failed', { workspaceId, error: err instanceof Error ? err.message : String(err) }))
   }
 
   return {

@@ -26,7 +26,7 @@ beforeEach(() => {
     // fetch to a fake test hostname was surfacing as a flaky "unhandled rejection" at teardown.
     listWorkspaces: vi.fn().mockResolvedValue(null),
     fetchActiveWorkspaceHardware: vi.fn().mockResolvedValue(null),
-    fetchServerInfo: vi.fn().mockResolvedValue(null),
+    fetchHostInfo: vi.fn().mockResolvedValue(null),
   })
 })
 

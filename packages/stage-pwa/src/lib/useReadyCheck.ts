@@ -1,5 +1,5 @@
 import { computeReadyStatus, type ReadyStatus } from './readyCheck'
-import { getServerTime } from './clockSync'
+import { getHostTime } from './clockSync'
 import { useNow } from './useNow'
 import { usePresenceStore } from '../store/usePresenceStore'
 import { useShowStateStore } from '../store/useShowStateStore'
@@ -10,5 +10,5 @@ export function useReadyCheck(): { checkId: string | null; status: ReadyStatus |
   const checkId = useShowStateStore((state) => state.state.readyCheckId)
   const presence = usePresenceStore((state) => state.presence)
   useNow(5_000)
-  return { checkId, status: checkId ? computeReadyStatus(presence, checkId, getServerTime()) : null }
+  return { checkId, status: checkId ? computeReadyStatus(presence, checkId, getHostTime()) : null }
 }

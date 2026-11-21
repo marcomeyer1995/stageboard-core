@@ -4,7 +4,7 @@ import { AUDIO_OUTPUT, type Setlist, type ShowLogEvent, type ShowState, type Son
 import { cacheKey } from './audioCache'
 import { getAudioStorageBackend } from './audioStorageBackend'
 import { clickTimeline } from './beatGrid'
-import { getServerTime } from './clockSync'
+import { getHostTime } from './clockSync'
 import { getDeviceId } from './deviceId'
 import { findLatencyProfile } from './latencyProfiles'
 import { rememberedDeviceName } from './ownDeviceName'
@@ -158,7 +158,7 @@ export async function prepareRigCheck(kind: RigCheckKind, deviceCues: readonly R
     await putSetlist(setlist)
 
     const runId = randomRunId()
-    await saveRun({ id: runDocId(runId), showId: runId, type: 'rig-check-run', at: Math.round(getServerTime()), kind, version: RIG_CHECK_VERSION })
+    await saveRun({ id: runDocId(runId), showId: runId, type: 'rig-check-run', at: Math.round(getHostTime()), kind, version: RIG_CHECK_VERSION })
     return { ok: true }
   } catch (err) {
     console.error('Rig-Check: preparing failed', err)
@@ -189,7 +189,7 @@ function previousOf(state: ShowState): NonNullable<RigCheckRun['previous']> {
 export async function startRigCheck(): Promise<StartResult> {
   const store = useShowStateStore.getState()
   if (!store.isMaster) return 'not-master'
-  const now = getServerTime()
+  const now = getHostTime()
   const run = openRun(useShowLogStore.getState().events, now)
   if (!run || run.startedAt !== undefined) return 'no-run'
   if (store.state.playbackStatus !== 'stopped') return 'busy'
@@ -221,10 +221,10 @@ export async function startRigCheck(): Promise<StartResult> {
 
 /** Abbrechen: a prepared run closes; a playing one stops - the driver then restores the show. */
 export async function cancelRigCheck(): Promise<void> {
-  const run = openRun(useShowLogStore.getState().events, getServerTime())
+  const run = openRun(useShowLogStore.getState().events, getHostTime())
   if (!run || !useShowStateStore.getState().isMaster) return
   if (run.startedAt === undefined) {
-    await saveRun({ ...run, endedAt: Math.round(getServerTime()), cancelled: true })
+    await saveRun({ ...run, endedAt: Math.round(getHostTime()), cancelled: true })
     return
   }
   if (useShowStateStore.getState().state.activeSetlistId === RIG_CHECK_SETLIST_ID) await stopSong()
@@ -233,7 +233,7 @@ export async function cancelRigCheck(): Promise<void> {
 /** Ends a started run: marks it (cancelled unless the track ran to its end) and puts the show back. */
 async function finishRun(run: RigCheckRun, state: ShowState): Promise<void> {
   const completed = state.activeSetlistId === RIG_CHECK_SETLIST_ID && state.trackEnded === true
-  await saveRun({ ...run, endedAt: Math.round(getServerTime()), ...(completed ? {} : { cancelled: true }) })
+  await saveRun({ ...run, endedAt: Math.round(getHostTime()), ...(completed ? {} : { cancelled: true }) })
   if (completed && run.kind === 'full') void attachAnalysis(run.showId)
   // Somebody already switched to a real setlist or song - leave that alone.
   if (state.activeSetlistId !== RIG_CHECK_SETLIST_ID) return
@@ -287,7 +287,7 @@ export function useRigCheckDriver(): void {
     const tick = () => {
       const store = useShowStateStore.getState()
       if (!drivesAutomation(store)) return
-      const now = getServerTime()
+      const now = getHostTime()
       const run = openRun(useShowLogStore.getState().events, now)
       if (!run || run.startedAt === undefined) return
       const state = store.state
@@ -357,7 +357,7 @@ export async function writeOwnReport(
     id,
     showId: run.showId,
     type: 'rig-check-device',
-    at: Math.round(getServerTime()),
+    at: Math.round(getHostTime()),
     deviceId,
     ...ownState(trackReady),
     verdict: verdict?.verdict ?? before?.verdict ?? null,
@@ -393,7 +393,7 @@ export function useRigCheckReporter(): void {
     let busy = false
     const tick = async () => {
       if (busy) return
-      const run = openRun(useShowLogStore.getState().events, getServerTime())
+      const run = openRun(useShowLogStore.getState().events, getHostTime())
       if (!run) return
       busy = true
       try {
@@ -419,7 +419,7 @@ export function useRigCheckReporter(): void {
 /** The cache key the audio reconciler must keep (and fetch) while a run is open, or null. */
 export function useRigCheckTrackKey(): string | null {
   const variants = useSongVariantsStore((state) => state.variants)
-  const kind = useShowLogStore((state) => openRun(state.events, getServerTime())?.kind ?? null)
+  const kind = useShowLogStore((state) => openRun(state.events, getHostTime())?.kind ?? null)
   return kind ? runTrackKey(kind, variants) : null
 }
 

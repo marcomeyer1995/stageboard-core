@@ -1,10 +1,11 @@
 import i18n from '../i18n'
+import { currentTargetWorld } from './targetWorld'
 import { isSongEntry } from 'shared-types'
 import type { Action, Release, SequenceStep, WaitUnit } from './actions'
 import { needsShowControl } from './actions'
 import { clickTimeline, type ClickTimeline } from './beatGrid'
 import { cueLatencyMs } from './capabilityTiming'
-import { getServerTime } from './clockSync'
+import { getHostTime } from './clockSync'
 import { fireDeviceAction } from './deviceAction'
 import { gridReleaseAt } from './gridRelease'
 import { transportOf } from './playbackTransport'
@@ -74,7 +75,7 @@ export function latestTrackedShow(): Show | null {
  * it off (only before it was handed over).
  */
 export function scheduleActionAt(action: Action, show: Show, at: number, onFire?: () => void): () => void {
-  const now = getServerTime()
+  const now = getHostTime()
   // A device command is handed over early; its moment is what a lit switch waits for.
   const fired = onFire ? setTimeout(onFire, Math.max(0, at - now)) : null
   if (action.kind !== 'device') {
@@ -84,7 +85,7 @@ export function scheduleActionAt(action: Action, show: Show, at: number, onFire?
       if (fired) clearTimeout(fired)
     }
   }
-  const sendAt = at - cueLatencyMs(action, useLogicalDevicesStore.getState().devices, usePluginsStore.getState().installed, useLatencyProfilesStore.getState().profiles)
+  const sendAt = at - cueLatencyMs(action, useLogicalDevicesStore.getState().devices, usePluginsStore.getState().installed, useLatencyProfilesStore.getState().profiles, currentTargetWorld())
   const timer = setTimeout(() => void fireDeviceAction(action.targetLogicalDeviceId, action.type, action.payload, sendAt), Math.max(0, sendAt - PLAN_AHEAD_MS - now))
   return () => {
       clearTimeout(timer)
@@ -106,7 +107,7 @@ export function waitUntil(from: number, wait: { amount: number; unit: WaitUnit; 
  * the bar line, planned ahead like a cue; otherwise a timer at the tempo of the press.
  */
 export function scheduleRelease(release: Extract<Release, { kind: 'after' }>, show: Show, onFire?: () => void): () => void {
-  const now = getServerTime()
+  const now = getHostTime()
   return scheduleActionAt(release.action, show, waitUntil(now, { ...release, onGrid: release.onGrid === true }, show), onFire)
 }
 
@@ -116,7 +117,7 @@ export function scheduleRelease(release: Extract<Release, { kind: 'after' }>, sh
  * is left out (no loops).
  */
 function runSteps(steps: readonly SequenceStep[], show: Show): Promise<string | null> {
-  let at = getServerTime()
+  let at = getHostTime()
   let first: Promise<string | null> = Promise.resolve(null)
   steps.forEach((step, index) => {
     if (step.wait) at = waitUntil(at, step.wait, show)

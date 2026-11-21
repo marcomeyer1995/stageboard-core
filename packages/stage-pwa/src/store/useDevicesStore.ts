@@ -16,7 +16,10 @@ import { useWorkspaceStore } from './useWorkspaceStore'
 const LAST_SEEN_REFRESH_MS = 60 * 60_000
 
 interface DevicesState {
+  /** The devices people use (tablets, phones). */
   devices: Device[]
+  /** The hosts that registered themselves (#964) - kept apart so no list of tablets shows a laptop. */
+  hosts: Device[]
   loaded: boolean
   init: (workspaceId: string) => Promise<void>
   rename: (id: string, name: string) => Promise<void>
@@ -39,7 +42,7 @@ let changesHandle: LocalChangesHandle<Device> | null = null
 
 async function refresh(set: (partial: Partial<DevicesState>) => void) {
   const docs = await getAllDevices()
-  set({ devices: docs })
+  set({ devices: docs.filter((d) => !d.host), hosts: docs.filter((d) => d.host) })
 }
 
 /**
@@ -50,12 +53,13 @@ async function refresh(set: (partial: Partial<DevicesState>) => void) {
  */
 export const useDevicesStore = create<DevicesState>((set, get) => ({
   devices: [],
+  hosts: [],
   loaded: false,
   init: async (workspaceId) => {
     changesHandle?.cancel()
     changesHandle = null
     switchDevicesWorkspace(workspaceId)
-    set({ devices: [], loaded: false })
+    set({ devices: [], hosts: [], loaded: false })
 
     const docs = await getAllDevices()
     const deviceId = getDeviceId()
@@ -84,7 +88,7 @@ export const useDevicesStore = create<DevicesState>((set, get) => ({
   },
   rename: async (id, name) => {
     if (id === getDeviceId()) rememberDeviceName(name)
-    const existing = get().devices.find((device) => device.id === id)
+    const existing = [...get().devices, ...get().hosts].find((device) => device.id === id)
     // Spreads `...existing` rather than reconstructing a bare {id, name, lastSeenAt} - devicesDb
     // .put() replaces the full doc body on every call, so a naive reconstruction here would
     // silently drop revoked/firstSeenAt for any device this device happens to rename. The

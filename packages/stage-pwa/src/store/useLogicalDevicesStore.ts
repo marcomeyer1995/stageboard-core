@@ -1,4 +1,6 @@
 import { coalesced } from '../lib/coalesced'
+import { hostTargetOf } from 'shared-types'
+import { currentTargetWorld } from '../lib/targetWorld'
 import type { LocalChangesHandle } from '../lib/localChanges'
 import { create } from 'zustand'
 import { routedLogicalDevices, type LogicalDevice } from 'shared-types'
@@ -27,7 +29,7 @@ let changesHandle: LocalChangesHandle<LogicalDevice> | null = null
 
 const routed = (docs: LogicalDevice[]) => {
   const map = useStageMapStore.getState()
-  return map.loaded ? routedLogicalDevices(docs, map, map.front) : docs
+  return map.loaded ? routedLogicalDevices(docs, map, map.front, undefined, hostTargetOf(currentTargetWorld())) : docs
 }
 
 async function refresh(set: (partial: Partial<LogicalDevicesState>) => void) {

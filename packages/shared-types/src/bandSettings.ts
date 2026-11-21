@@ -19,7 +19,7 @@ export const DEFAULT_COMMENT_TEMPLATES: readonly string[] = ['A cappella', 'Buil
 /**
  * One host the band's devices may follow (host backup, #912, docs/25 §6e). `certFingerprint` is what
  * the native app's pinning compares against (SHA-256, lowercase hex, no separators - same form as
- * `GET /server-info`); a band's admin enters it once, so every device can switch to the backup
+ * `GET /host/info`); a band's admin enters it once, so every device can switch to the backup
  * without having confirmed its certificate itself (Marco, 2026-11-17). Absent for a host without pinning.
  */
 export const BandHostEntrySchema = z.object({
@@ -62,7 +62,7 @@ export const BandSettingsSchema = z.object({
    * DEFAULT_PLAY_LEAD_MS. Long enough for the Play to reach every device and for the slowest output
    * to schedule it (Marco, 2026-11-06: set it in Bühne, a device that needed more says so). */
   playLeadMs: z.number().int().optional(),
-  /** The primary host and the backup devices may follow (#912); absent: the one paired server only. */
+  /** The primary host and the backup devices may follow (#912); absent: the one paired host only. */
   hosts: BandHostsSchema.optional(),
 })
 export type BandSettings = z.infer<typeof BandSettingsSchema>

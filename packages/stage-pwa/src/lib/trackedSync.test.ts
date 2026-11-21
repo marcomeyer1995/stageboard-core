@@ -46,7 +46,7 @@ function flush() {
 }
 
 beforeEach(() => {
-  useSyncStore.setState({ streams: {}, progress: {}, notOnServer: {} })
+  useSyncStore.setState({ streams: {}, progress: {}, notOnHost: {} })
   __resetSyncQueueForTests()
 })
 
@@ -122,7 +122,7 @@ describe('trackedSync', () => {
     await flush()
     missing.emit('error', Object.assign(new Error('missing'), { status: 404 }))
     refused.emit('error', Object.assign(new Error('unauthorized'), { status: 401 }))
-    expect(useSyncStore.getState().notOnServer).toEqual({ 'band-a': true })
+    expect(useSyncStore.getState().notOnHost).toEqual({ 'band-a': true })
   })
 
   it('drops the flag once the stream is cancelled or reports anything but the 404', async () => {
@@ -131,9 +131,9 @@ describe('trackedSync', () => {
     trackedSync('band', db as any, {} as any, { workspaceId: 'band-a' })
     await flush()
     emit('error', Object.assign(new Error('missing'), { status: 404 }))
-    expect(useSyncStore.getState().notOnServer['band-a']).toBe(true)
+    expect(useSyncStore.getState().notOnHost['band-a']).toBe(true)
     emit('complete')
-    expect(useSyncStore.getState().notOnServer['band-a']).toBeUndefined()
+    expect(useSyncStore.getState().notOnHost['band-a']).toBeUndefined()
   })
 
   it('removes the stream entirely on "complete" (cancelled), instead of leaving a stale status', async () => {

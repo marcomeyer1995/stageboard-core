@@ -87,8 +87,8 @@ const B = await urlOf(backup)
 const pTime = await call(P, '/time').catch(() => null)
 const bTime = await call(B, '/time').catch(() => null)
 if (!check('both tablets answer as hosts with no band', pTime?.status === 200 && bTime?.status === 200, `${P} ${B}`)) process.exit(1)
-const pInfo = (await call(P, '/server-info')).body
-const bInfo = (await call(B, '/server-info')).body
+const pInfo = (await call(P, '/host/info')).body
+const bInfo = (await call(B, '/host/info')).body
 const pId = pTime.body.hostId
 const bId = bTime.body.hostId
 
@@ -146,7 +146,7 @@ let pNow, bNow, lease
 for (let i = 0; i < 40; i++) {
   pNow = (await call(P, '/time').catch(() => null))?.body
   bNow = (await call(B, '/time').catch(() => null))?.body
-  lease = (await call(B, '/server/host-lease').catch(() => null))?.body
+  lease = (await call(B, '/host/lease-status').catch(() => null))?.body
   if (pNow?.active === true && lease?.lease?.hostId === pId && lease?.lease?.alive === true) break
   await sleep(3000)
 }

@@ -8,7 +8,7 @@ export const PresenceEntrySchema = z.object({
 export type PresenceEntry = z.infer<typeof PresenceEntrySchema>
 
 /** Last beat seen from whichever device holds the Master-Token (#32). `at` is stamped
- * server-side on receipt, so readers compare it against `getServerTime()` rather than their
+ * server-side on receipt, so readers compare it against `getHostTime()` rather than their
  * own clock. */
 export const MasterHeartbeatSchema = z.object({
   deviceId: z.string().min(1),

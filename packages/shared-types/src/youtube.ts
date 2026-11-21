@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 /** One hit of the Host's YouTube search (#618) - what the "Track hinzufügen" dialog lists. */
 export const YoutubeSearchResultSchema = z.object({
-  /** YouTube's 11-character video id - also the key for the server's thumbnail proxy. */
+  /** YouTube's 11-character video id - also the key for the host's thumbnail proxy. */
   id: z.string(),
   title: z.string(),
   channel: z.string().nullable(),

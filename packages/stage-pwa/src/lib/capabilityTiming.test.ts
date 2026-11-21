@@ -3,7 +3,7 @@ import type { LogicalDevice, PluginInstallation } from 'shared-types'
 import { capabilityTiming, cueLatencyMs } from './capabilityTiming'
 
 function plugin(overrides: Partial<PluginInstallation> & Pick<PluginInstallation, 'id' | 'capabilities'>): PluginInstallation {
-  return { name: overrides.id, version: '1', runtime: 'client', transports: [], hardwareIds: [], enabled: true, installedAt: 0, ...overrides }
+  return { name: overrides.id, version: '1', runtime: 'device', transports: [], hardwareIds: [], enabled: true, installedAt: 0, ...overrides }
 }
 
 describe('capabilityTiming (docs/21)', () => {
@@ -40,6 +40,15 @@ describe('capabilityTiming (docs/21)', () => {
     expect(cueLatencyMs(cue('front'), devices, [dmx])).toBe(25)
     expect(cueLatencyMs(cue('iem'), devices, [dmx])).toBe(0)
     expect(cueLatencyMs(cue('gone'), devices, [dmx])).toBe(0)
+  })
+
+  it("a host's own hardware finds its latency under the host id, and still under the legacy word (#964)", () => {
+    const devices: LogicalDevice[] = [{ id: 'front', name: 'Frontlicht', capability: 'lighting', pluginId: null, executionTarget: 'stage-pc' }]
+    const cue = { id: 'c', timeMs: 0, type: 'x', targetLogicalDeviceId: 'front' }
+    const world = { hostIds: ['stage-pc'], deviceIds: [] }
+    const under = (deviceId: string, latencyMs: number) => [{ id: `${deviceId}:front:-`, deviceId, output: 'front', route: null, latencyMs, source: 'measured' as const }]
+    expect(cueLatencyMs(cue, devices, [], under('stage-pc', 33), world)).toBe(33)
+    expect(cueLatencyMs(cue, devices, [], under('server', 41), world)).toBe(41)
   })
 
   it('a stored latency of the executing device beats the plugin value (#491)', () => {

@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path'
  * Where a plugin's downloaded client bundle lives on this Host's own disk (#101) -
  * same "plain directory tree, read fresh per call" pattern audioStore.ts already established
  * for track binaries, not a PouchDB attachment (this file never needs to replicate anywhere;
- * every tablet fetches it once from this server over the LAN instead).
+ * every tablet fetches it once from this host over the LAN instead).
  */
 function pluginBundleDir(): string {
   return process.env.PLUGIN_BUNDLE_DIR ?? './data/plugins'

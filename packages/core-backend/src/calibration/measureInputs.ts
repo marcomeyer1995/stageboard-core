@@ -78,7 +78,7 @@ export class MeasureInputStore {
     writeFileSync(this.file, `${JSON.stringify(selected, null, 2)}\n`)
   }
 
-  /** Where a run listens: the chosen input, or for the microphone the server's default. A cable
+  /** Where a run listens: the chosen input, or for the microphone the host's default. A cable
    * that is not set up falls back to the microphone - better a measurement than none. */
   resolve(kind: MeasureInputKind): MeasureInput {
     return this.selected[kind] ?? this.selected.mic ?? { device: fallbackMicDevice(), channel: 0 }

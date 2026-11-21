@@ -1,18 +1,18 @@
 import { useEffect, useState } from 'react'
-import { discoverServers, pairingConfirmation, pairWithServer, serverFingerprint, type FoundServer } from '../lib/native'
+import { discoverHosts, pairingConfirmation, pairWithHost, hostFingerprint, type FoundHost } from '../lib/native'
 import { useDialogStore } from '../store/useDialogStore'
 import { Button } from './ui'
 import { useTranslation } from 'react-i18next'
 
 /**
  * Native app (#351): the Hosts announcing themselves on the local network - tap one to
- * connect. Finding a server isn't trusting it: connecting reads the certificate the server really
+ * connect. Finding a host isn't trusting it: connecting reads the certificate the host really
  * presents and asks to confirm its fingerprint, exactly as for a typed-in address.
  */
-export function NetworkServerList({ autoSearch = false, onPaired }: { autoSearch?: boolean; onPaired?: () => void }) {
+export function NetworkHostList({ autoSearch = false, onPaired }: { autoSearch?: boolean; onPaired?: () => void }) {
   const { t } = useTranslation('band')
   const confirm = useDialogStore((state) => state.confirm)
-  const [servers, setServers] = useState<FoundServer[] | null>(null)
+  const [servers, setHosts] = useState<FoundHost[] | null>(null)
   const [searching, setSearching] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -20,9 +20,9 @@ export function NetworkServerList({ autoSearch = false, onPaired }: { autoSearch
     setSearching(true)
     setError(null)
     try {
-      setServers(await discoverServers())
+      setHosts(await discoverHosts())
     } catch {
-      setServers([])
+      setHosts([])
     }
     setSearching(false)
   }
@@ -32,18 +32,18 @@ export function NetworkServerList({ autoSearch = false, onPaired }: { autoSearch
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  async function connect(server: FoundServer) {
+  async function connect(server: FoundHost) {
     setError(null)
     let fingerprint: string
     try {
-      fingerprint = await serverFingerprint(server.host)
+      fingerprint = await hostFingerprint(server.host)
     } catch {
       setError(t('servers.notAnswering', { name: server.name }))
       return
     }
     const question = pairingConfirmation(server.name, server.host, fingerprint)
     if (!(await confirm(question.message, { title: question.title, confirmLabel: t('servers.connect') }))) return
-    await pairWithServer(server.host, fingerprint)
+    await pairWithHost(server.host, fingerprint)
     onPaired?.()
   }
 

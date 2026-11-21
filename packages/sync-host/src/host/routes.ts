@@ -14,6 +14,7 @@ import {
   SetOwnPinRequestSchema,
   VerifyAdminPinRequestSchema,
 } from 'shared-types'
+import { withLegacyPath } from './legacyPaths.js'
 import type { z } from 'zod'
 import type { BandCatalog } from './bandCatalog.js'
 import { createBandRoutes } from './bandRoutes.js'
@@ -38,7 +39,7 @@ import { rosterOfProfileDocs } from './roster.js'
  * through `HostRoutesDeps`.
  *
  * Not here (platform-specific for now): the streams (Fastify's raw reply / the native server), the database
- * proxy and its logins, and `/server-info`.
+ * proxy and its logins, and `/host/info`.
  */
 
 export interface HostRouteRequest {
@@ -105,7 +106,7 @@ export interface HostRoutesDeps {
    * route has one, so a host that holds several bands can serve the ones it hosts while another is passive. Absent:
    * always (the laptop's behaviour). */
   serving?: (workspaceId?: string) => boolean
-  /** More fields for `/server/host-lease` (the laptop adds its copy and the audio mirror). */
+  /** More fields for `/host/lease-status` (the laptop adds its copy and the audio mirror). */
   hostLeaseExtra?: () => Record<string, unknown>
   /** The primary teaching this host its band (#945). */
   acceptInvite: (raw: unknown) => Promise<{ ok: true } | { ok: false; status: number; message: string }>
@@ -224,13 +225,13 @@ export function createHostRoutes(deps: HostRoutesDeps): HostRoute[] {
   })
   const audioIds = (params: HostRouteRequest['params']) => ({ variantId: safeDecode(params.variantId ?? ''), trackId: safeDecode(params.trackId ?? '') })
 
-  return [
+  const routes: HostRoute[] = [
     { method: 'GET', pattern: '/time', handle: async () => json(200, { serverTime: deps.lease.bandTime(), hostId: deps.hostId, epoch: deps.lease.epoch(), active: deps.lease.isBandHost() }) },
     { method: 'GET', pattern: '/health', handle: async () => json(200, { status: 'ok' }) },
     ...(deps.capabilities ? [{ method: 'GET' as const, pattern: '/host/capabilities', handle: async () => json(200, await deps.capabilities!()) }] : []),
     {
       method: 'GET',
-      pattern: '/server/active-workspace/admins',
+      pattern: '/host/active-workspace/admins',
       // Only names and ids, only for the band the host is set up for: no band in the path, so it cannot list any other
       // band's roster (a PIN is still needed to do anything with them).
       handle: async () => {
@@ -240,10 +241,10 @@ export function createHostRoutes(deps: HostRoutesDeps): HostRoute[] {
         return json(200, { workspaceId, admins: members.filter((m) => m.isAdmin).map(({ profileId, name }) => ({ profileId, name })) })
       },
     },
-    { method: 'GET', pattern: '/server/active-workspace', handle: async () => json(200, { activeWorkspaceId: deps.activeWorkspaceId() }) },
+    { method: 'GET', pattern: '/host/active-workspace', handle: async () => json(200, { activeWorkspaceId: deps.activeWorkspaceId() }) },
     {
       method: 'GET',
-      pattern: '/server/host-lease',
+      pattern: '/host/lease-status',
       handle: async () =>
         json(200, { lease: deps.lease.status(), clockOffsetMs: deps.lease.clockOffsetMs(), active: deps.lease.isActive(), epoch: deps.lease.epoch(), outdated: deps.lease.outdated(), ...(deps.hostLeaseExtra?.() ?? {}) }),
     },
@@ -386,6 +387,8 @@ export function createHostRoutes(deps: HostRoutesDeps): HostRoute[] {
     ...(deps.lookup ? createLookupRoutes(deps.lookup) : []),
     ...(deps.channels ? createChannelRoutes({ channels: deps.channels, refuseBand, isBandDevice: deps.isBandDevice, log: deps.log }) : []),
   ]
+  // Each route also answers its old `/server/...` path, for apps built before the paths changed (#964).
+  return routes.flatMap((route) => withLegacyPath(route.pattern).map((pattern) => ({ ...route, pattern })))
 }
 
 /** The route a request path and method belong to, with its params - for a platform that has no router of its own. */

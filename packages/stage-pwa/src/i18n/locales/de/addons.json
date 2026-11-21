@@ -137,8 +137,8 @@
     "size": "Download",
     "runsLabel": "Läuft",
     "runs": {
-      "client": "auf den Geräten",
-      "server": "auf dem Host",
+      "device": "auf den Geräten",
+      "host": "auf dem Host",
       "both": "auf den Geräten und dem Host"
     },
     "helperAndroid": "braucht auf Android das Hilfsprogramm {{name}}",

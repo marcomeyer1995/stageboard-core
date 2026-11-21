@@ -1,10 +1,11 @@
+import { existsSync } from 'node:fs'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { extname, join } from 'node:path'
-import { runStemSeparation } from '../stems/stemSeparation.js'
-import { runYtDlpExtract, runYtDlpSearch, YtDlpFailure } from '../ytDlp.js'
-import { BrowserError, createBrowserReader } from './browserHelper.js'
-import { runPiperProgram } from '../speech/piperSpeech.js'
+import { runStemSeparation, stemsAvailable } from '../stems/stemSeparation.js'
+import { resolveYtDlpExecutable, runYtDlpExtract, runYtDlpSearch, YtDlpFailure } from '../ytDlp.js'
+import { BrowserError, createBrowserReader, resolveChromeExecutable } from './browserHelper.js'
+import { PiperSpeech, runPiperProgram, speechConfigFromEnv } from '../speech/piperSpeech.js'
 
 /**
  * The helper programs a Node device has (#964, docs/32 §8): the things an add-on cannot do itself and asks StageBoard to run. A helper is a
@@ -74,10 +75,10 @@ const stems: HelperRun = (args, onProgress, files) => {
 const piper: HelperRun = async (args, _onProgress, files) => {
   const text = files.find((f) => f.name === 'input')
   if (!text) throw new Error('The piper helper needs the text as the file "input"')
-  const { serverSpeech } = await import('../plugins/piperSpeechPlugin.js')
+  const { hostSpeech } = await import('../speech/hostSpeech.js')
   const voice = args[0] || undefined
-  const model = serverSpeech.voiceModel(voice)
-  if (!serverSpeech.piperInstalled() || !model) throw new Error(`Piper or the voice ${serverSpeech.voiceName(voice)} is not installed`)
+  const model = hostSpeech.voiceModel(voice)
+  if (!hostSpeech.piperInstalled() || !model) throw new Error(`Piper or the voice ${hostSpeech.voiceName(voice)} is not installed`)
   const pace = Number(args[1]) || 1
   return inWorkFolder('stageboard-piper-', async (dir) => {
     const out = join(dir, 'clip.wav')
@@ -105,6 +106,31 @@ const ugPage: HelperRun = async (args) => {
 }
 
 export const HELPERS: Record<string, HelperRun> = { 'yt-dlp': ytDlp, stems, piper, 'ug-page': ugPage }
+
+/** What this device lacks to run a helper - the name of the missing program, or null when it has it. Asked, never assumed. */
+const exists = (find: () => string, mustExist = false): boolean => {
+  try {
+    const path = find()
+    return !mustExist || existsSync(path)
+  } catch {
+    return false
+  }
+}
+export const HELPER_MISSING: Record<string, () => string | null> = {
+  'yt-dlp': () => (exists(resolveYtDlpExecutable, true) ? null : 'yt-dlp'),
+  stems: () => (stemsAvailable() ? null : 'demucs'),
+  piper: () => (new PiperSpeech(speechConfigFromEnv(), () => Promise.reject(new Error('probe'))).available() ? null : 'piper'),
+  'ug-page': () => (exists(resolveChromeExecutable) ? null : 'chrome'),
+}
+
+/** The first program an add-on's helpers lack on this device, or null. */
+export const addonMissingTool = (helpers: readonly string[]): string | null => {
+  for (const helper of helpers) {
+    const missing = HELPER_MISSING[helper]?.()
+    if (missing) return missing
+  }
+  return null
+}
 
 /** The `runHelper` a sandbox gets: only what its manifest declared, and only what this device has. */
 export function helperRunnerFor(declared: readonly string[]): (helper: string, args: string[], onProgress: (f: number) => void, files: { name: string; bytes: Uint8Array }[]) => Promise<HelperOutput> {

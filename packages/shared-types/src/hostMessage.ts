@@ -1,12 +1,12 @@
 import { z } from 'zod'
 
 /**
- * Messages the Host shows to musicians (#679). The server serves devices in different
+ * Messages the Host shows to musicians (#679). The host serves devices in different
  * languages, so it sends a code with its values (`messageCode`, `messageParams`) and the device
  * translates it (stage-pwa `i18n/locales/<language>/server.json`). The German text below goes
  * along as `message`: an older app, a log line or `curl` still reads something sensible.
  *
- * Placeholders are i18next's `{{name}}`, so the same template works on the server and in the app.
+ * Placeholders are i18next's `{{name}}`, so the same template works on the host and in the app.
  * The app's `de/server.json` must say exactly the same - a test there compares the two.
  *
  * Only for what reaches a screen. Programmer errors ("Missing query parameter q") stay plain
@@ -38,6 +38,7 @@ export const SERVER_MESSAGES_DE = {
   'stems.demucsMissing': 'Demucs ist auf dem Host nicht installiert (docs/03).',
   'job.interrupted': 'Durch einen Neustart des Hosts unterbrochen.',
   'addon.notInstalled': 'Das Add-on „{{addon}}“ ist für diese Band nicht installiert.',
+  'addon.toolMissing': 'Auf diesem Host fehlt „{{tool}}“ für das Add-on „{{addon}}“.',
   'job.variantGone': 'Die Song-Variante existiert nicht mehr.',
   'job.trackGone': 'Der Track existiert nicht mehr.',
   'job.audioMissing': 'Die Audiodatei des Tracks liegt nicht auf dem Host.',
@@ -60,31 +61,31 @@ export const SERVER_MESSAGES_DE = {
   'ug.bandMissing': 'Für Ultimate Guitar fehlt die Band (Add-on-Prüfung).',
 } as const
 
-export type ServerMessageCode = keyof typeof SERVER_MESSAGES_DE
+export type HostMessageCode = keyof typeof SERVER_MESSAGES_DE
 
-export const ServerMessageParamsSchema = z.record(z.string(), z.union([z.string(), z.number()]))
-export type ServerMessageParams = z.infer<typeof ServerMessageParamsSchema>
+export const HostMessageParamsSchema = z.record(z.string(), z.union([z.string(), z.number()]))
+export type HostMessageParams = z.infer<typeof HostMessageParamsSchema>
 
 /** What a reply or result carries next to `message` - spread into it. */
-export type ServerMessage = { message: string; messageCode: ServerMessageCode; messageParams?: ServerMessageParams }
+export type HostMessage = { message: string; messageCode: HostMessageCode; messageParams?: HostMessageParams }
 
 /** The German text for a code, values filled in. */
-export function serverMessageText(code: ServerMessageCode, params: ServerMessageParams = {}): string {
+export function serverMessageText(code: HostMessageCode, params: HostMessageParams = {}): string {
   return SERVER_MESSAGES_DE[code].replace(/\{\{\s*(\w+)\s*\}\}/g, (_, name: string) => String(params[name] ?? ''))
 }
 
-/** `{ message, messageCode, messageParams }` for a reply: `send({ status: 'error', ...serverMessage('calibration.busy') })`. */
-export function serverMessage(code: ServerMessageCode, params?: ServerMessageParams): ServerMessage {
+/** `{ message, messageCode, messageParams }` for a reply: `send({ status: 'error', ...hostMessage('calibration.busy') })`. */
+export function hostMessage(code: HostMessageCode, params?: HostMessageParams): HostMessage {
   return { message: serverMessageText(code, params), messageCode: code, ...(params ? { messageParams: params } : {}) }
 }
 
 /** A thrown error that the device can translate; `message` is the German text. */
-export class ServerMessageError extends Error {
-  readonly messageCode: ServerMessageCode
-  readonly messageParams?: ServerMessageParams
-  constructor(code: ServerMessageCode, params?: ServerMessageParams, readonly cause?: unknown) {
+export class HostMessageError extends Error {
+  readonly messageCode: HostMessageCode
+  readonly messageParams?: HostMessageParams
+  constructor(code: HostMessageCode, params?: HostMessageParams, readonly cause?: unknown) {
     super(serverMessageText(code, params))
-    this.name = 'ServerMessageError'
+    this.name = 'HostMessageError'
     this.messageCode = code
     if (params) this.messageParams = params
   }
@@ -92,11 +93,11 @@ export class ServerMessageError extends Error {
 
 /** The message fields of any caught error - with code when it carries one. Recognised by shape,
  * not `instanceof`: plugins may come from a separately built bundle. */
-export function messageFieldsOf(err: unknown): { message: string; messageCode?: ServerMessageCode; messageParams?: ServerMessageParams } {
+export function messageFieldsOf(err: unknown): { message: string; messageCode?: HostMessageCode; messageParams?: HostMessageParams } {
   if (!(err instanceof Error)) return { message: String(err) }
   const { messageCode, messageParams } = err as Error & { messageCode?: unknown; messageParams?: unknown }
   if (typeof messageCode === 'string' && messageCode in SERVER_MESSAGES_DE) {
-    return { message: err.message, messageCode: messageCode as ServerMessageCode, ...(messageParams && typeof messageParams === 'object' ? { messageParams: messageParams as ServerMessageParams } : {}) }
+    return { message: err.message, messageCode: messageCode as HostMessageCode, ...(messageParams && typeof messageParams === 'object' ? { messageParams: messageParams as HostMessageParams } : {}) }
   }
   return { message: err.message }
 }

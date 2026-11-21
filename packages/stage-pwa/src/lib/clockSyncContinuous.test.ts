@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { __resetClockSyncForTests, estimateFromWindow, getServerTime, sampleClock, syncClock } from './clockSync'
+import { __resetClockSyncForTests, estimateFromWindow, getHostTime, sampleClock, syncClock } from './clockSync'
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -57,7 +57,7 @@ describe('continuous clock sync (docs/29 §5.6, step 4)', () => {
       await sampleClock()
       // From 80 s on: the drift line needs 60 s of samples (MIN_SLOPE_SPAN_MS) - until then a 50-ppm
       // clock runs up to 2.5 ms off, the price for never taking a line through a handful of samples.
-      if (i > 40) errors.push(getServerTime() - (net.local() + net.trueOffset()))
+      if (i > 40) errors.push(getHostTime() - (net.local() + net.trueOffset()))
     }
     expect(Math.max(...errors.map(Math.abs))).toBeLessThan(2)
   })
@@ -70,14 +70,14 @@ describe('continuous clock sync (docs/29 §5.6, step 4)', () => {
       await sampleClock()
     }
     // The server clock is set 10 ms later: band time follows smoothly.
-    const before = getServerTime() - net.local()
+    const before = getHostTime() - net.local()
     vi.stubGlobal('fetch', vi.fn().mockImplementation(async () => { net.advance(6); const serverTime = net.local() + 1_010; net.advance(6); return { ok: true, json: async () => ({ serverTime }) } }))
     let last = before
     let maxStep = 0
     for (let i = 0; i < 120; i++) {
       net.advance(2_000)
       await sampleClock()
-      const off = getServerTime() - net.local()
+      const off = getHostTime() - net.local()
       maxStep = Math.max(maxStep, Math.abs(off - last))
       last = off
     }
@@ -116,7 +116,7 @@ describe('continuous clock sync (docs/29 §5.6, step 4)', () => {
       net.advance(2_000)
       await sampleClock()
     }
-    const before = getServerTime() - net.local()
+    const before = getHostTime() - net.local()
     // The server's clock is set half a second later (a Host restart with a corrected clock).
     vi.stubGlobal('fetch', vi.fn().mockImplementation(async () => { net.advance(6); const serverTime = net.local() + 1_500; net.advance(6); return { ok: true, json: async () => ({ serverTime }) } }))
     // Band time moves smoothly (≤ 2 ms/s) while the estimate is near; a step bigger than that is a jump.
@@ -125,13 +125,13 @@ describe('continuous clock sync (docs/29 §5.6, step 4)', () => {
     for (let i = 0; i < 120; i++) {
       net.advance(2_000)
       await sampleClock()
-      const off = getServerTime() - net.local()
+      const off = getHostTime() - net.local()
       if (firstJump === null && Math.abs(off - last) > 10) firstJump = i
       last = off
     }
     expect(firstJump).not.toBeNull()
     expect(firstJump!).toBeGreaterThanOrEqual(4)
-    expect(Math.abs(getServerTime() - net.local() - (before + 500))).toBeLessThan(2)
+    expect(Math.abs(getHostTime() - net.local() - (before + 500))).toBeLessThan(2)
   })
 
   it('is within 3 ms after the fast samples of the first seconds', async () => {
@@ -141,7 +141,7 @@ describe('continuous clock sync (docs/29 §5.6, step 4)', () => {
       net.advance(500)
       await sampleClock()
     }
-    expect(Math.abs(getServerTime() - (net.local() + net.trueOffset()))).toBeLessThan(3)
+    expect(Math.abs(getHostTime() - (net.local() + net.trueOffset()))).toBeLessThan(3)
   })
 
   it('ignores slow samples while audio downloads clog the connection (Redmi after an app start, 2026-11-05)', () => {

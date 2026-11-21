@@ -3,7 +3,7 @@ import {
   DEVICE_INFO_TIMEOUT_MS,
   HEALTH_TIMEOUT_MS,
   NATIVE_AUDIO_OUTPUT,
-  SERVER_EXECUTION_TARGET,
+  LEGACY_HOST_TARGET,
   appsOf,
   type DeviceInfo,
   type DeviceInfoEntry,
@@ -50,6 +50,8 @@ export interface StageLive {
 }
 
 export interface StageLiveInput {
+  /** The id the host goes by (`hostTargetOf`, #964); absent: the legacy word. */
+  hostApp?: string
   /** What stands in the setup. */
   equipment: readonly StageEquipment[]
   setup: StageSetup
@@ -63,7 +65,7 @@ export interface StageLiveInput {
   /** Server time, ms. */
   now: number
   /** Whether the Host answers - null: none is set, or not asked yet. */
-  serverReachable: boolean | null
+  hostReachable: boolean | null
   health: PluginHealth
   ownDeviceId: string
   /** What this device sees itself, fresher than its report - null when not known. */
@@ -92,8 +94,8 @@ const PATH_RANK: Record<StagePathState, number> = { measured: 2, manual: 1, miss
 const SOURCE_OF_PORT: Readonly<Record<string, SilencedSource>> = { klick: 'click', track: 'track', ansagen: 'voice' }
 
 /** The app that sends for a device box: the one in front, else its first (as mapRoute). */
-function appOf(box: StageEquipment, front: Readonly<Record<string, string>>): string | null {
-  if (box.kind === 'host-computer') return SERVER_EXECUTION_TARGET
+function appOf(box: StageEquipment, front: Readonly<Record<string, string>>, hostApp: string): string | null {
+  if (box.kind === 'host-computer') return hostApp
   const apps = appsOf(box)
   const inFront = front[box.id]
   return inFront && apps.includes(inFront) ? inFront : (box.deviceId ?? apps[0] ?? null)
@@ -111,7 +113,8 @@ function appOf(box: StageEquipment, front: Readonly<Record<string, string>>): st
  *   latency value of what runs over it is.
  */
 export function stageLive(input: StageLiveInput): StageLive {
-  const { equipment, setup, flows, outputs, builtInIds, deviceInfo, now, serverReachable, health, ownDeviceId, ownMidiOutputs, ownSilenced, front, profiles } = input
+  const { equipment, setup, flows, outputs, builtInIds, deviceInfo, now, hostReachable, health, ownDeviceId, ownMidiOutputs, ownSilenced, front, profiles } = input
+  const hostApp = input.hostApp ?? LEGACY_HOST_TARGET
   const byId = new Map(equipment.map((e) => [e.id, e]))
   const fresh = (id: string): DeviceInfoEntry | null => {
     const info = deviceInfo.devices[id]
@@ -121,7 +124,7 @@ export function stageLive(input: StageLiveInput): StageLive {
   /** What a device box keeps silent: this device from its own plan, others from a fresh report. */
   const silencedOf = (box: StageEquipment): SilencedSource[] => {
     if (box.kind !== 'stageboard') return []
-    const app = appOf(box, front)
+    const app = appOf(box, front, hostApp)
     if (!app) return []
     return [...(app === ownDeviceId ? ownSilenced : (fresh(app)?.silenced ?? []))]
   }
@@ -154,8 +157,8 @@ export function stageLive(input: StageLiveInput): StageLive {
     const box = ends.find((e) => e && (e.kind === 'stageboard' || e.kind === 'host-computer'))
     const other = ends.find((e) => e && e !== box)
     if (link.midiName && box) {
-      const app = appOf(box, front)
-      const seen = app === ownDeviceId && ownMidiOutputs ? ownMidiOutputs : app && app !== SERVER_EXECUTION_TARGET ? (fresh(app)?.midiOutputs ?? null) : null
+      const app = appOf(box, front, hostApp)
+      const seen = app === ownDeviceId && ownMidiOutputs ? ownMidiOutputs : app && box.kind !== 'host-computer' ? (fresh(app)?.midiOutputs ?? null) : null
       const note: LiveNote = seen === null ? { status: 'off', key: 'midiUnknown', name: link.midiName } : seen.includes(link.midiName) ? { status: 'ok', key: 'midiFound', name: link.midiName } : { status: 'error', key: 'midiMissing', name: link.midiName }
       notes.push(note)
       if (other && note.status === 'error') addGear(other.id, note)
@@ -166,10 +169,10 @@ export function stageLive(input: StageLiveInput): StageLive {
       if (!flow.hops.some((h) => h.linkId === link.id)) continue
       const origin = byId.get(flow.originEquipmentId)
       if (!origin || (origin.kind !== 'stageboard' && origin.kind !== 'host-computer')) continue
-      const app = appOf(origin, front)
+      const app = appOf(origin, front, hostApp)
       if (!app) continue
       const virtualId = flow.key.slice(flow.originEquipmentId.length + 1)
-      const own = profiles.filter((p) => p.deviceId === app && (builtInIds.includes(virtualId) ? p.output === AUDIO_OUTPUT || p.output === NATIVE_AUDIO_OUTPUT : p.output === virtualId))
+      const own = profiles.filter((p) => (p.deviceId === app || (origin.kind === 'host-computer' && p.deviceId === LEGACY_HOST_TARGET)) && (builtInIds.includes(virtualId) ? p.output === AUDIO_OUTPUT || p.output === NATIVE_AUDIO_OUTPUT : p.output === virtualId))
       const state: StagePathState = own.length === 0 ? 'missing' : own.some((p) => p.source === 'measured') ? 'measured' : 'manual'
       if (path === null || PATH_RANK[state] < PATH_RANK[path]) path = state
     }
@@ -200,13 +203,13 @@ export function stageLive(input: StageLiveInput): StageLive {
   for (const e of equipment) {
     const notes: LiveNote[] = []
     if (e.kind === 'host-computer') {
-      notes.push(serverReachable === null ? { status: 'off', key: 'noServer' } : serverReachable ? { status: 'ok', key: 'serverOnline' } : { status: 'error', key: 'serverOffline' })
+      notes.push(hostReachable === null ? { status: 'off', key: 'noServer' } : hostReachable ? { status: 'ok', key: 'serverOnline' } : { status: 'error', key: 'serverOffline' })
     } else if (e.kind === 'stageboard') {
-      const apps = appsOf(e).filter((id) => id !== SERVER_EXECUTION_TARGET)
+      const apps = appsOf(e)
       if (apps.length === 0) notes.push({ status: 'off', key: 'placeholder' })
       else {
-        const app = appOf(e, front)
-        const info = (app && app !== SERVER_EXECUTION_TARGET ? fresh(app) : null) ?? apps.map(fresh).find((i) => i !== null) ?? null
+        const app = appOf(e, front, hostApp)
+        const info = (app ? fresh(app) : null) ?? apps.map(fresh).find((i) => i !== null) ?? null
         // This device is open - it is the one looking - even while its own report does not get
         // through (no Host, Wi-Fi gone): never "offline" for itself.
         const self = apps.includes(ownDeviceId)

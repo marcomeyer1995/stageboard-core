@@ -1,5 +1,6 @@
 import i18n from '../i18n'
-import { CAPABILITIES, SERVER_EXECUTION_TARGET, type CapabilityId, type LogicalDevice } from 'shared-types'
+import { useTargetWorld } from '../lib/targetWorld'
+import { CAPABILITIES, isHostTarget, type CapabilityId, type LogicalDevice, type TargetWorld } from 'shared-types'
 import { pluginProviding } from '../lib/capabilities'
 import { getDeviceId } from '../lib/deviceId'
 import { resolveHardwareBindings } from '../lib/hardwareRouting'
@@ -54,7 +55,7 @@ export function builtInRoles(devices: LogicalDevice[]): LogicalDevice[] {
   return BUILT_IN_OUTPUTS.flatMap((output) => resolveHardwareBindings(devices, output.capability))
 }
 
-const tabletOf = (role: LogicalDevice) => (role.executionTarget && role.executionTarget !== SERVER_EXECUTION_TARGET ? role.executionTarget : null)
+const tabletOf = (role: LogicalDevice, world: TargetWorld) => (role.executionTarget && !isHostTarget(role.executionTarget, world) ? role.executionTarget : null)
 
 /**
  * Klick, Backing-Track and Ansagen as the fixed first entries of Bühnentechnik's device list: which
@@ -72,6 +73,7 @@ export function BuiltInOutputs() {
   const save = useLogicalDevicesStore((state) => state.save)
   const remove = useLogicalDevicesStore((state) => state.remove)
   const knownDevices = useDevicesStore((state) => state.devices)
+  const world = useTargetWorld()
   const installed = usePluginsStore((state) => state.installed)
   const outputs = BUILT_IN_OUTPUTS.filter((output) => output.capability !== CAPABILITIES.sectionAnnouncements || pluginProviding(installed, output.capability) !== null)
 
@@ -79,7 +81,7 @@ export function BuiltInOutputs() {
     <>
       {outputs.map(({ capability, label, fallback }) => {
         const roles = resolveHardwareBindings(devices, capability)
-        const targets = roles.map(tabletOf).filter((id): id is string => id !== null)
+        const targets = roles.map((r) => tabletOf(r, world)).filter((id): id is string => id !== null)
         const tablets = knownDevices.filter((device) => !device.revoked || targets.includes(device.id))
         const chips = [
           ...tablets.map((device) => ({ id: device.id, label: device.id === getDeviceId() ? t('out.thisDevice', { name: device.name }) : device.name })),
@@ -89,11 +91,11 @@ export function BuiltInOutputs() {
         function toggle(tablet: string, on: boolean) {
           if (on) {
             // A role without a tablet (unticked before, or plugin-era) is reused before adding one.
-            const free = roles.find((role) => tabletOf(role) === null)
+            const free = roles.find((role) => tabletOf(role, world) === null)
             void save(free ? { ...free, pluginId: null, executionTarget: tablet } : { id: randomId(), name: label, capability, pluginId: null, executionTarget: tablet })
             return
           }
-          for (const role of roles.filter((r) => tabletOf(r) === tablet)) {
+          for (const role of roles.filter((r) => tabletOf(r, world) === tablet)) {
             if (roles.length > 1) void remove(role.id)
             else void save({ ...role, pluginId: null, executionTarget: null })
           }

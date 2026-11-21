@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { SERVER_EXECUTION_TARGET, type DetectedHardware, type LogicalDevice, type PluginInstallation } from 'shared-types'
+import { LEGACY_HOST_TARGET, type DetectedHardware, type LogicalDevice, type PluginInstallation } from 'shared-types'
 
 const allDocs = vi.fn()
 
@@ -14,7 +14,7 @@ const GENERIC_MIDI: PluginInstallation = {
   id: 'generic-webmidi',
   name: 'Generic WebMIDI Input',
   version: '0.0.1',
-  runtime: 'client',
+  runtime: 'device',
   capabilities: ['midi-input'],
   transports: [],
   hardwareIds: [{ kind: 'webmidi' }],
@@ -26,7 +26,7 @@ const KEMPER: PluginInstallation = {
   id: 'kemper-profiler',
   name: 'Kemper Profiler',
   version: '0.0.1',
-  runtime: 'client',
+  runtime: 'device',
   capabilities: ['kemper-control'],
   transports: [],
   hardwareIds: [{ kind: 'webmidi', namePattern: 'Kemper' }],
@@ -145,14 +145,14 @@ describe('reportCandidate - unambiguous auto-assign (after the settle window)', 
     expect(getSnapshot('band-a').candidates[0].status).toBe('unassigned')
   })
 
-  it('auto-assigns a server-reported (SERVER_EXECUTION_TARGET) candidate exactly like a tablet-reported one', async () => {
+  it('auto-assigns a server-reported (LEGACY_HOST_TARGET) candidate exactly like a tablet-reported one', async () => {
     await startWith([KEMPER], [MARCOS_KEMPER])
-    reportCandidate('band-a', SERVER_EXECUTION_TARGET, kemperPort('native-port-1'))
+    reportCandidate('band-a', LEGACY_HOST_TARGET, kemperPort('native-port-1'))
     vi.advanceTimersByTime(SETTLE_MS)
 
     const [candidate] = getSnapshot('band-a').candidates
     expect(candidate.status).toBe('assigned')
-    expect(candidate.reporterId).toBe(SERVER_EXECUTION_TARGET)
+    expect(candidate.reporterId).toBe(LEGACY_HOST_TARGET)
     // Writing the actual DeviceTransportConfig is midiWatcher.ts's job (it reacts to seeing
     // itself win) - this store only does status/assignment bookkeeping, same as for a tablet.
   })
@@ -280,7 +280,7 @@ const MG30: PluginInstallation = {
   id: 'nux-mg30',
   name: 'NUX MG-30',
   version: '0.0.1',
-  runtime: 'client',
+  runtime: 'device',
   capabilities: ['mg30-control'],
   transports: [],
   hardwareIds: [{ kind: 'webmidi', namePattern: 'MG-30' }],

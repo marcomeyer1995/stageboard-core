@@ -1,7 +1,7 @@
 import i18n from '../i18n'
 import { useEffect, useState } from 'react'
 import { getHostUrl } from '../lib/hostUrl'
-import { serverErrorText } from '../lib/serverMessage'
+import { hostErrorText } from '../lib/hostMessage'
 import { useTranslation } from 'react-i18next'
 
 interface BackupStatus {
@@ -35,7 +35,7 @@ export function BackupStatusLine() {
     const base = getHostUrl()
     if (!base) return
     let cancelled = false
-    fetch(`${base}/server/backup-status`)
+    fetch(`${base}/host/backup-status`)
       .then((res) => (res.ok ? (res.json() as Promise<BackupStatus | null>) : undefined))
       .then((value) => {
         if (!cancelled) setStatus(value)
@@ -49,7 +49,7 @@ export function BackupStatusLine() {
   if (status === undefined) return null
   if (status === null) return <span className="text-warn">{t('backup.notSetUp')}</span>
   const stale = status.at ? Date.now() - new Date(status.at).getTime() > 48 * 3600_000 : true
-  if (!status.ok) return <span className="text-danger">{t('backup.failed', { when: status.at ? ` (${ago(status.at)})` : '', error: serverErrorText(status) })}</span>
+  if (!status.ok) return <span className="text-danger">{t('backup.failed', { when: status.at ? ` (${ago(status.at)})` : '', error: hostErrorText(status) })}</span>
   return (
     <span className={stale ? 'text-warn' : 'text-ok'}>
       {t('backup.last', { when: status.at ? ago(status.at) : '' })}

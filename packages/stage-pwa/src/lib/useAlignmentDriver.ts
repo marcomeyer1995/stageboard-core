@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react'
 import { AUDIO_OUTPUT, NATIVE_AUDIO_OUTPUT } from 'shared-types'
 import { ALIGN_SOUND, alignmentBeatsDue, isAlignAccent } from './alignByEar'
 import { sharedAudioClock } from './audioClock'
-import { getServerTime } from './clockSync'
+import { getHostTime } from './clockSync'
 import { getDeviceId } from './deviceId'
 import { useAudioOutputLatencyMs } from './latencyCompensation'
 import { masterOutput, useNativeOutputStore } from './nativeOutput'
@@ -73,15 +73,15 @@ export function useAlignmentDriver(): void {
     void ctx.resume().catch(() => {})
     holdAudioOutputAwake('alignment', true)
     // Scheduled up to here (band time) - a beat is never queued twice, also when the latency moves.
-    let scheduledTo = getServerTime()
+    let scheduledTo = getHostTime()
     const tick = () => {
-      const serverNow = getServerTime()
-      if (serverNow > endsAt) return
+      const hostNow = getHostTime()
+      if (hostNow > endsAt) return
       const latencyMs = latency.current
       const audioNow = sharedAudioClock.now(ctx)
-      const horizon = serverNow + LOOKAHEAD_MS + latencyMs
+      const horizon = hostNow + LOOKAHEAD_MS + latencyMs
       for (const beat of alignmentBeatsDue(startedAt, periodMs, scheduledTo, horizon)) {
-        const when = audioNow + (beat - serverNow - latencyMs) / 1000
+        const when = audioNow + (beat - hostNow - latencyMs) / 1000
         if (when >= ctx.currentTime) playAlignClick(ctx, when, ALIGN_SOUND[role].hz, isAlignAccent(startedAt, periodMs, beat))
       }
       scheduledTo = Math.max(scheduledTo, horizon)

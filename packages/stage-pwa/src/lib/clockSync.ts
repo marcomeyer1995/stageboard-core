@@ -52,7 +52,7 @@ let offsetHistory: number[] = []
  * measurement 2026-11-04), while an estimate over the same minutes from many samples stayed within
  * 2 ms. Now: one sample every SAMPLE_INTERVAL_MS, an estimate over the last WINDOW_MS from the
  * fastest quarter of them - a line over time, because a tablet's clock runs 10-60 ppm against the
- * server's (up to 3.6 ms a minute) - and the offset in use follows that estimate at SLEW_MS_PER_S
+ * host's (up to 3.6 ms a minute) - and the offset in use follows that estimate at SLEW_MS_PER_S
  * at most instead of jumping. The first burst still locks on at once.
  */
 export const SAMPLE_INTERVAL_MS = 2_000
@@ -161,8 +161,8 @@ async function takeSample(base: string, intoWindow: boolean): Promise<ClockSampl
     if (!response.ok) return null
     const parsed = HostTimeAnswerSchema.safeParse(await response.json())
     if (!parsed.success) return null
-    const { serverTime, epoch, active } = parsed.data
-    useHostEpochStore.getState().observe(epoch, active)
+    const { serverTime, epoch, active, hostId } = parsed.data
+    useHostEpochStore.getState().observe(epoch, active, hostId)
     const t1 = Date.now()
     useHostContactStore.getState().markContact()
     const sample = { rtt: t1 - t0, offset: serverTime - (t0 + t1) / 2 }
@@ -252,7 +252,7 @@ function estimateOffset(samples: ClockSample[]): { offsetMs: number; usedAsymmet
  * is still recorded (useClockSyncStore.ts) as a raw per-burst diagnostic, just no longer the
  * trust signal.
  *
- * Writes the result to useClockSyncStore for any widget to read; getServerTime() below reads
+ * Writes the result to useClockSyncStore for any widget to read; getHostTime() below reads
  * the same store. Never throws: no configured Host, or one that's entirely
  * unreachable, just leaves the previous sync in the store untouched, so a caller can always
  * retry later without special-casing failure.
@@ -309,7 +309,7 @@ export async function sampleClock(): Promise<void> {
  * syncClock() call's offset. Falls back to plain local time before the first sync, or when
  * the Host has never been reachable, rather than throwing.
  */
-export function getServerTime(): number {
+export function getHostTime(): number {
   const now = Date.now()
   return now + (applied ? appliedAt(now) : useClockSyncStore.getState().offsetMs)
 }

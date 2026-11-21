@@ -19,7 +19,7 @@ export function decodeQrFrame(imageData: ImageData): string | null {
 /** Builds the URL an invite QR code encodes (see #21 seventh follow-up, at Marco's explicit
  * request) - a real `https://` URL, not just `workspaceId:code` text, so a phone's *native*
  * camera app can open it directly and land on the right Host before the PWA is even
- * running, not just the in-app scanner. `host` is normally the server's own current LAN IP
+ * running, not just the in-app scanner. `host` is normally the host's own current LAN IP
  * (`InviteBandView.tsx` fetches it fresh via `fetchLanIp()` every time the screen opens) -
  * baking in an address that might later change is exactly why re-opening "Einladen" always
  * re-embeds whatever the address currently is, rather than reusing a cached QR. */
@@ -27,7 +27,7 @@ export function buildJoinUrl(host: string, workspaceId: string, code: string, ce
   const url = new URL(`https://${host}/`)
   url.searchParams.set('ws', workspaceId)
   url.searchParams.set('code', code)
-  // The server certificate's SHA-256 fingerprint: the native app pins it when pairing (#348).
+  // The host certificate's SHA-256 fingerprint: the native app pins it when pairing (#348).
   if (certFingerprint) url.searchParams.set('fp', certFingerprint)
   return url.toString()
 }
@@ -39,7 +39,7 @@ export function buildJoinUrl(host: string, workspaceId: string, code: string, ce
 export interface JoinPayload {
   workspaceId: string
   code: string
-  /** Only from a URL-format QR: the server's host, and its certificate fingerprint if the QR has one. */
+  /** Only from a URL-format QR: the host's host, and its certificate fingerprint if the QR has one. */
   host?: string
   fingerprint?: string
 }

@@ -103,7 +103,7 @@ export async function ensureDefaultVariant(song: Song): Promise<SongVariant> {
 /**
  * Track audio lives on the Host's disk now, not as a PouchDB attachment (see #30) -
  * every tablet used to receive every byte of every band's audio catalog through this
- * collection's live sync stream whether it wanted it or not. Uploads to the server, caches
+ * collection's live sync stream whether it wanted it or not. Uploads to the host, caches
  * the bytes locally through the storage backend (audioStorageManager.ts owns whether that
  * cache entry survives - see #49), then updates just the track metadata as a plain JSON doc.
  */

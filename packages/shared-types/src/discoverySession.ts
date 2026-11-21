@@ -4,8 +4,8 @@ import { CcSequenceSchema } from './discoveryTrigger.js'
 
 /**
  * One physical port a participant (a tablet, or the Host's own native MIDI watcher -
- * see `SERVER_EXECUTION_TARGET` in hardwareSetup.ts) currently sees, as reported into a
- * DiscoverySession. `reporterId` is a `Device.id` or `SERVER_EXECUTION_TARGET`; `hardwareKey` is
+ * see `LEGACY_HOST_TARGET` in hardwareSetup.ts) currently sees, as reported into a
+ * DiscoverySession. `reporterId` is a `Device.id` or `LEGACY_HOST_TARGET`; `hardwareKey` is
  * `hardwareMatching.ts`'s `hardwareKeyFor(detected)` - together they're this candidate's unique
  * identity (the same hardwareKey could coincidentally recur on two different reporters).
  */
@@ -42,7 +42,7 @@ export type DiscoveryIdentifying = z.infer<typeof DiscoveryIdentifyingSchema>
 /**
  * A workspace-wide, admin-initiated hardware-discovery session - deliberately **not** a
  * replicated document (same reasoning as presence/plugin-health: a live coordination
- * session has no offline/multi-master value and shouldn't outlive a server restart). Lives only
+ * session has no offline/multi-master value and shouldn't outlive a host restart). Lives only
  * in the Host's memory (core-backend's discoverySessionStore.ts) and is broadcast to
  * every connected tablet over SSE, the same pattern presenceStore.ts already uses.
  */

@@ -31,7 +31,7 @@ export function cacheKey(variantId: string, trackId: string, fileRev?: number): 
   return trackKey(variantId, trackId, fileRev)
 }
 
-/** The track a cache key stands for (what the server's /audio route needs). */
+/** The track a cache key stands for (what the host's /audio route needs). */
 export function parseCacheKey(key: string): { variantId: string; trackId: string } {
   const { variantId, trackId } = parseTrackKey(key)
   return { variantId, trackId }

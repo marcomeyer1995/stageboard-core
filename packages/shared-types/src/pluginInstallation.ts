@@ -6,11 +6,11 @@ import { DiscoveryTriggerSchema } from './discoveryTrigger.js'
 import { CapabilityTimingSchema } from './timing.js'
 
 /**
- * Where a plugin actually runs. WebMIDI is a browser API and therefore lives on the
- * tablet; a mixer adapter talks to hardware and lives on the Host. That
- * difference decides who reports the plugin's health (see pluginHealth.ts).
+ * Where a plugin actually runs: on a `device` (WebMIDI is a browser API), on a `host` (a mixer adapter talks to hardware the host's computer has), or
+ * `both`. That decides who reports the plugin's health (see pluginHealth.ts). Older documents and manifests say `client` and `server`; they still read
+ * (#964) and mean `device` and `host`.
  */
-export const PluginRuntimeSchema = z.enum(['client', 'server', 'both'])
+export const PluginRuntimeSchema = z.preprocess((value) => (value === 'client' ? 'device' : value === 'server' ? 'host' : value), z.enum(['device', 'host', 'both']))
 export type PluginRuntime = z.infer<typeof PluginRuntimeSchema>
 
 /**
@@ -39,7 +39,7 @@ const CertSha256Schema = z.string().regex(/^[0-9a-f]{64}$/)
 
 /**
  * The native helper programs an add-on needs per platform (docs/32 §8). `desktop`: a program
- * on a laptop/box host (the host reports whether it is there, `GET /server/capabilities`).
+ * on a laptop/box host (the host reports whether it is there, `GET /host/capabilities`).
  * `android`: a separate app package next to StageBoard; only a package signed with one of
  * `certSha256` is ever talked to - the add-on's trust list, not the device's.
  */
@@ -83,12 +83,12 @@ export const PluginInstallationSchema = z.object({
   transports: z.array(TransportDescriptorSchema).default([]),
   /** Cheap identity metadata (#106) so a tablet can recognize a newly-connected WebMIDI/WebUSB
    * device that matches this plugin, without loading its code - see hardwareId.ts. Empty for a
-   * plugin with nothing to auto-detect (the server-only mock plugins today). */
+   * plugin with nothing to auto-detect (the host-only mock plugins today). */
   hardwareIds: z.array(HardwareIdSchema).default([]),
   /** How Discovery Mode should ask a musician to physically identify this device when catalog
    * metadata alone can't tell two candidates apart (e.g. two guitarists' Kempers) - see
    * discoveryTrigger.ts. Absent for a plugin with no such action (or nothing that needs
-   * disambiguating - a workspace rarely has two of the same server-only mixer, say). */
+   * disambiguating - a workspace rarely has two of the same host-only mixer, say). */
   discoveryTrigger: DiscoveryTriggerSchema.optional(),
   /** How precisely each of `capabilities` must land on the song time, whether its Translator
    * sends at `scheduledAt` itself, its known latency and how it can be calibrated (docs/21) - one

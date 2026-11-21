@@ -160,3 +160,14 @@ describe('revoke', () => {
     expect(useDialogStore.getState().alert).toHaveBeenCalled()
   })
 })
+
+describe('a host in the device list (#964)', () => {
+  const doc = (id: string, host?: boolean): Device => ({ id, name: id, lastSeenAt: Date.now(), firstSeenAt: 1, revoked: false, ...(host ? { host } : {}) })
+
+  it('keeps a host that registered itself out of the devices people use, in a list of its own', async () => {
+    getAllDevices.mockResolvedValue([doc('this-device'), doc('fire'), doc('stage-pc', true)])
+    await useDevicesStore.getState().init('band-a')
+    expect(useDevicesStore.getState().devices.map((d) => d.id)).toEqual(['this-device', 'fire'])
+    expect(useDevicesStore.getState().hosts.map((d) => d.id)).toEqual(['stage-pc'])
+  })
+})

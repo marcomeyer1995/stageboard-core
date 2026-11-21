@@ -565,11 +565,11 @@ describe('handback (#935)', () => {
 
 describe('teaching a listed backup its band (#945)', () => {
   const selfUrl = 'https://10.0.0.1:8443'
-  /** Answers `/server/active-workspace` with the given band, everything else like the plain fixture. */
-  function inviter(activeWorkspaceId: string | null, over: Partial<Parameters<typeof createHostLeaseService>[0]> = {}) {
+  /** Answers `/host/active-workspace` (or, for a host from before the paths changed, `/server/active-workspace`) with the given band, everything else like the plain fixture. */
+  function inviter(activeWorkspaceId: string | null, over: Partial<Parameters<typeof createHostLeaseService>[0]> = {}, path = '/host/active-workspace') {
     const h = service('laptop', [primary, backup], { selfUrl, selfFingerprint: FP1, ...over })
     h.get.mockImplementation(async (url = '') => {
-      if (url.endsWith('/server/active-workspace')) return { activeWorkspaceId }
+      if (url.endsWith(path)) return { activeWorkspaceId }
       return { serverTime: 10_250, hostId: 'laptop', epoch: 1 }
     })
     return h
@@ -592,6 +592,12 @@ describe('teaching a listed backup its band (#945)', () => {
     })
     // The invitation goes to the address and certificate the band's list names, not to whatever answers.
     expect(fingerprint).toBe(FP2)
+  })
+
+  it('still invites a backup from before the paths changed, which answers only the old path (#964)', async () => {
+    const { s, post } = inviter(null, {}, '/server/active-workspace')
+    await s.sendOnce()
+    expect(post.mock.calls.some((c) => String(c[0]).endsWith('/host/join-band-invite'))).toBe(true)
   })
 
   it('does not invite a backup that already serves this band, or another one', async () => {

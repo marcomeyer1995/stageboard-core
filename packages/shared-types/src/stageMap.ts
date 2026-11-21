@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { CAPABILITIES, type CapabilityId } from './capability.js'
-import { SERVER_EXECUTION_TARGET } from './executionTarget.js'
+import { LEGACY_HOST_TARGET } from './executionTarget.js'
 
 /**
  * The stage map (docs/31 §0a, §7, §7a): the band's equipment with its physical ports, the cables
@@ -588,10 +588,10 @@ export function equipmentFrom(model: EquipmentModel, id: string, name: string, e
 
 export const deviceEquipmentId = (deviceId: string): string => `device:${deviceId}`
 
-/** Every app on a box: its device, the further ones on the same hardware, and the Host when
- * that box is the server itself. */
-export function appsOf(e: StageEquipment): string[] {
-  return [...(e.deviceId ? [e.deviceId] : []), ...(e.kind === 'host-computer' ? [SERVER_EXECUTION_TARGET] : []), ...(e.appIds ?? [])]
+/** Every app on a box: its device, the further ones on the same hardware, and the host when
+ * that box is the host's computer. `hostApp`: the id the host goes by (`hostTargetOf`, #964); the legacy word while none is known. */
+export function appsOf(e: StageEquipment, hostApp: string = LEGACY_HOST_TARGET): string[] {
+  return [...(e.deviceId ? [e.deviceId] : []), ...(e.kind === 'host-computer' ? [hostApp] : []), ...(e.appIds ?? [])]
 }
 
 /**
@@ -600,8 +600,8 @@ export function appsOf(e: StageEquipment): string[] {
  * `keep`: its apps join, its cables, place and matrix move over where `keep` has none
  * (mergeEquipmentInSetup), and it is removed.
  */
-export function joinDevices(keep: StageEquipment, merge: StageEquipment): StageEquipment {
-  const apps = [...new Set([...appsOf(keep), ...appsOf(merge)])].filter((id) => id !== keep.deviceId)
+export function joinDevices(keep: StageEquipment, merge: StageEquipment, hostApp: string = LEGACY_HOST_TARGET): StageEquipment {
+  const apps = [...new Set([...appsOf(keep, hostApp), ...appsOf(merge, hostApp)])].filter((id) => id !== keep.deviceId)
   return { ...keep, appIds: apps }
 }
 
@@ -1478,7 +1478,7 @@ export const BUILT_IN_OUTPUT_CAPABILITIES: readonly CapabilityId[] = DEFAULT_VIR
  * sends. Null without a map - the old binding applies. `setupId`: a setup other than the active
  * one (practising "as in setup …", #799).
  */
-export function mapRoute(map: StageMap, virtualPortId: string, frontApp: Readonly<Record<string, string>> = {}, setupId?: string, pluginId?: string | null): { app: string | null; midiName: string | null } | null {
+export function mapRoute(map: StageMap, virtualPortId: string, frontApp: Readonly<Record<string, string>> = {}, setupId?: string, pluginId?: string | null, hostApp: string = LEGACY_HOST_TARGET): { app: string | null; midiName: string | null } | null {
   const setup = setupOf(map, setupId)
   if (!setup) return null
   for (const box of map.equipment) {
@@ -1491,8 +1491,8 @@ export function mapRoute(map: StageMap, virtualPortId: string, frontApp: Readonl
     if (!point || point.kind !== 'port') continue
     // The cable sits on the container of a part (docs/31 §7b).
     const portId = cablePortId(box.ports, point.portId)
-    const apps = appsOf(box)
-    const app = box.kind === 'host-computer' ? SERVER_EXECUTION_TARGET : frontApp[box.id] && apps.includes(frontApp[box.id]!) ? frontApp[box.id]! : (box.deviceId ?? apps[0] ?? null)
+    const apps = appsOf(box, hostApp)
+    const app = box.kind === 'host-computer' ? hostApp : frontApp[box.id] && apps.includes(frontApp[box.id]!) ? frontApp[box.id]! : (box.deviceId ?? apps[0] ?? null)
     const cables = setup.links.filter((l) => (l.from.equipmentId === box.id && l.from.portId === portId) || (l.to.equipmentId === box.id && l.to.portId === portId))
     // Several cables on one socket (a hub on the tablet's USB-C, #813): the one to the device this
     // plugin drives (MG-30 model ↔ MG-30 plugin), else one that names its MIDI port, else the first.
@@ -1537,11 +1537,11 @@ export function pluginWiring(
 
 /** The Logical Devices as the map says: every one but Klick/Track/Ansagen executes where mapRoute
  * sends it. Without a map, as stored. */
-export function routedLogicalDevices<T extends { id: string; capability: string; executionTarget: string | null; pluginId?: string | null }>(devices: readonly T[], map: StageMap, frontApp: Readonly<Record<string, string>> = {}, setupId?: string): T[] {
+export function routedLogicalDevices<T extends { id: string; capability: string; executionTarget: string | null; pluginId?: string | null }>(devices: readonly T[], map: StageMap, frontApp: Readonly<Record<string, string>> = {}, setupId?: string, hostApp: string = LEGACY_HOST_TARGET): T[] {
   if (!setupOf(map, setupId)) return [...devices]
   return devices.map((d) => {
     if (BUILT_IN_OUTPUT_CAPABILITIES.includes(d.capability as CapabilityId)) return d
-    const route = mapRoute(map, d.id, frontApp, setupId, d.pluginId)
+    const route = mapRoute(map, d.id, frontApp, setupId, d.pluginId, hostApp)
     return route ? { ...d, executionTarget: route.app } : d
   })
 }

@@ -8,7 +8,7 @@ const plugins = vi.hoisted(() => ({
 }))
 vi.mock('@capacitor/core', () => ({
   Capacitor: { isNativePlatform: () => true },
-  registerPlugin: (name: string) => (name === 'ServerDiscovery' ? plugins.discovery : plugins.trust),
+  registerPlugin: (name: string) => (name === 'HostDiscovery' ? plugins.discovery : plugins.trust),
 }))
 
 const { hostsToPin, pinListedHosts, hostOfUrl } = await import('./native')

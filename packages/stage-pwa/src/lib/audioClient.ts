@@ -52,7 +52,7 @@ export async function fetchTrack(variantId: string, trackId: string): Promise<Bl
 }
 
 /** A missing track is not an error here either - matches deleteAudioFile's no-op-if-missing
- * behavior on the server. */
+ * behavior on the host. */
 export async function deleteTrackFile(variantId: string, trackId: string): Promise<void> {
   const url = audioUrl(variantId, trackId)
   if (!url) return

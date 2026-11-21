@@ -24,7 +24,7 @@ vi.mock('pouchdb-browser', () => ({
 const rig = await import('./rigCheck')
 const song = await import('./rigCheckSong')
 const { computeActiveMs, transportOf } = await import('./playbackTransport')
-const { getServerTime } = await import('./clockSync')
+const { getHostTime } = await import('./clockSync')
 const { getDeviceId } = await import('./deviceId')
 const { useShowLogStore } = await import('../store/useShowLogStore')
 const { useShowStateStore } = await import('../store/useShowStateStore')
@@ -56,7 +56,7 @@ function arrived() {
   })
 }
 
-function preparedRun(at = Math.round(getServerTime())): ShowLogEvent {
+function preparedRun(at = Math.round(getHostTime())): ShowLogEvent {
   return { id: 'rig-check-run-r1', showId: 'r1', type: 'rig-check-run', at, kind: 'quick', version: song.RIG_CHECK_VERSION }
 }
 
@@ -79,12 +79,12 @@ afterEach(() => {
 describe('Rig-Check run state (#464)', () => {
   it('a prepared run is open; nobody starting it closes it after half an hour', () => {
     const run = preparedRun()
-    expect(rig.openRun([run], getServerTime())).toEqual(run)
-    expect(rig.openRun([run], getServerTime() + rig.RUN_OPEN_MS + 1)).toBeNull()
+    expect(rig.openRun([run], getHostTime())).toEqual(run)
+    expect(rig.openRun([run], getHostTime() + rig.RUN_OPEN_MS + 1)).toBeNull()
   })
 
   it('an ended run asks for the verdict for a quarter of an hour', () => {
-    const now = getServerTime()
+    const now = getHostTime()
     const ended = { ...preparedRun(), startedAt: now, endedAt: now + 40_000 } as ShowLogEvent
     expect(rig.openRun([ended], now + 41_000)).toBeNull()
     expect(rig.verdictRun([ended], now + 41_000)).toEqual(ended)
@@ -123,7 +123,7 @@ describe('startRigCheck', () => {
     expect(state.currentShowId).toBe('r1')
     expect(state.playbackStatus).toBe('playing')
     // Count-in fits the lead-in: song time starts the ahead-of-time lead before 0, not a bar early.
-    expect(computeActiveMs(transportOf(state), getServerTime())).toBeLessThan(0)
+    expect(computeActiveMs(transportOf(state), getHostTime())).toBeLessThan(0)
     const run = rig.latestRun(events)!
     expect(run.startedAt).toBeDefined()
     expect(run.previous).toEqual({ activeSetlistId: 'gig-setlist', activeEntryId: 'e7', currentShowId: 'tonight', lastActivityAt: 123 })

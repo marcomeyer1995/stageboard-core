@@ -1,6 +1,6 @@
 import type { ShowState } from 'shared-types'
 import { create } from 'zustand'
-import { getServerTime } from './clockSync'
+import { getHostTime } from './clockSync'
 import { nativeOutputDelayMs } from './nativeOutput'
 import { leadNeeded } from './playLead'
 import { useShowStateStore } from '../store/useShowStateStore'
@@ -36,7 +36,7 @@ export function startLeadCheck(): void {
   useShowStateStore.subscribe((store) => {
     const state = store.state
     if (state !== before && freshStart(state, before)) {
-      useLeadNeededStore.setState({ neededMs: leadNeeded(state.playbackStartedAt!, getServerTime(), outputDelayMs()), at: Date.now() })
+      useLeadNeededStore.setState({ neededMs: leadNeeded(state.playbackStartedAt!, getHostTime(), outputDelayMs()), at: Date.now() })
     }
     before = state
   })

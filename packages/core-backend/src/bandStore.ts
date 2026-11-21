@@ -22,7 +22,7 @@ interface DeviceDoc extends DatabaseDoc {
 export interface LaptopBandStoreDeps {
   database: DatabaseConfig
   accountsFor: (workspaceId: string) => BandAccounts
-  /** An admin login of any band on this server (#364) - the laptop keeps its own throttle for it. */
+  /** An admin login of any band on this host (#364) - the laptop keeps its own throttle for it. */
   isAdminOfAnyBand: (username: string, password: string) => Promise<boolean>
   /** That band's admin, with the laptop's lockout for wrong tries. */
   checkAdmin: (workspaceId: string, username: string, password: string) => Promise<boolean>

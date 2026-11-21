@@ -20,7 +20,7 @@ const current: HostPresence = {
 
 export const presence = (): HostPresence => current
 
-/** Test-only: this instance is shared across the whole process by design (one server, many bands) - tests need
+/** Test-only: this instance is shared across the whole process by design (one host, many bands) - tests need
  * a way to reset it between runs. */
 export function __resetPresenceStoreForTests(now: () => number = () => Date.now()): void {
   store = createHostPresence({ now })

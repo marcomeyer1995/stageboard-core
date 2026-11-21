@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { getServerTime } from './clockSync'
+import { getHostTime } from './clockSync'
 import { clockTimeAt, computeActiveMs, foldJump, rateOf, transportOf, type SectionJump, type TransportState } from './playbackTransport'
 import { jumpBoundary, type JumpWhen, type ShowSection } from './showSections'
 import type { ClickTimeline } from './beatGrid'
@@ -43,7 +43,7 @@ function gigHost(): JumpHost {
   const { isMaster, state, applyPatch } = useShowStateStore.getState()
   return {
     allowed: isMaster,
-    now: getServerTime,
+    now: getHostTime,
     transport: transportOf(state),
     loop: state.playbackLoop ?? null,
     write: async (patch) => {

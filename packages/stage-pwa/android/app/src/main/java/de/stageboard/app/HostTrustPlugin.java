@@ -35,8 +35,8 @@ import javax.net.ssl.X509TrustManager;
  * code, or confirmed by the user for a typed-in address). PinnedWebViewClient accepts a server
  * only if its certificate matches; nothing else is ever trusted.
  */
-@CapacitorPlugin(name = "ServerTrust")
-public class ServerTrustPlugin extends Plugin {
+@CapacitorPlugin(name = "HostTrust")
+public class HostTrustPlugin extends Plugin {
     private static final String PREFS = "stageboard_server_trust";
 
     /** The pinned fingerprint for `host` (without port), or null. */

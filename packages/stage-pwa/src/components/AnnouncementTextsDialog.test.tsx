@@ -15,7 +15,7 @@ const { AnnouncementTextsDialog } = await import('./AnnouncementTextsDialog')
 describe('AnnouncementTextsDialog (Marco, 2026-10-16)', () => {
   it('holds this device\'s on/off switch on top, above the band-wide settings', () => {
     usePluginsStore.setState({
-      installed: [{ id: 'section-announcements', name: 'Ansagen der Songteile', version: '0.0.1', runtime: 'client', capabilities: ['section-announcements'], transports: [], hardwareIds: [], enabled: true, installedAt: 1 }],
+      installed: [{ id: 'section-announcements', name: 'Ansagen der Songteile', version: '0.0.1', runtime: 'device', capabilities: ['section-announcements'], transports: [], hardwareIds: [], enabled: true, installedAt: 1 }],
     } as never)
     render(<AnnouncementTextsDialog onClose={() => {}} />)
     const here = screen.getByText('Auf diesem Gerät').closest('section')!

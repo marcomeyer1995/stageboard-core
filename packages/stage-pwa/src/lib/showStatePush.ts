@@ -42,7 +42,7 @@ export function subscribeToShowStatePush(workspaceId: string, onPush: (push: Sho
   return () => source.close()
 }
 
-/** Tells the server when a change reached this device - logged there, the measurement behind PLAY_LEAD_MS. */
+/** Tells the host when a change reached this device - logged there, the measurement behind PLAY_LEAD_MS. */
 export function reportShowStateArrival(workspaceId: string, ack: ShowStatePushAck): void {
   const url = streamUrl(workspaceId, 'ack')
   if (!url) return

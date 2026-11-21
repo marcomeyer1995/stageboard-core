@@ -1,7 +1,7 @@
-import { SERVER_MESSAGES_DE, serverMessage } from 'shared-types'
+import { SERVER_MESSAGES_DE, hostMessage } from 'shared-types'
 import { afterEach, describe, expect, it } from 'vitest'
 import i18n, { resources } from '../i18n'
-import { serverErrorText, serverText } from './serverMessage'
+import { hostErrorText, hostText } from './hostMessage'
 
 function flatten(value: unknown, prefix = ''): Record<string, string> {
   if (typeof value === 'string') return { [prefix]: value }
@@ -16,17 +16,17 @@ describe('Host messages in the device language (#679)', () => {
   })
 
   it('translates a known code with its values, in the chosen language', async () => {
-    const reply = { status: 'error', ...serverMessage('speech.notInstalled', { voice: 'thorsten' }) }
-    expect(serverText(reply)).toBe('Piper oder Stimme thorsten nicht installiert')
+    const reply = { status: 'error', ...hostMessage('speech.notInstalled', { voice: 'thorsten' }) }
+    expect(hostText(reply)).toBe('Piper oder Stimme thorsten nicht installiert')
     await i18n.changeLanguage('en')
-    expect(serverText(reply)).toMatch(/thorsten/)
-    expect(serverErrorText({ error: 'Durch einen Neustart des Hosts unterbrochen.', errorCode: 'job.interrupted' })).toBe('Interrupted by a restart of the Host.')
+    expect(hostText(reply)).toMatch(/thorsten/)
+    expect(hostErrorText({ error: 'Durch einen Neustart des Hosts unterbrochen.', errorCode: 'job.interrupted' })).toBe('Interrupted by a restart of the Host.')
   })
 
   it("falls back to the server's own text for a code this app doesn't know, or none", async () => {
     await i18n.changeLanguage('en')
-    expect(serverText({ message: 'Neue Meldung', messageCode: 'future.thing' })).toBe('Neue Meldung')
-    expect(serverText({ message: 'Track not found' })).toBe('Track not found')
-    expect(serverText(null)).toBeUndefined()
+    expect(hostText({ message: 'Neue Meldung', messageCode: 'future.thing' })).toBe('Neue Meldung')
+    expect(hostText({ message: 'Track not found' })).toBe('Track not found')
+    expect(hostText(null)).toBeUndefined()
   })
 })

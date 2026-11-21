@@ -21,14 +21,14 @@ export interface VerifiedAdmin {
 }
 
 /**
- * One step of SwitchServerBandWizard.tsx: proves "an admin of this workspace" - which admin, and
+ * One step of SwitchHostBandWizard.tsx: proves "an admin of this workspace" - which admin, and
  * their PIN (their own, or the universal recovery code) - verified by the Host itself
  * (`verifyAdminPin`), so a wrong PIN is rejected right here instead of at the final commit.
  *
  * - `knownProfileId` given (the closing band's current user on this device): only the PIN is asked,
  *   the name never - "Anderer Admin wählen" falls back to the picker below.
- * - `loadAdmins` given (the band the server is currently serving): its admins are listed straight
- *   from the server, no band code at all - that band is already registered on this box. Falls
+ * - `loadAdmins` given (the band the host is currently serving): its admins are listed straight
+ *   from the host, no band code at all - that band is already registered on this box. Falls
  *   back to the code-gated path below only if the loader comes back empty-handed.
  * - Otherwise: mirrors JoinBandView.tsx's code -> roster -> PIN sequence. The code is only asked
  *   when this device has no cached admin session for the workspace; with one, it's fetched

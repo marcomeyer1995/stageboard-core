@@ -3,7 +3,7 @@ import type { ClickEngineState } from '../clickEngine'
 import type { TransportState } from '../playbackTransport'
 import { sharedAudioClock } from '../audioClock'
 import { sourceOutput } from '../audioMix'
-import { getServerTime } from '../clockSync'
+import { getHostTime } from '../clockSync'
 import { getSharedAudioContext } from '../sharedAudioContext'
 import { ENGINE_PROCESSOR, type EngineMessage, type EngineProcessorOptions, type EngineStatus } from './engineMessages'
 import processorUrl from './engineProcessor.ts?worker&url'
@@ -161,8 +161,8 @@ function attach(ctx: AudioContext): Promise<Host> {
 /** Frame being rendered now ↔ the band time it will be heard at: the same pair clickEngine.ts
  * schedules with (audio clock now, song clock now, output latency). */
 /** "This frame is heard at transport time …" - on the transport's own clock (Solo Üben: the
- * device's, not the server's - 650 ms apart on the Redmi, 2026-11-13). */
-export function clockPair(ctx: AudioContext, outputLatencyMs: number, now: () => number = getServerTime): EngineMessage {
+ * device's, not the host's - 650 ms apart on the Redmi, 2026-11-13). */
+export function clockPair(ctx: AudioContext, outputLatencyMs: number, now: () => number = getHostTime): EngineMessage {
   return { type: 'clock', frame: Math.round(sharedAudioClock.now(ctx) * ctx.sampleRate), bandMs: now() + outputLatencyMs }
 }
 

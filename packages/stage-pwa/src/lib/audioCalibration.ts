@@ -2,10 +2,10 @@ import i18n from '../i18n'
 import type { AudioRoute, CalibrationRunStart, CalibrationRunStatus, MeasureInputKind } from 'shared-types'
 import { createAudioClock } from './audioClock'
 import { playClickAt } from './clickEngine'
-import { getServerTime } from './clockSync'
+import { getHostTime } from './clockSync'
 import { getDeviceId } from './deviceId'
 import { getSharedAudioContext, holdAudioOutputAwake } from './sharedAudioContext'
-import { serverText } from './serverMessage'
+import { hostText } from './hostMessage'
 import { getHostUrl } from './hostUrl'
 import { useAudioRouteStore } from '../store/useAudioRouteStore'
 
@@ -18,13 +18,13 @@ export function measureInputFor(route: AudioRoute): MeasureInputKind {
   return route === 'speaker' || route === 'unknown' ? 'mic' : 'cable'
 }
 
-/** `busy`: the server is still measuring another device (HTTP 409). */
+/** `busy`: the host is still measuring another device (HTTP 409). */
 export type AudioCalibrationOutcome = { ok: true; status: CalibrationRunStatus } | { ok: false; message: string; busy?: boolean }
 
 /**
  * Measures this device's audio output latency with the Host's microphone (docs/21 §4,
- * #491): the server hands out an irregular list of click times and records; this device plays the
- * real click (same tone and clock mapping as the Gig click) at those times; the server reports the
+ * #491): the host hands out an irregular list of click times and records; this device plays the
+ * real click (same tone and clock mapping as the Gig click) at those times; the host reports the
  * delay at which what it heard fits the pattern. `earlierByMs` > 0 plays the clicks that much
  * earlier - the check of a stored value ("Prüfen"), which should then come out near 0.
  */
@@ -39,7 +39,7 @@ export async function runAudioCalibration(earlierByMs = 0, onProgress?: (msLeft:
       body: JSON.stringify({ deviceId: getDeviceId(), input: measureInputFor(useAudioRouteStore.getState().route) }),
     })
     if (!response.ok) {
-      const message = serverText((await response.json().catch(() => ({}))) as { message?: string }) ?? `HTTP ${response.status}`
+      const message = hostText((await response.json().catch(() => ({}))) as { message?: string }) ?? `HTTP ${response.status}`
       return { ok: false, message, ...(response.status === 409 ? { busy: true } : {}) }
     }
     run = (await response.json()) as CalibrationRunStart
@@ -55,7 +55,7 @@ export async function runAudioCalibration(earlierByMs = 0, onProgress?: (msLeft:
   let next = 0
   await new Promise<void>((resolve) => {
     const tick = () => {
-      const now = getServerTime()
+      const now = getHostTime()
       const audioNow = clock.now(ctx)
       while (next < run.times.length && run.times[next]! - earlierByMs <= now + AHEAD_MS) {
         playClickAt(ctx, audioNow + (run.times[next]! - earlierByMs - now) / 1000, true)
@@ -78,7 +78,7 @@ export async function runAudioCalibration(earlierByMs = 0, onProgress?: (msLeft:
       const status = (await response.json()) as CalibrationRunStatus
       if (status.state !== 'recording') return { ok: true, status }
     } catch {
-      // Retry - the server finishes the analysis right after recording.
+      // Retry - the host finishes the analysis right after recording.
     }
     await new Promise((r) => setTimeout(r, 300))
   }

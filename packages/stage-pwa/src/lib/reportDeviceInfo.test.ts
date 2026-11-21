@@ -5,7 +5,7 @@ import { reportDeviceInfo } from './reportDeviceInfo'
 const REPORT = { deviceId: 'device-1', os: 'iPad', environment: 'browser' as const, syncStatus: 'idle' as const }
 
 afterEach(() => {
-  useSyncStore.setState({ notOnServer: {} })
+  useSyncStore.setState({ notOnHost: {} })
   vi.unstubAllGlobals()
   vi.unstubAllEnvs()
 })
@@ -41,7 +41,7 @@ describe('reportDeviceInfo', () => {
     vi.stubEnv('VITE_HOST_URL', 'https://stage.example')
     const fetchMock = vi.fn()
     vi.stubGlobal('fetch', fetchMock)
-    useSyncStore.setState({ notOnServer: { 'band-a': true } })
+    useSyncStore.setState({ notOnHost: { 'band-a': true } })
 
     await reportDeviceInfo('band-a', REPORT)
 

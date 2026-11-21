@@ -1,5 +1,5 @@
 /**
- * What the server-local commands (band:delete, admin:reset - #70) run with: the Host
+ * What the host-local commands (band:delete, admin:reset - #70) run with: the Host
  * service's own environment (database login, state folder), so they work from a plain shell
  * without retyping any credential.
  */
@@ -35,7 +35,7 @@ export function serviceEnvironment(): Record<string, string> {
 }
 
 /** Fills STAGEBOARD_DB_* / STAGEBOARD_STATE_DIR from the service where the shell doesn't set them, and
- * returns the database login the server itself uses. */
+ * returns the database login the host itself uses. */
 export function serverDatabaseConfig(): DatabaseConfig {
   const service = serviceEnvironment()
   for (const key of ['STAGEBOARD_DB_URL', 'STAGEBOARD_DB_USER', 'STAGEBOARD_DB_PASSWORD', 'STAGEBOARD_STATE_DIR']) {

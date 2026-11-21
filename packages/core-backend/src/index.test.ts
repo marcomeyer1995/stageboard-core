@@ -501,7 +501,7 @@ describe('Fastify routes', () => {
     it('answers a band that installed it', async () => {
       await lookupRegistry.register(ug(), testContext())
       // By URL, not by order: the band's background watchers poll through the same fetch.
-      const installation = { _id: 'plugins:ultimate-guitar-import', id: 'ultimate-guitar-import', name: 'Ultimate Guitar Import', version: '0.0.1', enabled: true, runtime: 'server', installedAt: 1, capabilities: ['chord-import'], transports: [], hardwareIds: [] }
+      const installation = { _id: 'plugins:ultimate-guitar-import', id: 'ultimate-guitar-import', name: 'Ultimate Guitar Import', version: '0.0.1', enabled: true, runtime: 'host', installedAt: 1, capabilities: ['chord-import'], transports: [], hardwareIds: [] }
       vi.stubGlobal(
         'fetch',
         vi.fn(async (url: string) =>
@@ -545,7 +545,7 @@ describe('Fastify routes', () => {
     })
 
     it('for a band that installed it, the add-on answers a method it offered - a bad body comes back as the contract\'s error, an undeclared method is refused before the add-on', async () => {
-      const installation = { _id: 'plugins:youtube-download', id: 'youtube-download', name: 'YouTube', version: '1.0.0', enabled: true, runtime: 'server', installedAt: 1, capabilities: [], source: 'builtin' }
+      const installation = { _id: 'plugins:youtube-download', id: 'youtube-download', name: 'YouTube', version: '1.0.0', enabled: true, runtime: 'host', installedAt: 1, capabilities: [], source: 'builtin' }
       vi.stubGlobal('fetch', vi.fn(async (url: string) => (String(url).includes('stageboard-band-a/_all_docs') ? ({ ok: true, status: 200, json: async () => ({ rows: [{ doc: installation }] }) } as Response) : ({ ok: false, status: 404, json: async () => ({}) } as Response))))
       expect((await post('/addons/youtube-download/methods/format-disk?workspace=band-a')).json()).toMatchObject({ ok: false, error: { code: 'method.not-callable' } })
       expect((await post('/addons/youtube-download/methods/search?workspace=band-a', { query: '' })).json()).toMatchObject({ ok: false, error: { code: 'method.input' } })

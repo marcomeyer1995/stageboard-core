@@ -8,7 +8,7 @@ import { usePluginsStore } from '../store/usePluginsStore'
 import { Badge, Button } from './ui'
 
 /**
- * The server plugins at the host on the stage map (Marco, 2026-11-07, docs/25 §6): download tool,
+ * The host plugins at the host on the stage map (Marco, 2026-11-07, docs/25 §6): download tool,
  * stem separation, voices … - installable only where this host can run them, greyed out with what
  * it lacks where not (an Android host: none of the heavy ones). Installing is the same as in
  * System → Add-ons; only the admin installs.

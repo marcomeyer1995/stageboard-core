@@ -7,7 +7,7 @@ function plugin(overrides: Partial<PluginInstallation>): PluginInstallation {
     id: 'plugin-1',
     name: 'Plugin',
     version: '0.0.1',
-    runtime: 'client',
+    runtime: 'device',
     capabilities: [],
     transports: [],
     hardwareIds: [],

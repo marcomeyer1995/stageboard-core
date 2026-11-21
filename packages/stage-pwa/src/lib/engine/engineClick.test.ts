@@ -7,7 +7,7 @@ import type { EngineMessage } from './engineMessages'
 vi.mock('./engineProcessor.ts?worker&url', () => ({ default: 'processor.js' }))
 vi.mock('./stageboard_engine.wasm?url', () => ({ default: 'engine.wasm' }))
 vi.mock('../audioClock', () => ({ sharedAudioClock: { now: () => 2 } }))
-vi.mock('../clockSync', () => ({ getServerTime: () => 100_650 }))
+vi.mock('../clockSync', () => ({ getHostTime: () => 100_650 }))
 
 const { HORIZON_MS, audibleBeats, clockPair, createFollower, nudgedBeats, planBeats } = await import('./engineClick')
 

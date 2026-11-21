@@ -53,7 +53,7 @@ export function pluginStatus(
   clientProbes: Record<CapabilityId, boolean>,
   now: number,
 ): CapabilityStatus {
-  if (plugin.runtime === 'client') {
+  if (plugin.runtime === 'device') {
     return clientProbes[capability] ? 'available' : 'degraded'
   }
 

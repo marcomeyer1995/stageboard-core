@@ -72,11 +72,11 @@ describe('hasClientTranslator', () => {
   })
 
   it('is false when the matching plugin is server-only', () => {
-    expect(hasClientTranslator([plugin({ runtime: 'server' })], CAPABILITIES.mixer)).toBe(false)
+    expect(hasClientTranslator([plugin({ runtime: 'host' })], CAPABILITIES.mixer)).toBe(false)
   })
 
   it('is true for an enabled client or both-runtime plugin providing the capability', () => {
-    expect(hasClientTranslator([plugin({ runtime: 'client' })], CAPABILITIES.mixer)).toBe(true)
+    expect(hasClientTranslator([plugin({ runtime: 'device' })], CAPABILITIES.mixer)).toBe(true)
     expect(hasClientTranslator([plugin({ runtime: 'both' })], CAPABILITIES.mixer)).toBe(true)
   })
 })
@@ -88,7 +88,7 @@ describe('supportsLocalExecution', () => {
 
   it('otherwise defers to hasClientTranslator', () => {
     expect(supportsLocalExecution([], CAPABILITIES.mixer)).toBe(false)
-    expect(supportsLocalExecution([plugin({ runtime: 'client' })], CAPABILITIES.mixer)).toBe(true)
+    expect(supportsLocalExecution([plugin({ runtime: 'device' })], CAPABILITIES.mixer)).toBe(true)
   })
 })
 

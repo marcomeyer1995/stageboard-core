@@ -27,7 +27,7 @@ import { useCapabilityRouting } from './useCapabilityRouting'
 import { holdAudioOutputAwake } from './sharedAudioContext'
 import { useShowModeCore } from './showMode'
 import { useFrameLoop } from './useFrameLoop'
-import { getServerTime } from './clockSync'
+import { getHostTime } from './clockSync'
 import { computeActiveMs, jumpBoundaryMs, transportOf } from './playbackTransport'
 import { useAudioOutputLatencyMs } from './latencyCompensation'
 import { useTrackLevelCurve } from './trackLevel'
@@ -217,7 +217,7 @@ export function useAudioOutputDriver(): void {
     const state = useShowStateStore.getState().state
     if (state.playbackStatus === 'stopped') return null
     const transport = transportOf(state)
-    const played = computeActiveMs({ ...transport, jump: null }, getServerTime()) + latencyRef.current
+    const played = computeActiveMs({ ...transport, jump: null }, getHostTime()) + latencyRef.current
     const boundary = jumpBoundaryMs(transport)
     return transport.jump && boundary !== null && played >= boundary ? transport.jump.toMs + (played - boundary) : played
   }).current

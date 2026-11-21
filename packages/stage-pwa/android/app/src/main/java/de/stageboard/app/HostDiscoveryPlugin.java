@@ -28,10 +28,10 @@ import java.util.Map;
  * by the server's mDNS responder with its certificate fingerprint in the TXT record. Android's own
  * mDNS stack (NsdManager) does the work, so this works where the browser can't resolve
  * `stageboard.local`. Read-only: finding a server never trusts it - pairing still pins the
- * certificate (ServerTrustPlugin), and only a matching fingerprint is followed automatically.
+ * certificate (HostTrustPlugin), and only a matching fingerprint is followed automatically.
  */
-@CapacitorPlugin(name = "ServerDiscovery")
-public class ServerDiscoveryPlugin extends Plugin {
+@CapacitorPlugin(name = "HostDiscovery")
+public class HostDiscoveryPlugin extends Plugin {
     private static final String SERVICE_TYPE = "_stageboard._tcp.";
 
     @PluginMethod

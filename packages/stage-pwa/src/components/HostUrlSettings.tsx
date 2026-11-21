@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { getAutomaticHostUrl, overrideForTypedUrl } from '../lib/hostUrl'
 import { useHostUrlStore } from '../store/useHostUrlStore'
 import { isNativeApp } from '../lib/native'
-import { NetworkServerList } from './NetworkServerList'
+import { NetworkHostList } from './NetworkHostList'
 import { INPUT_FREE } from './ui/styles'
 import { Button, InfoHint } from './ui'
 import { useTranslation } from 'react-i18next'
@@ -13,7 +13,7 @@ import { useTranslation } from 'react-i18next'
  * so the section just shows it. The manual override (a runtime setting, see the Tier-A
  * local-only-founding follow-up) is behind "Erweitert" - it is only for a device that did *not*
  * load the app from the Host - and while one is set it is shown openly with a way back
- * to automatic, because a stale override silently breaks every server call on this device.
+ * to automatic, because a stale override silently breaks every host call on this device.
  * Connecting a solo-founded band for the first time is BandManagementView.tsx's "Verbinden"
  * flow, which writes to this same store.
  */
@@ -33,7 +33,7 @@ export function HostUrlSettings() {
   }
 
   // Native app (#348/#351): the address comes from pairing, there is no "automatic" one - show the
-  // paired server and the servers on the network instead of the browser's override field.
+  // paired host and the hosts on the network instead of the browser's override field.
   if (isNativeApp()) {
     return (
       <div className="flex flex-col gap-3">
@@ -47,7 +47,7 @@ export function HostUrlSettings() {
             <span className="text-ink-faint">{t('srv.notPaired')}</span>
           )}
         </p>
-        <NetworkServerList />
+        <NetworkHostList />
       </div>
     )
   }

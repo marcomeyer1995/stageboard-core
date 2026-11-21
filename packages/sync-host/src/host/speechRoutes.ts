@@ -1,4 +1,4 @@
-import { SpeechSpeedSchema, SpeechVoiceKeySchema, serverMessage, type ServerMessageCode, type ServerMessageParams } from 'shared-types'
+import { SpeechSpeedSchema, SpeechVoiceKeySchema, hostMessage, type HostMessageCode, type HostMessageParams } from 'shared-types'
 import type { HostRoute, HostRouteResponse } from './routes.js'
 
 /**
@@ -10,7 +10,7 @@ import type { HostRoute, HostRouteResponse } from './routes.js'
  */
 export type SpeechResult =
   | { ok: true; wav: Uint8Array; generated: boolean }
-  | { ok: false; reason: 'unavailable' | 'failed'; message: string; messageCode?: ServerMessageCode; messageParams?: ServerMessageParams }
+  | { ok: false; reason: 'unavailable' | 'failed'; message: string; messageCode?: HostMessageCode; messageParams?: HostMessageParams }
 
 export interface SpeechPorts {
   /** The band has the speech plugin installed on this host. */
@@ -27,7 +27,7 @@ export interface SpeechPorts {
   log?: { info: (meta: Record<string, unknown>, message: string) => void; error: (meta: Record<string, unknown>, message: string) => void }
 }
 
-const error = (status: number, code: ServerMessageCode): HostRouteResponse => ({ status, body: { status: 'error', ...serverMessage(code) } })
+const error = (status: number, code: HostMessageCode): HostRouteResponse => ({ status, body: { status: 'error', ...hostMessage(code) } })
 const missingPlugin = (): HostRouteResponse => error(404, 'speech.pluginMissing')
 /** A clip never changes for the same text and voice, so a device may keep it for good. */
 const CLIP_CACHE = 'public, max-age=31536000, immutable'

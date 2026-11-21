@@ -15,7 +15,7 @@ import { useTabSwipe } from '../lib/useTabSwipe'
 import { useTranslation } from 'react-i18next'
 
 /** Names and order Marco chose 2026-10-16 (docs/15 §9 step 3): by scope - this device, the
- * band, the server - instead of the old mix where one tab held device, band and server settings. */
+ * band, the host - instead of the old mix where one tab held device, band and server settings. */
 
 /** Mirrors LibraryView.tsx's own two-pane breakpoint (Tailwind's `lg`, min-width 1024px) -
  * once the screen is wide enough that Bibliothek would show both its panes side by side

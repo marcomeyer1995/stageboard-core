@@ -152,7 +152,7 @@ async function main(): Promise<void> {
   }
 
   const database: DatabaseConfig = serverDatabaseConfig()
-  // Imported after the environment is set, like the server itself.
+  // Imported after the environment is set, like the host itself.
   const { allDocs, listDbs, putDocWithRetry } = await import('../database.js')
   const audioDir = process.env.AUDIO_STORAGE_DIR ?? './data/audio'
   const archiveDir = process.env.AUDIO_ARCHIVE_DIR ?? join(process.env.STAGEBOARD_STATE_DIR ?? './data', 'audio-archive')

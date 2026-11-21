@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { useShowPart } from '../lib/widgetParts'
 import { useEffect, useState } from 'react'
-import { getServerTime } from '../lib/clockSync'
+import { getHostTime } from '../lib/clockSync'
 import { syncCheckLayout, type SyncClockFormat } from '../lib/stageWidgetLayout'
 import { useElementSize } from '../lib/useElementSize'
 import { useClockSyncStore } from '../store/useClockSyncStore'
@@ -27,7 +27,7 @@ function useServerTimeTick(): number {
     frame = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(frame)
   }, [])
-  return getServerTime()
+  return getHostTime()
 }
 
 function formatClock(ms: number, format: SyncClockFormat = 'full'): string {
@@ -43,7 +43,7 @@ function formatClock(ms: number, format: SyncClockFormat = 'full'): string {
  * A visual instrument for eyeballing sync quality across devices (#31 follow-up, at Marco's
  * explicit request after the home-WiFi clock-sync debugging session) - not a diagnostic
  * number to interpret, but something two people can literally look at side by side: the whole
- * panel inverts color on every synchronized-second boundary (derived from getServerTime(), the
+ * panel inverts color on every synchronized-second boundary (derived from getHostTime(), the
  * same corrected clock every ahead-of-time dispatch uses - see clockSync.ts), so two devices
  * with a real offset between them visibly flash out of step, while two well-synced devices
  * flash in lockstep. The millisecond-precision digits underneath are the same signal in numeric

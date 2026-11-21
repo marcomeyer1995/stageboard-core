@@ -13,7 +13,7 @@ vi.mock('../lib/lookupClient', () => ({
 }))
 
 const plugins = vi.hoisted(() => ({
-  installed: [{ id: 'ultimate-guitar-import', name: 'Ultimate Guitar Import', version: '0.0.1', enabled: true, runtime: 'server', installedAt: 1, capabilities: ['chord-import'], transports: [], hardwareIds: [] }] as unknown[],
+  installed: [{ id: 'ultimate-guitar-import', name: 'Ultimate Guitar Import', version: '0.0.1', enabled: true, runtime: 'host', installedAt: 1, capabilities: ['chord-import'], transports: [], hardwareIds: [] }] as unknown[],
 }))
 vi.mock('../store/usePluginsStore', () => ({ usePluginsStore: (select: (state: typeof plugins) => unknown) => select(plugins) }))
 

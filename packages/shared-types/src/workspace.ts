@@ -8,7 +8,7 @@ import { z } from 'zod'
  * client-side up front so the founder's personal account (provisioned here) and their
  * later `profiles:<founderId>` roster doc share the same id, without a round trip in between.
  * `workspaceName` is stored server-side now too (2026-09-01 WiFi-style redesign) - previously
- * the server never learned a workspace's human name at all, only ever told one ephemerally by
+ * the host never learned a workspace's human name at all, only ever told one ephemerally by
  * whichever admin device minted an invite; `GET /workspaces` needs a durable one to list.
  */
 export const WorkspaceProvisionRequestSchema = z.object({
@@ -17,8 +17,8 @@ export const WorkspaceProvisionRequestSchema = z.object({
   workspaceName: z.string().min(1),
   /** The founding device: its own login is made for it, like for every device (#960). */
   deviceId: z.string().min(1).optional(),
-  /** Proof for provisioning (#364): an admin account of a band on this server. Not needed for the
-   * first band on a fresh server, nor from the server machine itself. */
+  /** Proof for provisioning (#364): an admin account of a band on this host. Not needed for the
+   * first band on a fresh host, nor from the host machine itself. */
   adminUsername: z.string().min(1).optional(),
   adminPassword: z.string().min(1).optional(),
 })
@@ -193,7 +193,7 @@ export const ActivateWorkspaceHardwareRequestSchema = z.object({
 })
 export type ActivateWorkspaceHardwareRequest = z.infer<typeof ActivateWorkspaceHardwareRequestSchema>
 
-/** Response shape for `GET /server/active-workspace` - which workspace (if any) this specific
+/** Response shape for `GET /host/active-workspace` - which workspace (if any) this specific
  * Host's local hardware currently serves. `null` before any workspace has ever been
  * activated on this box. */
 export const ActiveWorkspaceStatusSchema = z.object({
@@ -201,7 +201,7 @@ export const ActiveWorkspaceStatusSchema = z.object({
 })
 export type ActiveWorkspaceStatus = z.infer<typeof ActiveWorkspaceStatusSchema>
 
-/** Response of `GET /server/active-workspace/admins` - the roster admins (names + ids only) of the
+/** Response of `GET /host/active-workspace/admins` - the roster admins (names + ids only) of the
  * band this Host is *currently serving*, no band code needed: that band is already
  * registered here, and the hardware-switch wizard only needs to show whose PIN can close it. Only
  * ever the active band - the route takes no workspace parameter, so it can't be used to enumerate
@@ -212,7 +212,7 @@ export const ActiveWorkspaceAdminsSchema = z.object({
 })
 export type ActiveWorkspaceAdmins = z.infer<typeof ActiveWorkspaceAdminsSchema>
 
-/** Response shape for `GET /server-info` - this specific box's own address/name, not tied to
+/** Response shape for `GET /host/info` - this specific box's own address/name, not tied to
  * any one workspace. `hostname` is the same name already broadcast over mDNS (`MDNS_HOSTNAME`
  * env var, defaulting to `stageboard.local`), just also exposed here so a device that's never
  * seen the mDNS broadcast (e.g. typed a raw IP) can still show it, for example in the Device
@@ -221,7 +221,7 @@ export const ServerInfoSchema = z.object({
   lanIp: z.string(),
   hostname: z.string(),
 })
-export type ServerInfo = z.infer<typeof ServerInfoSchema>
+export type HostInfo = z.infer<typeof ServerInfoSchema>
 
 /** Who holds the Master-Token (#85): one device ('device', the default), or a person with all
  * their devices ('account' - a bandleader's tablet and phone are master together). */
@@ -259,7 +259,7 @@ export type WorkspaceDeleteRequest = z.infer<typeof WorkspaceDeleteRequestSchema
  * other new `Profile.id`) so the caller can write the `profiles:<id>` roster doc itself via its
  * own existing admin sync connection, right after this call returns - core-backend's only job
  * here is the account, never the roster doc. `password` is the admin's optional choice of a
- * short PIN for this person; omitted means the server generates a long random one instead
+ * short PIN for this person; omitted means the host generates a long random one instead
  * (returned in the response either way, since a random one can never be read back out again).
  */
 export const CreateMemberRequestSchema = AdminProofSchema.extend({
@@ -269,7 +269,7 @@ export const CreateMemberRequestSchema = AdminProofSchema.extend({
 })
 export type CreateMemberRequest = z.infer<typeof CreateMemberRequestSchema>
 
-/** Grants or revokes admin for one already-provisioned member. The server rejects a revoke that
+/** Grants or revokes admin for one already-provisioned member. The host rejects a revoke that
  * would leave the workspace with zero admins (see workspaceProvisioning.ts) - this is real
  * enforcement, not just a UI nicety, since there is no shared fallback admin account to fall
  * back on anymore. */
@@ -385,7 +385,7 @@ export type HostCapabilities = z.infer<typeof HostCapabilitiesSchema>
 export const HostEntrySchema = z.object({
   deviceId: z.string().min(1).max(200),
   deviceName: z.string().max(120).optional(),
-  /** SHA-256 of the tablet's certificate - lowercase hex, no separators (like `/server-info`'s). */
+  /** SHA-256 of the tablet's certificate - lowercase hex, no separators (like `/host/info`'s). */
   certFingerprint: z.string().regex(/^[0-9a-f]{64}$/),
   port: z.number().int().min(1).max(65535),
   updatedAt: z.number(),

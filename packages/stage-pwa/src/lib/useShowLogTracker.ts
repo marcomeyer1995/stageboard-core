@@ -9,7 +9,7 @@ import { drivesAutomation, useShowStateStore } from '../store/useShowStateStore'
 
 /**
  * How long a capability's new status has to hold before it counts as a change (2026-11-08): a
- * heartbeat that wobbles - a server restart, a reconnect, a device clock that is off - flipped all
+ * heartbeat that wobbles - a host restart, a reconnect, a device clock that is off - flipped all
  * capabilities to "degraded" and back within seconds, and every flip became an entry: 8,127 of the
  * band's 9,484 show-log entries, which every new device has to download. A real outage lasts.
  */

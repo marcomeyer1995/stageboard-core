@@ -7,7 +7,7 @@ import { z } from 'zod'
  */
 
 /** A voice's key - Piper's own naming (`de_DE-thorsten-medium`, also `pt_PT-tugão-medium`); also its
- * file name on the server, so letters, digits, `_` and `-` only - no `/` or `.`. */
+ * file name on the host, so letters, digits, `_` and `-` only - no `/` or `.`. */
 export const SpeechVoiceKeySchema = z.string().regex(/^[\p{L}\p{N}_-]{1,80}$/u)
 export const DEFAULT_SPEECH_VOICE = 'de_DE-thorsten-medium'
 
@@ -52,9 +52,9 @@ export const SpeechVoicesResponseSchema = z.object({
   voices: z.array(SpeechVoiceSchema),
   /** The latest download (running, or how the last one ended). */
   download: SpeechVoiceDownloadSchema.nullable(),
-  /** Where the voice list came from: fetched now, the server's saved copy, or none (offline, never fetched). */
+  /** Where the voice list came from: fetched now, the host's saved copy, or none (offline, never fetched). */
   catalog: z.enum(['online', 'cached', 'none']),
-  /** Whether the Piper program itself is installed on the server. */
+  /** Whether the Piper program itself is installed on the host. */
   piperInstalled: z.boolean(),
 })
 export type SpeechVoicesResponse = z.infer<typeof SpeechVoicesResponseSchema>

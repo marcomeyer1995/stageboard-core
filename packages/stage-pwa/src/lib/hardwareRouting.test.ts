@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { CAPABILITIES, SERVER_EXECUTION_TARGET, type LogicalDevice } from 'shared-types'
+import { CAPABILITIES, LEGACY_HOST_TARGET, type LogicalDevice } from 'shared-types'
 import { masterPlays, resolveBuiltInBinding, resolveExecutionEngine, resolveHardwareBinding, resolveHardwareBindingById, resolveHardwareEngine, resolveTargetDevice } from './hardwareRouting'
 
 function kemper(overrides: Partial<LogicalDevice> & Pick<LogicalDevice, 'id' | 'name'>): LogicalDevice {
@@ -135,7 +135,7 @@ describe('Klick / Backing-Track without a chosen tablet (System split, 2026-10-1
   })
 
   it('no role, a role without a tablet, or the server without a real plugin: the device running the show plays', () => {
-    for (const device of [null, role(null), role(SERVER_EXECUTION_TARGET)]) {
+    for (const device of [null, role(null), role(LEGACY_HOST_TARGET)]) {
       expect(resolveExecutionEngine('gig', device, 'me', null, true, { drivesAutomation: true })).toBe('local-mine')
       expect(resolveExecutionEngine('gig', device, 'me', null, true, { drivesAutomation: false })).toBe('local-other')
     }
@@ -143,6 +143,16 @@ describe('Klick / Backing-Track without a chosen tablet (System split, 2026-10-1
 
   it('a chosen tablet and a real server plugin still win', () => {
     expect(resolveExecutionEngine('gig', role('tablet-b'), 'me', null, true, { drivesAutomation: true })).toBe('local-other')
-    expect(resolveExecutionEngine('gig', role(SERVER_EXECUTION_TARGET), 'me', 'server-player', true, { drivesAutomation: true })).toBe('plugin')
+    expect(resolveExecutionEngine('gig', role(LEGACY_HOST_TARGET), 'me', 'server-player', true, { drivesAutomation: true })).toBe('plugin')
+  })
+
+  it("a binding to a host's own id runs through its plug-in; a tablet that is also a host keeps its own output (#964)", () => {
+    const role = (executionTarget: string): LogicalDevice => ({ id: 'l', name: 'Licht', capability: CAPABILITIES.lighting, pluginId: null, executionTarget })
+    const world = { hostIds: ['stage-pc', 'tablet-1'], deviceIds: ['tablet-1', 'me'] }
+    expect(resolveHardwareEngine(role('stage-pc'), 'me', 'dmx', true, world)).toBe('plugin')
+    expect(resolveHardwareEngine(role('tablet-1'), 'me', 'dmx', true, world)).toBe('local-other')
+    expect(resolveHardwareEngine(role('tablet-1'), 'tablet-1', 'dmx', true, world)).toBe('local-mine')
+    // Without a world only the legacy word is a host, as before.
+    expect(resolveHardwareEngine(role('stage-pc'), 'me', 'dmx', true)).toBe('local-other')
   })
 })

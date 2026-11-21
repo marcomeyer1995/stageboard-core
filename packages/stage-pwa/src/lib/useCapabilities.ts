@@ -3,12 +3,12 @@ import { API_VERSION_MISMATCH_CODE, apiVersionFits, CAPABILITIES, type Capabilit
 import { resolveCapabilities, type CapabilityStatus } from './capabilities'
 import { reportClientHealth } from './reportClientHealth'
 import { useMidiTrigger } from './useMidiTrigger'
-import { useServerNow } from './useNow'
+import { useHostNow } from './useNow'
 import { usePluginsStore } from '../store/usePluginsStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 
 /**
- * Live capability status for the dashboard. `useServerNow` is what makes a heartbeat that goes
+ * Live capability status for the dashboard. `useHostNow` is what makes a heartbeat that goes
  * stale grey the widget out on its own, without a reload.
  */
 export function useCapabilities(): Map<CapabilityId, CapabilityStatus> {
@@ -16,7 +16,7 @@ export function useCapabilities(): Map<CapabilityId, CapabilityStatus> {
   const health = usePluginsStore((state) => state.health)
   const { status: midiStatus } = useMidiTrigger()
   // Heartbeats carry the Host's time - compared in band time, not this device's clock.
-  const now = useServerNow()
+  const now = useHostNow()
   const workspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
 
   const clientProbes = useMemo<Record<CapabilityId, boolean>>(
@@ -29,7 +29,7 @@ export function useCapabilities(): Map<CapabilityId, CapabilityStatus> {
   // resolution below never waits on this, it trusts the local probe directly, unchanged.
   useEffect(() => {
     for (const plugin of installed) {
-      if (!plugin.enabled || plugin.runtime !== 'client') continue
+      if (!plugin.enabled || plugin.runtime !== 'device') continue
       if (!apiVersionFits(plugin)) {
         void reportClientHealth(workspaceId, plugin.id, 'error', API_VERSION_MISMATCH_CODE)
         continue

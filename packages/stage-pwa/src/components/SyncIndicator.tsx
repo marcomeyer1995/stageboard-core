@@ -28,7 +28,7 @@ const STATUS_ICON: Record<SyncStatus, IconName> = { idle: 'check', syncing: 'clo
  * *second* 4-digit value beyond the access code itself (JoinBandView.tsx's own admin row -
  * either that person's self-assigned PIN, or the universal recovery code, which is just the
  * access code's own last 4 digits, per resolveOutcome's doc comment in core-backend/src/index.ts).
- * Without it the server 403s any admin repair with "Admin accounts require a code", which reads
+ * Without it the host 403s any admin repair with "Admin accounts require a code", which reads
  * exactly like a wrong access code even though it wasn't one. Since the user already typed the
  * full code once here, its last 4 digits double as that universal recovery password for free -
  * no second prompt needed, and it's simply ignored server-side for a non-admin profile.

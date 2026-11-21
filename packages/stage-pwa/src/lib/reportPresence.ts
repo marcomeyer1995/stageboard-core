@@ -11,8 +11,8 @@ import { getHostUrl } from './hostUrl'
 export async function reportPresence(workspaceId: string, deviceId: string, profileId: string): Promise<void> {
   const base = getHostUrl()
   if (!base) return
-  // The paired server does not have this band (#897): nothing there to report to.
-  if (useSyncStore.getState().notOnServer[workspaceId]) return
+  // The paired host does not have this band (#897): nothing there to report to.
+  if (useSyncStore.getState().notOnHost[workspaceId]) return
 
   try {
     await fetch(`${base}/workspaces/${encodeURIComponent(workspaceId)}/presence/report`, {

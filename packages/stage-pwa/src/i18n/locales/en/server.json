@@ -62,7 +62,8 @@
     "tooOld": "The helper is too old for this StageBoard version."
   },
   "addon": {
-    "notInstalled": "The add-on “{{addon}}” is not installed for this band."
+    "notInstalled": "The add-on “{{addon}}” is not installed for this band.",
+    "toolMissing": "This host lacks “{{tool}}” for the add-on “{{addon}}”."
   },
   "audio": {
     "convertFailed": "The audio could not be converted to Opus on this device."

@@ -1,10 +1,10 @@
 import type { LookupResult } from 'shared-types'
-import { serverText } from './serverMessage'
+import { hostText } from './hostMessage'
 import { NO_HOST_MESSAGE, HOST_UNREACHABLE_MESSAGE } from './hostUrl'
 import { resolveHostFor } from './jobHost'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 
-/** The band, so the server can check its add-ons (Ultimate Guitar, #546). */
+/** The band, so the host can check its add-ons (Ultimate Guitar, #546). */
 export function bandParam(): string {
   return `&workspace=${encodeURIComponent(useWorkspaceStore.getState().activeWorkspaceId)}`
 }
@@ -22,7 +22,7 @@ export async function getJson<T>(url: string): Promise<LookupClientResult<T>> {
     const response = await fetch(`${base}${url}`)
     const body = await response.json()
     if (!response.ok) {
-      const message = serverText(body as { message?: string } | null) ?? `HTTP ${response.status}`
+      const message = hostText(body as { message?: string } | null) ?? `HTTP ${response.status}`
       return { status: 'error', message }
     }
     return { status: 'ok', data: body as T }

@@ -11,24 +11,24 @@ type Step = 'closing' | 'pick-band' | 'target' | 'committing'
 
 /**
  * Switches which band's hardware this Host serves, as one wizard - every step can be
- * aborted, and nothing changes on the server until the very last one:
+ * aborted, and nothing changes on the host until the very last one:
  *
  * 1. (started by WorkspaceHardwareSettings.tsx's button)
  * 2. Only when some band is currently active: confirm the PIN of its admin. The name is never
  *    asked - it's this device's own current profile in that band (only an admin has one that
  *    passes) - and a wrong PIN ends the wizard's progress right here. A device with no admin
- *    session in that band picks one of that band's admins instead, listed by the server itself
+ *    session in that band picks one of that band's admins instead, listed by the host itself
  *    with no band code - it's the band this box is already running.
- * 3. Pick the target from every band the server hosts.
+ * 3. Pick the target from every band the host hosts.
  * 4. The target's band code - only when this device has no cached admin session for it.
  * 5. The target's admins, 6. the chosen admin's PIN (own, or the universal recovery code).
- * 7. Only then is the switch committed, with both proofs verified by the server again.
+ * 7. Only then is the switch committed, with both proofs verified by the host again.
  *
  * Afterwards this device follows the switch (shows the new band as the admin it just proved
  * itself as): a band it has cached via `activateProfile`, one it never saw via `joinAsMember`
  * (which needs the code from step 4 - why the target step hands it back).
  */
-export function SwitchServerBandWizard({
+export function SwitchHostBandWizard({
   bands,
   activeWorkspaceId,
   onClose,

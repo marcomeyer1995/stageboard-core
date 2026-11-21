@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { BackupTargetSchema, serverMessage, type BackupOverview, type BackupTarget, type BackupTargetStatus, type ServerMessage } from 'shared-types'
+import { BackupTargetSchema, hostMessage, type BackupOverview, type BackupTarget, type BackupTargetStatus, type HostMessage } from 'shared-types'
 
 /**
  * The Host's own backups (#363, Marco 2026-10-08): targets chosen in the app (System →
@@ -28,7 +28,7 @@ export interface BackupDeps {
   now: () => Date
   exists: (path: string) => boolean
   exec: (cmd: string, args: string[], env?: NodeJS.ProcessEnv) => Promise<ExecResult>
-  /** A song plays in the band this server serves - no backup then (CPU and disk belong to the show). */
+  /** A song plays in the band this host serves - no backup then (CPU and disk belong to the show). */
   isPlaying: () => Promise<boolean>
   log: { info: (obj: object, msg: string) => void; warn: (obj: object, msg: string) => void; error: (obj: object, msg: string) => void }
 }
@@ -39,7 +39,7 @@ const GENERATION = /^stageboard-\d{4}-\d{2}-\d{2}_\d{4}$/
 
 /**
  * Why `target` should be backed up now, or null. Pure, so the rules are testable:
- * - `daily`: its time today has passed and nothing ran on it since then (a server that was off at
+ * - `daily`: its time today has passed and nothing ran on it since then (a host that was off at
  *   4:00 catches up when it is back the same day);
  * - `plug-in`: a folder target whose medium just appeared, last success over a day ago.
  */
@@ -235,27 +235,27 @@ export function createBackupService(deps: BackupDeps) {
       deps.log.info({ target: id }, 'Backup target removed')
     },
     run,
-    /** "Verbindung testen": can the server write to the target? */
-    async test(id: string): Promise<{ ok: boolean } & (ServerMessage | { message: string })> {
+    /** "Verbindung testen": can the host write to the target? */
+    async test(id: string): Promise<{ ok: boolean } & (HostMessage | { message: string })> {
       const t = targets.find((x) => x.id === id)
-      if (!t) return { ok: false, ...serverMessage('backup.unknownTarget') }
+      if (!t) return { ok: false, ...hostMessage('backup.unknownTarget') }
       if (t.kind === 'folder') {
-        if (!deps.exists(t.path!)) return { ok: false, ...serverMessage('backup.folderMissing', { path: t.path! }) }
+        if (!deps.exists(t.path!)) return { ok: false, ...hostMessage('backup.folderMissing', { path: t.path! }) }
         const w = await deps.exec('test', ['-w', t.path!])
-        if (w.code !== 0) return { ok: false, ...serverMessage('backup.folderNotWritable') }
+        if (w.code !== 0) return { ok: false, ...hostMessage('backup.folderNotWritable') }
         // Same check as scripts/backup.mjs: not on the data's own disk (an unmounted mount point).
         const dev = await deps.exec('stat', ['-c', '%d', t.path!, deps.dataDir])
         const [a, b] = dev.stdout.trim().split('\n')
-        if (dev.code === 0 && a && a === b) return { ok: false, ...serverMessage('backup.sameDisk') }
-        return { ok: true, ...serverMessage('backup.folderOk') }
+        if (dev.code === 0 && a && a === b) return { ok: false, ...hostMessage('backup.sameDisk') }
+        return { ok: true, ...hostMessage('backup.folderOk') }
       }
-      if (!(await ensureKey())) return { ok: false, ...serverMessage('backup.sshKeyMissing') }
+      if (!(await ensureKey())) return { ok: false, ...hostMessage('backup.sshKeyMissing') }
       const rp = t.remotePath!.replace(/\/+$/, '')
       const r = await deps.exec('ssh', [...sshArgs(t), remote(t), `mkdir -p ${q(rp)} && test -w ${q(rp)} && echo ok`])
-      if (r.code === 0 && r.stdout.includes('ok')) return { ok: true, ...serverMessage('backup.nasOk', { path: rp }) }
+      if (r.code === 0 && r.stdout.includes('ok')) return { ok: true, ...hostMessage('backup.nasOk', { path: rp }) }
       // ssh's own last line says most (host key, permission denied); only without one our text.
       const sshSays = r.stderr.trim().split('\n').pop()
-      return sshSays ? { ok: false, message: sshSays } : { ok: false, ...serverMessage('backup.nasNoConnection') }
+      return sshSays ? { ok: false, message: sshSays } : { ok: false, ...hostMessage('backup.nasNoConnection') }
     },
     tick,
     /** Summary for the status line (Geräte → Host): null = nothing configured. */
@@ -265,7 +265,7 @@ export function createBackupService(deps: BackupDeps) {
       const failing = enabled.find((t) => statusOf(t.id).lastError)
       if (failing) return { ok: false, at: statusOf(failing.id).lastRunAt ?? undefined, error: statusOf(failing.id).lastError!, target: failing.name }
       const last = enabled.map((t) => statusOf(t.id).lastSuccessAt).filter(Boolean).sort().pop()
-      return last ? { ok: true, at: last } : { ok: false, error: serverMessage('backup.never').message, errorCode: 'backup.never' }
+      return last ? { ok: true, at: last } : { ok: false, error: hostMessage('backup.never').message, errorCode: 'backup.never' }
     },
     start(intervalMs = 30_000) {
       timer ??= setInterval(() => void tick().catch((err) => deps.log.error({ err }, 'Backup tick failed')), intervalMs)

@@ -14,7 +14,7 @@ vi.mock('pouchdb-browser', () => ({
 // sequence that broke live (the second step inheriting the first one's state).
 const { useWorkspaceStore } = await import('../store/useWorkspaceStore')
 const { useActiveProfileStore } = await import('../store/useActiveProfileStore')
-const { SwitchServerBandWizard } = await import('./SwitchServerBandWizard')
+const { SwitchHostBandWizard } = await import('./SwitchHostBandWizard')
 
 const bands = [
   { workspaceId: 'band-a', workspaceName: 'Abadschendaler' },
@@ -71,10 +71,10 @@ beforeEach(() => {
   useActiveProfileStore.setState({ byWorkspace: { 'band-a': 'band-a-admin' } })
 })
 
-describe('SwitchServerBandWizard', () => {
+describe('SwitchHostBandWizard', () => {
   describe('closing the currently active band', () => {
     it('asks only for the PIN of this device\'s current admin - no name, no code - then shows every band', async () => {
-      render(<SwitchServerBandWizard bands={bands} activeWorkspaceId="band-a" onClose={vi.fn()} />)
+      render(<SwitchHostBandWizard bands={bands} activeWorkspaceId="band-a" onClose={vi.fn()} />)
 
       expect(screen.getByText('PIN des angemeldeten Admins eingeben.')).toBeInTheDocument()
       expect(screen.queryByPlaceholderText('8-stelliger Code')).not.toBeInTheDocument()
@@ -90,7 +90,7 @@ describe('SwitchServerBandWizard', () => {
 
     it('stops here on a wrong PIN - no band list, nothing activated', async () => {
       verifyAdminPin.mockResolvedValue(false)
-      render(<SwitchServerBandWizard bands={bands} activeWorkspaceId="band-a" onClose={vi.fn()} />)
+      render(<SwitchHostBandWizard bands={bands} activeWorkspaceId="band-a" onClose={vi.fn()} />)
 
       enterPin('0000')
 
@@ -102,7 +102,7 @@ describe('SwitchServerBandWizard', () => {
 
     it('can be aborted', () => {
       const onClose = vi.fn()
-      render(<SwitchServerBandWizard bands={bands} activeWorkspaceId="band-a" onClose={onClose} />)
+      render(<SwitchHostBandWizard bands={bands} activeWorkspaceId="band-a" onClose={onClose} />)
 
       fireEvent.click(screen.getByText('Abbrechen'))
 
@@ -112,7 +112,7 @@ describe('SwitchServerBandWizard', () => {
 
     it('with no admin session in the active band, lists that band\'s admins straight from the server - no band code - then asks that admin\'s PIN', async () => {
       useWorkspaceStore.setState({ workspaces: [] })
-      render(<SwitchServerBandWizard bands={bands} activeWorkspaceId="band-a" onClose={vi.fn()} />)
+      render(<SwitchHostBandWizard bands={bands} activeWorkspaceId="band-a" onClose={vi.fn()} />)
 
       await waitFor(() => expect(screen.getByText('Admin band-a')).toBeInTheDocument())
       expect(screen.queryByPlaceholderText('8-stelliger Code')).not.toBeInTheDocument()
@@ -129,7 +129,7 @@ describe('SwitchServerBandWizard', () => {
     it('only falls back to the band code when the server can\'t list the active band\'s admins', async () => {
       useWorkspaceStore.setState({ workspaces: [] })
       fetchActiveWorkspaceAdmins.mockResolvedValue(null)
-      render(<SwitchServerBandWizard bands={bands} activeWorkspaceId="band-a" onClose={vi.fn()} />)
+      render(<SwitchHostBandWizard bands={bands} activeWorkspaceId="band-a" onClose={vi.fn()} />)
 
       await waitFor(() => expect(screen.getByPlaceholderText('8-stelliger Code')).toBeInTheDocument())
       enterCode('11112222')
@@ -138,7 +138,7 @@ describe('SwitchServerBandWizard', () => {
     })
 
     it('"Anderer Admin wählen" leaves the known profile for the admin picker', async () => {
-      render(<SwitchServerBandWizard bands={bands} activeWorkspaceId="band-a" onClose={vi.fn()} />)
+      render(<SwitchHostBandWizard bands={bands} activeWorkspaceId="band-a" onClose={vi.fn()} />)
 
       fireEvent.click(screen.getByText('Anderer Admin wählen'))
 
@@ -148,14 +148,14 @@ describe('SwitchServerBandWizard', () => {
   })
 
   it('with nothing active yet, skips straight to the band list', () => {
-    render(<SwitchServerBandWizard bands={bands} activeWorkspaceId={null} onClose={vi.fn()} />)
+    render(<SwitchHostBandWizard bands={bands} activeWorkspaceId={null} onClose={vi.fn()} />)
 
     expect(screen.getByText('Zu welcher Band wechseln?')).toBeInTheDocument()
     expect(screen.getByText('SOAT').closest('button')).not.toBeDisabled()
   })
 
   it('lists the active band as "Aktiv" and not selectable', async () => {
-    render(<SwitchServerBandWizard bands={bands} activeWorkspaceId="band-a" onClose={vi.fn()} />)
+    render(<SwitchHostBandWizard bands={bands} activeWorkspaceId="band-a" onClose={vi.fn()} />)
     enterPin('1111')
     await waitFor(() => expect(screen.getByText('Zu welcher Band wechseln?')).toBeInTheDocument())
 
@@ -171,7 +171,7 @@ describe('SwitchServerBandWizard', () => {
 
     it('a band this device never cached: asks for its code, lists its admins, verifies the PIN, commits with both proofs, then joins it (found live: the opening step used to inherit the closing step\'s state and silently do nothing)', async () => {
       const onClose = vi.fn()
-      render(<SwitchServerBandWizard bands={bands} activeWorkspaceId="band-a" onClose={onClose} />)
+      render(<SwitchHostBandWizard bands={bands} activeWorkspaceId="band-a" onClose={onClose} />)
       await reachBandList()
 
       fireEvent.click(screen.getByText('SOAT'))
@@ -199,7 +199,7 @@ describe('SwitchServerBandWizard', () => {
     it('a band this device has cached as admin: no code step, and this device follows via activateProfile', async () => {
       useWorkspaceStore.setState({ workspaces: [cachedAdmin('band-a'), cachedAdmin('band-b')] })
       const onClose = vi.fn()
-      render(<SwitchServerBandWizard bands={bands} activeWorkspaceId="band-a" onClose={onClose} />)
+      render(<SwitchHostBandWizard bands={bands} activeWorkspaceId="band-a" onClose={onClose} />)
       await reachBandList()
 
       fireEvent.click(screen.getByText('SOAT'))
@@ -217,7 +217,7 @@ describe('SwitchServerBandWizard', () => {
 
     it('a wrong target PIN activates nothing', async () => {
       useWorkspaceStore.setState({ workspaces: [cachedAdmin('band-a'), cachedAdmin('band-b')] })
-      render(<SwitchServerBandWizard bands={bands} activeWorkspaceId="band-a" onClose={vi.fn()} />)
+      render(<SwitchHostBandWizard bands={bands} activeWorkspaceId="band-a" onClose={vi.fn()} />)
       await reachBandList()
       fireEvent.click(screen.getByText('SOAT'))
       await waitFor(() => expect(screen.getByText('Admin band-b')).toBeInTheDocument())
@@ -232,13 +232,13 @@ describe('SwitchServerBandWizard', () => {
 
     it('can be aborted at the band list and at the target step, activating nothing', async () => {
       const onClose = vi.fn()
-      const { unmount } = render(<SwitchServerBandWizard bands={bands} activeWorkspaceId="band-a" onClose={onClose} />)
+      const { unmount } = render(<SwitchHostBandWizard bands={bands} activeWorkspaceId="band-a" onClose={onClose} />)
       await reachBandList()
       fireEvent.click(screen.getByText('Abbrechen'))
       expect(onClose).toHaveBeenLastCalledWith(false)
       unmount()
 
-      render(<SwitchServerBandWizard bands={bands} activeWorkspaceId="band-a" onClose={onClose} />)
+      render(<SwitchHostBandWizard bands={bands} activeWorkspaceId="band-a" onClose={onClose} />)
       await reachBandList()
       fireEvent.click(screen.getByText('SOAT'))
       await waitFor(() => expect(screen.getByPlaceholderText('8-stelliger Code')).toBeInTheDocument())
@@ -251,7 +251,7 @@ describe('SwitchServerBandWizard', () => {
       useWorkspaceStore.setState({ workspaces: [cachedAdmin('band-a'), cachedAdmin('band-b')] })
       activateWorkspaceHardware.mockResolvedValue(false)
       const onClose = vi.fn()
-      render(<SwitchServerBandWizard bands={bands} activeWorkspaceId="band-a" onClose={onClose} />)
+      render(<SwitchHostBandWizard bands={bands} activeWorkspaceId="band-a" onClose={onClose} />)
       await reachBandList()
       fireEvent.click(screen.getByText('SOAT'))
       await waitFor(() => expect(screen.getByText('Admin band-b')).toBeInTheDocument())
@@ -267,7 +267,7 @@ describe('SwitchServerBandWizard', () => {
 
   it('on a first activation (nothing active) commits with only the opening proof', async () => {
     useWorkspaceStore.setState({ workspaces: [cachedAdmin('band-b')] })
-    render(<SwitchServerBandWizard bands={bands} activeWorkspaceId={null} onClose={vi.fn()} />)
+    render(<SwitchHostBandWizard bands={bands} activeWorkspaceId={null} onClose={vi.fn()} />)
 
     fireEvent.click(screen.getByText('SOAT'))
     await waitFor(() => expect(screen.getByText('Admin band-b')).toBeInTheDocument())

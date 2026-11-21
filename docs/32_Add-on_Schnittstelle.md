@@ -106,7 +106,7 @@ Antwort (`ShowControlResult`): `status: 'ok' | 'error'`, Meldung als Text oder b
 
 **Lange Aufgaben** laufen als **Job**: ein Band-Dokument mit Status und Fortschritt (`asyncJob.ts`), das jedes Gerät sieht; welches Gerät es nimmt, entscheidet seine Fähigkeit (`sync-host/jobQueue.ts`). Der allgemeine Typ ist `audio-import` (ein Add-on holt Audio, der Kern macht eine Spur daraus) - der Kern kennt keinen Dienst.
 
-*Noch nicht so:* Stem-Trennung und Sprache haben neben dem Add-on noch ihre eingebaute Umsetzung; der Add-on-Weg läuft nur mit `STAGEBOARD_ADDON_SANDBOX=1` (docs/25). Add-ons aus einem Repository zu laden ist die nächste Aufgabe (#17).
+Stem-Trennung und Sprache gehen **nur** noch über ihr Add-on (Entscheidung von Marco, 2026-11-21: der Add-on-Weg ist der Standard, die eingebaute Umsetzung ist gelöscht). Im Kern bleibt, was zur Engine gehört (Cache, Warteschlange, Stille kürzen für Sprache; die Rezeptschritte für Stems), und das Programm des Geräts, das der Helfer startet (Demucs, Piper). Add-ons aus einem Repository zu laden ist die nächste Aufgabe (#17).
 
 ## 7. Rechte – *Feld gebaut (#756), Durchsetzung geplant*
 

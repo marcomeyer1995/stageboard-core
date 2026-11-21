@@ -4,7 +4,7 @@ import { useHostUrlStore } from '../store/useHostUrlStore'
 import { configLog } from './configDebug'
 import { followHostOnce, probeHostEpoch } from './hostFollow'
 import { useHostEpochStore } from './hostEpoch'
-import { hostOfUrl, isNativeApp, pairWithServer, pinListedHosts } from './native'
+import { hostOfUrl, isNativeApp, pairWithHost, pinListedHosts } from './native'
 import { getHostUrl, overrideForTypedUrl } from './hostUrl'
 
 /** Often enough that a takeover (5-8 s of silence, docs/25 §6e) is followed within seconds, rarely
@@ -16,7 +16,7 @@ const CHECK_INTERVAL_MS = 5_000
  * device is not paired with for its epoch and moves to it when it is ahead (hostFollow.ts). The sync
  * and the clock follow a changed server address by themselves (#900). In the native app the shell pins
  * one certificate per host, so the listed fingerprints are pinned first (`pinListedHosts`) and the move
- * goes through `pairWithServer`; a host listed without a fingerprint is never moved to there.
+ * goes through `pairWithHost`; a host listed without a fingerprint is never moved to there.
  */
 export function useHostFollower(): void {
   const hosts = useBandSettingsStore((state) => state.settings.hosts)
@@ -41,8 +41,8 @@ export function useHostFollower(): void {
           if (!native) {
             useHostUrlStore.getState().setUrl(overrideForTypedUrl(host.url))
           } else if (host.certFingerprint) {
-            // Pins the certificate and makes it the server address, as pairing does.
-            void pairWithServer(hostOfUrl(host.url), host.certFingerprint)
+            // Pins the certificate and makes it the host address, as pairing does.
+            void pairWithHost(hostOfUrl(host.url), host.certFingerprint)
           }
           // A host with no fingerprint cannot be trusted by the shell: stay.
         },

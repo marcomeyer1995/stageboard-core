@@ -7,10 +7,10 @@ const plugins = vi.hoisted(() => ({
 }))
 vi.mock('@capacitor/core', () => ({
   Capacitor: { isNativePlatform: () => true },
-  registerPlugin: (name: string) => (name === 'ServerDiscovery' ? plugins.discovery : plugins.trust),
+  registerPlugin: (name: string) => (name === 'HostDiscovery' ? plugins.discovery : plugins.trust),
 }))
 
-const { discoverServers, followServerIfMoved, pickMovedServer } = await import('./native')
+const { discoverHosts, followHostIfMoved, pickMovedHost } = await import('./native')
 const { useHostUrlStore } = await import('../store/useHostUrlStore')
 
 afterEach(() => {
@@ -27,7 +27,7 @@ describe('finding Hosts on the network (#351)', () => {
         { name: 'StageBoard Laptop', address: '192.168.178.158', port: 443, fingerprint: 'aa' },
       ],
     })
-    expect(await discoverServers()).toEqual([
+    expect(await discoverHosts()).toEqual([
       { name: 'StageBoard Laptop', host: '192.168.178.158', fingerprint: 'aa' },
       { name: 'StageBoard Test', host: '192.168.178.158:8443', fingerprint: 'aa' },
     ])
@@ -38,17 +38,17 @@ describe('finding Hosts on the network (#351)', () => {
       { name: 'Other', host: '10.0.0.9', fingerprint: 'bb' },
       { name: 'Ours', host: '10.0.0.7', fingerprint: 'aa' },
     ]
-    expect(pickMovedServer(found, 'aa', '192.168.178.158')?.host).toBe('10.0.0.7')
-    expect(pickMovedServer(found, 'cc', '192.168.178.158')).toBeNull() // never a different certificate
-    expect(pickMovedServer(found, 'aa', '10.0.0.7')).toBeNull() // same address: nothing moved
+    expect(pickMovedHost(found, 'aa', '192.168.178.158')?.host).toBe('10.0.0.7')
+    expect(pickMovedHost(found, 'cc', '192.168.178.158')).toBeNull() // never a different certificate
+    expect(pickMovedHost(found, 'aa', '10.0.0.7')).toBeNull() // same address: nothing moved
   })
 })
 
-describe('followServerIfMoved (#351)', () => {
+describe('followHostIfMoved (#351)', () => {
   it('does nothing while the stored server answers', async () => {
     useHostUrlStore.getState().setUrl('https://192.168.178.158')
     vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true })))
-    expect(await followServerIfMoved()).toBe('reachable')
+    expect(await followHostIfMoved()).toBe('reachable')
     expect(plugins.discovery.discover).not.toHaveBeenCalled()
   })
 
@@ -56,7 +56,7 @@ describe('followServerIfMoved (#351)', () => {
     useHostUrlStore.getState().setUrl('https://192.168.178.158')
     vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('unreachable') }))
     plugins.discovery.discover.mockResolvedValueOnce({ servers: [{ name: 'Ours', address: '10.0.0.7', port: 443, fingerprint: 'aa' }] })
-    expect(await followServerIfMoved()).toBe('moved')
+    expect(await followHostIfMoved()).toBe('moved')
     expect(plugins.trust.pin).toHaveBeenCalledWith({ host: '10.0.0.7', fingerprint: 'aa' })
     expect(useHostUrlStore.getState().url).toBe('https://10.0.0.7')
   })
@@ -65,7 +65,7 @@ describe('followServerIfMoved (#351)', () => {
     useHostUrlStore.getState().setUrl('https://192.168.178.158')
     vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('unreachable') }))
     plugins.discovery.discover.mockResolvedValueOnce({ servers: [{ name: 'Stranger', address: '10.0.0.9', port: 443, fingerprint: 'bb' }] })
-    expect(await followServerIfMoved()).toBe('not-found')
+    expect(await followHostIfMoved()).toBe('not-found')
     expect(plugins.trust.pin).not.toHaveBeenCalled()
     expect(useHostUrlStore.getState().url).toBe('https://192.168.178.158')
   })

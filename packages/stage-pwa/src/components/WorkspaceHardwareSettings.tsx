@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useHostUrlStatus } from '../lib/useHostUrlStatus'
-import { SwitchServerBandWizard } from './SwitchServerBandWizard'
+import { SwitchHostBandWizard } from './SwitchHostBandWizard'
 import { Button } from './ui'
 import { useTranslation } from 'react-i18next'
 
@@ -8,7 +8,7 @@ import { useTranslation } from 'react-i18next'
  * Which band this physical Host's hardware (plugin sync, Discovery Mode's MIDI watcher)
  * currently serves - never more than one at a time (see workspaceHardwareController.ts on the
  * server; real case: Marco runs one box for two of his own bands, never simultaneously). Just the
- * current state and the button that starts SwitchServerBandWizard.tsx, which does the whole
+ * current state and the button that starts SwitchHostBandWizard.tsx, which does the whole
  * (abortable) switch - band list, admin proofs and all.
  */
 export function WorkspaceHardwareSettings() {
@@ -35,7 +35,7 @@ export function WorkspaceHardwareSettings() {
       </Button>
 
       {wizardOpen && workspaces && (
-        <SwitchServerBandWizard
+        <SwitchHostBandWizard
           bands={workspaces}
           activeWorkspaceId={activeWorkspaceId}
           onClose={(switched) => {

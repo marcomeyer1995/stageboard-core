@@ -4,7 +4,7 @@ import { existsSync } from 'node:fs'
 import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { basename, dirname, join } from 'node:path'
-import { serverMessage, type ServerMessageCode, type ServerMessageParams } from 'shared-types'
+import { hostMessage, type HostMessageCode, type HostMessageParams } from 'shared-types'
 import { readWav16Mono, trimSpeech, writeWav16Mono } from './wavTrim.js'
 
 /**
@@ -38,23 +38,22 @@ export function speechConfigFromEnv(env: NodeJS.ProcessEnv = process.env): Speec
   }
 }
 
-export type SpeechResult = { ok: true; wav: Buffer; generated: boolean } | { ok: false; reason: 'unavailable' | 'failed'; message: string; messageCode?: ServerMessageCode; messageParams?: ServerMessageParams }
+export type SpeechResult = { ok: true; wav: Buffer; generated: boolean } | { ok: false; reason: 'unavailable' | 'failed'; message: string; messageCode?: HostMessageCode; messageParams?: HostMessageParams }
 
 export class PiperSpeech {
   private queue: Promise<unknown> = Promise.resolve()
   private inFlight = new Map<string, Promise<SpeechResult>>()
 
   /**
-   * @param synthesize How the text becomes Piper's raw WAV (`piper --model --length_scale --output_file`): by default the program is started here;
-   * a device that runs the speech add-on in a sandbox passes a function that asks the add-on instead (#964). Everything around it - the cache, the
-   * queue, the trimming, the errors - is the same either way.
+   * @param synthesize How the text becomes Piper's raw WAV: it asks the speech add-on (`addons/speechAddon.ts`, #964), whose helper runs the Piper program.
+   * Everything around it - the cache, the queue, the trimming of silence, the errors - is StageBoard's, so every device makes the same clip for the same text.
    */
   constructor(
     private readonly config: SpeechConfig,
-    private readonly synthesize: (text: string, model: string, pace: number) => Promise<Uint8Array> = (text, model, pace) => runPiperToBytes(config.piperBin, model, pace, text),
+    private readonly synthesize: (text: string, model: string, pace: number) => Promise<Uint8Array>,
   ) {}
 
-  /** Whether the Piper program is installed on this server. */
+  /** Whether the Piper program is installed on this host. */
   piperInstalled(): boolean {
     return existsSync(this.config.piperBin)
   }
@@ -65,7 +64,7 @@ export class PiperSpeech {
     return existsSync(file) && existsSync(`${file}.json`) ? file : null
   }
 
-  /** Whether Piper and the voice are installed on this server. */
+  /** Whether Piper and the voice are installed on this host. */
   available(voiceKey?: string): boolean {
     return this.piperInstalled() && this.voiceFile(voiceKey) !== null
   }
@@ -89,7 +88,7 @@ export class PiperSpeech {
     const file = join(this.config.cacheDir, `${key}.wav`)
     if (existsSync(file)) return { ok: true, wav: await readFile(file), generated: false }
     const model = this.voiceFile(voiceKey)
-    if (!this.piperInstalled() || !model) return { ok: false, reason: 'unavailable', ...serverMessage('speech.notInstalled', { voice: this.voiceName(voiceKey) }) }
+    if (!this.piperInstalled() || !model) return { ok: false, reason: 'unavailable', ...hostMessage('speech.notInstalled', { voice: this.voiceName(voiceKey) }) }
     const running = this.inFlight.get(key)
     if (running) return running
     // One Piper at a time: a song's clips are requested together, the laptop must keep its CPU for audio.
@@ -118,18 +117,6 @@ export class PiperSpeech {
   /** The model file of a voice, for a helper that runs Piper on this device's behalf (#964); null when it is not installed. */
   voiceModel(voiceKey?: string): string | null {
     return this.voiceFile(voiceKey)
-  }
-}
-
-/** The default `synthesize`: Piper started here, its WAV read back from a temp file. */
-async function runPiperToBytes(piperBin: string, model: string, pace: number, text: string): Promise<Uint8Array> {
-  await mkdir(tmpdir(), { recursive: true })
-  const raw = join(await mkdtemp(join(tmpdir(), 'stageboard-piper-')), 'clip.wav')
-  try {
-    await runPiper(piperBin, model, pace, text, raw)
-    return await readFile(raw)
-  } finally {
-    await rm(dirname(raw), { recursive: true, force: true }).catch(() => {})
   }
 }
 

@@ -17,7 +17,7 @@ describe('parseAddonRepository (#852)', () => {
 })
 
 describe('the release manifest', () => {
-  const base = { id: 'x', name: 'X', version: '1.0.0', runtime: 'client', files: [{ name: 'client.js', sha256: 'a'.repeat(64), size: 10 }] }
+  const base = { id: 'x', name: 'X', version: '1.0.0', runtime: 'device', files: [{ name: 'client.js', sha256: 'a'.repeat(64), size: 10 }] }
 
   it('needs its files with SHA-256 and size', () => {
     expect(AddonReleaseManifestSchema.safeParse(base).success).toBe(true)
@@ -41,7 +41,7 @@ describe('the release manifest of the add-on contract (#964, docs/36 §3)', () =
     id: 'youtube-download',
     name: 'YouTube',
     version: '1.2.0',
-    runtime: 'client',
+    runtime: 'device',
     files: [
       { name: 'view.js', sha256: 'a'.repeat(64), size: 10 },
       { name: 'work.js', sha256: 'b'.repeat(64), size: 20 },

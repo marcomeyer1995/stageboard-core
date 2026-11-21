@@ -49,7 +49,7 @@ export function releaseNativeEngine(user: NativeEngineUser): void {
   sentTransport = ''
 }
 
-/** Transport time - wall clock for the callback: the clock the transport is on (the server's in
+/** Transport time - wall clock for the callback: the clock the transport is on (the host's in
  * the Gig, this device's in Solo Üben) minus the wall clock, plus the trim beyond the pipe's own
  * delay (`outputLatencyMs` is delay + trim while the native output plays). */
 export function bandOffsetMs(transportNow: number, wallNow: number, outputLatencyMs: number, pipeDelayMs: number): number {

@@ -2,11 +2,11 @@ import { z } from 'zod'
 import { MeasureInputSchema, MeasureInputsSchema } from './timing.js'
 
 /**
- * Backup targets of a Host (#363, Marco 2026-10-08): the admin chooses where the server's
+ * Backup targets of a Host (#363, Marco 2026-10-08): the admin chooses where the host's
  * backups go - one or several targets, so e.g. a ZFS folder and a NAS together (redundancy alone is
  * no backup: a deleted band is deleted on the mirror too).
  *
- * - `folder`: any folder the server can write - a USB stick or second disk (`/media/…`), a ZFS
+ * - `folder`: any folder the host can write - a USB stick or second disk (`/media/…`), a ZFS
  *   dataset, or a NAS share the operating system mounts.
  * - `ssh`: a NAS (or any machine) reached over SSH/rsync with the server's own key - nothing to
  *   mount; generations share unchanged backing tracks through hard links.
@@ -61,7 +61,7 @@ export const BackupTargetStatusSchema = z.object({
 })
 export type BackupTargetStatus = z.infer<typeof BackupTargetStatusSchema>
 
-/** The admin's view of the server's backups. */
+/** The admin's view of the host's backups. */
 export const BackupOverviewSchema = z.object({
   targets: z.array(z.object({ target: BackupTargetSchema, status: BackupTargetStatusSchema })),
   /** The server's SSH public key - added on the NAS to `~/.ssh/authorized_keys`. */
@@ -69,12 +69,12 @@ export const BackupOverviewSchema = z.object({
 })
 export type BackupOverview = z.infer<typeof BackupOverviewSchema>
 
-/** Admin routes (/server/backup/...): the admin login of the active band, like other admin routes. */
+/** Admin routes (/host/backup/...): the admin login of the active band, like other admin routes. */
 export const BackupAdminRequestSchema = z.object({
   adminUsername: z.string().min(1),
   adminPassword: z.string().min(1),
 })
-/** Measuring inputs (#662), also for an admin of the band this server serves. */
+/** Measuring inputs (#662), also for an admin of the band this host serves. */
 export const MeasureInputsSaveRequestSchema = BackupAdminRequestSchema.extend({ selected: MeasureInputsSchema })
 export const MeasureLevelRequestSchema = BackupAdminRequestSchema.extend({ input: MeasureInputSchema, durationMs: z.number().int().min(300).max(5000).optional() })
 export const BackupSaveRequestSchema = BackupAdminRequestSchema.extend({ target: BackupTargetSchema })

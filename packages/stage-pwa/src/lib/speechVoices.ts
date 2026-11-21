@@ -9,7 +9,7 @@ import {
   type SpeechVoicesResponse,
 } from 'shared-types'
 import type { ClipVoice } from './speechClips'
-import { serverText } from './serverMessage'
+import { hostText } from './hostMessage'
 import { NO_HOST_MESSAGE } from './hostUrl'
 import { resolveHostFor } from './jobHost'
 
@@ -41,7 +41,7 @@ async function call<T>(path: string, parse: (body: unknown) => T, init?: Request
   try {
     const response = await fetch(`${base}${path}`, init)
     const body: unknown = await response.json()
-    if (!response.ok) return { ok: false, message: serverText(body as { message?: string }) ?? `HTTP ${response.status}` }
+    if (!response.ok) return { ok: false, message: hostText(body as { message?: string }) ?? `HTTP ${response.status}` }
     return { ok: true, data: parse(body) }
   } catch (err) {
     return { ok: false, message: err instanceof Error ? err.message : String(err) }

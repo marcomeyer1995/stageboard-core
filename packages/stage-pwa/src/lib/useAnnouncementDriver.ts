@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { CAPABILITIES, mapPlays, SERVER_EXECUTION_TARGET } from 'shared-types'
+import { CAPABILITIES, isHostTarget, mapPlays } from 'shared-types'
+import { useTargetWorld } from './targetWorld'
 import { create } from 'zustand'
 import { announcementsDue, fitAnnouncements, sectionAnnouncements, type Announcement } from './announcements'
 import { sharedAudioClock } from './audioClock'
@@ -69,10 +70,11 @@ export function useAnnouncementDriver(): void {
   // Bühnentechnik → Ansagen (Marco, 2026-10-16): a chosen tablet speaks them in Gig; without one
   // they come with the click, as before.
   const deviceId = useShowStateStore((state) => state.deviceId)
+  const world = useTargetWorld()
   // Several tablets may speak them (one role each) - the role naming this one counts here.
   const logicalDevices = useLogicalDevicesStore((state) => state.devices)
   const announcementRole = resolveBuiltInBinding(logicalDevices, CAPABILITIES.sectionAnnouncements, deviceId)
-  const ownTarget = mode === 'gig' && announcementRole?.executionTarget && announcementRole.executionTarget !== SERVER_EXECUTION_TARGET ? announcementRole.executionTarget : null
+  const ownTarget = mode === 'gig' && announcementRole?.executionTarget && !isHostTarget(announcementRole.executionTarget, world) ? announcementRole.executionTarget : null
   // The stage map decides in the Gig (docs/31 §6 step 2): Ansagen where the device's matrix routes them.
   const mapSays = useStageMapStore((state) => (state.loaded ? mapPlays(state, deviceId, CAPABILITIES.sectionAnnouncements, state.front) : null))
   const engine = mode === 'gig' && mapSays !== null ? (mapSays ? 'local-mine' : 'local-other') : ownTarget ? (ownTarget === deviceId ? 'local-mine' : 'local-other') : clickEngine

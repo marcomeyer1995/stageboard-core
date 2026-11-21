@@ -4,7 +4,7 @@ import { DEFAULT_SHOW_STATE, type ShowState } from 'shared-types'
 import { getDeviceId } from '../lib/deviceId'
 import { randomId } from '../lib/id'
 import { getShowState, putShowState, showStateChanges, switchShowStateWorkspace } from '../lib/showStateDb'
-import { getServerTime } from '../lib/clockSync'
+import { getHostTime } from '../lib/clockSync'
 import { rememberedDeviceName } from '../lib/ownDeviceName'
 import { pushShowState, reportShowStateArrival, subscribeToShowStatePush } from '../lib/showStatePush'
 import type { MasterSelfCheck } from '../lib/masterTakeover'
@@ -73,7 +73,7 @@ let lastReportedIssuedAt = 0
 function reportArrival(issuedAt: number, via: 'push' | 'db', deviceId: string): void {
   if (!pushWorkspaceId || issuedAt <= lastReportedIssuedAt) return
   lastReportedIssuedAt = issuedAt
-  reportShowStateArrival(pushWorkspaceId, { deviceId, deviceName: rememberedDeviceName() ?? undefined, issuedAt, receivedAt: getServerTime(), via })
+  reportShowStateArrival(pushWorkspaceId, { deviceId, deviceName: rememberedDeviceName() ?? undefined, issuedAt, receivedAt: getHostTime(), via })
 }
 
 function mastership(holdsToken: boolean, selfCheck: MasterSelfCheck): { holdsToken: boolean; isMaster: boolean } {
@@ -179,7 +179,7 @@ export const useShowStateStore = create<ShowStateStore>((set, get) => ({
     // Stamped with server time, pushed to every device at once (#468); the database write follows
     // as the record - devices keep whichever of the two is newer (stateIssuedAt).
     // Strictly increasing, also for two changes within the same millisecond - the order decides.
-    const issuedAt = Math.max(getServerTime(), (get().state.stateIssuedAt ?? 0) + 0.001)
+    const issuedAt = Math.max(getHostTime(), (get().state.stateIssuedAt ?? 0) + 0.001)
     const mine = { ...patch, drivingDeviceId: get().deviceId, stateIssuedAt: issuedAt }
     keepAhead(issuedAt, mine)
     set({ state: { ...get().state, ...mine } })

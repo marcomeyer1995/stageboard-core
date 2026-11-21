@@ -34,7 +34,7 @@ function workspaceDbName(workspaceId: string): string {
 
 const INSTALLATION_PREFIX = 'plugins:'
 
-/** Only documents that parse are trusted - a half-replicated doc must not crash the server. */
+/** Only documents that parse are trusted - a half-replicated doc must not crash the host. */
 export function readInstallations(docs: unknown[]): PluginInstallation[] {
   const installations: PluginInstallation[] = []
   for (const doc of docs) {
@@ -58,7 +58,7 @@ export function splitByApiVersion(installations: PluginInstallation[]): { fits: 
 
 /**
  * Decides which plugins to start and stop, given what the band installed, what is already
- * running, and what this server build can actually construct. Pure, so the interesting
+ * running, and what this host build can actually construct. Pure, so the interesting
  * part of the sync needs no the database to test.
  */
 export function reconcile(
@@ -70,8 +70,8 @@ export function reconcile(
   const unavailable: string[] = []
 
   for (const installation of installations) {
-    // Client-side plugins (WebMIDI) run on the tablet; the server has nothing to start.
-    if (!installation.enabled || installation.runtime === 'client') continue
+    // Client-side plugins (WebMIDI) run on the tablet; the host has nothing to start.
+    if (!installation.enabled || installation.runtime === 'device') continue
     if (!catalog.includes(installation.id)) {
       unavailable.push(installation.id)
       continue
@@ -88,7 +88,7 @@ export function reconcile(
 
 /**
  * Which enabled installations need their client bundle downloaded (#101's Host mirror)
- * - anything with a `clientSource` that isn't already cached on this server's disk. Pure, same
+ * - anything with a `clientSource` that isn't already cached on this host's disk. Pure, same
  * "the interesting part needs no I/O to test" reasoning `reconcile` above already follows;
  * `alreadyCached` is a plain id set the caller builds from `hasPluginBundle` checks.
  */
@@ -103,7 +103,7 @@ export function installationsNeedingBundleDownload(
 
 /**
  * Reconciles the plugins the band installed (replicated to us over the stage mesh) with the
- * plugins actually running in this server's registry, and writes a heartbeat into
+ * plugins actually running in this host's registry, and writes a heartbeat into
  * healthStore.ts so every tablet can tell "installed" from "reachable right now" (docs/07) -
  * pushed out over `GET /plugin-health/:workspaceId/stream` (index.ts), not the database sync
  * (see #49 follow-up: a heartbeat has no offline/multi-master value).
@@ -149,7 +149,7 @@ export function createPluginSync(options: PluginSyncOptions): PluginSyncHandle {
     await downloadMissingBundles(installations)
   }
 
-  /** #101's Host mirror: fetches each not-yet-cached `clientSource` once (this server's
+  /** #101's Host mirror: fetches each not-yet-cached `clientSource` once (this host's
    * own internet access, not a tablet's) so every tablet on the LAN can fetch it from here
    * afterward. One installation's fetch failure is logged and skipped, not fatal to the rest of
    * the sync pass. */

@@ -1,7 +1,7 @@
 import i18n from '../i18n'
 import { rememberedDeviceName } from './ownDeviceName'
 import { recordShowEvent } from './showLogRecord'
-import { getServerTime } from './clockSync'
+import { getHostTime } from './clockSync'
 import { canClaimMaster, getMasterStatus, type MasterStatus } from './masterTakeover'
 import { useActiveProfile } from './useActiveProfile'
 import { useNow } from './useNow'
@@ -30,7 +30,7 @@ export function useMasterTakeover(): MasterTakeover {
   // A heartbeat going stale is the absence of an event, so re-evaluate on a timer.
   useNow(2_000)
 
-  const status = getMasterStatus({ holderId, deviceId, heartbeat, now: getServerTime() })
+  const status = getMasterStatus({ holderId, deviceId, heartbeat, now: getHostTime() })
   const canClaim = canClaimMaster(status, roles)
   const isForce = status === 'alive'
 

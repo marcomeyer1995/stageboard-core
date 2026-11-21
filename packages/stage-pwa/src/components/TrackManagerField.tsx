@@ -1,24 +1,25 @@
 import i18n from '../i18n'
-import { useEffect, useRef, useState } from 'react'
-import { CAPABILITIES, StemRoleSchema, type AsyncJob, type StemModel, type StemRole, type TrackKind, type TrackMeta } from 'shared-types'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { StemRoleSchema, type AsyncJob, type StemRole, type TrackKind, type TrackMeta } from 'shared-types'
 import { measureAudioDurationMs } from '../lib/measureAudioDuration'
 import { randomId } from '../lib/id'
-import { pluginProviding } from '../lib/capabilities'
-import { putAsyncJob, removeAsyncJob } from '../lib/asyncJobsDb'
+import { removeAsyncJob } from '../lib/asyncJobsDb'
 import { getTrack, putTrack, removeTrack, updateStem } from '../lib/songVariantsDb'
 import { guessStemRole, labelFromFileName, playableTracks, STEM_ROLE_LABELS, stemLengthsDiffer, stemsOf, uploadedStems } from '../lib/stems'
 import { useAsyncJobsStore } from '../store/useAsyncJobsStore'
 import { NoEncoderError, toTrackFile, TRACK_MIME } from '../lib/engine/trackFile'
 import { useDialogStore } from '../store/useDialogStore'
 import { usePluginsStore } from '../store/usePluginsStore'
-import { StemSeparationDialog } from './StemSeparationDialog'
+import { AddonTrackActionDialog } from './AddonTrackActionDialog'
+import { addonsForSlot } from '../lib/addonUi/builtinAddons'
+import { isIcon, type IconName } from './Icon'
 import { TrackSourceSlots } from './TrackSourceSlots'
 import { AddonSourceDialog } from './AddonSourceDialog'
 import type { BuiltinAddon } from '../lib/addonUi/builtinAddons'
 import { INPUT } from './ui/styles'
 import { AddRow, Button, Dialog, IconButton } from './ui'
 import { useTranslation } from 'react-i18next'
-import { serverErrorText } from '../lib/serverMessage'
+import { hostErrorText } from '../lib/hostMessage'
 
 const JOB_LABELS: Record<AsyncJob['type'], string> = {
   get 'audio-import'() {
@@ -81,7 +82,8 @@ export function TrackManagerField({ variantId, tracks, disabled, searchQuery = '
     return () => timers.forEach(clearTimeout)
   }, [doneJobIds])
   const installed = usePluginsStore((state) => state.installed)
-  const canSeparate = pluginProviding(installed, CAPABILITIES.stemSeparation) !== null
+  // What an installed add-on offers on one track (docs/36 §6, slot `song-editor.track-action`): today the stem add-on's "Spuren trennen".
+  const trackActions = useMemo(() => addonsForSlot('song-editor.track-action', installed.filter((p) => p.enabled).map((p) => p.id)), [installed])
   const promptFields = useDialogStore((state) => state.promptFields)
   const confirm = useDialogStore((state) => state.confirm)
   // "+ Track hinzufügen" (#604): kind, then a file or a YouTube link - in a dialog, not squeezed
@@ -90,7 +92,7 @@ export function TrackManagerField({ variantId, tracks, disabled, searchQuery = '
   // An add-on's dialog replaces the 'Track hinzufügen' dialog - never on top of it. Going back reopens this one.
   const [sourceAddon, setSourceAddon] = useState<{ addon: BuiltinAddon; query: string } | null>(null)
   const query = searchQuery
-  const [separating, setSeparating] = useState<TrackMeta | null>(null)
+  const [trackAction, setTrackAction] = useState<{ addon: BuiltinAddon; track: TrackMeta } | null>(null)
   const [uploadProgress, setUploadProgress] = useState<string | null>(null)
   // The stem being listened to, as a local object URL (fetched from the Host on demand).
   const [listening, setListening] = useState<{ trackId: string; url: string } | null>(null)
@@ -184,22 +186,6 @@ export function TrackManagerField({ variantId, tracks, disabled, searchQuery = '
     )
   }
 
-  /** Queues a #9 stem-separation job - picked up by the Host like the YouTube one. */
-  async function startSeparation(track: TrackMeta, options: { model: StemModel; splitGuitar: boolean }) {
-    setSeparating(null)
-    await putAsyncJob({
-      id: randomId(),
-      type: 'stem-separation',
-      status: 'queued',
-      progress: 0,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-      variantId,
-      sourceTrackId: track.id,
-      ...options,
-    })
-  }
-
   /** One file, or - for stems - several at once, each named after its file with a guessed role. */
   async function handleFiles(e: React.ChangeEvent<HTMLInputElement>) {
     const files = [...(e.target.files ?? [])]
@@ -265,7 +251,9 @@ export function TrackManagerField({ variantId, tracks, disabled, searchQuery = '
                 <span className="text-xs text-ink-faint">{KIND_LABELS[track.kind]}</span>
               </span>
               {playButton(track)}
-              {canSeparate && <IconButton icon="split" label={t('tm.split')} onClick={() => setSeparating(track)} disabled={disabled} />}
+              {trackActions.map(({ addon, entry }) => (
+                <IconButton key={`${addon.id}:${entry.id}`} icon={(entry.icon && isIcon(entry.icon) ? entry.icon : 'more') as IconName} label={entry.title} onClick={() => setTrackAction({ addon, track })} disabled={disabled} />
+              ))}
               {removeButton(track)}
             </div>
             {listening?.trackId === track.id && <audio controls autoPlay src={listening.url} className="w-full" />}
@@ -285,7 +273,7 @@ export function TrackManagerField({ variantId, tracks, disabled, searchQuery = '
             <div key={job.id} className="flex items-center gap-2 text-xs">
               {job.status === 'error' ? (
                 <span className="text-danger">
-                  {t('tm.failed', { job: JOB_LABELS[job.type], error: serverErrorText(job) })}
+                  {t('tm.failed', { job: JOB_LABELS[job.type], error: hostErrorText(job) })}
                 </span>
               ) : job.status === 'done' ? (
                 <span className="text-ink-faint">{t('tm.done', { job: JOB_LABELS[job.type] })}</span>
@@ -340,12 +328,12 @@ export function TrackManagerField({ variantId, tracks, disabled, searchQuery = '
           onLeave={() => (setSourceAddon(null), setAdding(true))}
         />
       )}
-      {separating && (
-        <StemSeparationDialog
-          trackLabel={separating.label}
-          hasStems={stemsOf(tracks, separating.id).length > 0}
-          onStart={(options) => void startSeparation(separating, options)}
-          onClose={() => setSeparating(null)}
+      {trackAction && (
+        <AddonTrackActionDialog
+          addon={trackAction.addon}
+          variantId={variantId}
+          track={{ id: trackAction.track.id, label: trackAction.track.label, hasStems: stemsOf(tracks, trackAction.track.id).length > 0 }}
+          onClose={() => setTrackAction(null)}
         />
       )}
     </div>

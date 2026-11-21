@@ -1,5 +1,5 @@
 import { computeReadyStatus } from './readyCheck'
-import { getServerTime } from './clockSync'
+import { getHostTime } from './clockSync'
 import { recordShowEvent } from './showLogRecord'
 import { usePresenceStore } from '../store/usePresenceStore'
 import { useProfilesStore } from '../store/useProfilesStore'
@@ -15,7 +15,7 @@ export function recordReadyCheck(action: 'started' | 'ended', checkId: string): 
     return
   }
   const presence = usePresenceStore.getState().presence
-  const status = computeReadyStatus(presence, checkId, getServerTime())
+  const status = computeReadyStatus(presence, checkId, getHostTime())
   const profiles = useProfilesStore.getState().profiles
   const name = (id: string) => profiles.find((profile) => profile.id === id)?.name ?? id
   const answered = presence.readyCheck?.checkId === checkId ? presence.readyCheck.readyProfileIds : []

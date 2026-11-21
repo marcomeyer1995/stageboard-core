@@ -14,7 +14,7 @@ const clips = new Map<string, AudioBuffer>()
 const loading = new Map<string, Promise<AudioBuffer | null>>()
 const failedAt = new Map<string, number>()
 
-/** Which voice and how fast (the band's choice, speechVoices.ts) - undefined: the server's default voice, its own pace. */
+/** Which voice and how fast (the band's choice, speechVoices.ts) - undefined: the host's default voice, its own pace. */
 export interface ClipVoice {
   voice?: string
   speed?: number

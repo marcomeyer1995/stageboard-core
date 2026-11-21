@@ -90,6 +90,7 @@ describe('SlotIdSchema (#964)', () => {
   it('is exactly the slots docs/36 §6 defines - slots are API, the core owns them', () => {
     expect(SlotIdSchema.options).toEqual([
       'song-editor.track-source',
+      'song-editor.track-action',
       'song-editor.panel',
       'device.panel',
       'settings.section',

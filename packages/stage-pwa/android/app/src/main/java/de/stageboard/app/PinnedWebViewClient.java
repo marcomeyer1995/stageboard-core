@@ -17,7 +17,7 @@ import java.security.cert.CertificateFactory;
 
 /**
  * Accepts the Host's self-signed certificate only when it is exactly the pinned one for
- * that host (ServerTrustPlugin) - for every request the web app makes: API, the database sync, event
+ * that host (HostTrustPlugin) - for every request the web app makes: API, the database sync, event
  * streams, audio. Any other certificate error cancels the request, as in a normal browser.
  */
 public class PinnedWebViewClient extends BridgeWebViewClient {
@@ -29,9 +29,9 @@ public class PinnedWebViewClient extends BridgeWebViewClient {
     public void onReceivedSslError(WebView view, SslErrorHandler handler, SslError error) {
         try {
             String host = Uri.parse(error.getUrl()).getHost();
-            String pinned = host == null ? null : ServerTrustPlugin.pinnedFingerprint(view.getContext(), host);
+            String pinned = host == null ? null : HostTrustPlugin.pinnedFingerprint(view.getContext(), host);
             Certificate certificate = toX509(error.getCertificate());
-            if (pinned != null && certificate != null && pinned.equals(ServerTrustPlugin.fingerprint(certificate))) {
+            if (pinned != null && certificate != null && pinned.equals(HostTrustPlugin.fingerprint(certificate))) {
                 handler.proceed();
                 return;
             }

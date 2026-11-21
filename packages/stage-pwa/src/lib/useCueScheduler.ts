@@ -1,10 +1,11 @@
 import { jumpBoundaryMs, type SectionJump } from './playbackTransport'
+import { currentTargetWorld } from './targetWorld'
 import { chaseCues } from './cueChase'
 import { useEffect, useRef } from 'react'
 import type { ShowCue } from 'shared-types'
 import { cueLatencyMs } from './capabilityTiming'
 import { usePracticeDevices } from './usePracticeRoute'
-import { getServerTime } from './clockSync'
+import { getHostTime } from './clockSync'
 import { fireCue } from './cueFiring'
 import { CUE_LOOKAHEAD_MS, CUE_TICK_MS, cuesToSchedule, passedCueIds, songTimeAt, type CueTransport } from './cueSchedule'
 import { recordHandover, recordTick } from './cueTimingStats'
@@ -94,10 +95,10 @@ export function useCueScheduler(): void {
     if (status !== 'playing' || !cues || cues.length === 0 || !logicalDevices) return
     const transport: CueTransport = { status, startedAt, accumulatedMs, ...(rate === 1 ? {} : { rate }) }
     // The Gig runs on band time, practising on this device's own clock.
-    const clock = gig ? getServerTime : Date.now
-    const toServerTime = (at: number) => (gig ? at : at + (getServerTime() - Date.now()))
+    const clock = gig ? getHostTime : Date.now
+    const toServerTime = (at: number) => (gig ? at : at + (getHostTime() - Date.now()))
     const capabilityOf = (cue: ShowCue) => logicalDevices.find((device) => device.id === cue.targetLogicalDeviceId)?.capability
-    const fireContext = { deviceId, logicalDevices, installed, sendsServerCues: gig && isMaster }
+    const fireContext = { deviceId, logicalDevices, installed, sendsHostCues: gig && isMaster, world: currentTargetWorld() }
 
     let sessionKey: number | string | null = activeEntryStartedAt
     if (!gig) {
@@ -150,7 +151,7 @@ export function useCueScheduler(): void {
       const fired = firedRef.current.ids
       const now = clock()
       if (!gig) practiceStoodRef.current = { variantId, ms: jump && now >= jump.at && afterTransport ? songTimeAt(afterTransport, now) : songTimeAt(transport, now) }
-      const latencyMs = (cue: ShowCue) => cueLatencyMs(cue, logicalDevices, installed, latencyProfiles)
+      const latencyMs = (cue: ShowCue) => cueLatencyMs(cue, logicalDevices, installed, latencyProfiles, currentTargetWorld())
       const jumpFired = jumpFiredRef.current
       const chaseDue =
         jump && jumpFired
@@ -170,7 +171,7 @@ export function useCueScheduler(): void {
       for (const { cue, sendAt, firedIn } of due) {
         firedIn?.add(cue.id)
         recordHandover(now - sendAt)
-        void fireCue(cue, { ...fireContext, timing: { scheduledAt: toServerTime(sendAt), serverNow: getServerTime } }).then((outcome) => {
+        void fireCue(cue, { ...fireContext, timing: { scheduledAt: toServerTime(sendAt), hostNow: getHostTime } }).then((outcome) => {
           if (outcome?.scheduledLocally) scheduledRef.current.set(cue.id, sendAt)
           // Practising stays out of the Nachbericht.
           if (!gig) return
@@ -209,7 +210,7 @@ export function useCueScheduler(): void {
   useEffect(() => {
     const scheduled = scheduledRef.current
     return () => {
-      const now = gig ? getServerTime() : Date.now()
+      const now = gig ? getHostTime() : Date.now()
       const stillAhead = [...scheduled].filter(([, dueAt]) => dueAt > now).map(([id]) => id)
       scheduled.clear()
       if (stillAhead.length > 0 && recallScheduledMidi()) {

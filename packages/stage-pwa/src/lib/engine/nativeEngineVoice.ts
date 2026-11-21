@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Announcement } from '../announcements'
 import { alignsOnVowel, announcementClip } from './announcementClip'
 import { mixGain, useOutputPlanStore } from '../audioMix'
-import { getServerTime } from '../clockSync'
+import { getHostTime } from '../clockSync'
 import { useAudioOutputLatencyMs } from '../latencyCompensation'
 import { nativeEngine, useNativeOutputStore } from '../nativeOutput'
 import { useShowModeCore } from '../showMode'
@@ -79,7 +79,7 @@ export function useNativeAnnouncements(items: Announcement[] | null, voice: Clip
   useEffect(() => {
     if (!active) return
     acquireNativeEngine('voice')
-    const transportNow = () => (stateRef.current.mode === 'practice' ? Date.now() : getServerTime())
+    const transportNow = () => (stateRef.current.mode === 'practice' ? Date.now() : getHostTime())
     const update = () => {
       sendNativeOffset(transportNow, stateRef.current.outputLatencyMs)
       nativeEngine.gain(ENGINE_BUS.announce, mixGain('voice'))

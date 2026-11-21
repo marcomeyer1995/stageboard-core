@@ -14,7 +14,7 @@ interface Listening {
 /** Matches an incoming CC one step at a time - resets to "matches step 0" rather than back to
  * nothing on a mismatch, mirroring core-backend's midiWatcher.ts makeSequenceMatcher (kept as a
  * small duplicate rather than a shared package: this one reads a WebMIDI `Uint8Array`, the
- * server's reads a plain `number[]` from a different native library entirely). */
+ * host's reads a plain `number[]` from a different native library entirely). */
 function makeSequenceMatcher(sequence: { cc: number; value: number }[], onComplete: () => void): (data: Uint8Array) => void {
   let progress = 0
   return (data) => {
@@ -37,7 +37,7 @@ function makeSequenceMatcher(sequence: { cc: number; value: number }[], onComple
 
 /**
  * Discovery Mode's per-tablet half of the trigger-based disambiguation flow
- * (discoverySessionStore.ts on the server owns the queue; core-backend's midiWatcher.ts is the
+ * (discoverySessionStore.ts on the host owns the queue; core-backend's midiWatcher.ts is the
  * native-MIDI counterpart to this hook). While the session's `identifying` targets a role one of
  * *this tablet's* own reported candidates is a contender for, listens for that plugin's declared
  * `matchCcSequence` on that one specific port and reports back on a match - the UI-visible

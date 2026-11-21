@@ -22,7 +22,7 @@ vi.mock('pouchdb-browser', () => ({
 
 const { playSong, pauseSong, PLAY_LEAD_MS } = await import('./queue')
 const { computeActiveMs } = await import('./playbackTransport')
-const { getServerTime } = await import('./clockSync')
+const { getHostTime } = await import('./clockSync')
 const { useClockSyncStore } = await import('../store/useClockSyncStore')
 const { useShowStateStore } = await import('../store/useShowStateStore')
 const { useSongsStore } = await import('../store/useSongsStore')
@@ -52,7 +52,7 @@ afterEach(() => {
 })
 
 const elapsed = () =>
-  computeActiveMs({ status: state.playbackStatus, startedAt: state.playbackStartedAt, accumulatedMs: state.playbackAccumulatedMs }, getServerTime())
+  computeActiveMs({ status: state.playbackStatus, startedAt: state.playbackStartedAt, accumulatedMs: state.playbackAccumulatedMs }, getHostTime())
 
 describe('Gig transport timestamps (server time, not the Master\'s own clock)', () => {
   it('stamps Play with server time, so the song clock runs from the first moment', async () => {
@@ -61,7 +61,7 @@ describe('Gig transport timestamps (server time, not the Master\'s own clock)', 
     expect(state.activeEntryStartedAt).toBe(Date.now() - 2126)
 
     vi.advanceTimersByTime(500)
-    // With Date.now() the clock stood at 0 for 2.1 s (max(0, serverNow - localStart)). Song time
+    // With Date.now() the clock stood at 0 for 2.1 s (max(0, hostNow - localStart)). Song time
     // starts PLAY_LEAD_MS before 0 (ahead-of-time start, #468).
     expect(elapsed()).toBe(500 - PLAY_LEAD_MS)
   })
@@ -74,14 +74,14 @@ describe('Gig transport timestamps (server time, not the Master\'s own clock)', 
   })
 
   it('a Play right after Weiter (entry already stamped) also starts ahead of time - not "now" (2026-10-10)', async () => {
-    state = { ...state, activeEntryStartedAt: getServerTime() - 1000, playbackStatus: 'stopped', playbackAccumulatedMs: 0, playbackStartedAt: null }
+    state = { ...state, activeEntryStartedAt: getHostTime() - 1000, playbackStatus: 'stopped', playbackAccumulatedMs: 0, playbackStartedAt: null }
     useShowStateStore.setState({ state })
     await playSong()
     expect(elapsed()).toBe(-PLAY_LEAD_MS)
   })
 
   it('a resume from Pause continues where it was, without a lead', async () => {
-    state = { ...state, activeEntryStartedAt: getServerTime() - 5000, playbackStatus: 'paused', playbackAccumulatedMs: 3000, playbackStartedAt: null }
+    state = { ...state, activeEntryStartedAt: getHostTime() - 5000, playbackStatus: 'paused', playbackAccumulatedMs: 3000, playbackStartedAt: null }
     useShowStateStore.setState({ state })
     await playSong()
     expect(elapsed()).toBe(3000)

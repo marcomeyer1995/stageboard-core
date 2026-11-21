@@ -23,7 +23,7 @@ const IS_DEV_APP = import.meta.env.VITE_DEV_APP === '1'
  * The name a device gets when it first joins a band: the guess, "Dev" for the dev app, and a
  * number when the band already has a device by that name (Marco, 2026-10-17: the dev apps on the
  * Xiaomi and the Fire both came in as "Android-Tablet" - indistinguishable in "spielt auf").
- * Best effort: a device not yet synced from the server isn't seen.
+ * Best effort: a device not yet synced from the host isn't seen.
  */
 export function firstDeviceName(takenNames: readonly string[], devApp = IS_DEV_APP): string {
   const base = devApp ? `${guessDeviceName()} Dev` : guessDeviceName()

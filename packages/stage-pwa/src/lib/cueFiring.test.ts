@@ -63,7 +63,7 @@ describe('fireCue', () => {
       deviceId: 'me',
       logicalDevices: [mixer1],
       installed: [],
-      sendsServerCues: true,
+      sendsHostCues: true,
     })
     expect(triggerShowControl).not.toHaveBeenCalled()
   })
@@ -74,7 +74,7 @@ describe('fireCue', () => {
       deviceId: 'me',
       logicalDevices: [mixer1],
       installed: [plugin()],
-      sendsServerCues: true,
+      sendsHostCues: true,
     })
     expect(triggerShowControl).toHaveBeenCalledWith('mock-mixer', {
       type: 'set_volume',
@@ -86,7 +86,7 @@ describe('fireCue', () => {
   it('#102: two Logical Devices sharing a capability each resolve their own independent binding', async () => {
     const mixer1 = mixerDevice({ id: 'mixer-1', name: "Guitarist 1's Rig", executionTarget: 'me' })
     const mixer2 = mixerDevice({ id: 'mixer-2', name: "Guitarist 2's Rig", executionTarget: 'someone-else' })
-    const ctx = { deviceId: 'me', logicalDevices: [mixer1, mixer2], installed: [plugin()], sendsServerCues: true }
+    const ctx = { deviceId: 'me', logicalDevices: [mixer1, mixer2], installed: [plugin()], sendsHostCues: true }
 
     await fireCue(cue({ id: 'cue-for-1', targetLogicalDeviceId: mixer1.id }), ctx)
     expect(localMixerApplyEvent).toHaveBeenCalledTimes(1) // bound to this device - fires locally
@@ -105,7 +105,7 @@ describe('fireCue', () => {
       deviceId: 'me',
       logicalDevices: [mixer1],
       installed: [], // no client-runtime plugin installed for mixer
-      sendsServerCues: true,
+      sendsHostCues: true,
     })
     expect(localMixerApplyEvent).not.toHaveBeenCalled()
     expect(triggerShowControl).not.toHaveBeenCalled()
@@ -122,31 +122,31 @@ describe('fireCue', () => {
       deviceId: 'me',
       logicalDevices: [mixer1],
       installed: [plugin({ id: 'specific-plugin' }), plugin({ id: 'other-plugin' })],
-      sendsServerCues: true,
+      sendsHostCues: true,
     })
     expect(triggerShowControl).toHaveBeenCalledWith('specific-plugin', expect.anything())
   })
 
   it('a server cue goes out from the master only - not once per tablet (2026-10-08)', async () => {
     const mixer1 = mixerDevice({ id: 'mixer-1', name: 'Pult' })
-    expect(await fireCue(cue({ targetLogicalDeviceId: mixer1.id }), { deviceId: 'me', logicalDevices: [mixer1], installed: [plugin()], sendsServerCues: false })).toBeNull()
+    expect(await fireCue(cue({ targetLogicalDeviceId: mixer1.id }), { deviceId: 'me', logicalDevices: [mixer1], installed: [plugin()], sendsHostCues: false })).toBeNull()
     expect(triggerShowControl).not.toHaveBeenCalled()
   })
 
   it('reports what happened for the Nachbericht (#8): sent, failed with the reason, or missed', async () => {
     const mixer1 = mixerDevice({ id: 'mixer-1', name: 'Pult' })
     vi.mocked(triggerShowControl).mockResolvedValueOnce({ status: 'ok' })
-    expect(await fireCue(cue({ targetLogicalDeviceId: mixer1.id }), { deviceId: 'me', logicalDevices: [mixer1], installed: [plugin()], sendsServerCues: true })).toEqual({ target: 'Pult', ok: true })
+    expect(await fireCue(cue({ targetLogicalDeviceId: mixer1.id }), { deviceId: 'me', logicalDevices: [mixer1], installed: [plugin()], sendsHostCues: true })).toEqual({ target: 'Pult', ok: true })
     vi.mocked(triggerShowControl).mockResolvedValueOnce({ status: 'error', message: 'Pult antwortet nicht' })
-    expect(await fireCue(cue({ targetLogicalDeviceId: mixer1.id }), { deviceId: 'me', logicalDevices: [mixer1], installed: [plugin()], sendsServerCues: true })).toEqual({ target: 'Pult', ok: false, message: 'Pult antwortet nicht' })
-    expect(await fireCue(cue({ targetLogicalDeviceId: 'gone' }), { deviceId: 'me', logicalDevices: [mixer1], installed: [], sendsServerCues: true })).toMatchObject({ ok: false, message: expect.stringContaining('nicht gefunden') })
+    expect(await fireCue(cue({ targetLogicalDeviceId: mixer1.id }), { deviceId: 'me', logicalDevices: [mixer1], installed: [plugin()], sendsHostCues: true })).toEqual({ target: 'Pult', ok: false, message: 'Pult antwortet nicht' })
+    expect(await fireCue(cue({ targetLogicalDeviceId: 'gone' }), { deviceId: 'me', logicalDevices: [mixer1], installed: [], sendsHostCues: true })).toMatchObject({ ok: false, message: expect.stringContaining('nicht gefunden') })
   })
 
   it('a tablet-only add-on with no tablet chosen is missed in words - never sent to the Host', async () => {
     const kemper: LogicalDevice = { id: 'kemper', name: 'Kemper', capability: 'kemper-control', pluginId: 'kemper-profiler', executionTarget: null }
-    const installed = [plugin({ id: 'kemper-profiler', name: 'Kemper Profiler', runtime: 'client', capabilities: ['kemper-control'] })]
-    expect(await fireCue(cue({ targetLogicalDeviceId: 'kemper' }), { deviceId: 'me', logicalDevices: [kemper], installed, sendsServerCues: true })).toEqual({ target: 'Kemper', ok: false, message: TABLET_ONLY_MESSAGE })
-    expect(await fireCue(cue({ targetLogicalDeviceId: 'kemper' }), { deviceId: 'me', logicalDevices: [kemper], installed, sendsServerCues: false })).toBeNull()
+    const installed = [plugin({ id: 'kemper-profiler', name: 'Kemper Profiler', runtime: 'device', capabilities: ['kemper-control'] })]
+    expect(await fireCue(cue({ targetLogicalDeviceId: 'kemper' }), { deviceId: 'me', logicalDevices: [kemper], installed, sendsHostCues: true })).toEqual({ target: 'Kemper', ok: false, message: TABLET_ONLY_MESSAGE })
+    expect(await fireCue(cue({ targetLogicalDeviceId: 'kemper' }), { deviceId: 'me', logicalDevices: [kemper], installed, sendsHostCues: false })).toBeNull()
     expect(triggerShowControl).not.toHaveBeenCalled()
   })
 
@@ -157,8 +157,8 @@ describe('fireCue', () => {
         deviceId: 'me',
         logicalDevices: [mixer1],
         installed: [plugin()],
-        sendsServerCues: true,
-        timing: { scheduledAt: 5_000.4, serverNow: () => 4_920 },
+        sendsHostCues: true,
+        timing: { scheduledAt: 5_000.4, hostNow: () => 4_920 },
       })
       expect(triggerShowControl).toHaveBeenCalledWith('mock-mixer', expect.objectContaining({ scheduledAt: 5_000 }))
     })
@@ -172,8 +172,8 @@ describe('fireCue', () => {
           deviceId: 'me',
           logicalDevices: [mixer1],
           installed: [plugin()],
-          sendsServerCues: true,
-          timing: { scheduledAt: 1_080, serverNow: () => now },
+          sendsHostCues: true,
+          timing: { scheduledAt: 1_080, hostNow: () => now },
         })
         await vi.advanceTimersByTimeAsync(79)
         expect(localMixerApplyEvent).not.toHaveBeenCalled()
@@ -195,8 +195,8 @@ describe('fireCue', () => {
         deviceId: 'me',
         logicalDevices: [mixer1],
         installed: [scheduling],
-        sendsServerCues: true,
-        timing: { scheduledAt: 99_000, serverNow: () => 1_000 },
+        sendsHostCues: true,
+        timing: { scheduledAt: 99_000, hostNow: () => 1_000 },
       })
       expect(localMixerApplyEvent).toHaveBeenCalledWith(expect.objectContaining({ scheduledAt: 99_000 }))
       expect(outcome?.scheduledLocally).toBe(true)

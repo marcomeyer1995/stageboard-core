@@ -1,6 +1,6 @@
 import { act, render } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { CAPABILITIES, defaultStageMap, SERVER_EXECUTION_TARGET } from 'shared-types'
+import { CAPABILITIES, defaultStageMap, LEGACY_HOST_TARGET } from 'shared-types'
 import type { LogicalDevice, PluginInstallation, Song } from 'shared-types'
 import { useClickOutputDriver } from './useClickOutputDriver'
 import { startClick, stopClick } from './clickEngine'
@@ -201,7 +201,7 @@ describe('useClickOutputDriver', () => {
 
   it('does not start the local click engine when the device is bound through the Host/a plugin, not a specific tablet - that capability is produced by the plugin/server-side hardware, not this tab\'s own Web Audio (#148: useCapabilityRouting\'s pluginId now resolves correctly for this binding shape, but shouldPlay only ever cares about engine === \'local-mine\', so this case is unaffected either way)', () => {
     mockLogicalDevices([
-      { id: CLICK_LOGICAL_DEVICE_ID, name: 'Klick', capability: CAPABILITIES.clickTrack, pluginId: null, executionTarget: SERVER_EXECUTION_TARGET },
+      { id: CLICK_LOGICAL_DEVICE_ID, name: 'Klick', capability: CAPABILITIES.clickTrack, pluginId: null, executionTarget: LEGACY_HOST_TARGET },
     ])
     vi.mocked(usePluginsStore).mockImplementation((selector) =>
       selector({
@@ -210,7 +210,7 @@ describe('useClickOutputDriver', () => {
             id: 'mock-click',
             name: 'Mock Click',
             version: '0.0.1',
-            runtime: 'server',
+            runtime: 'host',
             capabilities: [CAPABILITIES.clickTrack],
             transports: [],
             hardwareIds: [],

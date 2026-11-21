@@ -2,16 +2,16 @@ import { randomUUID } from 'node:crypto'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { AsyncJobSchema, messageFieldsOf, ServerMessageError, type AsyncJob, type AudioImportJob, type OpusConvertJob, type StemSeparationJob, type TrackMeta } from 'shared-types'
+import { AsyncJobSchema, messageFieldsOf, HostMessageError, type AsyncJob, type AudioImportJob, type OpusConvertJob, type StemSeparationJob, type TrackMeta } from 'shared-types'
 import { allDocs, getDoc, putDocWithRetry, waitForChange, type DatabaseConfig, type DatabaseDoc } from './database.js'
 import { workspaceDbName } from './workspaceProvisioning.js'
 import { deleteAudioFile, isSafeAudioId, readAudioFile, writeAudioFile } from './audioStore.js'
 import type { AddonMethods } from './addons/addonMethods.js'
 import { hostRunner, type JobRef, pickNextClaimable, runAudioImport, type SeparatedStem, runStemSeparation as runStemSeparationRecipe, stillMine, stuckJobsOfHost } from 'sync-host'
 import { readInstallations } from './plugins/pluginSync.js'
-import { STEM_SEPARATION_PLUGIN_ID } from './plugins/stemSeparationPlugin.js'
-import { bandHasAddon } from './plugins/importAddons.js'
-import { runStemSeparation } from './stems/stemSeparation.js'
+import { pluginIdWorking } from './addons/addonMethods.js'
+import { bandHasAddon } from './addons/bandAddons.js'
+import { createStemAddonSeparate } from './addons/stemAddon.js'
 
 const CHANGES_TIMEOUT_MS = 30_000
 const ASYNC_JOB_PREFIX = 'async-jobs:'
@@ -27,8 +27,6 @@ export interface AsyncJobWatcherOptions {
   workspaceId: string
   /** This host's id: the runner it writes into a job it takes (`host:<id>`, sync-host's queue rules, #964). */
   hostId?: string
-  /** Stem separation through the sandboxed add-on (`addons/stemAddon.ts`, #964). Absent: the built-in call. */
-  stemSeparate?: (audio: Uint8Array, options: { model: 'standard' | 'extended'; splitGuitar: boolean }, onProgress: (fraction: number) => void) => Promise<{ stems: SeparatedStem[] }>
   /** The add-ons this host can ask for audio (`audio-import` jobs, docs/36 §7, #964): their work scripts run in a sandbox of their own. Absent: such jobs fail with a message. */
   addonMethods?: AddonMethods
   /** What a job needs from its host - from the host's runners (`JobRunners.needsOfJob`). Absent: sync-host's default table. */
@@ -98,7 +96,7 @@ export function createAsyncJobWatcher(options: AsyncJobWatcherOptions): AsyncJob
   let stopped = false
   let currentJobId: string | null = null
 
-  /** What the server ever writes into a job - the fields every job type shares, plus its result. */
+  /** What the host ever writes into a job - the fields every job type shares, plus its result. */
   type JobPatch = Partial<Pick<AsyncJob, 'status' | 'progress' | 'error' | 'errorCode' | 'errorParams' | 'runner'>> & { trackId?: string; stemTrackIds?: string[] }
 
   /** The `error` patch for a failure: the German text, plus its code when it has one (#679). */
@@ -121,7 +119,7 @@ export function createAsyncJobWatcher(options: AsyncJobWatcherOptions): AsyncJob
   async function appendTrack(variantId: string, meta: TrackMeta): Promise<void> {
     const docId = `${SONG_VARIANT_PREFIX}${variantId}`
     await putDocWithRetry<Record<string, unknown> & DatabaseDoc>(database, workspaceDb, docId, (existing) => {
-      if (!existing) throw new ServerMessageError('job.variantGone')
+      if (!existing) throw new HostMessageError('job.variantGone')
       const tracks: unknown[] = Array.isArray(existing.tracks) ? existing.tracks : []
       return { ...existing, tracks: [...tracks, meta] }
     })
@@ -172,7 +170,7 @@ export function createAsyncJobWatcher(options: AsyncJobWatcherOptions): AsyncJob
 
   async function stemPluginInstalled(): Promise<boolean> {
     const installations = readInstallations(await allDocs<unknown>(database, workspaceDb, { startkey: 'plugins:', endkey: 'plugins:￰' }))
-    return installations.some((i) => i.id === STEM_SEPARATION_PLUGIN_ID && i.enabled)
+    return installations.some((i) => i.id === pluginIdWorking('stem-separation') && i.enabled)
   }
 
   /** The variant's tracks with `stems` in place of the earlier stems of `sourceTrackId` - raw
@@ -180,7 +178,7 @@ export function createAsyncJobWatcher(options: AsyncJobWatcherOptions): AsyncJob
   async function replaceStems(variantId: string, sourceTrackId: string, stems: TrackMeta[]): Promise<string[]> {
     let replaced: string[] = []
     await putDocWithRetry<Record<string, unknown> & DatabaseDoc>(database, workspaceDb, `${SONG_VARIANT_PREFIX}${variantId}`, (existing) => {
-      if (!existing) throw new ServerMessageError('job.variantGone')
+      if (!existing) throw new HostMessageError('job.variantGone')
       const tracks = (Array.isArray(existing.tracks) ? existing.tracks : []) as Record<string, unknown>[]
       const isOldStem = (t: Record<string, unknown>) => t.kind === 'stem' && t.parentTrackId === sourceTrackId
       replaced = tracks.filter(isOldStem).map((t) => String(t.id))
@@ -204,20 +202,11 @@ export function createAsyncJobWatcher(options: AsyncJobWatcherOptions): AsyncJob
         bandHasStemPlugin: stemPluginInstalled,
         readVariant: (variantId) => getDoc<Record<string, unknown> & DatabaseDoc>(database, workspaceDb, `${SONG_VARIANT_PREFIX}${variantId}`),
         readAudio: readAudioFile,
-        separate: options.stemSeparate ?? (async (audio, options, onProgress) => {
-          const workDir = await mkdtemp(join(tmpdir(), 'stageboard-stems-'))
-          const dispose = () => rm(workDir, { recursive: true, force: true })
-          try {
-            const input = join(workDir, 'input')
-            await writeFile(input, audio)
-            const files = await runStemSeparation(input, workDir, options, onProgress)
-            const stems = await Promise.all(files.map(async (file) => ({ key: file.key, data: await readFile(file.path), opus: file.path.endsWith('.opus') })))
-            return { stems, dispose }
-          } catch (err) {
-            await dispose().catch(() => {})
-            throw err
-          }
-        }),
+        // The separation is the stem add-on's method, run in its sandbox on this host (docs/36); the Demucs program is its helper.
+        separate: async (audio, separateOptions, onProgress) => {
+          if (!options.addonMethods) throw new Error('This device runs no add-ons')
+          return createStemAddonSeparate(options.addonMethods)(audio, separateOptions, onProgress)
+        },
         writeAudio: (variantId, trackId, data) => writeAudioFile(variantId, trackId, Buffer.from(data.buffer, data.byteOffset, data.byteLength)),
         deleteAudio: deleteAudioFile,
         replaceStems,
@@ -314,7 +303,7 @@ export function createAsyncJobWatcher(options: AsyncJobWatcherOptions): AsyncJob
   async function failJobsLeftRunning(): Promise<void> {
     for (const stuck of stuckJobsOfHost(await loadJobs(), hostId, currentJobId, options.needsOf)) {
       log.error('Async job was left running by a previous process - marking it failed', { jobId: stuck.id })
-      await patchJob(stuck.id, errorPatch(new ServerMessageError('job.interrupted')))
+      await patchJob(stuck.id, errorPatch(new HostMessageError('job.interrupted')))
     }
   }
 

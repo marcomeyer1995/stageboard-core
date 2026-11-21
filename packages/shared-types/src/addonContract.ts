@@ -115,6 +115,7 @@ export type JsonSchema = z.infer<typeof JsonSchema>
  */
 export const SlotIdSchema = z.enum([
   'song-editor.track-source',
+  'song-editor.track-action',
   'song-editor.panel',
   'device.panel',
   'settings.section',

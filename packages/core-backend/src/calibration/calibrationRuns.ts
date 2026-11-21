@@ -20,7 +20,7 @@ interface Run {
 /**
  * Latency calibration with the Host's microphone as the sensor (docs/21 §4, #491): a device
  * asks for a run, gets an irregular list of click times (server time), plays its real click at those
- * times; the server records meanwhile and finds the delay at which the heard pattern fits the
+ * times; the host records meanwhile and finds the delay at which the heard pattern fits the
  * planned one. One run at a time - two devices clicking together would mix their patterns.
  */
 export class CalibrationRuns {

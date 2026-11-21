@@ -2,7 +2,7 @@ import { coalesced } from '../lib/coalesced'
 import { create } from 'zustand'
 import { ALIGNMENT_SESSION_ID, type AlignmentSession, type AudioRoute } from 'shared-types'
 import type { LocalChangesHandle } from '../lib/localChanges'
-import { getServerTime } from '../lib/clockSync'
+import { getHostTime } from '../lib/clockSync'
 import {
   alignmentSessionChanges,
   getAllAlignmentSessions,
@@ -48,7 +48,7 @@ export const useAlignmentStore = create<AlignmentState>((set) => ({
     changesHandle.on('change', coalesced(() => refresh(set)))
   },
   start: async (referenceDeviceId, targetDeviceId) => {
-    const now = getServerTime()
+    const now = getHostTime()
     const startedAt = Math.ceil((now + START_DELAY_MS) / ALIGNMENT_PERIOD_MS) * ALIGNMENT_PERIOD_MS
     await putAlignmentSession({ id: ALIGNMENT_SESSION_ID, referenceDeviceId, targetDeviceId, startedAt, periodMs: ALIGNMENT_PERIOD_MS, endsAt: now + SESSION_LENGTH_MS })
   },

@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { ServerMessageError, type StemModel } from 'shared-types'
+import { HostMessageError, type StemModel } from 'shared-types'
 
 /**
  * Stem separation (#9) on the Host: a Python script (`scripts/stem_separate.py`, Demucs +
@@ -67,7 +67,7 @@ export function runStemSeparation(
 ): Promise<StemFile[]> {
   return new Promise((resolve, reject) => {
     if (!stemsAvailable(config)) {
-      reject(new ServerMessageError('stems.notInstalled'))
+      reject(new HostMessageError('stems.notInstalled'))
       return
     }
     const args = [config.script, input, outDir, options.model, ...(options.model === 'extended' && options.splitGuitar ? ['--split-guitar'] : [])]

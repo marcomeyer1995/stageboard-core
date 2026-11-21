@@ -24,7 +24,7 @@ const PROFILE_ID_PREFIX = 'profiles:'
 export { ROSTER_VALIDATOR_SOURCE } from 'sync-host'
 
 /**
- * Brings `_design/roster` of every band on this server up to the current validator - it used to be
+ * Brings `_design/roster` of every band on this host up to the current validator - it used to be
  * written once at founding only, so bands founded before a rule was added (protected dashboard
  * templates, #16) would never get it. Returns the bands whose validator was replaced.
  */
@@ -72,7 +72,7 @@ export interface WorkspaceCredentialPair {
  * `_security` and the roster validator are role-based (see `ROSTER_VALIDATOR_SOURCE` above) - every
  * subsequent member (`provisionMember` below) just gets created with the right role and is
  * immediately covered. `_security` is never written again; the validator is brought up to date
- * at every server start (`updateRosterValidators`, since #16) - don't hand-patch it in a band DB.
+ * at every host start (`updateRosterValidators`, since #16) - don't hand-patch it in a band DB.
  *
  * Never rotates an existing account's password: a repeat call for an id that's already
  * provisioned (checked via the founder's own user) throws `WorkspaceAlreadyProvisionedError`
@@ -157,7 +157,7 @@ export async function getAccessCode(config: DatabaseConfig, workspaceId: string)
  * that triggered this redesign - Marco locked out of every device at once, with no admin
  * session left anywhere to mint anything) transparently start working the moment this ships,
  * with no separate migration step: the very first request against it creates its code on the
- * spot. `fallbackName` has no better source for a workspace this old - the server never learned
+ * spot. `fallbackName` has no better source for a workspace this old - the host never learned
  * a real name before this redesign either (see `WorkspaceProvisionRequestSchema`'s doc comment) -
  * so callers pass the raw `workspaceId` as a last resort, readable enough to distinguish bands
  * by ID even if the display name isn't pretty.

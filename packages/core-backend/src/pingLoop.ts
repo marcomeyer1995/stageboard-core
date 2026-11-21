@@ -12,7 +12,7 @@ const PING_TIMEOUT_S = 1
  * Background reachability/hostname refresh for every device currently known to
  * `deviceInfoStore` - the Device Ledger's "Netzwerk erreichbar" column (DeviceLedgerView.tsx,
  * Marco's explicit request). Deliberately server-side: no browser has ICMP access at all, but
- * this server already runs natively on Linux (no virtualization, per the project's own
+ * this host already runs natively on Linux (no virtualization, per the project's own
  * tech-stack rule), so it can shell out to the system `ping` binary directly - not a raw
  * socket, so the Node process itself needs no elevated privileges (the OS `ping` executable
  * already carries whatever capability it needs).

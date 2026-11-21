@@ -9,7 +9,7 @@ function installation(overrides: Partial<PluginInstallation> = {}): PluginInstal
     id: 'mock-mixer',
     name: 'Mock Mixer',
     version: '0.0.1',
-    runtime: 'server',
+    runtime: 'host',
     capabilities: ['mixer'],
     transports: [],
     hardwareIds: [],
@@ -44,7 +44,7 @@ describe('reconcile', () => {
   })
 
   it('ignores client-side plugins - they run on the tablet, not here', () => {
-    const webmidi = installation({ id: 'generic-webmidi', runtime: 'client' })
+    const webmidi = installation({ id: 'generic-webmidi', runtime: 'device' })
     const result = reconcile([webmidi], [], CATALOG)
     expect(result.toRegister).toEqual([])
     expect(result.unavailable).toEqual([])

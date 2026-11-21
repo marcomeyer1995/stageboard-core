@@ -1,14 +1,14 @@
 /**
  * Server-local command to delete a band (#70 break-glass, first piece). Deleting through the
  * app needs that band's admin login - useless for leftovers nobody can log into any more (test
- * bands from development). This runs on the Host itself, with the server's own the database
+ * bands from development). This runs on the Host itself, with the host's own the database
  * configuration, and never prints any credential.
  *
  *   npm run band:delete -w core-backend                                 # list bands
  *   npm run band:delete -w core-backend -- <band-id> --confirm "<name>" # delete one
  *
  * Guards: the exact band name has to be typed (like "Band für alle löschen" in the app), and the
- * band whose hardware the server currently serves can't be deleted. the database keeps deleted
+ * band whose hardware the host currently serves can't be deleted. the database keeps deleted
  * databases recoverable (docs/03 §0b).
  */
 import { pathToFileURL } from 'node:url'
@@ -50,7 +50,7 @@ export function planDeletion(args: string[], bands: Band[], activeWorkspaceId: s
 
 async function main(): Promise<void> {
   const database = serverDatabaseConfig()
-  // Imported after the environment is set, like the server itself.
+  // Imported after the environment is set, like the host itself.
   const { listWorkspaces, deprovisionWorkspace } = await import('../workspaceProvisioning.js')
   const { readPersistedActiveWorkspace } = await import('../activeWorkspaceStateStore.js')
 

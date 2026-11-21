@@ -1,6 +1,6 @@
 import type { ClickEngineState } from '../clickEngine'
 import { mixGain, useOutputPlanStore } from '../audioMix'
-import { getServerTime } from '../clockSync'
+import { getHostTime } from '../clockSync'
 import { nativeEngine } from '../nativeOutput'
 import { createFollower } from './engineClick'
 import type { EngineMessage } from './engineMessages'
@@ -42,9 +42,9 @@ let update: ReturnType<typeof setInterval> | null = null
 let follower: ReturnType<typeof createFollower> | null = null
 
 function sendUpdate(state: ClickEngineState): void {
-  // On the transport's clock: in Solo Üben the device's own - with the server's, the click came
+  // On the transport's clock: in Solo Üben the device's own - with the host's, the click came
   // the device's clock offset early (650 ms on the Redmi, 2026-11-13).
-  sendNativeOffset(state.transportNow ?? getServerTime, state.outputLatencyMs)
+  sendNativeOffset(state.transportNow ?? getHostTime, state.outputLatencyMs)
   nativeEngine.gain(ENGINE_BUS.click, mixGain('click'))
   // Where the plan puts the click (the map, #742) - silent where it says so.
   const [left, right] = feedsOf(useOutputPlanStore.getState().plan.click)

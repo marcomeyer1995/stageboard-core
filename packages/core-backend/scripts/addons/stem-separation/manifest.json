@@ -3,6 +3,10 @@
   "name": "Stem-Trennung (Demucs)",
   "version": "1.0.0",
   "protocol": 3,
+  "provides": [
+    "stem-separation"
+  ],
+  "asyncJobType": "stem-separation",
   "workFile": "work.js",
   "permissions": [
     "helper:stems"
@@ -38,6 +42,15 @@
         "timeoutMs": 1500000,
         "progress": true
       }
-    }
-  }
+    },
+    "ui": [
+      {
+        "slot": "song-editor.track-action",
+        "id": "split",
+        "title": "Spuren trennen",
+        "icon": "split"
+      }
+    ]
+  },
+  "viewFile": "view.js"
 }

@@ -43,12 +43,12 @@ export class MidiClockEngine {
   private followedJump: { at: number; toMs: number } | null = null
 
   constructor(
-    private readonly serverNow: () => number,
+    private readonly hostNow: () => number,
     private readonly perfNow: () => number = () => performance.now(),
   ) {}
 
   tick(input: MidiClockInput, outputs: readonly ClockOutput[]): void {
-    const now = this.serverNow()
+    const now = this.hostNow()
     const horizon = now + LOOKAHEAD_MS
     const emit = (data: number[], at: number) => {
       for (const out of outputs) out.send(data, this.perfNow() + (at - now) - out.latencyMs)
@@ -56,7 +56,7 @@ export class MidiClockEngine {
     const { transport, timeline, jump = null } = input
     if (transport.status === 'playing' && transport.startedAt !== null && timeline) {
       const { startedAt, accumulatedMs } = transport
-      const toServer = (song: number) => startedAt + (song - accumulatedMs)
+      const toHost = (song: number) => startedAt + (song - accumulatedMs)
       const toSong = (t: number) => accumulatedMs + (t - startedAt)
       const folded = this.followedJump !== null && this.followedJump.at === startedAt && this.followedJump.toMs === accumulatedMs
       if (folded) {
@@ -77,11 +77,11 @@ export class MidiClockEngine {
         const earliest = toSong(Math.max(now, this.lastTick ?? now)) + RESUME_MARGIN_MS
         const bar1 = timeline.timeOfBeat(0)
         if (freshTake && bar1 >= earliest) {
-          this.pending = { at: toServer(bar1), messages: [[MIDI_START]] }
+          this.pending = { at: toHost(bar1), messages: [[MIDI_START]] }
         } else {
           const { sixteenths, atMs } = songPositionAt(timeline, earliest)
           this.pending = {
-            at: toServer(atMs),
+            at: toHost(atMs),
             messages: [songPositionPointer(sixteenths), [MIDI_CONTINUE]],
           }
         }
@@ -104,17 +104,17 @@ export class MidiClockEngine {
       const jumpAt = jump && jump.at > from ? jump.at : null
       const pastFollowedJump = jump !== null && jumpAt === null && this.followedJump?.at === jump.at
       const until = jumpAt !== null ? Math.min(horizon, jumpAt - 0.01) : horizon
-      if (!pastFollowedJump) for (const song of clockTicksBetween(timeline, toSong(from), toSong(until))) tickAt(toServer(song))
+      if (!pastFollowedJump) for (const song of clockTicksBetween(timeline, toSong(from), toSong(until))) tickAt(toHost(song))
       if (jump && jumpAt !== null && horizon >= jumpAt) {
         if (this.running && (!this.followedJump || this.followedJump.at !== jump.at)) emit(songPositionPointer(songPositionAt(timeline, jump.toMs).sixteenths), jumpAt - 0.5)
         this.followedJump = { at: jump.at, toMs: jump.toMs }
-        const toServerAfter = (song: number) => jump.at + (song - jump.toMs)
-        for (const song of clockTicksBetween(timeline, jump.toMs, jump.toMs + (horizon - jump.at))) tickAt(toServerAfter(song))
+        const toHostAfter = (song: number) => jump.at + (song - jump.toMs)
+        for (const song of clockTicksBetween(timeline, jump.toMs, jump.toMs + (horizon - jump.at))) tickAt(toHostAfter(song))
       } else if (jump && pastFollowedJump) {
         // Past the boundary, before the fold: keep counting in the target's time.
-        const toServerAfter = (song: number) => jump.at + (song - jump.toMs)
+        const toHostAfter = (song: number) => jump.at + (song - jump.toMs)
         const toSongAfter = (t: number) => jump.toMs + (t - jump.at)
-        for (const song of clockTicksBetween(timeline, toSongAfter(from), toSongAfter(horizon))) tickAt(toServerAfter(song))
+        for (const song of clockTicksBetween(timeline, toSongAfter(from), toSongAfter(horizon))) tickAt(toHostAfter(song))
       }
       return
     }

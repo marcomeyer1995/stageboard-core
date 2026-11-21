@@ -21,7 +21,7 @@ vi.mock('pouchdb-browser', () => ({
 }))
 
 const { getDeviceId } = await import('../lib/deviceId')
-const { getServerTime } = await import('../lib/clockSync')
+const { getHostTime } = await import('../lib/clockSync')
 const { useBandSettingsStore } = await import('../store/useBandSettingsStore')
 const { useLogicalDevicesStore } = await import('../store/useLogicalDevicesStore')
 const { useShowLogStore } = await import('../store/useShowLogStore')
@@ -93,7 +93,7 @@ describe('RigCheckView (#464)', () => {
 
   it('a prepared run lists every device live; Start waits until the test song has arrived', () => {
     useShowLogStore.setState({
-      events: [{ id: 'rig-check-run-r1', showId: 'r1', type: 'rig-check-run', at: Math.round(getServerTime()), kind: 'quick', version: 1 }, report(), report({ deviceId: 'phone', deviceName: 'Handy', trackReady: false, mode: 'practice' })],
+      events: [{ id: 'rig-check-run-r1', showId: 'r1', type: 'rig-check-run', at: Math.round(getHostTime()), kind: 'quick', version: 1 }, report(), report({ deviceId: 'phone', deviceName: 'Handy', trackReady: false, mode: 'practice' })],
     })
     render(<RigCheckView />)
     expect(screen.getByRole('button', { name: 'Start' })).toBeDisabled()
@@ -110,7 +110,7 @@ describe('measured click (#662)', () => {
   const measured = (extra: object = {}) => ({ at: 1, input: 'cable' as const, audioRoute: 'bluetooth', storedMs: 230, offsetMs: 42, jitterMs: 2, matched: 12, total: 12, reliable: true, ...extra })
 
   it('the master starts the measuring round; Start waits until it is over', async () => {
-    useShowLogStore.setState({ events: [{ id: 'rig-check-run-r1', showId: 'r1', type: 'rig-check-run', at: Math.round(getServerTime()), kind: 'quick', version: 1 }, report()] })
+    useShowLogStore.setState({ events: [{ id: 'rig-check-run-r1', showId: 'r1', type: 'rig-check-run', at: Math.round(getHostTime()), kind: 'quick', version: 1 }, report()] })
     render(<RigCheckView />)
     fireEvent.click(screen.getByRole('button', { name: 'Messen' }))
     await vi.waitFor(() => expect(append).toHaveBeenCalled())
@@ -140,7 +140,7 @@ describe('measured click (#662)', () => {
 
 describe('RigCheckVerdict', () => {
   const ended = () => {
-    const now = Math.round(getServerTime())
+    const now = Math.round(getHostTime())
     return { id: 'rig-check-run-r1', showId: 'r1', type: 'rig-check-run', at: now - 60_000, kind: 'quick', version: 1, startedAt: now - 50_000, endedAt: now - 5_000 } as ShowLogEvent
   }
 

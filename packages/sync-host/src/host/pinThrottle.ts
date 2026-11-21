@@ -29,7 +29,7 @@ interface Entry {
  * right PIN is refused while locked, otherwise a guesser would just keep going - and then it
  * simply unlocks by itself. Failures that never reached the limit are forgotten after the same
  * time, so a mistyped PIN today doesn't count against tomorrow. In memory on purpose: it only has
- * to slow down guessing, and a server restart clearing it is an acceptable trade for no storage.
+ * to slow down guessing, and a host restart clearing it is an acceptable trade for no storage.
  */
 export function createPinThrottle(options: PinThrottleOptions = {}): PinThrottle {
   const maxFailures = options.maxFailures ?? 5
