@@ -62,7 +62,8 @@
     "tooOld": "Das Hilfsprogramm ist zu alt für diese StageBoard-Version."
   },
   "addon": {
-    "notInstalled": "Das Add-on „{{addon}}“ ist für diese Band nicht installiert."
+    "notInstalled": "Das Add-on „{{addon}}“ ist für diese Band nicht installiert.",
+    "toolMissing": "Auf diesem Host fehlt „{{tool}}“ für das Add-on „{{addon}}“."
   },
   "audio": {
     "convertFailed": "Die Audiospur ließ sich auf diesem Gerät nicht nach Opus umwandeln."

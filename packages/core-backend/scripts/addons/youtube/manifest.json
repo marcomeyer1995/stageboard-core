@@ -3,6 +3,10 @@
   "name": "YouTube",
   "version": "1.0.0",
   "protocol": 3,
+  "provides": [
+    "video-download"
+  ],
+  "legalRisk": true,
   "viewFile": "view.js",
   "workFile": "work.js",
   "permissions": [

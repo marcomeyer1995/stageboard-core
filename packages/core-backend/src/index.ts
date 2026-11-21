@@ -7,7 +7,7 @@ import { CalibrationRuns } from './calibration/calibrationRuns.js'
 import { MeasureInputStore } from './calibration/measureInputs.js'
 import { startMicCapture } from './calibration/micCapture.js'
 import { registerServerSettingsRoutes } from './serverSettingsRoutes.js'
-import { PIPER_SPEECH_PLUGIN_ID, serverSpeech, serverVoices } from './plugins/piperSpeechPlugin.js'
+import { serverSpeech, serverVoices } from './speech/serverSpeech.js'
 import { PiperSpeech } from './speech/piperSpeech.js'
 import { createServer } from 'node:http'
 import { hostname, networkInterfaces } from 'node:os'
@@ -18,7 +18,7 @@ import { registerDatabaseRoutes } from './databaseRoutes.js'
 import { startBuiltinDatabase, type BuiltinDatabase } from './builtinDatabase.js'
 import { addonHostNeeds, hostCapabilities } from './hostCapabilities.js'
 import { builtinRunners } from './builtinRunners.js'
-import { sharedAddonMethods } from './addons/addonMethods.js'
+import { pluginIdProviding, sharedAddonMethods } from './addons/addonMethods.js'
 import { relayAddonState } from './addons/stateRelay.js'
 import { createHostLeaseService, getFromHost, postJsonToHost } from './hostLeaseService.js'
 import { createHostRoleStore } from './hostRoleStore.js'
@@ -42,7 +42,7 @@ import {
   ShowControlEventSchema,
   type Device,
 } from 'shared-types'
-import { messageFieldsOf, serverMessage, type ServerMessage } from 'shared-types'
+import { CAPABILITIES, messageFieldsOf, serverMessage, type ServerMessage } from 'shared-types'
 import { createBackupService, realBackupDeps, type BackupService } from './backup.js'
 import { deleteAudioFile, readAudioFile, writeAudioFile } from './audioStore.js'
 import { readPersistedActiveWorkspace } from './activeWorkspaceStateStore.js'
@@ -54,8 +54,8 @@ import { registerAppRoutes } from './appDownload.js'
 import { certFingerprint } from './certFingerprint.js'
 import { startMdnsResponder } from './mdnsResponder.js'
 import { startPingLoop } from './pingLoop.js'
-import { LOOKUP_CATALOG } from './plugins/lookupCatalog.js'
-import { bandHasAddon, ULTIMATE_GUITAR_PLUGIN_ID, ULTIMATE_GUITAR_PROVIDER } from './plugins/importAddons.js'
+import { LOOKUP_ADDONS, LOOKUP_CATALOG } from './plugins/lookupCatalog.js'
+import { bandHasAddon } from './addons/bandAddons.js'
 import { runYtDlpSearch } from './ytDlp.js'
 import { LookupRegistry } from './plugins/lookupRegistry.js'
 import { lookupErrorBody } from './plugins/lookupError.js'
@@ -669,7 +669,7 @@ export async function buildApp(options: { backupService?: BackupService; databas
       channels,
       // Spoken announcements (#63): the routes are sync-host's; the engine - Piper and its voice files - is this machine's.
       speech: {
-        pluginInstalled: () => registry.get(PIPER_SPEECH_PLUGIN_ID) !== undefined,
+        pluginInstalled: () => registry.get(pluginIdProviding(CAPABILITIES.speechSynthesis) ?? '') !== undefined,
         normalise: PiperSpeech.normalise,
         speak: (text, voice, speed) => serverSpeech.speak(text, voice, speed),
         voices: {
@@ -856,9 +856,11 @@ export async function buildApp(options: { backupService?: BackupService; databas
   /** Ultimate Guitar only for a band that installed its add-on (#546) - the app sends its band as
    * `workspace`. Other providers (MusicBrainz) need nothing. Returns the refusal, or null. */
   async function lookupRefusal(provider: string, workspace: string | undefined): Promise<ServerMessage | null> {
-    if (provider !== ULTIMATE_GUITAR_PROVIDER) return null
+    // The manifest says which provider answers only bands that installed it (`lookup.requiresInstall`) - this route knows no provider by name.
+    const addon = LOOKUP_ADDONS.find((info) => info.id === provider)
+    if (!addon?.lookup?.requiresInstall) return null
     if (!workspace || !/^[a-z0-9_-]+$/i.test(workspace)) return serverMessage('ug.bandMissing')
-    const installed = await bandHasAddon(database, workspace, ULTIMATE_GUITAR_PLUGIN_ID).catch(() => false)
+    const installed = await bandHasAddon(database, workspace, addon.pluginId).catch(() => false)
     return installed ? null : serverMessage('ug.addonMissing')
   }
 

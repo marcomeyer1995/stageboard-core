@@ -3,6 +3,10 @@
   "name": "Stem-Trennung (Demucs)",
   "version": "1.0.0",
   "protocol": 3,
+  "provides": [
+    "stem-separation"
+  ],
+  "asyncJobType": "stem-separation",
   "workFile": "work.js",
   "permissions": [
     "helper:stems"

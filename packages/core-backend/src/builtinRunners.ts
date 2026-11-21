@@ -1,12 +1,8 @@
-import { existsSync } from 'node:fs'
 import { cpus, totalmem } from 'node:os'
 import { createJobRunners, type DeviceDescription, type JobRunner, type JobRunners } from 'sync-host'
-import { PIPER_SPEECH_PLUGIN_ID, serverSpeech } from './plugins/piperSpeechPlugin.js'
-import { STEM_SEPARATION_PLUGIN_ID } from './plugins/stemSeparationPlugin.js'
-import { ULTIMATE_GUITAR_PLUGIN_ID, YOUTUBE_DOWNLOAD_PLUGIN_ID } from './plugins/importAddons.js'
-import { resolveChromeExecutable } from './addons/browserHelper.js'
-import { stemsAvailable } from './stems/stemSeparation.js'
-import { resolveYtDlpExecutable } from './ytDlp.js'
+import { loadAddonInfos } from './addons/addonMethods.js'
+import { addonMissingTool } from './addons/helpers.js'
+import { serverSpeech } from './speech/serverSpeech.js'
 
 /**
  * The runners a Node host ships with (#964, step 3): each is one capability with a manifest (sync-host's `JobRunner`) - what it lacks on
@@ -16,29 +12,17 @@ import { resolveYtDlpExecutable } from './ytDlp.js'
  * behind the same manifests, and loading runners from installed add-ons (#17), is what is left of step 3.
  */
 
-/** Whether `find` locates its tool - the resolvers throw when there is none. */
-const found = (find: () => string, mustExist = false): boolean => {
-  try {
-    const path = find()
-    return !mustExist || existsSync(path)
-  } catch {
-    return false
-  }
-}
-
 const needs = (ok: boolean, tool: string) => (ok ? null : tool)
-// A configured YT_DLP_PATH is returned unchecked - so the file must exist too.
-const ytDlpMissing = () => needs(found(resolveYtDlpExecutable, true), 'yt-dlp')
 
 export const BUILTIN_RUNNERS: readonly JobRunner[] = [
   // What a Node machine does without any extra tool.
   ...['backup', 'measure-inputs', 'calibration', 'lookup', 'plugin-runtime', 'hardware', 'osc-in', 'host-lookup'].map((id): JobRunner => ({ id, kind: 'job' })),
   { id: 'speech', kind: 'job', missing: () => needs(serverSpeech.available(), 'piper') },
-  // The heavy plugins and the tools they need.
-  { id: STEM_SEPARATION_PLUGIN_ID, kind: 'plugin', missing: () => needs(stemsAvailable(), 'demucs'), asyncJobType: 'stem-separation' },
-  { id: PIPER_SPEECH_PLUGIN_ID, kind: 'plugin', missing: () => needs(serverSpeech.available(), 'piper') },
-  { id: ULTIMATE_GUITAR_PLUGIN_ID, kind: 'plugin', missing: () => needs(found(resolveChromeExecutable), 'chrome') },
-  { id: YOUTUBE_DOWNLOAD_PLUGIN_ID, kind: 'plugin', missing: ytDlpMissing },
+  // Every add-on that gives the band a capability, and the programs its helpers need - read from its manifest (`addons/addonMethods.ts`), so a new add-on
+  // adds a runner without a line here.
+  ...loadAddonInfos()
+    .filter((info) => info.provides.length > 0)
+    .map((info): JobRunner => ({ id: info.pluginId, kind: 'plugin', missing: () => addonMissingTool(info.helpers), ...(info.asyncJobType ? { asyncJobType: info.asyncJobType } : {}) })),
 ]
 
 export const builtinRunners = (): JobRunners => createJobRunners(BUILTIN_RUNNERS)

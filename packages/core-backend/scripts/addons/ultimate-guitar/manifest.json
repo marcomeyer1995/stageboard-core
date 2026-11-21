@@ -3,6 +3,14 @@
   "name": "Ultimate Guitar Import",
   "version": "1.0.0",
   "protocol": 3,
+  "pluginId": "ultimate-guitar-import",
+  "provides": [
+    "chord-import"
+  ],
+  "legalRisk": true,
+  "lookup": {
+    "requiresInstall": true
+  },
   "workFile": "work.js",
   "permissions": [
     "helper:ug-page"

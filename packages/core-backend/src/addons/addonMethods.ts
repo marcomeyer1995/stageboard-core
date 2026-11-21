@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { callMethod, type MethodResult, type MethodSandbox } from 'sync-host'
-import { parseContributes, type AddonError, type Contributes, type StateField } from 'shared-types'
+import { parseContributes, type AddonError, type AsyncJob, type Contributes, type StateField } from 'shared-types'
 import { createCapabilities } from './capabilities.js'
 import { helperRunnerFor } from './helpers.js'
 import { startNodeSandbox, type NodeSandbox } from './nodeSandbox.js'
@@ -27,6 +27,53 @@ interface ManifestFile {
   workFile?: string
   permissions?: string[]
   contributes?: unknown
+  /** The id the band's installation document carries when it differs from `id` (Ultimate Guitar: `ultimate-guitar-import`). */
+  pluginId?: string
+  /** The capabilities the add-on gives the band (`CAPABILITIES`) - what the host registers for an installed add-on. */
+  provides?: string[]
+  /** Legally risky (#546): not in a sale build. */
+  legalRisk?: boolean
+  /** The add-on answers `/lookup/<id>/...`; `requiresInstall`: only a band that installed it. */
+  lookup?: { requiresInstall: boolean }
+  /** The background job type this add-on is the worker of. */
+  asyncJobType?: AsyncJob['type']
+}
+
+/** What the core needs to know about a built-in add-on without running it - read from its manifest, never from a table of ids kept in the core. */
+export interface AddonInfo {
+  id: string
+  /** The id of the band's installation document. */
+  pluginId: string
+  name: string
+  provides: string[]
+  legalRisk: boolean
+  lookup: { requiresInstall: boolean } | null
+  asyncJobType: AsyncJob['type'] | null
+  /** The helper programs it needs (`helper:` permissions). */
+  helpers: string[]
+}
+
+/** The id of the installation that provides a capability on this build (the add-on's manifest says), or null. */
+export const pluginIdProviding = (capability: string): string | null => loadAddonInfos().find((info) => info.provides.includes(capability))?.pluginId ?? null
+
+/** The id of the installation that works a background job type, or null. */
+export const pluginIdWorking = (jobType: AsyncJob['type']): string | null => loadAddonInfos().find((info) => info.asyncJobType === jobType)?.pluginId ?? null
+
+/** The built-in add-ons' manifests (a read of files, no sandbox started). */
+export function loadAddonInfos(root: string = defaultRoot, dirs: readonly string[] = ADDON_DIRS): AddonInfo[] {
+  return dirs.map((dir) => {
+    const manifest = JSON.parse(readFileSync(join(root, dir, 'manifest.json'), 'utf8')) as ManifestFile
+    return {
+      id: manifest.id,
+      pluginId: manifest.pluginId ?? manifest.id,
+      name: manifest.name ?? manifest.id,
+      provides: manifest.provides ?? [],
+      legalRisk: manifest.legalRisk === true,
+      lookup: manifest.lookup ?? null,
+      asyncJobType: manifest.asyncJobType ?? null,
+      helpers: (manifest.permissions ?? []).filter((p) => p.startsWith('helper:')).map((p) => p.slice('helper:'.length)),
+    }
+  })
 }
 
 interface Entry {

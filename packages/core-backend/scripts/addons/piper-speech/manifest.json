@@ -3,6 +3,9 @@
   "name": "Sprachausgabe (Piper)",
   "version": "1.0.0",
   "protocol": 3,
+  "provides": [
+    "speech-synthesis"
+  ],
   "workFile": "work.js",
   "permissions": [
     "helper:piper"

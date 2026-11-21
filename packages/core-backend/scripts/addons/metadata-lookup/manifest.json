@@ -3,6 +3,9 @@
   "name": "Musik-Metadaten (MusicBrainz)",
   "version": "1.0.0",
   "protocol": 3,
+  "lookup": {
+    "requiresInstall": false
+  },
   "workFile": "work.js",
   "permissions": [
     "http:https://musicbrainz.org"

@@ -24,5 +24,3 @@ export function createLookupAddonPlugin(addonId: string, options: { methods?: Ad
   }
 }
 
-export const createMusicBrainzAddonPlugin = (options: { methods?: AddonMethods } = {}): ILookupPlugin => createLookupAddonPlugin('metadata-lookup', options)
-export const createUltimateGuitarAddonPlugin = (options: { methods?: AddonMethods } = {}): ILookupPlugin => createLookupAddonPlugin('ultimate-guitar-scraper', options)

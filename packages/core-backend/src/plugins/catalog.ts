@@ -1,20 +1,21 @@
 import type { IShowControlPlugin } from 'shared-types'
+import { loadAddonInfos } from '../addons/addonMethods.js'
+import { createOscAddonPlugin } from '../addons/oscAddon.js'
+import { createAddonPlugin } from './addonPlugin.js'
 import { createMockBackupPlugin } from './mockBackupPlugin.js'
 import { createMockClickPlugin } from './mockClickPlugin.js'
 import { createMockLightingPlugin } from './mockLightingPlugin.js'
 import { createMockMixerPlugin } from './mockMixerPlugin.js'
 import { createMockPlaybackPlugin } from './mockPlaybackPlugin.js'
-import { createOscAddonPlugin } from '../addons/oscAddon.js'
 import { OSC_PLUGIN_ID } from './oscPlugin.js'
-import { createPiperSpeechPlugin, PIPER_SPEECH_PLUGIN_ID } from './piperSpeechPlugin.js'
-import { createStemSeparationPlugin, STEM_SEPARATION_PLUGIN_ID } from './stemSeparationPlugin.js'
-import { createUltimateGuitarImportPlugin, createYoutubeDownloadPlugin, SALE_BUILD, ULTIMATE_GUITAR_PLUGIN_ID, YOUTUBE_DOWNLOAD_PLUGIN_ID } from './importAddons.js'
+
+/** A sale build leaves out the add-ons their manifest marks as legally risky (#546). */
+export const SALE_BUILD = process.env.STAGEBOARD_SALE_BUILD === '1'
 
 /**
- * The server-side plugins this build knows how to construct, keyed by the id used in the
- * replicated PluginInstallation documents. Loading plugin code from a GitHub repository
- * (docs/01) will replace this map; until then, installing a plugin in the PWA means
- * "switch on the implementation that ships with the server".
+ * The plug-ins this build knows how to construct, keyed by the id used in the replicated PluginInstallation documents. The test plug-ins are
+ * written here; every add-on that provides a capability is made from its **manifest** (`plugins/addonPlugin.ts`), so the core keeps no list of add-ons.
+ * Loading add-ons from a repository (#17) will add to this by the same route.
  */
 export const PLUGIN_CATALOG: Record<string, () => IShowControlPlugin> = {
   'mock-mixer': createMockMixerPlugin,
@@ -22,9 +23,11 @@ export const PLUGIN_CATALOG: Record<string, () => IShowControlPlugin> = {
   'mock-playback': createMockPlaybackPlugin,
   'mock-backup': createMockBackupPlugin,
   'mock-click': createMockClickPlugin,
-  [PIPER_SPEECH_PLUGIN_ID]: createPiperSpeechPlugin,
-  [STEM_SEPARATION_PLUGIN_ID]: createStemSeparationPlugin,
+  // OSC sends show-control events through its add-on's method, so it brings a plug-in of its own.
   [OSC_PLUGIN_ID]: createOscAddonPlugin,
-  // Legally risky add-ons (#546): not in a sale build.
-  ...(SALE_BUILD ? {} : { [ULTIMATE_GUITAR_PLUGIN_ID]: createUltimateGuitarImportPlugin, [YOUTUBE_DOWNLOAD_PLUGIN_ID]: createYoutubeDownloadPlugin }),
+  ...Object.fromEntries(
+    loadAddonInfos()
+      .filter((info) => info.provides.length > 0 && !(SALE_BUILD && info.legalRisk))
+      .map((info) => [info.pluginId, () => createAddonPlugin(info)] as const),
+  ),
 }

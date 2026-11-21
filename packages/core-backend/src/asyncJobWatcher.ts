@@ -9,8 +9,8 @@ import { deleteAudioFile, isSafeAudioId, readAudioFile, writeAudioFile } from '.
 import type { AddonMethods } from './addons/addonMethods.js'
 import { hostRunner, type JobRef, pickNextClaimable, runAudioImport, type SeparatedStem, runStemSeparation as runStemSeparationRecipe, stillMine, stuckJobsOfHost } from 'sync-host'
 import { readInstallations } from './plugins/pluginSync.js'
-import { STEM_SEPARATION_PLUGIN_ID } from './plugins/stemSeparationPlugin.js'
-import { bandHasAddon } from './plugins/importAddons.js'
+import { pluginIdWorking } from './addons/addonMethods.js'
+import { bandHasAddon } from './addons/bandAddons.js'
 import { createStemAddonSeparate } from './addons/stemAddon.js'
 
 const CHANGES_TIMEOUT_MS = 30_000
@@ -170,7 +170,7 @@ export function createAsyncJobWatcher(options: AsyncJobWatcherOptions): AsyncJob
 
   async function stemPluginInstalled(): Promise<boolean> {
     const installations = readInstallations(await allDocs<unknown>(database, workspaceDb, { startkey: 'plugins:', endkey: 'plugins:￰' }))
-    return installations.some((i) => i.id === STEM_SEPARATION_PLUGIN_ID && i.enabled)
+    return installations.some((i) => i.id === pluginIdWorking('stem-separation') && i.enabled)
   }
 
   /** The variant's tracks with `stems` in place of the earlier stems of `sourceTrackId` - raw
