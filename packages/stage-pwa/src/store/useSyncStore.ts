@@ -6,7 +6,7 @@ export type SyncStatus = 'idle' | 'syncing' | 'offline' | 'error'
 type StreamStatus = 'active' | 'paused' | 'offline' | 'error'
 
 export interface StreamProgress {
-  /** Changes CouchDB says are still left to pull for this stream, right now. */
+  /** Changes the database says are still left to pull for this stream, right now. */
   pending: number
   /** The highest `pending` seen since this stream's progress was last cleared - the
    * denominator for "how far through this run are we." Grows instead of resetting if new
@@ -24,7 +24,7 @@ interface SyncState {
   clearStream: (name: string) => void
   /**
    * Pull-direction progress, tracked separately from `streams` (see trackedSync.ts's #49
-   * follow-up) - only CouchDB's `_changes` feed (2.0+) reports a `pending` count, and only
+   * follow-up) - only the database's `_changes` feed (2.0+) reports a `pending` count, and only
    * for the pull direction (push reads from the local IndexedDB adapter, which doesn't), so
    * not every stream will ever have an entry here.
    */
@@ -45,7 +45,7 @@ interface SyncState {
    */
   browserOffline: boolean
   setBrowserOffline: (offline: boolean) => void
-  /** Bands (by workspace id) whose database the paired Stage-Server answered with 404: the band
+  /** Bands (by workspace id) whose database the paired Host answered with 404: the band
    * is not on that server (#897). Reports for it have nowhere to go, so the reporters skip them. */
   notOnServer: Record<string, true>
   setNotOnServer: (name: string, missing: boolean) => void
@@ -119,7 +119,7 @@ export function deriveSyncStatus(streams: Record<string, StreamStatus>, browserO
 
 /**
  * Aggregate "how far through the current pull(s)" percentage across every stream that has
- * reported one, or `null` when none has yet (an older CouchDB, streams that are all
+ * reported one, or `null` when none has yet (an older the database, streams that are all
  * caught-up/push-only right now, or nothing pending) - the indicator falls back to a plain
  * "Synchronisiere…" in that case instead of a fake or stuck-looking percentage.
  */

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { ContributesSchema } from './addonContract.js'
 import { PluginInstallationSchema } from './pluginInstallation.js'
 
 /**
@@ -30,16 +31,49 @@ export type AddonFile = z.infer<typeof AddonFileSchema>
 
 /** The manifest of docs/32 §2 (what a band's installation copies), plus what only a release has. */
 export const AddonReleaseManifestSchema = PluginInstallationSchema.omit({ enabled: true, installedAt: true, settings: true, source: true, clientSource: true }).extend({
-  /** Every file of this version (the client bundle `client.js`, a server part, assets). */
+  /** Every file of this version (the device file `client.js`, the jobs file, assets). */
   files: z.array(AddonFileSchema).min(1),
-  /** The file the devices load as the client bundle, one of `files`. */
+  /**
+   * The contract version the add-on speaks (`ADDON_CONTRACT_VERSION`, docs/36 §3, §9). An integer: StageBoard runs every protocol it knows and says so
+   * when it does not. Absent on manifests written before the contract - the loader treats them as protocol 2.
+   */
+  protocol: z
+    .number()
+    .int()
+    .min(1)
+    .optional(),
+  /** The view script (docs/36 §2) - the new name for `clientFile`; it runs in a Worker of every device that shows the add-on. */
+  viewFile: AddonFileNameSchema.optional(),
+  /** The work script (docs/36 §2) - the new name for `jobsFile`; it runs where `runsOn` is satisfied, in a sandbox of its own. */
+  workFile: AddonFileNameSchema.optional(),
+  /** What the add-on contributes (docs/36 §3): methods, jobs, devices, UI slots, settings schema. Read through `parseContributes`, which keeps unknown kinds. */
+  contributes: ContributesSchema.optional(),
+  /** The file that drives a device (events, MIDI): every device loads it into a sandbox of its own, one of `files`. Older name of `viewFile`. */
   clientFile: AddonFileNameSchema.optional(),
-  /** The host's server part, one of `files` (not loaded yet - #17). */
-  serverFile: AddonFileNameSchema.optional(),
+  /**
+   * The file that does the add-on's background jobs (a download, a separation), one of `files`. It is the same kind of JavaScript as `clientFile`, in the
+   * same kind of sandbox (docs/32 §4); **any device that satisfies `runsOn` runs it** - there is no server: an add-on runs on some devices and not on
+   * others. Not loaded yet (#17). Older name of `workFile`.
+   */
+  jobsFile: AddonFileNameSchema.optional(),
   /** What is new in this version - shown with the update. */
   changes: z.string().max(4000).optional(),
   /** The oldest StageBoard version it runs on. */
   minStageBoard: z.string().optional(),
+  /**
+   * What the **jobs file** needs from the device that runs it (#962): only the power of the device decides where an add-on
+   * runs. An add-on that needs Windows or Linux and cannot run on Android says so here; a device that does not fit does not run
+   * it, says what is missing, and the job goes to a device that can (501). Absent: runs anywhere. Does not limit the device
+   * file - that runs on every device.
+   */
+  runsOn: z
+    .object({
+      /** Node's `process.platform` names (`win32`, `linux`, `darwin`) and `android`. */
+      platforms: z.array(z.string().min(1)).min(1).optional(),
+      minCpuCores: z.number().int().positive().optional(),
+      minMemoryMb: z.number().int().positive().optional(),
+    })
+    .optional(),
 })
 export type AddonReleaseManifest = z.infer<typeof AddonReleaseManifestSchema>
 

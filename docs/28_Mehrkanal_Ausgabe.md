@@ -1,6 +1,6 @@
 # Separate outputs: multichannel audio on tablets (#481, #25)
 
-As of 2026-11-03 (device findings updated 2026-11-12), measured with a Behringer UMC204HD (4 outputs: A = 1/2, B = 3/4, 2 inputs, USB Audio Class 2, class compliant). Goal: the click only on the in-ears, the track to FOH - also on a single Android tablet without a Stage-Server (docs/25); this is the core of what sets StageBoard apart.
+As of 2026-11-03 (device findings updated 2026-11-12), measured with a Behringer UMC204HD (4 outputs: A = 1/2, B = 3/4, 2 inputs, USB Audio Class 2, class compliant). Goal: the click only on the in-ears, the track to FOH - also on a single Android tablet without a Host (docs/25); this is the core of what sets StageBoard apart.
 
 ## 1. Decisions (Marco)
 

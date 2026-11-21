@@ -40,7 +40,8 @@ export function pickDevices(names) {
   })
 }
 
-export const DEV_APP = 'de.stageboard.app.dev'
+/** The dev app; STAGEBOARD_DEV_APP selects a second, isolated instance (build with -PstageboardAppIdSuffix=.dev.test) for tests that must start with no bands. */
+export const DEV_APP = process.env.STAGEBOARD_DEV_APP ?? 'de.stageboard.app.dev'
 export const appOf = (d) => d.app ?? DEV_APP
 
 export function adb(d, ...args) {

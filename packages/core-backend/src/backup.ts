@@ -6,11 +6,11 @@ import { fileURLToPath } from 'node:url'
 import { BackupTargetSchema, serverMessage, type BackupOverview, type BackupTarget, type BackupTargetStatus, type ServerMessage } from 'shared-types'
 
 /**
- * The Stage-Server's own backups (#363, Marco 2026-10-08): targets chosen in the app (System →
+ * The Host's own backups (#363, Marco 2026-10-08): targets chosen in the app (System →
  * Backup) instead of a hand-edited systemd timer. Each target is a folder (USB stick, second disk,
  * ZFS dataset, OS-mounted NAS share) or a NAS over SSH/rsync. Runs daily at the target's time and
  * when its USB medium is plugged in (last success over a day ago), never while a song plays, one
- * backup at a time. The writing itself is scripts/backup.mjs (CouchDB with revisions, data, certs,
+ * backup at a time. The writing itself is scripts/backup.mjs (the database with revisions, data, certs,
  * generations); restoring is scripts/backup-restore.mjs (docs/03 "Backup & Wiederherstellung").
  */
 
@@ -258,7 +258,7 @@ export function createBackupService(deps: BackupDeps) {
       return sshSays ? { ok: false, message: sshSays } : { ok: false, ...serverMessage('backup.nasNoConnection') }
     },
     tick,
-    /** Summary for the status line (Geräte → Stage-Server): null = nothing configured. */
+    /** Summary for the status line (Geräte → Host): null = nothing configured. */
     summary(): { ok: boolean; at?: string; error?: string; errorCode?: string; target?: string } | null {
       const enabled = targets.filter((t) => t.enabled)
       if (enabled.length === 0) return null

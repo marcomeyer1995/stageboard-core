@@ -10,7 +10,7 @@ import { useWorkspaceStore } from '../store/useWorkspaceStore'
 /** How long a finished check (everyone ready) stays up before the Master's tablet closes it -
  * long enough to read "5/5 bereit". */
 const AUTO_CLOSE_DELAY_MS = 3_000
-/** Retry interval for the Master's own automatic answer while the Stage-Server does not take it. */
+/** Retry interval for the Master's own automatic answer while the Host does not take it. */
 const REPORT_RETRY_MS = 3_000
 
 /**

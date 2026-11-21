@@ -46,13 +46,13 @@ export type MasterSelfCheck = 'ok' | 'sync-error' | 'offline' | 'unconfirmed'
  * - its band sync works (not `error`/`offline`), and
  * - the server confirms it: the latest heartbeat the server stamped is this device's own and
  *   fresh - or it has held the token for less than one timeout (its first beats are underway).
- * Without a Stage-Server at all (a local-only band) there is nothing to confirm against and no
+ * Without a Host at all (a local-only band) there is nothing to confirm against and no
  * other device to take over - the holder always passes.
  */
 export function masterSelfCheck(input: {
   syncStatus: 'idle' | 'syncing' | 'offline' | 'error'
-  /** Whether this device works with a Stage-Server (false: local-only band). */
-  hasStageServer: boolean
+  /** Whether this device works with a Host (false: local-only band). */
+  hasHostUrl: boolean
   deviceId: string
   heartbeat: MasterHeartbeat | null | undefined
   /** Server time (`getServerTime()`). */
@@ -65,8 +65,8 @@ export function masterSelfCheck(input: {
    * The rule above (step down when not confirmed) stays for the case where a host is reachable. */
   hostUnreachable?: boolean
 }): MasterSelfCheck {
-  const { syncStatus, hasStageServer, deviceId, heartbeat, now, holdingSince, hostUnreachable = false } = input
-  if (!hasStageServer) return 'ok'
+  const { syncStatus, hasHostUrl, deviceId, heartbeat, now, holdingSince, hostUnreachable = false } = input
+  if (!hasHostUrl) return 'ok'
   if (hostUnreachable) return 'ok'
   if (syncStatus === 'error') return 'sync-error'
   if (syncStatus === 'offline') return 'offline'

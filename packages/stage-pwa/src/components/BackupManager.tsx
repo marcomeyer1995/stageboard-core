@@ -15,7 +15,7 @@ import { ServerBackupTargets } from './ServerBackupTargets'
 import { Badge, Button, InfoHint } from './ui'
 import { useTranslation } from 'react-i18next'
 
-/** Same look as the "Sicherung des Stage-Servers" heading above it (ui Section). */
+/** Same look as the "Sicherung des Hosts" heading above it (ui Section). */
 const SUBHEADING = 'text-xs font-bold uppercase tracking-widest text-ink-faint'
 
 /**
@@ -30,7 +30,7 @@ export function BackupManager() {
   const { t } = useTranslation('system')
   const installed = usePluginsStore((state) => state.installed)
   const health = usePluginsStore((state) => state.health)
-  // `lastSeenAt` is the Stage-Server's stamp - compared in its time, not this device's (the Fire's clock
+  // `lastSeenAt` is the Host's stamp - compared in its time, not this device's (the Fire's clock
   // runs 18 s fast: every add-on read "Heartbeat veraltet", 2026-11-14).
   const now = useServerNow()
   const workspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
@@ -81,7 +81,7 @@ export function BackupManager() {
   }
 
   return (
-    // A part of System → Stage-Server since the System split (2026-10-16), no tab of its own; the
+    // A part of System → Host since the System split (2026-10-16), no tab of its own; the
     // card and its "Backup" heading come from there (SystemSettings Group).
     <div className="flex flex-col text-ink">
       <ServerBackupTargets />

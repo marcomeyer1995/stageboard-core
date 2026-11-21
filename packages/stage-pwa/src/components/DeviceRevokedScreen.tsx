@@ -3,12 +3,12 @@ import { Icon } from './Icon'
 /**
  * The actual "kick" behind the Device Ledger's admin revoke action (DeviceLedgerView.tsx,
  * Marco's explicit request) - a soft, cooperative lockout, not a hard security boundary
- * (confirmed with Marco: this app's auth model is per-profile CouchDB accounts, not
+ * (confirmed with Marco: this app's auth model is per-profile the database accounts, not
  * per-device, so there's no credential to actually revoke - see device.ts's `revoked` doc
  * comment). Purely a render gate reacting to the live-synced `revoked` flag on this device's
  * own entry (App.tsx checks it before anything else renders) - no credential wipe, no forced
  * logout plumbing. Restoring the device in the ledger flips `revoked` back to `false`, which
- * this same synced doc already carries to every device via the ordinary CouchDB sync everyone
+ * this same synced doc already carries to every device via the ordinary the database sync everyone
  * runs regardless - so un-revoking is immediately and automatically reversible, with nothing
  * for the device itself to redo.
  */

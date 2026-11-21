@@ -20,7 +20,7 @@ const { SyncIndicator } = await import('./SyncIndicator')
 beforeEach(() => {
   useSyncStore.setState({ streams: {}, progress: {}, browserOffline: false })
   useWorkspaceStore.setState({
-    workspaces: [{ id: 'band-a', name: 'Band A', ownProfileId: 'p1', username: 'stageboard-band-a-p1~device-1', couchPassword: 'pw' }],
+    workspaces: [{ id: 'band-a', name: 'Band A', ownProfileId: 'p1', username: 'stageboard-band-a-p1~device-1', password: 'pw' }],
     activeWorkspaceId: 'band-a',
   })
 })
@@ -130,7 +130,7 @@ describe('SyncIndicator', () => {
       const alert = vi.fn().mockResolvedValue(undefined)
       useDialogStore.setState({ promptText, alert })
       useWorkspaceStore.setState({
-        workspaces: [{ id: 'band-a', name: 'Band A', username: 'stageboard-band-a-p1~device-1', couchPassword: 'pw' }],
+        workspaces: [{ id: 'band-a', name: 'Band A', username: 'stageboard-band-a-p1~device-1', password: 'pw' }],
       })
       useSyncStore.setState({ streams: { songs: 'error' } })
       render(<SyncIndicator />)

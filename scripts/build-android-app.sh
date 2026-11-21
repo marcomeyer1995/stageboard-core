@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Builds the signed StageBoard Android app (#348) from this checkout and puts it where the
-# Stage-Server serves it (/app): stageboard.apk + version.json in $STAGEBOARD_APP_DIR
+# Host serves it (/app): stageboard.apk + version.json in $STAGEBOARD_APP_DIR
 # (default ~/stageboard-data/app). Run it from the deploy worktree on every redeploy that
 # changes stage-pwa, so the app and the server always come from the same commit.
 #

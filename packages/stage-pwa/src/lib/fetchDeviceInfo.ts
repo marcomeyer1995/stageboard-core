@@ -1,5 +1,5 @@
 import { DEFAULT_DEVICE_INFO, type DeviceInfo } from 'shared-types'
-import { getStageServerUrl } from './stageServer'
+import { getHostUrl } from './hostUrl'
 
 /**
  * One-shot fetch of the Device Ledger's current diagnostic snapshot (deviceInfoStore.ts on the
@@ -12,11 +12,11 @@ import { getStageServerUrl } from './stageServer'
  * this screen open to use it) of a connection entirely. A plain GET holds nothing open between
  * polls, so it doesn't compete for that same tight budget.
  *
- * Best-effort: no Stage-Server or a failed request both just mean "nothing new this poll" - the
+ * Best-effort: no Host or a failed request both just mean "nothing new this poll" - the
  * caller keeps showing its last-known snapshot rather than flashing to empty.
  */
 export async function fetchDeviceInfo(workspaceId: string): Promise<DeviceInfo | null> {
-  const base = getStageServerUrl()
+  const base = getHostUrl()
   if (!base) return DEFAULT_DEVICE_INFO
 
   try {

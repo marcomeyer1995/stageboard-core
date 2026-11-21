@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Runs the productive Stage-Server from another git ref for a test, and back (docs/03 "Redeploy").
+# Runs the productive Host from another git ref for a test, and back (docs/03 "Redeploy").
 #   tools/server/deploy-ref.sh status
 #   tools/server/deploy-ref.sh switch origin/<branch>     build that ref in the deploy worktree, restart
 #   tools/server/deploy-ref.sh revert                     back to origin/main
 # Only when the ref adds no dependencies (else `npm ci` first) and its schema changes are
-# optional fields - the data (CouchDB, STAGEBOARD_STATE_DIR) stays as it is. The APK at /app is
+# optional fields - the data (the database in STAGEBOARD_STATE_DIR) stays as it is. The APK at /app is
 # not rebuilt.
 # Env: STAGEBOARD_DEPLOY (default ~/stageboard-deploy), STAGEBOARD_URL (default https://stageboard.local).
 set -euo pipefail

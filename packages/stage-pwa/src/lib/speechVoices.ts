@@ -10,12 +10,13 @@ import {
 } from 'shared-types'
 import type { ClipVoice } from './speechClips'
 import { serverText } from './serverMessage'
-import { getStageServerUrl, NO_STAGE_SERVER_MESSAGE } from './stageServer'
+import { NO_HOST_MESSAGE } from './hostUrl'
+import { resolveHostFor } from './jobHost'
 
 /** piper-speech's plugin id - the voice lives in its installation's settings. */
 export const PIPER_SPEECH_PLUGIN = 'piper-speech'
 
-/** The band's voice and pace (#63) - an empty voice: the Stage-Server's default voice. */
+/** The band's voice and pace (#63) - an empty voice: the Host's default voice. */
 export function bandSpeechVoice(installed: readonly PluginInstallation[]): ClipVoice {
   const settings = SpeechSettingsSchema.safeParse(installed.find((p) => p.id === PIPER_SPEECH_PLUGIN)?.settings ?? {})
   return settings.success ? { voice: settings.data.voice, speed: settings.data.speed } : {}
@@ -33,8 +34,10 @@ export function bandAnnouncementSettings(installed: readonly PluginInstallation[
 }
 
 async function call<T>(path: string, parse: (body: unknown) => T, init?: RequestInit): Promise<{ ok: true; data: T } | { ok: false; message: string }> {
-  const base = getStageServerUrl()
-  if (!base) return { ok: false, message: NO_STAGE_SERVER_MESSAGE }
+  // Speech is a job: the host that can (Piper installed) gets it, wherever the person is connected (#962).
+  const resolved = await resolveHostFor(init?.method ?? 'GET', path)
+  if (resolved.base === null) return { ok: false, message: resolved.message === 'no-host' ? NO_HOST_MESSAGE : resolved.message }
+  const base = resolved.base
   try {
     const response = await fetch(`${base}${path}`, init)
     const body: unknown = await response.json()

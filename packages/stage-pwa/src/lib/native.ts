@@ -1,12 +1,12 @@
 import i18n from '../i18n'
 import { Capacitor, registerPlugin } from '@capacitor/core'
-import { useStageServerStore } from '../store/useStageServerStore'
-import { getStageServerUrl } from './stageServer'
+import { useHostUrlStore } from '../store/useHostUrlStore'
+import { getHostUrl } from './hostUrl'
 
 /**
  * The native Android app (#348): the same web build inside a Capacitor shell. Only a few places
  * differ from the browser - mainly that the app's own origin (`https://localhost`) isn't the
- * Stage-Server, so the server address comes from pairing, and the server's self-signed
+ * Host, so the server address comes from pairing, and the server's self-signed
  * certificate is trusted by fingerprint instead of a "Trotzdem fortfahren" tap.
  */
 export function isNativeApp(): boolean {
@@ -27,7 +27,7 @@ interface ServerTrustPlugin {
 
 const ServerTrust = registerPlugin<ServerTrustPlugin>('ServerTrust')
 
-/** A Stage-Server found on the network (`ServerDiscoveryPlugin.java`, DNS-SD `_stageboard._tcp`, #351). */
+/** A Host found on the network (`ServerDiscoveryPlugin.java`, DNS-SD `_stageboard._tcp`, #351). */
 export interface FoundServer {
   name: string
   /** `address` or `address:port` - the form the app stores and pins. */
@@ -38,7 +38,7 @@ export interface FoundServer {
 
 const ServerDiscovery = registerPlugin<{ discover(options: { timeoutMs: number }): Promise<{ servers: { name: string; address: string; port: number; fingerprint: string | null }[] }> }>('ServerDiscovery')
 
-/** Stage-Servers announcing themselves on the local network. Empty in the browser. */
+/** Hosts announcing themselves on the local network. Empty in the browser. */
 export async function discoverServers(timeoutMs = 3000): Promise<FoundServer[]> {
   if (!isNativeApp()) return []
   const { servers } = await ServerDiscovery.discover({ timeoutMs })
@@ -54,12 +54,12 @@ export function pickMovedServer(found: readonly FoundServer[], pinnedFingerprint
 }
 
 /**
- * Native app: if the paired Stage-Server doesn't answer at its stored address, look for it on the
+ * Native app: if the paired Host doesn't answer at its stored address, look for it on the
  * network and switch to it silently when it is there under a new address with the same
  * certificate (#351) - e.g. another router at the venue gave it a new IP.
  */
 export async function followServerIfMoved(): Promise<'reachable' | 'moved' | 'not-found' | 'skipped'> {
-  const base = useStageServerStore.getState().url
+  const base = useHostUrlStore.getState().url
   if (!isNativeApp() || !base) return 'skipped'
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), 3000)
@@ -129,10 +129,10 @@ export function shortFingerprint(fingerprint: string): string {
   return (fingerprint.match(/../g) ?? []).slice(0, 8).join(' ').toUpperCase()
 }
 
-/** Pairs this app with a Stage-Server: pins its certificate and makes it the server address. */
+/** Pairs this app with a Host: pins its certificate and makes it the server address. */
 export async function pairWithServer(host: string, fingerprint: string): Promise<void> {
   await ServerTrust.pin({ host, fingerprint: fingerprint.toLowerCase() })
-  useStageServerStore.getState().setUrl(`https://${host}`)
+  useHostUrlStore.getState().setUrl(`https://${host}`)
 }
 
 /** The certificate fingerprint a host presents, for pairing by a typed-in address. */
@@ -148,10 +148,10 @@ export interface AppUpdate {
   versionName: string
 }
 
-/** The app build the paired Stage-Server offers - null without a server, when it has no app
+/** The app build the paired Host offers - null without a server, when it has no app
  * build, or when it can't be reached. */
 export async function fetchOfferedAppVersion(): Promise<AppUpdate | null> {
-  const base = getStageServerUrl()
+  const base = getHostUrl()
   if (!base) return null
   try {
     const response = await fetch(`${base}/app/version.json`)
@@ -172,8 +172,8 @@ export async function checkForAppUpdate(): Promise<AppUpdate | null> {
 
 /** Downloads the server's app build and opens Android's installer. */
 export async function installAppUpdate(): Promise<void> {
-  const base = getStageServerUrl()
-  if (!base) throw new Error('Kein Stage-Server verbunden')
+  const base = getHostUrl()
+  if (!base) throw new Error('Kein Host verbunden')
   await ServerTrust.downloadAndInstall({ url: `${base}/app/stageboard.apk` })
 }
 
@@ -184,7 +184,7 @@ export function updateFailureReason(err: unknown): string {
   return text.replace(/^Update failed: /, '') || i18n.t('system:unknownError')
 }
 
-/** The question asked before trusting a Stage-Server's certificate (#377): name, address and the
+/** The question asked before trusting a Host's certificate (#377): name, address and the
  * fingerprint each on their own line instead of one long sentence. */
 export function pairingConfirmation(name: string, host: string, fingerprint: string): { title: string; message: string } {
   const where = name && name !== host ? `${name}\n${host}` : host

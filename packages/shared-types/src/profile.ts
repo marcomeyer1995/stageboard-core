@@ -13,7 +13,7 @@ import { z } from 'zod'
  * checkbox dialog as everything else here, not a bespoke credential-handoff flow. It's a
  * roster-visible label, not a technical grant - actually writing any `profiles:*` doc (checking
  * this box included) is still restricted server-side to whichever device holds the workspace's
- * real CouchDB admin credential (`_design/roster`, workspaceProvisioning.ts), same as it always
+ * real database admin credential (`_design/roster`, workspaceProvisioning.ts), same as it always
  * was. Marking someone admin here doesn't hand their device that credential - that still only
  * happens the way it always has (the founding device has it; anyone else needs it shared with
  * them manually, e.g. via JoinBandView's "Passwort direkt eingeben").

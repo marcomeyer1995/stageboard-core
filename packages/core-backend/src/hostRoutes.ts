@@ -19,10 +19,14 @@ export function registerHostRoutes(app: FastifyInstance, routes: readonly HostRo
           path,
           params: hit?.params ?? {},
           query: (request.query ?? {}) as Record<string, string>,
+          ...(request.headers.authorization ? { authorization: request.headers.authorization } : {}),
+          // The address the TCP connection came from - never taken from the client (it cannot know its own LAN address).
+          remoteAddress: request.ip,
           // JSON as parsed; an upload as the Buffer Fastify's catch-all parser hands over (a Uint8Array).
           body: request.body,
         })
         reply.status(answer.status)
+        for (const [name, value] of Object.entries(answer.headers ?? {})) reply.header(name, value)
         if (answer.binary) return reply.type(answer.binary.contentType).send(Buffer.from(answer.binary.data))
         return answer.body === undefined ? reply.send() : reply.send(answer.body)
       },

@@ -5,7 +5,7 @@ export const STEM_SEPARATION_PLUGIN_ID = 'stem-separation'
 
 /**
  * Stem separation (#9, Marco 2026-10-15: a plugin - heavy, not every band needs it): while the band
- * has it installed, the Stage-Server takes `stem-separation` jobs (asyncJobWatcher.ts) and the
+ * has it installed, the Host takes `stem-separation` jobs (asyncJobWatcher.ts) and the
  * song editor offers "Spuren trennen". The work itself is a Python/Demucs script
  * (stems/stemSeparation.ts); without it on the machine the plugin installs, says so on "Testen"
  * and jobs fail with that message.

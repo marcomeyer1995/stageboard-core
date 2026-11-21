@@ -75,7 +75,7 @@ function resolveVariant(
  * network fetch (Marco, explicit request, 2026-09-16: "it is important to continue the show" -
  * a reconciler running purely off sync-mode targeting had been evicting a song's own cached
  * audio while it was still the one playing, so a reload forced a full re-download - or, if the
- * Stage-Server happened to be unreachable at that exact moment, no recovery at all).
+ * Host happened to be unreachable at that exact moment, no recovery at all).
  */
 export function computeTargetKeys(
   mode: AudioSyncMode,

@@ -4,7 +4,7 @@ import { DeviceLedgerView } from './DeviceLedgerView'
 import { HardwareSetupManager } from './HardwareSetupManager'
 import { PluginManager } from './PluginManager'
 import { RigCheckView } from './RigCheckView'
-import { DeviceSettings, StageServerPage } from './SystemSettings'
+import { DeviceSettings, HostPage } from './SystemSettings'
 import { WebAudioTrackSettings } from './WebAudioTrackSettings'
 import { useInputCapability } from '../lib/useInputCapability'
 import { useActiveSystemTabStore, type SystemTab } from '../store/useActiveSystemTabStore'
@@ -53,7 +53,7 @@ function useIsWideScreen(): boolean {
  * App.tsx's mode switch instead of many, with its own tab bar here - none of this is touched
  * during a live show, so it doesn't need to cost rows in the main menu just to be reachable.
  *
- * Backup is always there: the Stage-Server's own backup targets (admins, #363) and local snapshots.
+ * Backup is always there: the Host's own backup targets (admins, #363) and local snapshots.
  */
 export function SystemView() {
   const { t } = useTranslation('system')
@@ -88,7 +88,7 @@ export function SystemView() {
       {activeTab === 'hardware' && <HardwareSetupManager />}
       {activeTab === 'devices' && <DeviceLedgerView />}
       {activeTab === 'rigcheck' && <RigCheckView />}
-      {activeTab === 'server' && <StageServerPage />}
+      {activeTab === 'server' && <HostPage />}
       {activeTab === 'plugins' && <PluginManager />}
       {activeTab === 'debug' && (
         <>

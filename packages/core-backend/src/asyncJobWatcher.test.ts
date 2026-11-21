@@ -1,29 +1,25 @@
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { AsyncJob, YoutubeExtractJob } from 'shared-types'
-import type { CouchDoc } from './couch.js'
+import type { AsyncJob, AudioImportJob } from 'shared-types'
+import type { AddonMethods } from './addons/addonMethods.js'
+import type { DatabaseDoc } from './database.js'
 
-// In-memory stand-in for the one workspace db the watcher touches - enough of couch.ts's
-// surface to run the real processJob/queue logic end to end without a CouchDB.
+// In-memory stand-in for the one workspace db the watcher touches - enough of database.ts's
+// surface to run the real processJob/queue logic end to end without a database.
 const store = new Map<string, Record<string, unknown>>()
-vi.mock('./couch.js', () => ({
+vi.mock('./database.js', () => ({
   allDocs: vi.fn(async (_config: unknown, _db: string, { startkey }: { startkey: string }) =>
     [...store.entries()].filter(([id]) => id.startsWith(startkey)).map(([, doc]) => structuredClone(doc)),
   ),
   getDoc: vi.fn(async (_config: unknown, _db: string, id: string) => (store.has(id) ? structuredClone(store.get(id)) : null)),
-  putDocWithRetry: vi.fn(async (_config: unknown, _db: string, id: string, build: (existing: CouchDoc | null) => CouchDoc) => {
-    const existing = store.has(id) ? (structuredClone(store.get(id)) as CouchDoc) : null
+  putDocWithRetry: vi.fn(async (_config: unknown, _db: string, id: string, build: (existing: DatabaseDoc | null) => DatabaseDoc) => {
+    const existing = store.has(id) ? (structuredClone(store.get(id)) as DatabaseDoc) : null
     store.set(id, build(existing) as Record<string, unknown>)
   }),
   // Never fires - the tests drive the watcher through its startup pass and its own
   // pick-up-next-after-a-job path, not the changes feed.
   waitForChange: vi.fn(() => new Promise(() => {})),
-}))
-
-vi.mock('./ytDlp.js', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('./ytDlp.js')>()),
-  runYtDlpExtract: vi.fn(),
 }))
 
 vi.mock('./audioStore.js', async (importOriginal) => ({
@@ -35,21 +31,22 @@ vi.mock('./audioStore.js', async (importOriginal) => ({
 
 vi.mock('./stems/stemSeparation.js', () => ({ runStemSeparation: vi.fn() }))
 
-import { runYtDlpExtract } from './ytDlp.js'
 import { deleteAudioFile, writeAudioFile } from './audioStore.js'
 import { createAsyncJobWatcher, pickNextQueuedJob, readAsyncJobs, stuckRunningJobs } from './asyncJobWatcher.js'
 import { runStemSeparation } from './stems/stemSeparation.js'
 
-function job(overrides: Partial<YoutubeExtractJob> = {}): YoutubeExtractJob {
+function job(overrides: Partial<AudioImportJob> = {}): AudioImportJob {
   return {
     id: 'job-1',
-    type: 'youtube-extract',
+    type: 'audio-import',
     status: 'queued',
     progress: 0,
     createdAt: 1000,
     updatedAt: 1000,
     variantId: 'variant-1',
-    url: 'https://youtu.be/dQw4w9WgXcQ',
+    addonId: 'youtube-download',
+    method: 'fetchAudio',
+    args: { url: 'https://youtu.be/dQw4w9WgXcQ' },
     label: 'YouTube Referenz',
     ...overrides,
   }
@@ -107,46 +104,45 @@ describe('stuckRunningJobs', () => {
 })
 
 describe('createAsyncJobWatcher', () => {
+  /** The add-on's method, answered by a stand-in: what the watcher knows of it is `call(addonId, method, args)` and the answer. */
+  const fake = { has: () => true, contributes: () => null, call: vi.fn() } as unknown as AddonMethods & { call: ReturnType<typeof vi.fn> }
   const log = { info: vi.fn(), error: vi.fn() }
-  const couch = { url: 'http://couch', user: 'u', password: 'p' }
+  const database = { url: 'http://database', user: 'u', password: 'p' }
 
-  /** Fakes a successful yt-dlp run: writes a real file where yt-dlp would, so the watcher's own
-   * readFile/stat run for real. */
+  /** The add-on answers with audio (not Opus, so a device converts it later). */
   function ytDlpSucceeds() {
-    vi.mocked(runYtDlpExtract).mockImplementation(async (_url, template, onProgress) => {
-      const filePath = template.replace('%(ext)s', 'm4a')
-      await writeFile(filePath, Buffer.from('audio-bytes'))
-      onProgress(0.5)
-      return { filePath }
+    fake.call.mockImplementation(async (_addon: string, _method: string, _args: unknown, options?: { onProgress?: (f: number) => void }) => {
+      options?.onProgress?.(0.5)
+      return { ok: true, body: { audio: new Uint8Array(Buffer.from('audio-bytes')), ext: 'm4a' } }
     })
   }
 
-  function putJob(overrides: Partial<YoutubeExtractJob>) {
+  function putJob(overrides: Partial<AudioImportJob>) {
     const j = job(overrides)
     store.set(`async-jobs:${j.id}`, { ...j, _id: `async-jobs:${j.id}` })
   }
 
   function storedJob(id: string) {
-    return store.get(`async-jobs:${id}`) as (YoutubeExtractJob & { stemTrackIds?: string[] }) | undefined
+    return store.get(`async-jobs:${id}`) as (AudioImportJob & { stemTrackIds?: string[] }) | undefined
   }
 
   beforeEach(() => {
     store.clear()
     // The YouTube jobs below run for a band with the YouTube-Download add-on (#546).
     store.set('plugins:youtube-download', { _id: 'plugins:youtube-download', id: 'youtube-download', name: 'YouTube-Download', version: '0.0.1', enabled: true, runtime: 'server', installedAt: 1, capabilities: ['video-download'], transports: [], hardwareIds: [] })
-    vi.mocked(runYtDlpExtract).mockReset()
+    fake.call.mockReset()
     vi.mocked(writeAudioFile).mockClear()
     vi.mocked(deleteAudioFile).mockClear()
   })
 
-  it('refuses a YouTube job when the band has no YouTube-Download add-on (#546) - no download', async () => {
+  it('refuses an audio job when the band has not installed the add-on (#546) - the add-on is not asked', async () => {
     store.delete('plugins:youtube-download')
     putJob({})
-    const watcher = createAsyncJobWatcher({ couch, workspaceId: 'ws', log })
+    const watcher = createAsyncJobWatcher({ database, workspaceId: 'ws', log, addonMethods: fake })
     await vi.waitFor(() => expect(storedJob('job-1')?.status).toBe('error'))
     watcher.stop()
-    expect(storedJob('job-1')?.error).toContain('YouTube-Download')
-    expect(runYtDlpExtract).not.toHaveBeenCalled()
+    expect(storedJob('job-1')?.error).toContain('youtube-download')
+    expect(fake.call).not.toHaveBeenCalled()
   })
 
   it('appends the extracted track to the variant, keeping every existing track', async () => {
@@ -157,7 +153,7 @@ describe('createAsyncJobWatcher', () => {
     store.set('song-variants:variant-1', { _id: 'song-variants:variant-1', tracks: [existingTrack], somethingElse: 42 })
     putJob({})
 
-    const watcher = createAsyncJobWatcher({ couch, workspaceId: 'ws', log })
+    const watcher = createAsyncJobWatcher({ database, workspaceId: 'ws', log, addonMethods: fake })
     await vi.waitFor(() => expect(storedJob('job-1')?.status).toBe('done'))
     watcher.stop()
 
@@ -165,22 +161,87 @@ describe('createAsyncJobWatcher', () => {
     expect(variant.somethingElse).toBe(42)
     expect(variant.tracks).toHaveLength(2)
     expect(variant.tracks[0]).toEqual(existingTrack)
-    expect(variant.tracks[1]).toMatchObject({ id: storedJob('job-1')?.trackId, kind: 'reference', source: 'youtube-extract', mimeType: 'audio/mp4' })
+    expect(variant.tracks[1]).toMatchObject({ id: storedJob('job-1')?.trackId, kind: 'reference', source: 'add-on', mimeType: 'audio/mp4' })
     expect(storedJob('job-1')?.progress).toBe(1)
     expect(writeAudioFile).toHaveBeenCalledWith('variant-1', storedJob('job-1')?.trackId, Buffer.from('audio-bytes'))
+  })
+
+  describe('claiming a job with other hosts around (#964)', () => {
+    it('writes itself as the runner of the job it takes, and keeps that runner to the end', async () => {
+      ytDlpSucceeds()
+      store.set('song-variants:variant-1', { _id: 'song-variants:variant-1', tracks: [] })
+      putJob({})
+      const watcher = createAsyncJobWatcher({ database, workspaceId: 'ws', log, addonMethods: fake, hostId: 'laptop' })
+      await vi.waitFor(() => expect(storedJob('job-1')?.status).toBe('done'))
+      watcher.stop()
+      expect(storedJob('job-1')?.runner).toBe('host:laptop')
+    })
+
+    it('leaves a job it cannot do queued - it neither takes it nor ends it with an error', async () => {
+      putJob({})
+      const watcher = createAsyncJobWatcher({ database, workspaceId: 'ws', log, addonMethods: fake, hostId: 'tablet', canDo: () => false, hasPeers: () => true })
+      await new Promise((resolve) => setTimeout(resolve, 200))
+      watcher.stop()
+      expect(storedJob('job-1')).toMatchObject({ status: 'queued' })
+      expect(storedJob('job-1')?.runner).toBeUndefined()
+      expect(fake.call).not.toHaveBeenCalled()
+    })
+
+    it('the only host takes a job it cannot do and ends it with its own message - nobody should wait for nothing', async () => {
+      store.delete('plugins:youtube-download')
+      putJob({})
+      const watcher = createAsyncJobWatcher({ database, workspaceId: 'ws', log, addonMethods: fake, hostId: 'laptop', canDo: () => false, hasPeers: () => false })
+      await vi.waitFor(() => expect(storedJob('job-1')?.status).toBe('error'))
+      watcher.stop()
+      expect(storedJob('job-1')?.runner).toBe('host:laptop')
+    })
+
+    it('goes on after the claim settled when the job still names it', async () => {
+      ytDlpSucceeds()
+      store.set('song-variants:variant-1', { _id: 'song-variants:variant-1', tracks: [] })
+      putJob({})
+      const watcher = createAsyncJobWatcher({ database, workspaceId: 'ws', log, addonMethods: fake, hostId: 'laptop', hasPeers: () => true, settleMs: 20 })
+      await vi.waitFor(() => expect(storedJob('job-1')?.status).toBe('done'))
+      watcher.stop()
+      expect(fake.call).toHaveBeenCalledTimes(1)
+    })
+
+    it('stops when another host won the claim in replication - the add-on is never asked', async () => {
+      putJob({})
+      // The other host's claim arrives while this one waits for its own to settle: the job now names it.
+      const watcher = createAsyncJobWatcher({
+        database,
+        workspaceId: 'ws',
+        log,
+        hostId: 'laptop',
+        settleMs: 40,
+        hasPeers: () => {
+          setTimeout(() => store.set('async-jobs:job-1', { ...(store.get('async-jobs:job-1') as object), runner: 'host:tablet' }), 10)
+          return true
+        },
+      })
+      await new Promise((resolve) => setTimeout(resolve, 300))
+      watcher.stop()
+      expect(fake.call).not.toHaveBeenCalled()
+      expect(storedJob('job-1')?.runner).toBe('host:tablet')
+    })
+
+    it('does not fail a running job another host holds when it starts', async () => {
+      putJob({ status: 'running', runner: 'host:tablet' } as never)
+      const watcher = createAsyncJobWatcher({ database, workspaceId: 'ws', log, addonMethods: fake, hostId: 'laptop' })
+      await new Promise((resolve) => setTimeout(resolve, 200))
+      watcher.stop()
+      expect(storedJob('job-1')).toMatchObject({ status: 'running', runner: 'host:tablet' })
+    })
   })
 
   it('stores a WebM/Opus download as Ogg Opus - re-wrapped, nothing encoded again', async () => {
     const { readFileSync } = await import('node:fs')
     const webm = readFileSync(join(__dirname, '../../shared-types/src/__fixtures__/stereo.webm'))
-    vi.mocked(runYtDlpExtract).mockImplementation(async (_url, template) => {
-      const filePath = template.replace('%(ext)s', 'webm')
-      await writeFile(filePath, webm)
-      return { filePath }
-    })
+    fake.call.mockResolvedValue({ ok: true, body: { audio: new Uint8Array(webm), ext: 'webm' } })
     store.set('song-variants:variant-1', { _id: 'song-variants:variant-1', tracks: [] })
     putJob({})
-    const watcher = createAsyncJobWatcher({ couch, workspaceId: 'ws', log })
+    const watcher = createAsyncJobWatcher({ database, workspaceId: 'ws', log, addonMethods: fake })
     await vi.waitFor(() => expect(storedJob('job-1')?.status).toBe('done'))
     watcher.stop()
     const variant = store.get('song-variants:variant-1') as { tracks: Array<{ mimeType?: string; sizeBytes?: number }> }
@@ -193,7 +254,7 @@ describe('createAsyncJobWatcher', () => {
     ytDlpSucceeds()
     store.set('song-variants:variant-1', { _id: 'song-variants:variant-1', tracks: [] })
     putJob({})
-    const watcher = createAsyncJobWatcher({ couch, workspaceId: 'ws', log })
+    const watcher = createAsyncJobWatcher({ database, workspaceId: 'ws', log, addonMethods: fake })
     await vi.waitFor(() => expect(storedJob('job-1')?.status).toBe('done'))
     watcher.stop()
     const trackId = storedJob('job-1')?.trackId
@@ -207,26 +268,24 @@ describe('createAsyncJobWatcher', () => {
     ytDlpSucceeds()
     putJob({})
 
-    const watcher = createAsyncJobWatcher({ couch, workspaceId: 'ws', log })
+    const watcher = createAsyncJobWatcher({ database, workspaceId: 'ws', log, addonMethods: fake })
     await vi.waitFor(() => expect(storedJob('job-1')?.status).toBe('error'))
     watcher.stop()
 
     expect(storedJob('job-1')?.error).toMatch(/existiert nicht mehr/)
-    expect(runYtDlpExtract).not.toHaveBeenCalled()
+    expect(fake.call).not.toHaveBeenCalled()
     expect(store.has('song-variants:variant-1')).toBe(false)
   })
 
   it('deletes the written audio again if the variant disappears mid-download', async () => {
-    vi.mocked(runYtDlpExtract).mockImplementation(async (_url, template) => {
-      const filePath = template.replace('%(ext)s', 'm4a')
-      await writeFile(filePath, Buffer.from('audio-bytes'))
-      store.delete('song-variants:variant-1') // deleted by a band member while yt-dlp ran
-      return { filePath }
+    fake.call.mockImplementation(async () => {
+      store.delete('song-variants:variant-1') // deleted by a band member while the add-on ran
+      return { ok: true, body: { audio: new Uint8Array(Buffer.from('audio-bytes')), ext: 'm4a' } }
     })
     store.set('song-variants:variant-1', { _id: 'song-variants:variant-1', tracks: [] })
     putJob({})
 
-    const watcher = createAsyncJobWatcher({ couch, workspaceId: 'ws', log })
+    const watcher = createAsyncJobWatcher({ database, workspaceId: 'ws', log, addonMethods: fake })
     await vi.waitFor(() => expect(storedJob('job-1')?.status).toBe('error'))
     watcher.stop()
 
@@ -238,20 +297,20 @@ describe('createAsyncJobWatcher', () => {
     ytDlpSucceeds()
     putJob({ variantId: '../../etc' })
 
-    const watcher = createAsyncJobWatcher({ couch, workspaceId: 'ws', log })
+    const watcher = createAsyncJobWatcher({ database, workspaceId: 'ws', log, addonMethods: fake })
     await vi.waitFor(() => expect(storedJob('job-1')?.status).toBe('error'))
     watcher.stop()
 
     expect(storedJob('job-1')?.error).toMatch(/Ungültige Song-Varianten-ID/)
-    expect(runYtDlpExtract).not.toHaveBeenCalled()
+    expect(fake.call).not.toHaveBeenCalled()
   })
 
   it('reports a yt-dlp failure on the job', async () => {
-    vi.mocked(runYtDlpExtract).mockRejectedValue(new Error('yt-dlp exited with code 1: ERROR: Video unavailable'))
+    fake.call.mockResolvedValue({ ok: false, error: { code: 'youtube.failed', message: 'yt-dlp exited with code 1: ERROR: Video unavailable' } })
     store.set('song-variants:variant-1', { _id: 'song-variants:variant-1', tracks: [] })
     putJob({})
 
-    const watcher = createAsyncJobWatcher({ couch, workspaceId: 'ws', log })
+    const watcher = createAsyncJobWatcher({ database, workspaceId: 'ws', log, addonMethods: fake })
     await vi.waitFor(() => expect(storedJob('job-1')?.status).toBe('error'))
     watcher.stop()
 
@@ -265,7 +324,7 @@ describe('createAsyncJobWatcher', () => {
     putJob({ id: 'second', createdAt: 2000 })
     putJob({ id: 'first', createdAt: 1000 })
 
-    const watcher = createAsyncJobWatcher({ couch, workspaceId: 'ws', log })
+    const watcher = createAsyncJobWatcher({ database, workspaceId: 'ws', log, addonMethods: fake })
     await vi.waitFor(() => expect(storedJob('second')?.status).toBe('done'))
     watcher.stop()
 
@@ -276,12 +335,12 @@ describe('createAsyncJobWatcher', () => {
   it('marks a job left running by a previous process as failed at startup', async () => {
     putJob({ status: 'running', progress: 0.4 })
 
-    const watcher = createAsyncJobWatcher({ couch, workspaceId: 'ws', log })
+    const watcher = createAsyncJobWatcher({ database, workspaceId: 'ws', log, addonMethods: fake })
     await vi.waitFor(() => expect(storedJob('job-1')?.status).toBe('error'))
     watcher.stop()
 
     expect(storedJob('job-1')?.error).toMatch(/Neustart/)
-    expect(runYtDlpExtract).not.toHaveBeenCalled()
+    expect(fake.call).not.toHaveBeenCalled()
   })
 
   describe('stem separation (#9)', () => {
@@ -295,7 +354,7 @@ describe('createAsyncJobWatcher', () => {
     it('refuses without the plugin installed - heavy, so only for bands that want it', async () => {
       store.set('song-variants:variant-1', { _id: 'song-variants:variant-1', tracks: [{ id: 'mix-1', kind: 'band-mix' }] })
       store.set('async-jobs:stem-1', { ...stemJob, _id: 'async-jobs:stem-1' })
-      const watcher = createAsyncJobWatcher({ couch, workspaceId: 'ws', log })
+      const watcher = createAsyncJobWatcher({ database, workspaceId: 'ws', log, addonMethods: fake })
       await vi.waitFor(() => expect(storedJob('stem-1')?.status).toBe('error'))
       watcher.stop()
       expect(storedJob('stem-1')?.error).toMatch(/nicht installiert/)
@@ -317,7 +376,7 @@ describe('createAsyncJobWatcher', () => {
           { key: 'guitar-left', path: `${outDir}/guitar-left.opus` },
         ]
       })
-      const watcher = createAsyncJobWatcher({ couch, workspaceId: 'ws', log })
+      const watcher = createAsyncJobWatcher({ database, workspaceId: 'ws', log, addonMethods: fake })
       await vi.waitFor(() => expect(storedJob('stem-1')?.status).toBe('done'))
       watcher.stop()
       const tracks = (store.get('song-variants:variant-1') as { tracks: Array<Record<string, unknown>> }).tracks

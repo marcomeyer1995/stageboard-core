@@ -41,7 +41,7 @@ export function pluginName(plugin: { id: string; name: string }): string {
 const CATALOG_TEXT: Record<string, string> = {
   'Netzwerk (OSC)': 'networkOsc',
   'Netzwerk (WebSocket)': 'networkWs',
-  'Netzwerk (OSC an den Stage-Server)': 'networkOscIn',
+  'Netzwerk (OSC an den Host)': 'networkOscIn',
   'MIDI-Ausgang': 'midiOut',
   'MIDI-Eingang': 'midiIn',
   'MIDI-Kanal (1-16)': 'midiChannel',
@@ -102,7 +102,7 @@ export function installableCatalog(showTestPlugins = SHOW_TEST_PLUGINS, saleBuil
 /**
  * The plugins a band can add without a plugin repository yet. Installing one writes a
  * document that replicates across the stage mesh - every other tablet and the
- * Stage-Server pick it up (docs/01).
+ * Host pick it up (docs/01).
  *
  * Shared between `PluginManager.tsx` (System → Add-ons, direct install/manage) and the guided
  * Hardware Setup Wizard's "type" step (`DeviceSetupWizard.tsx`) - picking a device type there
@@ -370,7 +370,7 @@ export const PLUGIN_CATALOG: Array<Omit<PluginInstallation, 'installedAt' | 'ena
     // 'server' like mock-playback above: the tablet-local path (clickEngine.ts's Web Audio
     // scheduler) needs no plugin at all (clientTranslator.ts's supportsLocalExecution special
     // case, same as audio-playback) - this catalog entry exists only so `click-track` is a
-    // selectable "Typ" in the Hardware Setup Wizard when routing to the Stage-Server (#25's
+    // selectable "Typ" in the Hardware Setup Wizard when routing to the Host (#25's
     // still-unbuilt hardware-routed half - a real server-side click/MIDI-Clock plugin).
     runtime: 'server',
     capabilities: [CAPABILITIES.clickTrack],
@@ -419,7 +419,7 @@ export const PLUGIN_CATALOG: Array<Omit<PluginInstallation, 'installedAt' | 'ena
     id: 'piper-speech',
     name: 'Sprachausgabe (Piper)',
     version: '0.0.1',
-    // The Stage-Server generates the voice for spoken announcements (#63) with Piper, an offline
+    // The Host generates the voice for spoken announcements (#63) with Piper, an offline
     // speech program installed next to it (docs/21 §9) - each text once, as a clip every device
     // downloads. Without Piper on the server the plugin installs, but announcements stay silent.
     runtime: 'server',
@@ -432,8 +432,8 @@ export const PLUGIN_CATALOG: Array<Omit<PluginInstallation, 'installedAt' | 'ena
     name: 'OSC (Licht & Video)',
     version: '0.1.0',
     // Generic OSC (#484): lighting and video software - QLC+, Resolume, ProPresenter, grandMA onPC.
-    // Sent as UDP by the Stage-Server (core-backend oscPlugin.ts) - a browser can't send UDP - so the
-    // device runs on the Stage-Server; host and port are set in Bühnentechnik. Its own capability
+    // Sent as UDP by the Host (core-backend oscPlugin.ts) - a browser can't send UDP - so the
+    // device runs on the Host; host and port are set in Bühnentechnik. Its own capability
     // (like the MIDI-Clock, #478): one device per program that listens.
     runtime: 'server',
     capabilities: ['osc'],
@@ -456,12 +456,12 @@ export const PLUGIN_CATALOG: Array<Omit<PluginInstallation, 'installedAt' | 'ena
     name: 'OSC-Eingang (Trigger)',
     version: '0.1.0',
     // OSC as a trigger (#484, docs/23 §4): a controller (TouchOSC, a lighting desk, a Stream Deck)
-    // sends to the Stage-Server's OSC port (8000); its buttons fire actions like a pedal or a MIDI
+    // sends to the Host's OSC port (8000); its buttons fire actions like a pedal or a MIDI
     // controller - "Knöpfe belegen" in Bühnentechnik. A transport without fields: the server's port
     // is fixed (STAGEBOARD_OSC_IN_PORT) - it makes this a driver, offered as a device type.
     runtime: 'server',
     capabilities: ['osc-input'],
-    transports: [{ id: 'network-osc-in', label: 'Netzwerk (OSC an den Stage-Server)', fields: [] }],
+    transports: [{ id: 'network-osc-in', label: 'Netzwerk (OSC an den Host)', fields: [] }],
     hardwareIds: [],
   },
   {
@@ -469,7 +469,7 @@ export const PLUGIN_CATALOG: Array<Omit<PluginInstallation, 'installedAt' | 'ena
     name: 'Spuren trennen (Stems)',
     version: '0.0.1',
     // Splits a song's track into stems - drums, bass, vocals, rest, optionally guitar (left/right)
-    // and keys - on the Stage-Server with Demucs (#9, docs/03). Heavy (~1 GB, about a minute of
+    // and keys - on the Host with Demucs (#9, docs/03). Heavy (~1 GB, about a minute of
     // full CPU per song), so a plugin: without it the song editor offers no "Spuren trennen".
     runtime: 'server',
     capabilities: [CAPABILITIES.stemSeparation],

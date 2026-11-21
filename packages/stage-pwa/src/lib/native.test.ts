@@ -16,7 +16,7 @@ describe('pairingConfirmation (#377)', () => {
 
   it('asks a short question and puts name, address and fingerprint on their own lines', () => {
     const { title, message } = pairingConfirmation('StageBoard Probe', '192.168.178.158', fp)
-    expect(title).toBe('Mit diesem Stage-Server verbinden?')
+    expect(title).toBe('Mit diesem Host verbinden?')
     expect(message.split('\n')).toEqual([
       'StageBoard Probe',
       '192.168.178.158',

@@ -41,3 +41,6 @@ export const useBandSettingsStore = create<BandSettingsState>((set) => ({
     await putBandSettings(settings)
   },
 }))
+
+// For measuring and testing over USB (tools/cdp, tools/host-test), like the other `__sb*` hooks.
+if (typeof window !== 'undefined') (window as unknown as { __sbBandSettings: typeof useBandSettingsStore }).__sbBandSettings = useBandSettingsStore

@@ -67,7 +67,7 @@ function nodeSigned(lease: { hostId: string; epoch: number; leaseMs: number; sen
 const LEASE = { hostId: 'host-a', epoch: 1, leaseMs: 4_000, sentAt: 1_700_000_000_000 }
 
 describe('the same wire format as a Node HMAC (#947)', () => {
-  it('accepts a lease the Stage-Server signed', async () => {
+  it('accepts a lease the Host signed', async () => {
     const key = await leaseKey(CODE, WORKSPACE)
     expect(await verifyLease(nodeSigned(LEASE), key)).toEqual(LEASE)
   })

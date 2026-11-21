@@ -52,8 +52,8 @@ import { useWakeLock } from './lib/useWakeLock'
 import { useWorkspaceResource } from './lib/useWorkspaceResource'
 import { useOpusConvertJobs } from './lib/useOpusConvertJobs'
 import { startWorkspaceSync } from './lib/workspaceDb'
-import { getAutomaticStageServerUrl } from './lib/stageServer'
-import { useStageServerStore } from './store/useStageServerStore'
+import { getAutomaticHostUrl } from './lib/hostUrl'
+import { useHostUrlStore } from './store/useHostUrlStore'
 import { useActiveProfileStore } from './store/useActiveProfileStore'
 import { useDashboardsStore } from './store/useDashboardsStore'
 import { useDeviceTransportConfigStore } from './store/useDeviceTransportConfigStore'
@@ -73,6 +73,7 @@ import { useAudioRouteStore } from './store/useAudioRouteStore'
 import { useLogicalDevicesStore } from './store/useLogicalDevicesStore'
 import { usePluginsStore } from './store/usePluginsStore'
 import { usePresenceStore } from './store/usePresenceStore'
+import { useDeviceStateStore } from './store/useDeviceStateStore'
 import { useProfilesStore } from './store/useProfilesStore'
 import { useRosterSetupStore } from './store/useRosterSetupStore'
 import { useSetlistsStore } from './store/useSetlistsStore'
@@ -136,7 +137,7 @@ function App() {
   const activeWorkspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
   const hasAnyWorkspace = useWorkspaceStore((state) => state.workspaces.length > 0)
   const activeWorkspacePassword = useWorkspaceStore(
-    (state) => state.workspaces.find((w) => w.id === state.activeWorkspaceId)?.couchPassword,
+    (state) => state.workspaces.find((w) => w.id === state.activeWorkspaceId)?.password,
   )
   const activeWorkspaceIsAdmin = useWorkspaceStore(
     (state) => state.workspaces.find((w) => w.id === state.activeWorkspaceId)?.isAdmin ?? false,
@@ -176,13 +177,13 @@ function App() {
   useRigCheckReporter()
   useRigCheckMeasurer()
 
-  // The one and only live CouchDB sync for the whole app (see workspaceDb.ts) - every store
+  // The one and only live the database sync for the whole app (see workspaceDb.ts) - every store
   // below still runs its own init (loading + a local, filtered change listener for just its
   // own document kind), but none of them starts an independent remote sync anymore. No
   // credentials stored yet (JoinBandView below hasn't been completed) just means no sync
   // starts - joining re-triggers this.
-  // The paired Stage-Server: a switch to another one must restart the sync against it (#897).
-  const stageServerUrl = useStageServerStore((state) => state.url) ?? getAutomaticStageServerUrl()
+  // The paired Host: a switch to another one must restart the sync against it (#897).
+  const hostUrl = useHostUrlStore((state) => state.url) ?? getAutomaticHostUrl()
   const startSync = useCallback(
     (workspaceId: string): TrackedSync | null => {
       if (!activeWorkspacePassword || !activeWorkspaceUsername) return null
@@ -195,18 +196,18 @@ function App() {
           username: activeWorkspaceUsername,
           password: activeWorkspacePassword,
         },
-        stageServerUrl,
+        hostUrl,
       )
     },
-    [activeWorkspacePassword, activeWorkspaceUsername, stageServerUrl],
+    [activeWorkspacePassword, activeWorkspaceUsername, hostUrl],
   )
   useWorkspaceResource(noopInit, startSync, activeWorkspaceId)
 
   useWorkspaceResource(useSongsStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(useSongVariantsStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(useSetlistsStore((state) => state.init), noopStart, activeWorkspaceId)
-  useWorkspaceResource(useShowStateStore((state) => state.init), noopStart, activeWorkspaceId, stageServerUrl)
-  useWorkspaceResource(usePluginsStore((state) => state.init), noopStart, activeWorkspaceId, stageServerUrl)
+  useWorkspaceResource(useShowStateStore((state) => state.init), noopStart, activeWorkspaceId, hostUrl)
+  useWorkspaceResource(usePluginsStore((state) => state.init), noopStart, activeWorkspaceId, hostUrl)
   useWorkspaceResource(useDevicesStore((state) => state.init), noopStart, activeWorkspaceId)
   const myDeviceRevoked = useDevicesStore((state) => state.devices.find((d) => d.id === getDeviceId())?.revoked ?? false)
   useWorkspaceResource(useLogicalDevicesStore((state) => state.init), noopStart, activeWorkspaceId)
@@ -216,7 +217,7 @@ function App() {
   useWorkspaceResource(useAlignmentStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(useMidiControllerRulesStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(useOscInputRulesStore((state) => state.init), noopStart, activeWorkspaceId)
-  useWorkspaceResource(useSwitchesStore((state) => state.init), noopStart, activeWorkspaceId, stageServerUrl)
+  useWorkspaceResource(useSwitchesStore((state) => state.init), noopStart, activeWorkspaceId, hostUrl)
   useWorkspaceResource(useSavedLoopsStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(useDashboardsStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(useProfilesStore((state) => state.init), noopStart, activeWorkspaceId)
@@ -225,14 +226,16 @@ function App() {
   useWorkspaceResource(usePracticeLogStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(useBandSettingsStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(useAsyncJobsStore((state) => state.init), noopStart, activeWorkspaceId)
-  useWorkspaceResource(usePresenceStore((state) => state.init), noopStart, activeWorkspaceId, stageServerUrl)
+  useWorkspaceResource(usePresenceStore((state) => state.init), noopStart, activeWorkspaceId, hostUrl)
+  // The live state of the band's devices that add-ons publish (docs/36 §5a): what a `device.panel` binds to.
+  useWorkspaceResource(useDeviceStateStore((state) => state.init), noopStart, activeWorkspaceId, hostUrl)
   // Device Ledger's live diagnostic *subscription* is deliberately NOT wired here - unlike
   // usePresenceStore just above, it's opened only while DeviceLedgerView.tsx is actually
   // mounted (see useDeviceInfoStore.ts's own doc comment: this app already sits near Chrome's
   // 6-connections-per-origin cap with its existing always-on SSE streams, found live when a 6th
   // one starved useDeviceInfoReporter.ts's own report POSTs of a connection entirely).
-  useWorkspaceResource(useDeviceTriggerListenerStore((state) => state.init), noopStart, activeWorkspaceId, stageServerUrl)
-  useWorkspaceResource(useDiscoverySessionStore((state) => state.init), noopStart, activeWorkspaceId, stageServerUrl)
+  useWorkspaceResource(useDeviceTriggerListenerStore((state) => state.init), noopStart, activeWorkspaceId, hostUrl)
+  useWorkspaceResource(useDiscoverySessionStore((state) => state.init), noopStart, activeWorkspaceId, hostUrl)
   useAudioSyncReconciler(activeWorkspaceId)
   useClockSync()
   // Which output this device's audio goes to - the key of its audio latency profile (#491).

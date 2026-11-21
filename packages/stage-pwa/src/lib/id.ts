@@ -2,7 +2,7 @@
  * Random v4 UUID that also works over plain http on the stage LAN.
  *
  * `crypto.randomUUID()` is restricted to secure contexts, so on a tablet opening
- * http://<stage-server>:5173 it is simply undefined - exactly the setup StageBoard is
+ * http://<host-computer>:5173 it is simply undefined - exactly the setup StageBoard is
  * built for (docs/02: local network, no internet, no certificates). `getRandomValues`
  * carries no such restriction, so it is the fallback.
  */

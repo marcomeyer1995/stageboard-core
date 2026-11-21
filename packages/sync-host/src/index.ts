@@ -1,9 +1,9 @@
 /**
- * The CouchDB replication protocol over a PouchDB database (docs/25, Marco 2026-11-07): what a
+ * The database replication protocol over a PouchDB database (docs/25, Marco 2026-11-07): what a
  * StageBoard device's PouchDB asks of its host when it syncs - database info, the change feed
  * (also long-polled), revision comparison, bulk write and read, checkpoints, single documents and
  * attachments. One implementation for every host: Fastify on a laptop (PouchDB in Node instead of
- * CouchDB in Docker) and later a small native web server in the Android app over the PouchDB it
+ * the database in Docker) and later a small native web server in the Android app over the PouchDB it
  * already holds. No server library, no Node API - plain requests in, plain responses out.
  */
 
@@ -33,7 +33,7 @@ export interface SyncHostOptions {
   open: (name: string) => SyncDatabase | null
   /** Creates a database on `PUT /<db>` - absent: databases are made by the host, not by clients. */
   create?: (name: string) => SyncDatabase | null
-  /** How long a long-polled change feed waits for a change, ms (CouchDB: 60 s). */
+  /** How long a long-polled change feed waits for a change, ms (the database: 60 s). */
   longpollMaxMs?: number
 }
 
@@ -79,7 +79,7 @@ export function createSyncHost(options: SyncHostOptions): (request: SyncRequest)
 
   return async (request) => {
     const method = request.method.toUpperCase()
-    if (request.path === '/' || request.path === '') return json(200, { couchdb: 'Welcome', version: '3.3.3', vendor: { name: 'StageBoard sync-host' } })
+    if (request.path === '/' || request.path === '') return json(200, { welcome: 'StageBoard database host', vendor: { name: 'StageBoard sync-host' } })
     const r = route(request.path)
     if (!r) return error(400, 'bad_request', 'no database')
     if (r.rest.length === 0 && method === 'PUT') {
@@ -245,10 +245,9 @@ async function changes(db: SyncDatabase, method: string, request: SyncRequest, l
   return json(200, { results: next, last_seq: lastSeq })
 }
 
-export { createHostLogin, HOST_ACCOUNTS_DOC_ID, type HostAccount, type HostLogin, type HostLoginOptions } from './hostLogin.js'
 export { createWriteGuard, type SecurityDoc, type UserCtx, type WriteGuardOptions } from './writeGuard.js'
 
-// The host module (#949, step 1 of #932): what every host shares, whatever it runs on - the laptop's Stage-Server,
+// The host module (#949, step 1 of #932): what every host shares, whatever it runs on - the laptop's Host,
 // the tablet's app. No Node API, no DOM: WebCrypto and plain objects only, so the same code runs on Android,
 // Windows and Linux.
 export { leaseKey, verifyLease, signLease, signAccountRequest, verifyAccountRequest } from './host/leaseAuth.js'
@@ -259,3 +258,36 @@ export { startCatchUp, type CatchUp, type CatchUpStatus } from './host/catchUp.j
 export { createHostLeaseService, TAKEOVER_AFTER_MS, INVITE_INTERVAL_MS, HANDBACK_STEADY_MS, HANDBACK_SETTLE_MS, type HostLeaseService, type HostRole, type HostRoleStore } from './host/leaseService.js'
 export { createHostRoutes, matchHostRoute, isSafeAudioId, type HostRoute, type HostRouteRequest, type HostRouteResponse, type HostRoutesDeps, type HostRoutesLease, type HostAudio } from './host/routes.js'
 export { trackKey, parseTrackKey, tracksOfVariantDocs, planTrackSync, type TrackRef, type TrackSyncPlan } from './host/trackSync.js'
+export { createBandAccounts, deviceUsername, memberUsername, workspaceDbName, type AccountDoc, type AccountStore, type BandAccounts, type BandAccountsOptions } from './host/bandAccounts.js'
+export { createPinThrottle, type PinThrottle, type PinThrottleOptions } from './host/pinThrottle.js'
+export { createBandJoin, type BandJoin, type BandJoinDeps, type BandJoinResponse } from './host/bandJoin.js'
+export { createBandMembers, type BandMembers, type BandMembersDeps } from './host/bandMembers.js'
+export { createBandAccountStore } from './host/bandAccountStore.js'
+export { createReplicationAccountIssuer, type ReplicationAccountIssuer } from './host/replicationAccount.js'
+export { BAND_SETTINGS_DOC_ID, listedHostIds } from './host/hostRole.js'
+export { createHostDeviceInfo, type HostDeviceInfo } from './host/deviceInfo.js'
+export { ROSTER_VALIDATOR_SOURCE } from './host/rosterValidator.js'
+export { answerHostRequest, bandOfPath, loginCheckOf, type HostRequest, type HostAnswer, type HostRequestDeps } from './host/hostRequest.js'
+export { createReplicationRunner, type ReplicationRunner, type RemoteTarget } from './host/replicationRunner.js'
+export { createAudioMirror, type AudioMirror, type MirrorStatus } from './host/audioMirror.js'
+export { createLookupRoutes, type LookupPorts } from './host/lookupRoutes.js'
+export { createSpeechRoutes, type SpeechPorts, type SpeechResult } from './host/speechRoutes.js'
+export { runStemSeparation, STEM_LABELS, STEM_ROLES, type SeparatedStem, type StemJobContext } from './host/jobs/stemSeparation.js'
+export { createProgressWriter } from './host/jobs/progress.js'
+export { errorPatch, mimeTypeForExt, toTrackFormat, type JobPatch } from './host/jobs/trackFormat.js'
+export * as deviceStateHub from './host/channels/deviceStateHub.js'
+export { runAudioImport, type AudioImportContext } from './host/jobs/audioImport.js'
+export { createJobRunners, type JobRunner, type JobRunners, type DeviceDescription } from './host/jobRunners.js'
+export { hostRunner, jobNeeds, jobsNobodyCanDo, pickNextClaimable, stillMine, stuckJobsOfHost, type JobRef, type JobWorker } from './host/jobQueue.js'
+export { BootstrapSchema, createVerifyWithPrimary, effectiveHosts, joinBand, joinBandInvite, type Bootstrap, type BandBootstrapStore, type JoinResult } from './host/hostJoin.js'
+export { createBandCatalog, type BandCatalog, type BandStore, type BandAnswer } from './host/bandCatalog.js'
+export { JOB_ROUTES, JOB_IDS, jobOfRequest, refusalFor, unavailableJobs, parseCapabilities, canDoFromCapabilities, unmetRequirement, addonRefusal, type JobRoute, type RunsOn } from './host/capabilities.js'
+export { createBandRoutes } from './host/bandRoutes.js'
+export { createHostChannels, matchChannelStream, type HostChannels, type ChannelTopic, type ChannelPayload, type ChannelStream, type ReadBandDocs } from './host/channels/index.js'
+export * as channelResets from './host/channels/resets.js'
+export { createChannelRoutes, type ChannelRoutesDeps } from './host/channelRoutes.js'
+export * as discoverySessions from './host/channels/discoverySessionStore.js'
+export * as pluginHealth from './host/channels/healthStore.js'
+export { HOLD_TIMEOUT_MS } from './host/channels/index.js'
+export { rosterOfProfileDocs } from './host/roster.js'
+export { callMethod, METHOD_TIMEOUT_MS, type MethodResult, type MethodSandbox } from './host/methodBoundary.js'

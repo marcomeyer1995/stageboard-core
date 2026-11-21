@@ -4,7 +4,7 @@ Konzept, Stand 2026-10-28, mit Marco besprochen am 2026-10-28. Schritt 1 (Postei
 
 ## 1. Anlass
 
-Die Timeline ruckelte auf dem Redmi alle 5 Sekunden. Gemessen (Long-Animation-Frame-API über CDP): ein Frame von 80-100 ms, darin **7 Server-Nachrichten** des Plugin-Status-Streams, je ~10 ms, weil jede alles neu zeichnete, was einen Plugin-Status zeigt. Der Stage-Server schickt den vollen Stand einmal je Plugin-Heartbeat - 7 Plugins, 7 Nachrichten am Stück.
+Die Timeline ruckelte auf dem Redmi alle 5 Sekunden. Gemessen (Long-Animation-Frame-API über CDP): ein Frame von 80-100 ms, darin **7 Server-Nachrichten** des Plugin-Status-Streams, je ~10 ms, weil jede alles neu zeichnete, was einen Plugin-Status zeigt. Der Host schickt den vollen Stand einmal je Plugin-Heartbeat - 7 Plugins, 7 Nachrichten am Stück.
 
 Davor am 2026-10-27 dasselbe Muster aus anderer Quelle: beim Nachholen nach einer Nacht offline lasen alle Stores bei jeder replizierten Änderung ihre Sammlung neu (#648).
 
@@ -46,7 +46,7 @@ Vorläufe messen und so groß machen, dass ein realistischer Haupt-Thread-Stau (
 2. Playhead/Scrollen auf dem Grafik-Thread.
 3. Audio-Vorläufe messen und anpassen.
 
-Die Erzeuger-Seite (Stage-Server schickt einen Stand je Runde statt je Plugin) bleibt sinnvoll, ist aber nicht mehr nötig.
+Die Erzeuger-Seite (Host schickt einen Stand je Runde statt je Plugin) bleibt sinnvoll, ist aber nicht mehr nötig.
 
 ## 5. Offen
 

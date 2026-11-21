@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('../lib/stageServer', () => ({ getStageServerUrl: () => 'https://server' }))
+vi.mock('../lib/hostUrl', () => ({ getHostUrl: () => 'https://server' }))
 const { BackupStatusLine } = await import('./BackupStatusLine')
 
 function answer(body: unknown) {

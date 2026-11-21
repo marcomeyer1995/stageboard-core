@@ -53,7 +53,7 @@ function pick<K extends 'apiVersion' | 'permissions' | 'helpers'>(
 interface PluginsState {
   installed: PluginInstallation[]
   health: PluginHealth
-  /** The first status from the Stage-Server has arrived - before that `health` is only the empty default. */
+  /** The first status from the Host has arrived - before that `health` is only the empty default. */
   healthReceived: boolean
   loaded: boolean
   init: (workspaceId: string) => Promise<void>

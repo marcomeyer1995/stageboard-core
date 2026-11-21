@@ -68,7 +68,7 @@ afterEach(async () => {
 
 const remote = () => new PouchDB(`${web.url}/stageboard-band`, { skip_setup: true })
 
-describe('sync-host: CouchDB replication over a PouchDB (docs/25)', () => {
+describe('sync-host: the database replication over a PouchDB (docs/25)', () => {
   it('a device pushes its band and a second device pulls it - documents, deletions, attachments', async () => {
     const a = memory('redmi')
     await a.put({ _id: 'song:1', title: 'TNT' })

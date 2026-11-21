@@ -3,13 +3,13 @@ import { networkInterfaces } from 'node:os'
 import { join } from 'node:path'
 
 /**
- * Who may provision a new band on this Stage-Server (#364). `POST /workspaces` used to hand out an
+ * Who may provision a new band on this Host (#364). `POST /workspaces` used to hand out an
  * admin account to anyone on the LAN. Now (Marco, 2026-10-05):
  * - the first band on a fresh server: anyone (setting the server up),
  * - every further band: an admin of a band on this server (the app sends that login
- *   automatically) - or a request from the Stage-Server machine itself (emergency exit).
+ *   automatically) - or a request from the Host machine itself (emergency exit).
  * Ids of deleted bands can't be provisioned again this way - restoring a deleted band goes
- * through the documented CouchDB recovery (docs/03 §0b).
+ * through the documented the database recovery (docs/03 §0b).
  */
 
 const LOOPBACK = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1'])
@@ -26,7 +26,7 @@ function ownAddresses(): Set<string> {
   return own
 }
 
-/** Whether a request comes from the Stage-Server machine itself: loopback, or one of its own
+/** Whether a request comes from the Host machine itself: loopback, or one of its own
  * interface addresses - a browser on the server laptop that opens the server by its LAN IP
  * (https://192.168.178.x) arrives with that address, not 127.0.0.1. A TCP connection can't
  * fake its source address on the LAN, and `trustProxy` is off, so `request.ip` is the socket's. */

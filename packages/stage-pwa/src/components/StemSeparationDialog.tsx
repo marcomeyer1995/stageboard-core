@@ -4,7 +4,7 @@ import { Button, Dialog, Segmented, Switch } from './ui'
 import { useTranslation } from 'react-i18next'
 
 /**
- * "Spuren trennen" (#9): which stems the Stage-Server splits a track into. Standard = drums, bass,
+ * "Spuren trennen" (#9): which stems the Host splits a track into. Standard = drums, bass,
  * vocals, rest; Erweitert = also guitar and keys. Two main guitars panned left and right can come
  * out as two stems - Demucs itself can't tell two guitars apart, their stereo side can.
  */

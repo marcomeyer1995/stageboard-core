@@ -2,9 +2,9 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 /**
- * Which workspace this specific physical Stage-Server's hardware (plugin sync, Discovery
+ * Which workspace this specific physical Host's hardware (plugin sync, Discovery
  * Mode's MIDI watcher) currently serves - a plain local JSON file on this box's own disk, not
- * a CouchDB doc. Unlike every other piece of state in core-backend, this is deliberately never
+ * a database doc. Unlike every other piece of state in core-backend, this is deliberately never
  * multi-master replicated: it describes this one box, not the band's data.
  *
  * Read fresh on every call, not cached at module scope - tests point this at a fresh temp dir

@@ -1,6 +1,6 @@
 import i18n from '../i18n'
 import { FLASH_DURATION_MS, type FlashMessage } from 'shared-types'
-import { getStageServerUrl } from './stageServer'
+import { getHostUrl } from './hostUrl'
 
 /** Quick messages for the Stage-Messenger widget (#26). */
 export function flashPresets(): string[] {
@@ -9,7 +9,7 @@ export function flashPresets(): string[] {
 
 export type SendFlashResult = 'sent' | 'not-signed-in' | 'unreachable'
 
-/** Sends a flash message to every tablet of the band (via the Stage-Server), signed with this
+/** Sends a flash message to every tablet of the band (via the Host), signed with this
  * device's own login for the band - the server only takes messages from the band's devices. */
 export async function sendFlash(
   workspaceId: string,
@@ -18,7 +18,7 @@ export async function sendFlash(
   login: { username?: string; password?: string },
   to: string[] = [],
 ): Promise<SendFlashResult> {
-  const base = getStageServerUrl()
+  const base = getHostUrl()
   if (!base || !workspaceId) return 'unreachable'
   if (!login.username || !login.password) return 'not-signed-in'
   try {

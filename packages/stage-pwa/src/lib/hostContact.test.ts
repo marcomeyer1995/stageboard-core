@@ -14,7 +14,7 @@ describe('hostStatus (#782)', () => {
     expect(hostStatus(true, T, T + HOST_GONE_MS)).toBe('gone')
   })
 
-  it('never misses a host when the band has no Stage-Server (local-only, Solo)', () => {
+  it('never misses a host when the band has no Host (local-only, Solo)', () => {
     expect(hostStatus(false, T, T + 10 * HOST_GONE_MS)).toBe('ok')
   })
 

@@ -17,7 +17,7 @@ export interface ShutdownOptions {
 }
 
 /**
- * The Stage-Server's own SIGTERM/SIGINT handling (#335). Without it, Node's default "exit on
+ * The Host's own SIGTERM/SIGINT handling (#335). Without it, Node's default "exit on
  * SIGTERM" was silently disabled as soon as Puppeteer (UG plugin) installed its own listener,
  * which only closed Chrome and never exited - every `systemctl restart` hung 90 s until
  * systemd SIGKILLed the process. A second signal while stopping exits at once.

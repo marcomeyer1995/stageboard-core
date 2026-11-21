@@ -109,7 +109,7 @@ export async function readReleaseManifest(release: AddonRelease, deps: AddonDeps
     const match = release.assets.find((a) => a.name === file.name)
     if (!match || match.size !== file.size) throw new AddonError('missing-file', file.name)
   }
-  for (const ref of [manifest.clientFile, manifest.serverFile]) {
+  for (const ref of [manifest.clientFile, manifest.jobsFile]) {
     if (ref && !manifest.files.some((f) => f.name === ref)) throw new AddonError('missing-file', ref)
   }
   return manifest

@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('pouchdb-browser', () => ({ default: class {} }))
-vi.mock('../lib/stageServer', () => ({ getStageServerUrl: () => 'https://server' }))
+vi.mock('../lib/hostUrl', () => ({ getHostUrl: () => 'https://server' }))
 
 const { useWorkspaceStore } = await import('../store/useWorkspaceStore')
 const { RigCheckInputs } = await import('./RigCheckInputs')
@@ -11,7 +11,7 @@ const calls: { path: string; body: Record<string, unknown> }[] = []
 
 beforeEach(() => {
   calls.length = 0
-  useWorkspaceStore.setState({ workspaces: [{ id: 'w', name: 'Band', isAdmin: true, username: 'band-marco', couchPassword: 'pw' }] as never, activeWorkspaceId: 'w' })
+  useWorkspaceStore.setState({ workspaces: [{ id: 'w', name: 'Band', isAdmin: true, username: 'band-marco', password: 'pw' }] as never, activeWorkspaceId: 'w' })
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url: string, init: { body: string }) => {

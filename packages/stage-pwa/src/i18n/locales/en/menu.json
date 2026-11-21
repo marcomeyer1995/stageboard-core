@@ -68,9 +68,9 @@
     "holdToRelease": "Hold to give up",
     "holdToTake": "Hold to take over",
     "selfCheck": {
-      "sync-error": "Sync error: this device isn't running the show right now - the others wouldn't see it, and another device may have taken over. Use “Repair” under System → Stage server → Sync.",
-      "offline": "No connection to the Stage server: this device runs the show again once the connection is back.",
-      "unconfirmed": "The Stage server doesn't confirm this device as master - another device has probably taken over. This device isn't running the show right now."
+      "sync-error": "Sync error: this device isn't running the show right now - the others wouldn't see it, and another device may have taken over. Use “Repair” under System → Host → Sync.",
+      "offline": "No connection to the Host: this device runs the show again once the connection is back.",
+      "unconfirmed": "The Host doesn't confirm this device as master - another device has probably taken over. This device isn't running the show right now."
     }
   },
   "dashboards": {

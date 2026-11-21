@@ -15,10 +15,10 @@ const FINGERPRINT = /^[0-9a-f]{64}$/
  * Asks a host who it is (host backup, #914): its `hostId` from `/time` and its certificate fingerprint
  * from `/server-info`, so the admin never types either. Both requests are unpinned - it *is* the host the
  * admin just named, and the fingerprint is what gets pinned afterwards. The stage app asks its own
- * Stage-Server to do this (#945): a page may only talk to hosts it already trusts, and a fresh backup is
+ * Host to do this (#945): a page may only talk to hosts it already trusts, and a fresh backup is
  * not one of them yet, so the host-to-host call keeps the certificate question in one place.
  *
- * Null when the host does not answer as a Stage-Server, was built before host ids existed (it cannot be
+ * Null when the host does not answer as a Host, was built before host ids existed (it cannot be
  * named in the list), or sends a fingerprint in a form the list would reject - that is never stored.
  */
 export async function lookUpHost(address: string, get: (url: string) => Promise<unknown>): Promise<LookedUpHost | null> {

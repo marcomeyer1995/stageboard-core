@@ -12,7 +12,7 @@ afterEach(() => {
 
 describe('reportDeviceInfo', () => {
   it('POSTs the report to the workspace-scoped device-info report endpoint', async () => {
-    vi.stubEnv('VITE_STAGE_SERVER_URL', 'https://stage.example')
+    vi.stubEnv('VITE_HOST_URL', 'https://stage.example')
     const fetchMock = vi.fn().mockResolvedValue({ ok: true })
     vi.stubGlobal('fetch', fetchMock)
 
@@ -27,8 +27,8 @@ describe('reportDeviceInfo', () => {
     )
   })
 
-  it('does nothing when no Stage-Server is configured', async () => {
-    vi.stubEnv('VITE_STAGE_SERVER_URL', '')
+  it('does nothing when no Host is configured', async () => {
+    vi.stubEnv('VITE_HOST_URL', '')
     const fetchMock = vi.fn()
     vi.stubGlobal('fetch', fetchMock)
 
@@ -37,8 +37,8 @@ describe('reportDeviceInfo', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
-  it('does not report a band the Stage-Server does not have (#897)', async () => {
-    vi.stubEnv('VITE_STAGE_SERVER_URL', 'https://stage.example')
+  it('does not report a band the Host does not have (#897)', async () => {
+    vi.stubEnv('VITE_HOST_URL', 'https://stage.example')
     const fetchMock = vi.fn()
     vi.stubGlobal('fetch', fetchMock)
     useSyncStore.setState({ notOnServer: { 'band-a': true } })
@@ -49,7 +49,7 @@ describe('reportDeviceInfo', () => {
   })
 
   it('swallows a network failure - the caller has no fallback to run', async () => {
-    vi.stubEnv('VITE_STAGE_SERVER_URL', 'https://stage.example')
+    vi.stubEnv('VITE_HOST_URL', 'https://stage.example')
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network down')))
 
     await expect(reportDeviceInfo('band-a', REPORT)).resolves.toBeUndefined()

@@ -1,0 +1,45 @@
+{
+  "id": "piper-speech",
+  "name": "Sprachausgabe (Piper)",
+  "version": "1.0.0",
+  "protocol": 3,
+  "workFile": "work.js",
+  "permissions": [
+    "helper:piper"
+  ],
+  "contributes": {
+    "methods": {
+      "speak": {
+        "in": {
+          "type": "object",
+          "required": [
+            "text"
+          ],
+          "properties": {
+            "text": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "voice": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "pace": {
+              "type": "number",
+              "minimum": 0.25,
+              "maximum": 4
+            }
+          }
+        },
+        "out": {
+          "type": "object",
+          "required": [
+            "wav"
+          ],
+          "properties": {}
+        },
+        "timeoutMs": 45000
+      }
+    }
+  }
+}

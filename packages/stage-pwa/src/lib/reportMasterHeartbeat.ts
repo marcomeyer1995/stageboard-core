@@ -1,10 +1,10 @@
-import { getStageServerUrl } from './stageServer'
+import { getHostUrl } from './hostUrl'
 
 /** POSTs "the Master-Token holder is still alive" (#32) - best-effort like reportPresence.ts: if
- * the Stage-Server is unreachable, the other tablets simply see this master go stale, which is
+ * the Host is unreachable, the other tablets simply see this master go stale, which is
  * exactly what they should do. */
 export async function reportMasterHeartbeat(workspaceId: string, deviceId: string): Promise<void> {
-  const base = getStageServerUrl()
+  const base = getHostUrl()
   if (!base) return
 
   try {

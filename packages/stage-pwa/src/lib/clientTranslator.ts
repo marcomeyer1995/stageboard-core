@@ -98,7 +98,7 @@ const pendingDynamicLoads = new Map<CapabilityId, Promise<void>>()
 export function preloadDynamicTranslator(
   capability: CapabilityId,
   installed: PluginInstallation[],
-  stageServerUrl: string | null,
+  hostUrl: string | null,
 ): Promise<void> {
   if (dynamicTranslators.has(capability)) return Promise.resolve()
   const pending = pendingDynamicLoads.get(capability)
@@ -114,7 +114,7 @@ export function preloadDynamicTranslator(
   // (#757): then the sandboxed one replaces it.
   if (TRANSLATORS[capability] && !isRepositoryAddon(plugin)) return Promise.resolve()
 
-  const promise = (isRepositoryAddon(plugin) ? loadSandboxedTranslator(plugin, capability, stageServerUrl) : loadClientPlugin(plugin, stageServerUrl).then((module) => module?.registerTranslator?.(capability) ?? null))
+  const promise = (isRepositoryAddon(plugin) ? loadSandboxedTranslator(plugin, capability, hostUrl) : loadClientPlugin(plugin, hostUrl).then((module) => module?.registerTranslator?.(capability) ?? null))
     .then((translator) => {
       if (translator) dynamicTranslators.set(capability, translator)
     })
@@ -157,8 +157,8 @@ export function getTranslator(capability: CapabilityId): Translator | null {
 }
 
 /** The sandboxed add-on (#757): its code from the host's checked copy, run in its own Worker. */
-async function loadSandboxedTranslator(plugin: PluginInstallation, capability: CapabilityId, stageServerUrl: string | null): Promise<Translator | null> {
-  const blob = await fetchClientBundle(plugin, stageServerUrl)
+async function loadSandboxedTranslator(plugin: PluginInstallation, capability: CapabilityId, hostUrl: string | null): Promise<Translator | null> {
+  const blob = await fetchClientBundle(plugin, hostUrl)
   if (!blob) return null
   const sandbox = new AddonSandbox(plugin, await blob.text(), i18n.language)
   return sandboxTranslator(capability, sandbox, plugin.name)

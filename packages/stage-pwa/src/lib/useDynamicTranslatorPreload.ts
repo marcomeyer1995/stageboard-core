@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { CapabilityId, PluginInstallation } from 'shared-types'
 import { preloadDynamicTranslator } from './clientTranslator'
-import { getStageServerUrl } from './stageServer'
+import { getHostUrl } from './hostUrl'
 
 /**
  * Kicks off `preloadDynamicTranslator` (clientTranslator.ts) for `capability` on mount/whenever
@@ -20,7 +20,7 @@ export function useDynamicTranslatorPreload(capability: CapabilityId, installed:
 
   useEffect(() => {
     let cancelled = false
-    void preloadDynamicTranslator(capability, installed, getStageServerUrl() ?? null).then(() => {
+    void preloadDynamicTranslator(capability, installed, getHostUrl() ?? null).then(() => {
       if (!cancelled) forceRerender((n) => n + 1)
     })
     return () => {

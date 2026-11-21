@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
 /**
- * Spoken announcements (#63): the voices the Stage-Server's piper-speech plugin can use, and the
+ * Spoken announcements (#63): the voices the Host's piper-speech plugin can use, and the
  * band's choices - stored in the plugin installations' `settings`, so every device speaks with
  * the same voice and the same texts.
  */

@@ -1,7 +1,7 @@
 import i18n from '../../i18n'
 import type { DeviceCommand } from './types'
 
-/** A generic OSC device (#484) - lighting and video software; sent by the Stage-Server
+/** A generic OSC device (#484) - lighting and video software; sent by the Host
  * (core-backend oscPlugin.ts), which owns the address check and the argument types. */
 export const OSC_CAPABILITY = 'osc'
 

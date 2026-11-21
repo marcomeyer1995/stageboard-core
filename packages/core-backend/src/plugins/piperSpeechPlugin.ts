@@ -1,17 +1,24 @@
 import { CAPABILITIES, serverMessage, type IShowControlPlugin, type PluginContext, type ShowControlEvent, type ShowControlResult } from 'shared-types'
+import { basename } from 'node:path'
+import { createSpeechAddonSynthesize } from '../addons/speechAddon.js'
 import { PiperSpeech, speechConfigFromEnv } from '../speech/piperSpeech.js'
 import { SpeechVoices } from '../speech/voiceCatalog.js'
 
 /** The one speech generator of this server - shared by the plugin and the `/speech` route. */
 const config = speechConfigFromEnv()
-export const serverSpeech = new PiperSpeech(config)
+// With STAGEBOARD_ADDON_SANDBOX=1 the text becomes a WAV through the sandboxed speech add-on (#964, addons/speechAddon.ts); the cache, queue,
+// trimming and errors around it are the same. The add-on is told the voice by its key ('' = the default voice), never a path.
+export const serverSpeech = new PiperSpeech(
+  config,
+  process.env.STAGEBOARD_ADDON_SANDBOX === '1' ? createSpeechAddonSynthesize((model) => (model === config.voice ? '' : basename(model).replace(/\.onnx$/, ''))) : undefined,
+)
 /** The voices it can speak with - listed, licensed and downloaded on request. */
 export const serverVoices = new SpeechVoices(config.voicesDir)
 
 export const PIPER_SPEECH_PLUGIN_ID = 'piper-speech'
 
 /**
- * Spoken announcements' voice (#63): installing this plugin lets the Stage-Server generate speech
+ * Spoken announcements' voice (#63): installing this plugin lets the Host generate speech
  * clips with Piper (`GET /speech`). Without Piper on the machine it still installs, reports it in
  * the log and on "Testen", and the devices simply stay silent (Graceful Degradation).
  */

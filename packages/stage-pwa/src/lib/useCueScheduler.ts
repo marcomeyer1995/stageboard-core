@@ -26,7 +26,7 @@ import { useWorkspaceStore } from '../store/useWorkspaceStore'
  *
  * While practising (#799 step 4) cues go out only when the device practises by a setup ("Ausgang
  * beim Üben"), and only to the gear that setup routes onto this device - one's own effects unit at
- * home. Nothing goes to the Stage-Server or to another tablet, and nothing into the Nachbericht.
+ * home. Nothing goes to the Host or to another tablet, and nothing into the Nachbericht.
  * The song runs on this device's own clock there (Date.now, with the loop trainer's speed); the
  * send moment is converted to server time on handover. A take that starts inside the song first
  * sends the states the song holds there (chase, as at a section jump) - practising the chorus
@@ -35,7 +35,7 @@ import { useWorkspaceStore } from '../store/useWorkspaceStore'
  * Since #477 it no longer fires a cue when a rendered frame notices it was crossed (up to a frame
  * late, far more on a busy tablet). A timer looks CUE_LOOKAHEAD_MS ahead and hands each cue over
  * with its server-time due moment (`cueSchedule.ts`): local MIDI goes out at that moment through a
- * WebMIDI timestamp, a Stage-Server cue is held by the gateway until then, anything else waits for
+ * WebMIDI timestamp, a Host cue is held by the gateway until then, anything else waits for
  * it in cueFiring.ts. Each cue is sent its output's latency early (docs/21 §3, `cueLatencyMs`). The due moment comes straight from the transport anchor (startedAt +
  * timeMs - accumulatedMs), so a cue at 0:00 also lands on song time 0 after the Play lead
  * (docs/19), not at the Play press.

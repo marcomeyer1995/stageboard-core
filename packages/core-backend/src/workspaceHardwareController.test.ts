@@ -64,7 +64,7 @@ describe('workspaceHardwareController', () => {
     return {
       registry,
       controller: createWorkspaceHardwareController({
-        couch: {} as never,
+        database: {} as never,
         registry,
         log: { info: vi.fn(), error: vi.fn() },
       }),

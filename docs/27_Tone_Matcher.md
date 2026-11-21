@@ -19,7 +19,7 @@ Konzept, Stand 2026-11-03, mit Marco besprochen. Kein Beschluss. Ausgangspunkt w
 
 **Was nicht passt bzw. offen ist:**
 
-- **Wo das Gerät hängt:** heute am Tablet (WebMIDI). Der Matcher braucht USB-Audio und MIDI am Rechner mit Python, also am Stage-Server oder einem Laptop (vgl. Host-Idee docs/25).
+- **Wo das Gerät hängt:** heute am Tablet (WebMIDI). Der Matcher braucht USB-Audio und MIDI am Rechner mit Python, also am Host oder einem Laptop (vgl. Host-Idee docs/25).
 - **Unbelegte Hardware-Annahmen der Spezifikation**, vor dem Bauen prüfen: hat der Kemper USB-Audio (nach bisherigem Wissen nicht – dann geht „ohne Interface“ beim Kemper nicht)? Lässt sich beim Kemper eine Impulsantwort per SysEx laden (bisher nur über Rig Manager bekannt)? Gibt es das „MG-30 GEN2“ mit NAM-Speicherplätzen und einen dokumentierten Weg, Modelle hochzuladen?
 - **Weg C** braucht für ein eigenes Pedal doch einen Reamp-Aufbau, und NAM-Training auf der CPU dauert Stunden.
 - **Ob der Kern überhaupt trägt** (eigenes DI gegen eine getrennte Gitarre aus einem fertigen Mix), ist unbewiesen. Erst offline gegen Grundwahrheit prüfen, dann bauen.
@@ -99,5 +99,5 @@ Unabhängig davon: nur Stellen verwenden, an denen die Gitarre frei liegt (Intro
 ## 7. Offene Fragen
 
 - Welches Gerät zuerst – das, dessen USB-Audio und Steuerung sicher funktionieren (vermutlich MG-30)?
-- Wo hängt das Gerät beim Matching – Stage-Server oder Laptop (docs/25)?
+- Wo hängt das Gerät beim Matching – Host oder Laptop (docs/25)?
 - Eigenes Modell feinjustieren (Cambridge-MT hat ~600 Multitracks, viele mit Gitarren; braucht eine Miet-GPU, Lizenz nur Lehre)? Erst, wenn die großen fertigen Modelle ausgereizt sind.

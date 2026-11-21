@@ -25,7 +25,7 @@ function deps(over: Partial<OpusConvertDeps> = {}) {
 
 describe('opus-convert on a device (#822)', () => {
   it('takes the oldest conversion nobody has, never another job type', () => {
-    const yt = { id: 'y', type: 'youtube-extract' as const, status: 'queued' as const, progress: 0, createdAt: 0, updatedAt: 0, variantId: 'v', url: 'https://youtu.be/x', label: 'x' }
+    const yt = { id: 'y', type: 'audio-import' as const, status: 'queued' as const, progress: 0, createdAt: 0, updatedAt: 0, variantId: 'v', addonId: 'a', method: 'm', args: {}, label: 'x' }
     expect(nextOpusConvertJob([job({ id: 'newer', createdAt: 5 }), job({ id: 'older', createdAt: 2 }), yt])?.id).toBe('older')
     expect(nextOpusConvertJob([job({ runner: 'device:other' }), job({ id: 'r', status: 'running' })])).toBeUndefined()
   })
@@ -56,6 +56,6 @@ describe('opus-convert on a device (#822)', () => {
     const d = deps({ encode: vi.fn(async () => Promise.reject(new Error('decode failed'))) })
     expect(await runOpusConvert(job(), 'me', d)).toBe('error')
     expect(d.putTrack).not.toHaveBeenCalled()
-    expect(d.jobs.get('c1')).toMatchObject({ status: 'error', error: 'decode failed', errorCode: 'youtube.convertFailed' })
+    expect(d.jobs.get('c1')).toMatchObject({ status: 'error', error: 'decode failed', errorCode: 'audio.convertFailed' })
   })
 })

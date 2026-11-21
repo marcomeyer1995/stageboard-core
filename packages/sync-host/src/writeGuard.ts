@@ -4,8 +4,8 @@ import type { SyncDatabase, SyncRequest, SyncResponse } from './index.js'
  * A band's write rules on any host (docs/25): every write - a single document, a deletion, an
  * attachment, and what arrives by replication (`_bulk_docs`) - first goes through the band's
  * `validate_doc_update` functions (`_design/roster`: only an admin edits the roster, only the
- * Stage-Server writes `host-accounts`, …), the way CouchDB does it. Used by couch-host (laptop)
- * and by the Android host, which has no CouchDB in front of its database.
+ * Host writes `host-accounts`, …), the way the database does it. Used by database-host (laptop)
+ * and by the Android host, which has no the database in front of its database.
  */
 export interface UserCtx {
   name: string | null

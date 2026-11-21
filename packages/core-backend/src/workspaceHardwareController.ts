@@ -1,12 +1,14 @@
-import { createAsyncJobWatcher, type AsyncJobWatcherHandle } from './asyncJobWatcher.js'
-import type { CouchConfig } from './couch.js'
+import { createAsyncJobWatcher, type AsyncJobWatcherHandle, type AsyncJobWatcherOptions } from './asyncJobWatcher.js'
+import type { DatabaseConfig } from './database.js'
 import { createMidiWatcher, type MidiWatcherHandle } from './midiWatcher.js'
 import { createPluginSync, type PluginSyncHandle } from './plugins/pluginSync.js'
 import type { PluginRegistry } from './plugins/registry.js'
 import { writePersistedActiveWorkspace } from './activeWorkspaceStateStore.js'
 
 export interface WorkspaceHardwareControllerOptions {
-  couch: CouchConfig
+  /** Who this host is and what it can do (#964): handed to the job watcher, which takes only the jobs this host can do. */
+  jobHost?: Pick<AsyncJobWatcherOptions, 'hostId' | 'canDo' | 'hasPeers' | 'needsOf' | 'stemSeparate' | 'addonMethods'>
+  database: DatabaseConfig
   registry: PluginRegistry
   log: {
     info: (msg: string, meta?: Record<string, unknown>) => void
@@ -28,13 +30,13 @@ export interface WorkspaceHardwareController {
  * The single owner of this box's "which workspace's hardware is currently live" state -
  * replaces the old inline, boot-only `if (process.env.STAGEBOARD_WORKSPACE)` block in
  * main() (2026-09-02 phantom-"band-a" fix) with something callable again while the process
- * keeps running, for the real-world case of one physical Stage-Server serving two of Marco's
+ * keeps running, for the real-world case of one physical Host serving two of Marco's
  * own bands on different days, never at the same time.
  */
 export function createWorkspaceHardwareController(
   options: WorkspaceHardwareControllerOptions,
 ): WorkspaceHardwareController {
-  const { couch, registry, log } = options
+  const { database, registry, log } = options
 
   let current: { workspaceId: string; sync: PluginSyncHandle; midiWatcher: MidiWatcherHandle; asyncJobs: AsyncJobWatcherHandle } | null = null
 
@@ -58,11 +60,11 @@ export function createWorkspaceHardwareController(
   async function activate(workspaceId: string): Promise<void> {
     await deactivate()
 
-    const sync = createPluginSync({ couch, workspaceId, registry, log })
-    const midiWatcher = createMidiWatcher({ couch, workspaceId, log })
+    const sync = createPluginSync({ database, workspaceId, registry, log })
+    const midiWatcher = createMidiWatcher({ database, workspaceId, log })
     // #5: practice-track extraction only ever runs for whichever band's hardware is currently
     // active on this box - same one-workspace-at-a-time model everything else here already uses.
-    const asyncJobs = createAsyncJobWatcher({ couch, workspaceId, log })
+    const asyncJobs = createAsyncJobWatcher({ database, workspaceId, log, ...(options.jobHost ?? {}) })
     current = { workspaceId, sync, midiWatcher, asyncJobs }
 
     writePersistedActiveWorkspace(workspaceId)
