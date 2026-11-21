@@ -112,6 +112,8 @@ export function DeviceLedgerView() {
   const hostApp = hostTargetOf(useTargetWorld())
   const { t } = useTranslation('devices')
   const devices = useDevicesStore((state) => state.devices)
+  // The host's own entry (#964), registered by the host: its name is the computer's, the row below stays the host's.
+  const hostName = useDevicesStore((state) => state.hosts.find((h) => h.id === hostApp)?.name)
   const revoke = useDevicesStore((state) => state.revoke)
   const forget = useDevicesStore((state) => state.forget)
   const logicalDevices = useLogicalDevicesStore((state) => state.devices)
@@ -217,7 +219,7 @@ export function DeviceLedgerView() {
       <div className="mb-2 rounded-container border border-line bg-surface px-4 py-3 shadow-sb">
         <div className="flex items-center gap-3">
           <div className="flex-1">
-            <p className="font-semibold">{t('server')}</p>
+            <p className="font-semibold">{hostName ? `${t('server')} - ${hostName}` : t('server')}</p>
           </div>
         </div>
         <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ink-soft">

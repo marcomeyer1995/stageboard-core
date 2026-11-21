@@ -71,6 +71,7 @@ import { listDbs } from './database.js'
 import { decodeOscPacket, oscTargetFromConfig, setOscTargetResolver } from './plugins/oscPlugin.js'
 import { createWorkspaceHardwareController } from './workspaceHardwareController.js'
 import { migrateHostTarget } from './migrations/hostTarget.js'
+import { registerHostDevice } from './migrations/registerHostDevice.js'
 import {
   getOrCreateAccessCode,
   updateRosterValidators,
@@ -440,6 +441,8 @@ export async function buildApp(options: { backupService?: BackupService; databas
     // Bands from before host ids bound this host's hardware to the word 'server' (#964). The host that is the band's primary - or the only one it
     // has - rewrites that to its own id; a backup leaves it, because the word meant the primary.
     afterActivate: async (workspaceId) => {
+      // The host is a device of the band too (#964): it enters the device list under its id, whichever role it has.
+      await registerHostDevice(database, workspaceId, hostId, hostname().split('.')[0] || hostId)
       const hosts = (await readBandHosts(workspaceId)) ?? []
       const primary = hosts.find((h) => h.priority === 1)
       if (hosts.length > 0 && primary?.hostId !== hostId) return

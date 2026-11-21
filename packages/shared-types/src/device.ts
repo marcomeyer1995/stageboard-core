@@ -32,6 +32,9 @@ export const DeviceSchema = z.object({
    * reconnects, the same reason `lastSeenAt`'s doc comment gives for keeping presence-like data
    * OFF this doc: here that reasoning runs the other way. */
   revoked: z.boolean().default(false),
+  /** This entry is a host (a computer that serves the band), registered by the host itself under its `hostId` (#964). It is not a device a musician plays on:
+   * the app keeps it out of the lists of tablets, and shows it in the host row. Absent = an ordinary device. */
+  host: z.boolean().optional(),
 })
 export type Device = z.infer<typeof DeviceSchema>
 
