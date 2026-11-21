@@ -381,7 +381,6 @@
     "removeAsk": "„{{name}}“ entfernen?",
     "tracks": "Tracks",
     "none": "Keine Tracks",
-    "split": "Spuren trennen",
     "uploaded": "Hochgeladene Spuren",
     "failed": "{{job}} fehlgeschlagen: {{error}}",
     "done": "{{job}} abgeschlossen",
@@ -398,19 +397,6 @@
       "bandMix": "Band-Playback",
       "stem": "Stem"
     }
-  },
-  "sep": {
-    "title": "Spuren trennen: {{name}}",
-    "go": "Trennen",
-    "tracks": "Spuren",
-    "standard": "Standard",
-    "extended": "Erweitert",
-    "standardHint": "Schlagzeug, Bass, Gesang und Rest.",
-    "extendedHint": "Schlagzeug, Bass, Gesang, Gitarre, Keys/Piano und Rest. Keys sind weniger sauber getrennt.",
-    "splitGuitar": "Gitarre links/rechts aufteilen",
-    "splitGuitarInfo": "Für zwei Gitarren, die links und rechts im Stereobild liegen - liegen beide in der Mitte, hilft es nicht.",
-    "runs": "Läuft auf dem Host, etwa eine Minute je Song. Die Spuren erscheinen unter dem Track und lassen sich umbenennen.",
-    "replaces": " Die bisherigen Spuren dieses Tracks werden ersetzt."
   },
   "imp": {
     "ug": "Ultimate Guitar (Akkorde)",

@@ -61,16 +61,18 @@ describe('TrackManagerField - stems (#9)', () => {
     expect(screen.getAllByRole('button', { name: 'Spuren trennen' })).toHaveLength(1) // the track, not its stem
   })
 
-  it('queues a job with the chosen stems - guitar split only in the extended set', () => {
+  it("the stem add-on's own dialog queues a job with the chosen stems - guitar split only in the extended set", async () => {
     usePluginsStore.setState({ installed: [stemPlugin] })
     render(<TrackManagerField variantId="v1" tracks={tracks} disabled={false} />)
     fireEvent.click(screen.getByRole('button', { name: 'Spuren trennen' }))
-    const dialog = screen.getByRole('dialog')
-    expect(within(dialog).getByText(/bisherigen Spuren dieses Tracks werden ersetzt/)).toBeInTheDocument()
+    const dialog = await screen.findByRole('dialog')
+    expect(await within(dialog).findByText(/bisherigen Spuren dieses Tracks werden ersetzt/)).toBeInTheDocument()
     fireEvent.click(within(dialog).getByRole('radio', { name: 'Erweitert' }))
-    fireEvent.click(within(dialog).getByRole('switch', { name: /Gitarre links\/rechts/ }))
+    fireEvent.click(await within(dialog).findByRole('switch', { name: /Zwei Gitarren trennen/ }))
     fireEvent.click(within(dialog).getByRole('button', { name: 'Trennen' }))
-    expect(db.putAsyncJob).toHaveBeenCalledWith(expect.objectContaining({ type: 'stem-separation', variantId: 'v1', sourceTrackId: 'mix', model: 'extended', splitGuitar: true, status: 'queued' }))
+    await waitFor(() => expect(db.putAsyncJob).toHaveBeenCalledWith(expect.objectContaining({ type: 'stem-separation', variantId: 'v1', sourceTrackId: 'mix', model: 'extended', splitGuitar: true, status: 'queued' })))
+    // The add-on closes its own dialog once the job is queued.
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   })
 })
 

@@ -4,6 +4,9 @@ import { parseContributes, type Contributes, type SlotId } from 'shared-types'
 import youtubeManifest from '../../../../core-backend/scripts/addons/youtube/manifest.json'
 import youtubeView from '../../../../core-backend/scripts/addons/youtube/view.js?raw'
 import youtubeWork from '../../../../core-backend/scripts/addons/youtube/work.js?raw'
+import stemManifest from '../../../../core-backend/scripts/addons/stem-separation/manifest.json'
+import stemView from '../../../../core-backend/scripts/addons/stem-separation/view.js?raw'
+import stemWork from '../../../../core-backend/scripts/addons/stem-separation/work.js?raw'
 import oscManifest from '../../../../core-backend/scripts/addons/osc/manifest.json'
 import oscView from '../../../../core-backend/scripts/addons/osc/view.js?raw'
 import oscWork from '../../../../core-backend/scripts/addons/osc/work.js?raw'
@@ -35,9 +38,9 @@ function fromManifest(manifest: { id: string; name: string; permissions?: string
   }
 }
 
-export const BUILTIN_ADDONS: readonly BuiltinAddon[] = [fromManifest(youtubeManifest, youtubeView, youtubeWork), fromManifest(oscManifest, oscView, oscWork)]
+export const BUILTIN_ADDONS: readonly BuiltinAddon[] = [fromManifest(youtubeManifest, youtubeView, youtubeWork), fromManifest(oscManifest, oscView, oscWork), fromManifest(stemManifest, stemView, stemWork)]
 
 /** The installed add-ons that fill `slot`, with the entry each declared for it - in the order the band installed them. */
-export function addonsForSlot(slot: SlotId, installedIds: readonly string[]): { addon: BuiltinAddon; entry: { id: string; title: string } }[] {
-  return BUILTIN_ADDONS.filter((addon) => installedIds.includes(addon.id)).flatMap((addon) => addon.contributes.ui.filter((ui) => ui.slot === slot).map((ui) => ({ addon, entry: { id: ui.id, title: ui.title } })))
+export function addonsForSlot(slot: SlotId, installedIds: readonly string[]): { addon: BuiltinAddon; entry: { id: string; title: string; icon?: string } }[] {
+  return BUILTIN_ADDONS.filter((addon) => installedIds.includes(addon.id)).flatMap((addon) => addon.contributes.ui.filter((ui) => ui.slot === slot).map((ui) => ({ addon, entry: { id: ui.id, title: ui.title, ...(ui.icon ? { icon: ui.icon } : {}) } })))
 }

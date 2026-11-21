@@ -11,7 +11,7 @@ import { Segmented } from '../../components/ui/Segmented'
 import { StatusDot } from '../../components/ui/StatusDot'
 import { Switch } from '../../components/ui/Switch'
 import { ToggleChip } from '../../components/ui/ToggleChip'
-import { ICONS, type IconName } from '../../components/Icon'
+import { isIcon, type IconName } from '../../components/Icon'
 import { resolveBind, type BindSources } from './bind'
 
 /**
@@ -30,7 +30,6 @@ type Bound<T> = T | { bind: string }
 
 const isBind = (value: unknown): value is { bind: string } => typeof value === 'object' && value !== null && 'bind' in value
 const val = <T,>(value: Bound<T> | undefined, sources: BindSources): T | undefined => (isBind(value) ? (resolveBind(value.bind, sources) as T | undefined) : value)
-const isIcon = (name: string): name is IconName => Object.prototype.hasOwnProperty.call(ICONS, name)
 
 /** What the person typed or picked, kept until the add-on's own value for that input changes (a new tree can reset it). */
 function useLocal<T>(upstream: T): [T, (next: T) => void] {

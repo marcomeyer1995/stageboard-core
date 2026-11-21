@@ -115,6 +115,7 @@ The view script answers with a **tree of StageBoard's own building blocks**; the
 | Slot | Where | Context in | May |
 |---|---|---|---|
 | `song-editor.track-source` | "+ Add track" in the song editor | the song/variant id | return a tree for its dialog; start a job; the finished track appears in the song by StageBoard's own job → track path |
+| `song-editor.track-action` | an action on one track of the song (a button on the track's row; the add-on's dialog replaces nothing) | the song, the track, whether it already has stems | show a tree; `core.queueStemSeparation` |
 | `song-editor.panel` | a tab in the editor | the song | show a tree |
 | `device.panel` | a device's page on the stage map | the device and its state | bind widgets to state; send commands |
 | `settings.section` | band/device settings | the add-on's settings | edit its own `settings` |

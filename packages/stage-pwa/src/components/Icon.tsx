@@ -203,6 +203,9 @@ export const ICONS = {
 
 export type IconName = keyof typeof ICONS
 
+/** Whether a name an add-on gave is an icon StageBoard has. */
+export const isIcon = (name: string): name is IconName => Object.prototype.hasOwnProperty.call(ICONS, name)
+
 interface IconProps {
   /** Solid shape - for transport states (■ ▶ ❚❚), which read as states, not outlines like a checkbox. */
   filled?: boolean
