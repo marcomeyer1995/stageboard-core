@@ -33,6 +33,8 @@ export interface StageDevicePaths {
 }
 
 export interface StagePathsInput {
+  /** The id the host goes by (`hostTargetOf`, #964); absent: the legacy word. */
+  hostApp?: string
   devices: readonly { id: string; name: string; lastSeenAt?: number }[]
   /** Now (ms) - a device without a role not seen for STALE_DAYS is left out. */
   now?: number
@@ -63,16 +65,19 @@ const STALE_MS = 14 * 24 * 60 * 60 * 1000
  */
 export function stagePaths(input: StagePathsInput): StageDevicePaths[] {
   const { devices, ownDeviceId, logicalDevices, profiles, builtIn, personAt, serverName, now = Date.now() } = input
-  const all = [...devices.map((d) => ({ id: d.id, name: d.name, lastSeenAt: d.lastSeenAt })), { id: SERVER_EXECUTION_TARGET, name: serverName, lastSeenAt: undefined }]
+  const hostApp = input.hostApp ?? SERVER_EXECUTION_TARGET
+  const all = [...devices.map((d) => ({ id: d.id, name: d.name, lastSeenAt: d.lastSeenAt })), { id: hostApp, name: serverName, lastSeenAt: undefined }]
   const result: StageDevicePaths[] = []
   for (const device of all) {
-    const roles = logicalDevices.filter((role) => role.executionTarget === device.id)
+    // The host's row also takes what is still stored under the legacy word.
+    const is = (id: string | null | undefined) => id === device.id || (device.id === hostApp && id === SERVER_EXECUTION_TARGET)
+    const roles = logicalDevices.filter((role) => is(role.executionTarget))
     if (device.id !== ownDeviceId && roles.length === 0 && device.lastSeenAt !== undefined && now - device.lastSeenAt > STALE_MS) continue
     const soundRoles = roles.filter((role) => builtIn.has(role.capability)).map((role) => builtIn.get(role.capability)!)
-    const ownProfiles = profiles.filter((p) => p.deviceId === device.id)
+    const ownProfiles = profiles.filter((p) => is(p.deviceId))
     const paths: StagePath[] = []
 
-    if (device.id !== SERVER_EXECUTION_TARGET) {
+    if (device.id !== hostApp) {
       const audio = ownProfiles.filter((p) => p.output === AUDIO_OUTPUT || p.output === NATIVE_AUDIO_OUTPUT)
       const routes = [...new Set(audio.map((p) => p.route).filter((r): r is AudioRoute => r !== null))]
       if (routes.length === 0 && soundRoles.length > 0) routes.push('speaker')
@@ -106,7 +111,7 @@ export function stagePaths(input: StagePathsInput): StageDevicePaths[] {
         state: stateOf(profile),
         // The path is named after it already - only who uses it.
         roles: [],
-        person: device.id === SERVER_EXECUTION_TARGET ? null : personAt(device.id),
+        person: device.id === hostApp ? null : personAt(device.id),
       })
     }
 

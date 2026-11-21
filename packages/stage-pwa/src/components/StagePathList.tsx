@@ -1,4 +1,6 @@
 import { useMemo, useState } from 'react'
+import { hostTargetOf } from 'shared-types'
+import { useTargetWorld } from '../lib/targetWorld'
 import { getDeviceId } from '../lib/deviceId'
 import { routeLabel } from '../lib/latencyProfiles'
 import { stagePaths, type StagePath, type StagePathState } from '../lib/stagePaths'
@@ -38,6 +40,7 @@ export function StagePathList() {
   const [valueFor, setValueFor] = useState<{ id: string; name: string } | null>(null)
 
   const ownId = getDeviceId()
+  const hostApp = hostTargetOf(useTargetWorld())
   const groups = useMemo(
     () =>
       stagePaths({
@@ -51,8 +54,9 @@ export function StagePathList() {
           return people.find((p) => p.id === profileId)?.name ?? null
         },
         serverName: t('stage.server'),
+        hostApp,
       }),
-    [devices, ownId, logicalDevices, profiles, presence, people, t],
+    [devices, ownId, logicalDevices, profiles, presence, people, t, hostApp],
   )
 
   const canEdit = (deviceId: string) => myProfileId !== '' && (isAdmin || deviceId === ownId || presence.devices[deviceId]?.profileId === myProfileId)

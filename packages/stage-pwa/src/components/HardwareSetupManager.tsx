@@ -1,8 +1,9 @@
 import { DevicePanelSlots } from './DevicePanelSlots'
+import { useTargetWorld } from '../lib/targetWorld'
 import { StageMap } from './StageMap'
 import { StagePathList } from './StagePathList'
 import { useEffect, useState } from 'react'
-import { CAPABILITIES, SERVER_EXECUTION_TARGET, type LogicalDevice } from 'shared-types'
+import { CAPABILITIES, isHostTarget, type LogicalDevice } from 'shared-types'
 import { getDeviceId } from '../lib/deviceId'
 import { findLogicalDeviceUsage } from '../lib/logicalDeviceUsage'
 import { useDeviceTransportConfigStore } from '../store/useDeviceTransportConfigStore'
@@ -57,9 +58,10 @@ function DeviceList({ onEdit, onAdd }: { onEdit: (device: LogicalDevice) => void
     return plugin ? pluginName(plugin) : null
   }
 
+  const world = useTargetWorld()
   function targetLabel(executionTarget: string | null): string | null {
     if (!executionTarget) return null
-    if (executionTarget === SERVER_EXECUTION_TARGET) return t('server')
+    if (isHostTarget(executionTarget, world)) return t('server')
     if (executionTarget === getDeviceId()) return t('thisDevice')
     // The tablet's name from the Geräte list, never its internal id (System cleanup, 2026-10-16).
     return knownDevices.find((d) => d.id === executionTarget)?.name ?? t('unknownDevice')

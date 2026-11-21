@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
-import { routedLogicalDevices, type LogicalDevice } from 'shared-types'
+import { hostTargetOf, routedLogicalDevices, type LogicalDevice } from 'shared-types'
+import { useTargetWorld } from './targetWorld'
 import { usePracticeRouteStore } from './outputPlan'
 import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
 
@@ -11,5 +12,6 @@ import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
 export function usePracticeDevices(): LogicalDevice[] | null {
   const route = usePracticeRouteStore((state) => state.route)
   const stored = useLogicalDevicesStore((state) => state.stored)
-  return useMemo(() => (route ? routedLogicalDevices(stored, route.map, {}, route.setupId) : null), [route, stored])
+  const hostApp = hostTargetOf(useTargetWorld())
+  return useMemo(() => (route ? routedLogicalDevices(stored, route.map, {}, route.setupId, hostApp) : null), [route, stored, hostApp])
 }

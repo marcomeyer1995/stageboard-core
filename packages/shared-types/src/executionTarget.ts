@@ -22,6 +22,8 @@ export type ExecutionTarget = z.infer<typeof ExecutionTargetSchema>
 export interface TargetWorld {
   hostIds: readonly string[]
   deviceIds: readonly string[]
+  /** The host this device talks to, once it has said who it is. */
+  currentHostId?: string | undefined
 }
 
 /** The binding means "the host's own hardware or plug-in": the legacy word, or a host id that no roster device carries. */
@@ -35,4 +37,9 @@ export function isHostTarget(target: string | null | undefined, world: TargetWor
 export function migrateExecutionTarget(target: string | null | undefined, currentHostId: string | undefined): string | null {
   if (!target) return null
   return target === SERVER_EXECUTION_TARGET && currentHostId ? currentHostId : target
+}
+
+/** What a new binding to "the host's own hardware" stores: the id of the host that answers (the legacy word only while no host has said who it is). */
+export function hostTargetOf(world: TargetWorld): string {
+  return world.currentHostId ?? SERVER_EXECUTION_TARGET
 }

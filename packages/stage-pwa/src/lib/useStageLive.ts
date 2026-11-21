@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
+import { hostTargetOf } from 'shared-types'
+import { useTargetWorld } from './targetWorld'
 import type { SignalFlow, StageEquipment, StageSetup } from 'shared-types'
 import { useDeviceInfoStore } from '../store/useDeviceInfoStore'
 import { useLatencyProfilesStore } from '../store/useLatencyProfilesStore'
@@ -62,8 +64,9 @@ export function useStageLive(active: boolean, map: StageLiveMap): StageLive | nu
   }, [active])
 
   const { equipment, setup, flows, outputs, builtInIds } = map
+  const hostApp = hostTargetOf(useTargetWorld())
   return useMemo(() => {
     if (!active || !setup || (!loaded && reachable === null)) return null
-    return stageLive({ equipment, setup, flows, outputs, builtInIds, deviceInfo, now, serverReachable: reachable, health, ownDeviceId: getDeviceId(), ownMidiOutputs: ownMidi, ownSilenced: silencedSources(plan), front, profiles })
-  }, [active, setup, loaded, reachable, equipment, flows, outputs, builtInIds, deviceInfo, now, health, ownMidi, plan, front, profiles])
+    return stageLive({ equipment, setup, flows, outputs, builtInIds, deviceInfo, now, serverReachable: reachable, health, ownDeviceId: getDeviceId(), ownMidiOutputs: ownMidi, ownSilenced: silencedSources(plan), front, profiles, hostApp })
+  }, [active, setup, loaded, reachable, equipment, flows, outputs, builtInIds, deviceInfo, now, health, ownMidi, plan, front, profiles, hostApp])
 }

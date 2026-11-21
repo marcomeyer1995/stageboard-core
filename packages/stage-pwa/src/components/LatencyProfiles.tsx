@@ -1,7 +1,8 @@
 import i18n from '../i18n'
+import { useTargetWorld } from '../lib/targetWorld'
 import { useState } from 'react'
 import { runAudioCalibration, type AudioCalibrationOutcome } from '../lib/audioCalibration'
-import { AUDIO_OUTPUT, AudioRouteSchema, NATIVE_AUDIO_OUTPUT, SERVER_EXECUTION_TARGET, latencyProfileId, type AudioRoute, type LatencyProfileDoc } from 'shared-types'
+import { AUDIO_OUTPUT, AudioRouteSchema, NATIVE_AUDIO_OUTPUT, isHostTarget, latencyProfileId, type AudioRoute, type LatencyProfileDoc } from 'shared-types'
 import { getDeviceId } from '../lib/deviceId'
 import { useAudioRouteStore } from '../store/useAudioRouteStore'
 import { useLatencyProfilesStore } from '../store/useLatencyProfilesStore'
@@ -142,8 +143,9 @@ export function LatencyProfileDialog({ deviceId, deviceName, onClose }: { device
   const currentRoute = useAudioRouteStore((state) => state.route)
   const outputName = useOutputName()
 
-  const isServer = deviceId === SERVER_EXECUTION_TARGET
-  const driven = logicalDevices.filter((d) => (isServer ? d.executionTarget === SERVER_EXECUTION_TARGET : d.executionTarget === deviceId))
+  const world = useTargetWorld()
+  const isServer = isHostTarget(deviceId, world)
+  const driven = logicalDevices.filter((d) => (isServer ? isHostTarget(d.executionTarget, world) : d.executionTarget === deviceId))
   const outputs = [
     ...(isServer ? [] : [{ value: AUDIO_OUTPUT, label: t('lat.soundOutput') }, { value: NATIVE_AUDIO_OUTPUT, label: t('lat.soundNativeOutput') }]),
     ...driven.map((d) => ({ value: d.id, label: d.name }))]

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
+import { useTargetWorld } from '../lib/targetWorld'
 import { useTranslation } from 'react-i18next'
 import {
   activeSetup,
@@ -26,7 +27,8 @@ import {
   appsOf,
   joinDevices,
   separateApp,
-  SERVER_EXECUTION_TARGET,
+  isHostTarget,
+  hostTargetOf,
   mergeEquipmentInSetup,
   portFit,
   pruneForPorts,
@@ -135,6 +137,7 @@ export function StageMap() {
   const { t } = useTranslation('hardware')
   const { equipment: bandEquipment, setups: bandSetups, ownSetups, ownEquipment, active, front, loaded, saveEquipment, removeEquipment, saveSetup, updateSetup, removeSetup } = useStageMapStore()
   const devices = useDevicesStore((state) => state.devices)
+  const targetWorld = useTargetWorld()
   const devicesLoaded = useDevicesStore((state) => state.loaded)
   const logicalDevices = useLogicalDevicesStore((state) => state.devices)
   const presence = usePresenceStore((state) => state.presence)
@@ -556,7 +559,7 @@ export function StageMap() {
   // Several apps on one device (2026-11-07): the admin joins two boxes the map made apart - the
   // Dev app into the release app's, the Host into the laptop's; the other's cables, place
   // and matrix move into the box that stays.
-  const appName = (appId: string) => (appId === SERVER_EXECUTION_TARGET ? t('map.serverApp') : (devices.find((d) => d.id === appId)?.name ?? appId))
+  const appName = (appId: string) => (isHostTarget(appId, targetWorld) ? t('map.serverApp') : (devices.find((d) => d.id === appId)?.name ?? appId))
   const sameDevice = async (item: StageEquipment) => {
     const others = equipment.filter((e) => e.id !== item.id && (e.kind === 'stageboard' || e.kind === 'host-computer'))
     if (others.length === 0) return
@@ -567,7 +570,7 @@ export function StageMap() {
     // "This is the same device as that one": this one goes into that one - unless that one is the
     // server, which goes into the box with the sockets.
     const [keep, merge] = other.kind === 'host-computer' && item.kind === 'stageboard' ? [item, other] : [other, item]
-    await saveEquipment(joinDevices(keep, merge))
+    await saveEquipment(joinDevices(keep, merge, hostTargetOf(targetWorld)))
     for (const s of setups) await updateSetup(s.id, (cur) => mergeEquipmentInSetup(cur, merge.id, keep.id))
     await removeEquipment(merge.id)
     setSelection({ kind: 'node', id: keep.id })
@@ -918,8 +921,8 @@ export function StageMap() {
               {selectedNode.deviceId === ownId && <Badge tone="accent">{t('stage.thisDevice')}</Badge>}
             </div>
             {/* The host: its server plugins, installable where it can run them (docs/25 §6). */}
-            {(selectedNode.kind === 'host-computer' || appsOf(selectedNode).includes(SERVER_EXECUTION_TARGET)) && <HostPlugins canInstall={canEdit} />}
-            {(selectedNode.kind === 'host-computer' || appsOf(selectedNode).includes(SERVER_EXECUTION_TARGET)) && <HostRole boxId={selectedNode.id} canEdit={canEdit} />}
+            {(selectedNode.kind === 'host-computer' || appsOf(selectedNode).some((id) => isHostTarget(id, targetWorld))) && <HostPlugins canInstall={canEdit} />}
+            {(selectedNode.kind === 'host-computer' || appsOf(selectedNode).some((id) => isHostTarget(id, targetWorld))) && <HostRole boxId={selectedNode.id} canEdit={canEdit} />}
             {appsOf(selectedNode).length > 1 && (
               <div className="flex flex-col gap-1">
                 <span className="text-base font-semibold">{t('map.appsHere')}</span>

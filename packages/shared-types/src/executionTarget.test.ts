@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isHostTarget, migrateExecutionTarget } from './executionTarget.js'
+import { hostTargetOf, isHostTarget, migrateExecutionTarget } from './executionTarget.js'
 
 const world = { hostIds: ['stage-pc', 'tablet-1'], deviceIds: ['tablet-1', 'tablet-2'] }
 
@@ -21,4 +21,9 @@ describe('migrateExecutionTarget (#964)', () => {
   it('leaves the word while no host is known, so nothing is lost', () => expect(migrateExecutionTarget('server', undefined)).toBe('server'))
   it('leaves a device id alone', () => expect(migrateExecutionTarget('tablet-2', 'stage-pc')).toBe('tablet-2'))
   it('keeps null as null', () => expect(migrateExecutionTarget(null, 'stage-pc')).toBeNull())
+})
+
+describe('hostTargetOf (#964)', () => {
+  it('is the id of the host that answers', () => expect(hostTargetOf({ hostIds: ['stage-pc'], deviceIds: [], currentHostId: 'stage-pc' })).toBe('stage-pc'))
+  it('is the legacy word until a host has said who it is', () => expect(hostTargetOf({ hostIds: [], deviceIds: [] })).toBe('server'))
 })

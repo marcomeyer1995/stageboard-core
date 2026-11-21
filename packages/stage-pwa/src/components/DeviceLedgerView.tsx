@@ -1,6 +1,7 @@
 import i18n from '../i18n'
+import { useTargetWorld } from '../lib/targetWorld'
 import { useEffect, useRef, useState } from 'react'
-import { DEVICE_INFO_TIMEOUT_MS, SERVER_EXECUTION_TARGET, type AudioOutputHealth, type Device, type DeviceVitalsSummary, type LogicalDevice } from 'shared-types'
+import { DEVICE_INFO_TIMEOUT_MS, hostTargetOf, type AudioOutputHealth, type Device, type DeviceVitalsSummary, type LogicalDevice } from 'shared-types'
 import { getServerTime } from '../lib/clockSync'
 import { useNow } from '../lib/useNow'
 import { useHostUrlStatus } from '../lib/useHostUrlStatus'
@@ -108,6 +109,7 @@ function StatusDot({ on, title }: { on: boolean | null; title: string }) {
  * as the backstop for the rare case those two disagree (e.g. this device was just demoted).
  */
 export function DeviceLedgerView() {
+  const hostApp = hostTargetOf(useTargetWorld())
   const { t } = useTranslation('devices')
   const devices = useDevicesStore((state) => state.devices)
   const revoke = useDevicesStore((state) => state.revoke)
@@ -239,9 +241,9 @@ export function DeviceLedgerView() {
             </span>
           )}
         </div>
-        <LatencySummary deviceId={SERVER_EXECUTION_TARGET} />
+        <LatencySummary deviceId={hostApp} />
         {isAdmin && (
-          <Button className="mt-2" onClick={() => setLatencyFor({ id: SERVER_EXECUTION_TARGET, name: t('server') })}>
+          <Button className="mt-2" onClick={() => setLatencyFor({ id: hostApp, name: t('server') })}>
             {t('latency')}
           </Button>
         )}

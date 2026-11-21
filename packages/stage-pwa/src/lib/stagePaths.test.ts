@@ -66,6 +66,17 @@ describe('stage paths (docs/31)', () => {
     expect(groups.find((g) => g.deviceId === SERVER_EXECUTION_TARGET)!.paths.map((p) => [p.name, p.state, p.person])).toEqual([['Licht', 'missing', null]])
   })
 
+  it("the host's row goes by the host's id and still takes what is stored under the legacy word (#964)", () => {
+    const groups = stagePaths({
+      ...base,
+      hostApp: 'stage-pc',
+      logicalDevices: [role('dmx', CAPABILITIES.lighting, 'stage-pc', 'Licht'), role('dmx2', CAPABILITIES.lighting, SERVER_EXECUTION_TARGET, 'Licht 2')],
+      profiles: [profile(SERVER_EXECUTION_TARGET, 'dmx2', null, 12, 'measured')],
+    })
+    expect(groups.find((g) => g.deviceId === SERVER_EXECUTION_TARGET)).toBeUndefined()
+    expect(groups.find((g) => g.deviceId === 'stage-pc')!.paths.map((p) => [p.name, p.state]).sort((a, b) => a[0]!.localeCompare(b[0]!))).toEqual([['Licht', 'missing'], ['Licht 2', 'measured']])
+  })
+
   it('leaves out an old device that plays nothing and has only a stored value', () => {
     const now = 100 * 24 * 60 * 60 * 1000
     const groups = stagePaths({

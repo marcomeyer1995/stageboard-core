@@ -2,7 +2,8 @@ import i18n from '../i18n'
 import { useSettledVisualViewport, visibleArea } from '../lib/useVisualViewport'
 import { useEffect, useState } from 'react'
 import type { HardwareId, LogicalDevice, PluginInstallation } from 'shared-types'
-import { SERVER_EXECUTION_TARGET, CAPABILITIES } from 'shared-types'
+import { CAPABILITIES, hostTargetOf, isHostTarget, migrateExecutionTarget } from 'shared-types'
+import { useTargetWorld } from '../lib/targetWorld'
 import { getDeviceId } from '../lib/deviceId'
 import { assignDiscoveryCandidate, startDiscovery, stopDiscovery } from '../lib/discoveryClient'
 import { getTranslator, hasClientTranslator } from '../lib/clientTranslator'
@@ -202,15 +203,17 @@ function ConnectionStep({
   const [feeds, setFeeds] = useState<Record<string, MidiEvent[]>>({})
   const [sendingKey, setSendingKey] = useState<string | null>(null)
   const [assigningKey, setAssigningKey] = useState<string | null>(null)
-  const [manualTarget, setManualTarget] = useState(device?.executionTarget ?? '')
+  const world = useTargetWorld()
+  const hostApp = hostTargetOf(world)
+  const [manualTarget, setManualTarget] = useState(migrateExecutionTarget(device?.executionTarget, world.currentHostId) ?? '')
   // What this device (or, for a Host device, the server) already has - shown again when editing.
   const configs = useDeviceTransportConfigStore((state) => state.configs)
-  const existingConfig = configs.find((c) => c.id === `${device?.executionTarget === SERVER_EXECUTION_TARGET ? SERVER_EXECUTION_TARGET : getDeviceId()}:${draft.id}`)
+  const existingConfig = configs.find((c) => c.id === `${isHostTarget(device?.executionTarget, world) ? hostApp : getDeviceId()}:${draft.id}`)
   const [manualTransportId, setManualTransportId] = useState(existingConfig?.transportId ?? '')
   const [manualValues, setManualValues] = useState<Record<string, string>>(existingConfig?.values ?? {})
   // Transport fields are filled in where the device runs: on this tablet for itself, and - since the
   // Host has no screen - from any tablet for a Host device (OSC host and port, #484).
-  const configTarget = manualTarget === getDeviceId() || manualTarget === SERVER_EXECUTION_TARGET ? manualTarget : null
+  const configTarget = manualTarget === getDeviceId() || isHostTarget(manualTarget, world) ? manualTarget : null
 
   const plugin = installed.find((p) => p.id === draft.pluginId) ?? null
   const candidates = session.candidates.filter((c) => c.matchedPluginId === draft.pluginId)
@@ -244,7 +247,7 @@ function ConnectionStep({
 
   function reporterLabel(reporterId: string): string {
     if (reporterId === getDeviceId()) return t('thisDevice')
-    if (reporterId === SERVER_EXECUTION_TARGET) return t('server')
+    if (isHostTarget(reporterId, world)) return t('server')
     return devices.find((d) => d.id === reporterId)?.name ?? reporterId
   }
 
@@ -287,7 +290,7 @@ function ConnectionStep({
         <p className="rounded-control bg-control-strong px-3 py-2 text-sm text-ink">
           {t('wiz.connectedTo', { target: reporterLabel(resolvedTarget) })}
           {/* The Host has no screen to register from - nothing to wait for there. */}
-          {resolvedTarget !== getDeviceId() && resolvedTarget !== SERVER_EXECUTION_TARGET && (
+          {resolvedTarget !== getDeviceId() && !isHostTarget(resolvedTarget, world) && (
             <span className="text-ink-faint">{t('wiz.waitsSelf')}</span>
           )}
         </p>
@@ -346,7 +349,7 @@ function ConnectionStep({
           className={`min-h-form px-3 text-base ${INPUT}`}
         >
           <option value="">{t('wiz.notSet')}</option>
-          <option value={SERVER_EXECUTION_TARGET}>{t('wiz.serverPlugin')}</option>
+          <option value={hostApp}>{t('wiz.serverPlugin')}</option>
           {devices.map((d) => (
             <option key={d.id} value={d.id}>
               {d.name}
@@ -461,6 +464,7 @@ function MidiOutputPicker({ label, value, onChange, inputs = false }: { label: s
 function VerifyStep({ draft, device, onBack, onFinish }: { draft: Draft; device: LogicalDevice | null; onBack: () => void; onFinish: () => void }) {
   const { t } = useTranslation('hardware')
   const installed = usePluginsStore((state) => state.installed)
+  const world = useTargetWorld()
   const [testResult, setTestResult] = useState<string | null>(null)
   const executionTarget = device?.executionTarget ?? null
   const canTestHere = executionTarget === getDeviceId() && draft.capability && hasClientTranslator(installed, draft.capability)
@@ -487,7 +491,7 @@ function VerifyStep({ draft, device, onBack, onFinish }: { draft: Draft; device:
         </div>
       ) : executionTarget ? (
         <p className="text-sm text-ink-faint">
-          {t(executionTarget === SERVER_EXECUTION_TARGET ? 'wiz.runsOnServer' : 'wiz.runsElsewhere')}
+          {t(isHostTarget(executionTarget, world) ? 'wiz.runsOnServer' : 'wiz.runsElsewhere')}
         </p>
       ) : (
         <p className="text-sm text-ink-faint">{t('wiz.noConnection')}</p>
