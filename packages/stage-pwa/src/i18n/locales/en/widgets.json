@@ -152,7 +152,7 @@
   },
   "sync-check": {
     "title": "Sync check",
-    "description": "Flashes with the server clock - hold two devices side by side and check that they blink together.",
+    "description": "Flashes with the host clock - hold two devices side by side and check that they blink together.",
     "parts": {
       "caption": "Caption",
       "offset": "Offset & drift"

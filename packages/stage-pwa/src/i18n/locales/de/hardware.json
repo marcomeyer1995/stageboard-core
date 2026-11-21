@@ -100,7 +100,7 @@
     "use": "Verwenden",
     "manual": "Manuell festlegen",
     "notSet": "— nicht festgelegt —",
-    "serverPlugin": "Server (Host-Plugin)",
+    "serverPlugin": "Host (Add-on)",
     "thisDevice": " (dieses Gerät)",
     "chooseTransport": "Anschlussart wählen…",
     "save": "Speichern",
@@ -374,7 +374,7 @@
     "notMeasured": "Noch nicht gemessen - jedes Gerät prüft es beim nächsten Play."
   },
   "hostPlugins": {
-    "title": "Server-Plugins auf diesem Host",
+    "title": "Add-ons auf diesem Host",
     "unknown": "Dieser Host meldet noch nicht, was er ausführen kann (ältere Version).",
     "installed": "installiert",
     "cannot": "läuft auf diesem Host nicht - braucht {{needs}}",

@@ -28,7 +28,7 @@
   "overtakeLine": "Das würde eine frühere Liedzeile überholen.",
   "invalidJson": "Ungültiges JSON",
   "needServer": "Das geht nur mit Verbindung zum Host - dieses Gerät ist mit keinem verbunden.",
-  "serverOffline": "Host nicht erreichbar - WLAN und Server prüfen.",
+  "serverOffline": "Host nicht erreichbar - WLAN und Host prüfen.",
   "noServer": "Kein Host verbunden.",
   "noResult": "Der Host hat kein Ergebnis geliefert.",
   "lengthUnreadable": "Länge nicht lesbar",

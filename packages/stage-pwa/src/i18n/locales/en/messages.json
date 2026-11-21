@@ -28,7 +28,7 @@
   "overtakeLine": "That would overtake an earlier lyric line.",
   "invalidJson": "Invalid JSON",
   "needServer": "This only works with a connection to the Host - this device is not connected to one.",
-  "serverOffline": "Host not reachable - check the Wi-Fi and the server.",
+  "serverOffline": "Host not reachable - check the Wi-Fi and the host.",
   "noServer": "No Host connected.",
   "noResult": "The Host returned no result.",
   "lengthUnreadable": "Length not readable",

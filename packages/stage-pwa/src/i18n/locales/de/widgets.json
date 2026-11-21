@@ -152,7 +152,7 @@
   },
   "sync-check": {
     "title": "Sync-Check",
-    "description": "Blitzt im Takt der Server-Uhr - zwei Geräte nebeneinander halten und prüfen, ob sie synchron blinken.",
+    "description": "Blitzt im Takt der Host-Uhr - zwei Geräte nebeneinander halten und prüfen, ob sie synchron blinken.",
     "parts": {
       "caption": "Überschrift",
       "offset": "Offset & Drift"

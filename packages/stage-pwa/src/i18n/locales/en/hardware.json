@@ -100,7 +100,7 @@
     "use": "Use",
     "manual": "Set by hand",
     "notSet": "— not set —",
-    "serverPlugin": "Server (Host plug-in)",
+    "serverPlugin": "Host (add-on)",
     "thisDevice": " (this device)",
     "chooseTransport": "Choose the connection type…",
     "save": "Save",
@@ -374,7 +374,7 @@
     "notMeasured": "Not measured yet - every device checks at the next Play."
   },
   "hostPlugins": {
-    "title": "Server plugins on this host",
+    "title": "Add-ons on this host",
     "unknown": "This Host doesn't report yet what it can run (older version).",
     "installed": "installed",
     "cannot": "can't run on this host - needs {{needs}}",

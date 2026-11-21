@@ -98,7 +98,7 @@ describe('RigCheckView (#464)', () => {
     render(<RigCheckView />)
     expect(screen.getByRole('button', { name: 'Start' })).toBeDisabled()
     expect(screen.getByText('Fire')).toBeInTheDocument()
-    expect(screen.getAllByText(/-12 ms zum Server/)).toHaveLength(2)
+    expect(screen.getAllByText(/-12 ms zum Host/)).toHaveLength(2)
     expect(screen.getAllByText(/Bluetooth.*Latenz 230 ms/)).toHaveLength(2)
     expect(screen.getByText('Track lädt …')).toBeInTheDocument()
     expect(screen.getByText('Solo Üben - folgt nicht')).toBeInTheDocument()

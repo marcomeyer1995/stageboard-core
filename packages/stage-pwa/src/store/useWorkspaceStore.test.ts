@@ -941,7 +941,7 @@ describe('listWorkspaces', () => {
     const result = await useWorkspaceStore.getState().listWorkspaces()
 
     expect(result).toBeNull()
-    expect(alertMock).toHaveBeenCalledWith(expect.stringContaining('Serverfehler'))
+    expect(alertMock).toHaveBeenCalledWith(expect.stringContaining('Fehler beim Host'))
   })
 })
 
@@ -1010,7 +1010,7 @@ describe('fetchRoster', () => {
     const roster = await useWorkspaceStore.getState().fetchRoster('band-c', '11112222')
 
     expect(roster).toBeNull()
-    expect(alertMock).toHaveBeenCalledWith(expect.stringContaining('Serverfehler'))
+    expect(alertMock).toHaveBeenCalledWith(expect.stringContaining('Fehler beim Host'))
     expect(alertMock).not.toHaveBeenCalledWith(expect.stringContaining('Falscher Code'))
   })
 })
@@ -1117,7 +1117,7 @@ describe('joinAsMember', () => {
     const workspace = await useWorkspaceStore.getState().joinAsMember('band-c', 'Band C', '11112222', 'p1')
 
     expect(workspace).toBeNull()
-    expect(alertMock).toHaveBeenCalledWith(expect.stringContaining('Serverfehler'))
+    expect(alertMock).toHaveBeenCalledWith(expect.stringContaining('Fehler beim Host'))
     expect(alertMock).not.toHaveBeenCalledWith(expect.stringContaining('Falscher Code'))
   })
 

@@ -82,7 +82,7 @@ describe('InviteBandView', () => {
     render(<InviteBandView workspaceId="band-a" onClose={vi.fn()} />)
 
     await waitFor(() => expect(screen.getAllByText('12345678')[0]).toBeInTheDocument())
-    expect(screen.getByText(/Server-Adresse konnte nicht ermittelt werden/)).toBeInTheDocument()
+    expect(screen.getByText(/Host-Adresse konnte nicht ermittelt werden/)).toBeInTheDocument()
   })
 
   it('shows an error when getAccessCode fails', async () => {
