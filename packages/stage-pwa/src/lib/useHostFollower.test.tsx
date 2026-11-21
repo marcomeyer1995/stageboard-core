@@ -11,12 +11,12 @@ vi.mock('../store/useBandSettingsStore', async () => {
 })
 
 const native = vi.hoisted(() => ({ value: false }))
-const shell = vi.hoisted(() => ({ pinListedHosts: vi.fn(async () => ({ pin: [], conflicts: [] as string[] })), pairWithServer: vi.fn(async () => {}) }))
+const shell = vi.hoisted(() => ({ pinListedHosts: vi.fn(async () => ({ pin: [], conflicts: [] as string[] })), pairWithHost: vi.fn(async () => {}) }))
 vi.mock('./native', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./native')>()),
   isNativeApp: () => native.value,
   pinListedHosts: shell.pinListedHosts,
-  pairWithServer: shell.pairWithServer,
+  pairWithHost: shell.pairWithHost,
 }))
 
 const { useHostFollower } = await import('./useHostFollower')
@@ -66,7 +66,7 @@ describe('useHostFollower (#916)', () => {
     beforeEach(() => {
       native.value = true
       shell.pinListedHosts.mockClear()
-      shell.pairWithServer.mockClear()
+      shell.pairWithHost.mockClear()
       useBandSettingsStore.setState({ settings: { id: 'band', hosts: [primary, backupPinned] } })
     })
 
@@ -81,7 +81,7 @@ describe('useHostFollower (#916)', () => {
       stubEpochs({ [backup.url]: 2 })
       renderHook(() => useHostFollower())
       await vi.advanceTimersByTimeAsync(5_100)
-      expect(shell.pairWithServer).toHaveBeenCalledWith('10.0.0.2:8443', FP)
+      expect(shell.pairWithHost).toHaveBeenCalledWith('10.0.0.2:8443', FP)
     })
 
     it('does not move to a host it has no fingerprint for - it could not trust it', async () => {
@@ -89,14 +89,14 @@ describe('useHostFollower (#916)', () => {
       stubEpochs({ [backup.url]: 2 })
       renderHook(() => useHostFollower())
       await vi.advanceTimersByTimeAsync(11_000)
-      expect(shell.pairWithServer).not.toHaveBeenCalled()
+      expect(shell.pairWithHost).not.toHaveBeenCalled()
     })
 
     it('stays on equal epochs, as in the browser', async () => {
       stubEpochs({ [backup.url]: 1 })
       renderHook(() => useHostFollower())
       await vi.advanceTimersByTimeAsync(11_000)
-      expect(shell.pairWithServer).not.toHaveBeenCalled()
+      expect(shell.pairWithHost).not.toHaveBeenCalled()
     })
   })
 

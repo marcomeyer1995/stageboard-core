@@ -4,14 +4,14 @@ import { CAPABILITIES, HEALTH_TIMEOUT_MS, type PluginInstallation } from 'shared
 import { useDialogStore } from '../store/useDialogStore'
 import { usePluginsStore } from '../store/usePluginsStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
-import { useServerNow } from '../lib/useNow'
+import { useHostNow } from '../lib/useNow'
 import {
   buildWorkspaceSnapshot,
   downloadWorkspaceSnapshot,
   parseWorkspaceSnapshot,
   restoreWorkspaceSnapshot,
 } from '../lib/workspaceSnapshot'
-import { ServerBackupTargets } from './ServerBackupTargets'
+import { HostBackupTargets } from './HostBackupTargets'
 import { Badge, Button, InfoHint } from './ui'
 import { useTranslation } from 'react-i18next'
 
@@ -32,7 +32,7 @@ export function BackupManager() {
   const health = usePluginsStore((state) => state.health)
   // `lastSeenAt` is the Host's stamp - compared in its time, not this device's (the Fire's clock
   // runs 18 s fast: every add-on read "Heartbeat veraltet", 2026-11-14).
-  const now = useServerNow()
+  const now = useHostNow()
   const workspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
   const confirm = useDialogStore((state) => state.confirm)
   const [snapshotStatus, setSnapshotStatus] = useState<string | null>(null)
@@ -84,7 +84,7 @@ export function BackupManager() {
     // A part of System → Host since the System split (2026-10-16), no tab of its own; the
     // card and its "Backup" heading come from there (SystemSettings Group).
     <div className="flex flex-col text-ink">
-      <ServerBackupTargets />
+      <HostBackupTargets />
 
       {backupPlugins.length > 0 && <h4 className={`mb-2 mt-3 ${SUBHEADING}`}>{t('bk.plugins')}</h4>}
       <div className="space-y-2">

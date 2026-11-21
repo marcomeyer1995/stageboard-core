@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { parseAlertDirective, parseChordPro, songAlerts, tappableLines } from './chordpro'
 
-vi.mock('./clockSync', () => ({ getServerTime: () => Date.now() }))
+vi.mock('./clockSync', () => ({ getHostTime: () => Date.now() }))
 const me = { id: 'p-guitar', name: 'Caro' }
 vi.mock('./useActiveProfile', () => ({ useActiveProfile: () => me }))
 

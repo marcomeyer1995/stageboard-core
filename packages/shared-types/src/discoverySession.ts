@@ -42,7 +42,7 @@ export type DiscoveryIdentifying = z.infer<typeof DiscoveryIdentifyingSchema>
 /**
  * A workspace-wide, admin-initiated hardware-discovery session - deliberately **not** a
  * replicated document (same reasoning as presence/plugin-health: a live coordination
- * session has no offline/multi-master value and shouldn't outlive a server restart). Lives only
+ * session has no offline/multi-master value and shouldn't outlive a host restart). Lives only
  * in the Host's memory (core-backend's discoverySessionStore.ts) and is broadcast to
  * every connected tablet over SSE, the same pattern presenceStore.ts already uses.
  */

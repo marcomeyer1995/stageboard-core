@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const serverTime = vi.hoisted(() => ({ now: 10_000 }))
 const clicks = vi.hoisted(() => [] as number[])
-vi.mock('./clockSync', () => ({ getServerTime: () => serverTime.now }))
+vi.mock('./clockSync', () => ({ getHostTime: () => serverTime.now }))
 vi.mock('./hostUrl', () => ({ getHostUrl: () => 'https://server' }))
 vi.mock('./deviceId', () => ({ getDeviceId: () => 'fire' }))
 vi.mock('./sharedAudioContext', () => ({

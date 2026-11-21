@@ -10,7 +10,7 @@ export function flashPresets(): string[] {
 export type SendFlashResult = 'sent' | 'not-signed-in' | 'unreachable'
 
 /** Sends a flash message to every tablet of the band (via the Host), signed with this
- * device's own login for the band - the server only takes messages from the band's devices. */
+ * device's own login for the band - the host only takes messages from the band's devices. */
 export async function sendFlash(
   workspaceId: string,
   text: string,
@@ -25,7 +25,7 @@ export async function sendFlash(
     const response = await fetch(`${base}/workspaces/${encodeURIComponent(workspaceId)}/flash`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Basic ${btoa(`${login.username}:${login.password}`)}` },
-      // The server takes at most 60 characters of the sender's name - a longer profile name made
+      // The host takes at most 60 characters of the sender's name - a longer profile name made
       // every message fail as "nicht erreichbar" (#400 review).
       body: JSON.stringify({ text, from: from?.slice(0, 60), ...(to.length ? { to } : {}) }),
     })
@@ -37,7 +37,7 @@ export async function sendFlash(
 }
 
 /** Local alerts (a song's `{alert: ...}` reaching its time) use the same overlay as messages
- * from the server - delivered through this window event. */
+ * from the host - delivered through this window event. */
 export const LOCAL_FLASH_EVENT = 'stageboard:flash'
 
 export function showLocalFlash(text: string): void {
@@ -45,6 +45,6 @@ export function showLocalFlash(text: string): void {
 }
 
 /** Whether a message that arrives now is still worth showing. */
-export function isFresh(flash: FlashMessage, serverNow: number): boolean {
-  return serverNow - flash.at < FLASH_DURATION_MS
+export function isFresh(flash: FlashMessage, hostNow: number): boolean {
+  return hostNow - flash.at < FLASH_DURATION_MS
 }

@@ -1,7 +1,7 @@
 import i18n from '../i18n'
 import { useEffect, useRef, useState } from 'react'
 import { FLASH_DURATION_MS, type FlashMessage } from 'shared-types'
-import { getServerTime } from '../lib/clockSync'
+import { getHostTime } from '../lib/clockSync'
 import { isFresh, LOCAL_FLASH_EVENT } from '../lib/flash'
 import { useActiveProfile } from '../lib/useActiveProfile'
 import { useFlashPrefsStore } from '../store/useFlashPrefsStore'
@@ -29,12 +29,12 @@ export function FlashOverlay() {
   const [shown, setShown] = useState<FlashMessage | null>(null)
   const seen = useRef(new Set<string>())
 
-  // From the server: each message once, and only while it is fresh (not one that was sent
+  // From the host: each message once, and only while it is fresh (not one that was sent
   // minutes ago and arrives with the first snapshot after opening the app).
   useEffect(() => {
     if (!remote || seen.current.has(remote.id)) return
     seen.current.add(remote.id)
-    if (enabled && isForMe(remote, profileId) && isFresh(remote, getServerTime())) setShown(remote)
+    if (enabled && isForMe(remote, profileId) && isFresh(remote, getHostTime())) setShown(remote)
   }, [remote, enabled, profileId])
 
   useEffect(() => {

@@ -58,10 +58,10 @@ export function installShutdownHandlers(proc: Pick<EventEmitter, 'on'>, options:
 }
 
 /**
- * Remembers every open TLS connection of the server so a stop can drop them. Each tablet keeps
- * several SSE streams open that never end on their own, and the HTTP/2 server's `close()` waits
+ * Remembers every open TLS connection of the host so a stop can drop them. Each tablet keeps
+ * several SSE streams open that never end on their own, and the HTTP/2 host's `close()` waits
  * for open streams - so without this, `app.close()` would wait until the deadline. Tablets
- * reconnect on their own once the server is back.
+ * reconnect on their own once the host is back.
  */
 export function trackConnections(server: Pick<EventEmitter, 'on'>): () => void {
   const sockets = new Set<{ destroy: () => void } & Pick<EventEmitter, 'once'>>()

@@ -22,7 +22,7 @@ import { createTabletBandStore, type BandDatabase } from './tabletBandStore'
  * web server (LocalHostPlugin.java); the app answers it over the band database it already holds.
  * Passive at first - it answers only who it is, the lease and its status - and takes over when the
  * primary has been silent for 5 s and does not answer directly. Everything about *serving* a band
- * (sync, live channels, audio) follows the epoch the app pushes to the native server.
+ * (sync, live channels, audio) follows the epoch the app pushes to the native host.
  */
 
 /** The switch and the state that must survive a restart. */
@@ -59,7 +59,7 @@ interface LocalHostPlugin {
   /** The clock answer and the live channels are answered natively - they need the epoch and whether
    * this host serves the band, never the WebView. */
   setState: (options: { hostId: string; epoch: number; active: boolean; offsetMs: number; origins: string[]; servedBands: string[] }) => Promise<void>
-  /** Hands the native server the latest snapshot of a live channel; every open stream gets it, a new one gets it on connecting. */
+  /** Hands the native host the latest snapshot of a live channel; every open stream gets it, a new one gets it on connecting. */
   publish: (options: { channel: string; text: string }) => Promise<void>
   respond: (options: { id: string; status: number; contentType: string; text?: string; body?: string }) => Promise<void>
   addListener: (event: 'request', handler: (req: HostRequest) => void) => Promise<PluginListenerHandle>
@@ -96,7 +96,7 @@ const storedCode = (workspaceId: string) => {
   return stored?.workspaceId === workspaceId ? stored.accessCode : null
 }
 
-/** Bands deleted on this device - a deleted band is never founded again (#364), even without a server. */
+/** Bands deleted on this device - a deleted band is never founded again (#364), even without a host. */
 const DELETED_KEY = 'stageboard-deleted-bands'
 const readDeletedBands = (): string[] => {
   const ids = readJson<unknown>(DELETED_KEY)
@@ -145,12 +145,12 @@ let catchUp: CatchUp | null = null
 /** One native publish per served band (the presence store keys by band). */
 const presenceSubscriptions = new Map<string, () => void>()
 let catchingUp = false
-/** The bands this tablet founded: its native server relays their live channels whatever the lease says (#962). */
+/** The bands this tablet founded: its native host relays their live channels whatever the lease says (#962). */
 let servedBands: string[] = []
 /** Follows the app's active band while the host runs: the host is set up for one band at start (#962). */
 let unwatchBand: (() => void) | null = null
 let restarting = false
-/** Tells the native server at once - a band founded a moment ago must not wait for the next tick. */
+/** Tells the native host at once - a band founded a moment ago must not wait for the next tick. */
 const setServedBands = (bands: Iterable<string>) => {
   servedBands = [...bands].sort()
   lastPushed = ''
@@ -184,7 +184,7 @@ export function androidHostSwitchOn(): boolean {
 
 /**
  * Starts the tablet as a host, passive first. Without a band there is nothing to be the host of -
- * the switch reports that instead of starting a server that could never serve anything.
+ * the switch reports that instead of starting a host that could never serve anything.
  */
 export async function startAndroidHost(): Promise<void> {
   if (!isNativeApp()) return
@@ -242,7 +242,7 @@ export async function startAndroidHost(): Promise<void> {
     now: () => Date.now(),
   })
 
-  // Who is online and who is master - what a device needs to be confirmed as master; the native server relays it.
+  // Who is online and who is master - what a device needs to be confirmed as master; the native host relays it.
   const presence = createHostPresence({ now: () => machine.bandTime() })
   // What the tablet knows about each device (the Device Ledger, #958). It cannot ping, so reachable and name stay unknown.
   const deviceInfo = createHostDeviceInfo({ now: () => machine.bandTime() })
@@ -301,7 +301,7 @@ export async function startAndroidHost(): Promise<void> {
   const serving = createServing({ founded: () => founded, activeBand: () => (hasBand ? workspaceId : null), leaseActive: () => machine.state().active })
 
   // Presence (flash, Ready Check, heartbeat) and the Device Ledger are one store for all bands - they key by band - and
-  // the native server publishes each served band's channel, so its devices see the Ready Check and flash messages.
+  // the native host publishes each served band's channel, so its devices see the Ready Check and flash messages.
   const subscribePresence = (band: string) => {
     if (presenceSubscriptions.has(band)) return
     presenceSubscriptions.set(
@@ -412,7 +412,7 @@ export async function startAndroidHost(): Promise<void> {
         founded.add(band)
         setServedBands(founded)
         subscribePresence(band)
-        // The native server must know before the phone's next request: a founded band is served at once, not at the next tick (a
+        // The native host must know before the phone's next request: a founded band is served at once, not at the next tick (a
         // real tablet answered 503 for the first second - found by the device test, #964).
         await pushState(machine)
         return credentials
@@ -580,7 +580,7 @@ export async function startAndroidHost(): Promise<void> {
   listener = await LocalHost.addListener('request', (req) => {
     void (async () => {
       const body = req.text !== undefined ? (req.text === '' ? undefined : JSON.parse(req.text)) : { data: fromBase64(req.body ?? ''), contentType: req.contentType }
-      // The native server asks this before it relays a live channel: a device of this band, or nothing.
+      // The native host asks this before it relays a live channel: a device of this band, or nothing.
       const checkDb = loginCheckOf(req.path)
       if (checkDb !== null) {
         const ctx = await login(req.authorization, checkDb)
@@ -663,7 +663,7 @@ export async function startAndroidHost(): Promise<void> {
   }, SAMPLE_MS)
 }
 
-/** The switch off: the server stops listening, the epoch is kept for the next start. */
+/** The switch off: the host stops listening, the epoch is kept for the next start. */
 export async function stopAndroidHost(): Promise<void> {
   localStorage.setItem(SWITCH_KEY, 'off')
   running = false

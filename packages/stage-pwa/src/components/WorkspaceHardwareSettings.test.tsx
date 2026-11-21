@@ -11,8 +11,8 @@ vi.mock('pouchdb-browser', () => ({
 
 // The wizard has its own test file - mocked here so these tests cover only this section's job:
 // showing the current state and starting/closing the wizard.
-vi.mock('./SwitchServerBandWizard', () => ({
-  SwitchServerBandWizard: ({
+vi.mock('./SwitchHostBandWizard', () => ({
+  SwitchHostBandWizard: ({
     activeWorkspaceId,
     bands,
     onClose,
@@ -40,7 +40,7 @@ function stub(overrides: Partial<Parameters<typeof useWorkspaceStore.setState>[0
   useWorkspaceStore.setState({
     listWorkspaces: vi.fn().mockResolvedValue(workspaceList),
     fetchActiveWorkspaceHardware: vi.fn().mockResolvedValue({ activeWorkspaceId: 'band-a' }),
-    fetchServerInfo: vi.fn().mockResolvedValue({ lanIp: '192.168.1.50', hostname: 'stageboard.local' }),
+    fetchHostInfo: vi.fn().mockResolvedValue({ lanIp: '192.168.1.50', hostname: 'stageboard.local' }),
     ...overrides,
   })
 }
@@ -57,7 +57,7 @@ describe('WorkspaceHardwareSettings', () => {
   })
 
   it('shows the band as soon as its request is answered and marks that the rest is still being fetched', async () => {
-    stub({ fetchServerInfo: vi.fn().mockReturnValue(new Promise(() => {})) })
+    stub({ fetchHostInfo: vi.fn().mockReturnValue(new Promise(() => {})) })
     render(<WorkspaceHardwareSettings />)
 
     await waitFor(() => expect(screen.getByText('Abadschendaler')).toBeInTheDocument())
@@ -70,7 +70,7 @@ describe('WorkspaceHardwareSettings', () => {
     stub({
       listWorkspaces: vi.fn().mockImplementation(never),
       fetchActiveWorkspaceHardware: vi.fn().mockImplementation(never),
-      fetchServerInfo: vi.fn().mockImplementation(never),
+      fetchHostInfo: vi.fn().mockImplementation(never),
     })
     render(<WorkspaceHardwareSettings />)
     expect(screen.getByText('Lade…')).toBeInTheDocument()
@@ -95,7 +95,7 @@ describe('WorkspaceHardwareSettings', () => {
     stub({
       listWorkspaces: vi.fn().mockResolvedValue(null),
       fetchActiveWorkspaceHardware: vi.fn().mockResolvedValue(null),
-      fetchServerInfo: vi.fn().mockResolvedValue(null),
+      fetchHostInfo: vi.fn().mockResolvedValue(null),
     })
     render(<WorkspaceHardwareSettings />)
 

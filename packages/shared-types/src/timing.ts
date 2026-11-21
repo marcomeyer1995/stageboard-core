@@ -134,7 +134,7 @@ export const MeasureInputSchema = z.object({
 export type MeasureInput = z.infer<typeof MeasureInputSchema>
 
 /** The two measuring inputs: a microphone for speakers, a cable for headphones, in-ear and
- * Bluetooth receivers. Null: not set (the microphone then falls back to the server's default). */
+ * Bluetooth receivers. Null: not set (the microphone then falls back to the host's default). */
 export const MeasureInputsSchema = z.object({
   mic: MeasureInputSchema.nullable(),
   cable: MeasureInputSchema.nullable(),
@@ -171,7 +171,7 @@ export const CalibrationRunRequestSchema = z.object({
   count: z.number().int().min(6).max(24).optional(),
   /** Which measuring input listens (#662) - the microphone unless the device plays into a cable. */
   input: z.enum(['mic', 'cable']).optional(),
-  /** Only for the server log. */
+  /** Only for the host log. */
   deviceId: z.string().optional(),
 })
 export type CalibrationRunRequest = z.infer<typeof CalibrationRunRequestSchema>

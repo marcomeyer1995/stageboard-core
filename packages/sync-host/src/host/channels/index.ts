@@ -12,7 +12,7 @@ import type { StateField } from 'shared-types'
 /**
  * The live channels of a host (#962, step 2): show state, switch states, plugin health, presence, OSC in, the
  * point-to-point device trigger and Discovery Mode - **one port**, the same on every host. A transport only carries
- * what the channels say: the laptop writes each snapshot as a server-sent event, the tablet's native server relays
+ * what the channels say: the laptop writes each snapshot as a host-sent event, the tablet's native host relays
  * the same topics. Nothing of a channel is platform code; whether a device may *feed* one (OSC needs a UDP port,
  * Discovery a MIDI port) is a capability of the device (`GET /host/capabilities`), not of the channel.
  */

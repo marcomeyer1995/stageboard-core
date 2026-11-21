@@ -6,7 +6,7 @@ import { useDialogStore } from '../store/useDialogStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { AddRow, Button, Card, Dialog, Field, Section, Segmented, StatusDot, Switch } from './ui'
 import { useTranslation } from 'react-i18next'
-import { serverText } from '../lib/serverMessage'
+import { hostText } from '../lib/hostMessage'
 
 /** How long ago, in words. */
 function ago(iso: string, now = Date.now()): string {
@@ -41,9 +41,9 @@ const NEW_TARGET = (kind: BackupTarget['kind']): BackupTarget => ({
  * Where the Host backs itself up (#363, Marco 2026-10-08): one or several targets - a
  * folder (USB stick, second disk, ZFS, an OS-mounted NAS share) or a NAS over SSH. The server runs
  * them itself: daily at a time and when the stick is plugged in. Only for an admin of the band
- * this server serves (the server checks the admin login again).
+ * this host serves (the host checks the admin login again).
  */
-export function ServerBackupTargets() {
+export function HostBackupTargets() {
   const { t } = useTranslation('system')
   const workspace = useWorkspaceStore((s) => s.workspaces.find((w) => w.id === s.activeWorkspaceId))
   const alert = useDialogStore((s) => s.alert)
@@ -63,7 +63,7 @@ export function ServerBackupTargets() {
         body: JSON.stringify({ adminUsername: workspace.username, adminPassword: workspace.password, ...extra }),
       })
       const body = (await res.json().catch(() => null)) as { message?: string } | null
-      if (!res.ok) throw new Error(serverText(body) ?? t('bk.httpError', { status: res.status }))
+      if (!res.ok) throw new Error(hostText(body) ?? t('bk.httpError', { status: res.status }))
       return body
     },
     [workspace?.username, workspace?.password, t],
@@ -110,7 +110,7 @@ export function ServerBackupTargets() {
     setBusy(target.id)
     try {
       const r = (await call('test', { targetId: target.id })) as { ok: boolean; message: string; messageCode?: string }
-      const message = serverText(r) ?? r.message
+      const message = hostText(r) ?? r.message
       void alert(r.ok ? `✓ ${message}` : t('bk.notWorking', { message }))
     } catch (err) {
       void alert(err instanceof Error ? err.message : String(err))

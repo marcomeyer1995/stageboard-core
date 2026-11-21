@@ -34,7 +34,7 @@ export function LatencySummary({ deviceId }: { deviceId: string }) {
   return <p className="mt-2 text-sm text-ink-soft">{t('lat.summary', { list: profiles.map((p) => profileLabel(p, outputName)).join(' · ') })}</p>
 }
 
-/** A check passes when the click lands this close to the server second - above the laptop
+/** A check passes when the click lands this close to the host second - above the laptop
  * microphone's own capture bias and the session-to-session clock-sync offset (docs/21 §8). */
 const CHECK_TOLERANCE_MS = 15
 

@@ -17,7 +17,7 @@ import { DiscoveryBanner } from './components/DiscoveryBanner'
 import { JoinBandView } from './components/JoinBandView'
 import { AppUpdateBanner } from './components/AppUpdateBanner'
 import { PlaybackDrivers } from './components/PlaybackDrivers'
-import { followServerIfMoved, isNativeApp } from './lib/native'
+import { followHostIfMoved, isNativeApp } from './lib/native'
 import { LibraryView } from './components/LibraryView'
 import { ProfileRolePickerView } from './components/ProfileRolePickerView'
 import { confirmLeave, hasUnsavedChanges } from './lib/unsavedChanges'
@@ -124,11 +124,11 @@ function App() {
   useEffect(() => {
     if (reopenMenuEditing) setDashboardMenuOpen(true)
   }, [reopenMenuEditing])
-  // Native app: if the paired server moved to another address (new router at the venue), find it
+  // Native app: if the paired host moved to another address (new router at the venue), find it
   // by its certificate and follow (#351) - on start and whenever the network comes back.
   useEffect(() => {
     if (!isNativeApp()) return
-    const follow = () => void followServerIfMoved()
+    const follow = () => void followHostIfMoved()
     follow()
     window.addEventListener('online', follow)
     return () => window.removeEventListener('online', follow)
@@ -284,7 +284,7 @@ function App() {
   // needsJoin deliberately checks "no band at all" (`workspaces.length === 0`), not "no
   // credentials yet" (`!activeWorkspacePassword`) - see the Tier-A local-only-founding
   // follow-up: a solo-founded band has no credentials for a long time on purpose (never
-  // connected to a server), and that's a legitimate steady state, not an interrupted join.
+  // connected to a host), and that's a legitimate steady state, not an interrupted join.
   //
   // 2026-09-02 fifth follow-up, at Marco's explicit request, after this destroyed his real
   // S.O.A.T. workspace: `foundedHere` added here alongside `rosterSetupDone`, replacing an

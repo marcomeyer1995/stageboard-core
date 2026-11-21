@@ -6,7 +6,7 @@ import type { PluginHealth, PluginInstallation } from 'shared-types'
 const SERVER_NOW = 1_793_977_590_000
 const DEVICE_AHEAD_MS = 14_000
 
-vi.mock('./clockSync', () => ({ getServerTime: () => SERVER_NOW }))
+vi.mock('./clockSync', () => ({ getHostTime: () => SERVER_NOW }))
 vi.mock('./useMidiTrigger', () => ({ useMidiTrigger: () => ({ status: 'disconnected' }) }))
 vi.mock('./reportClientHealth', () => ({ reportClientHealth: async () => {} }))
 vi.mock('../store/useWorkspaceStore', () => ({ useWorkspaceStore: (select: (state: { activeWorkspaceId: string }) => unknown) => select({ activeWorkspaceId: 'band-a' }) }))

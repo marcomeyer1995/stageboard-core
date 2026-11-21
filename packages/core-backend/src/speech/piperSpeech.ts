@@ -4,7 +4,7 @@ import { existsSync } from 'node:fs'
 import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { basename, dirname, join } from 'node:path'
-import { serverMessage, type ServerMessageCode, type ServerMessageParams } from 'shared-types'
+import { hostMessage, type HostMessageCode, type HostMessageParams } from 'shared-types'
 import { readWav16Mono, trimSpeech, writeWav16Mono } from './wavTrim.js'
 
 /**
@@ -38,7 +38,7 @@ export function speechConfigFromEnv(env: NodeJS.ProcessEnv = process.env): Speec
   }
 }
 
-export type SpeechResult = { ok: true; wav: Buffer; generated: boolean } | { ok: false; reason: 'unavailable' | 'failed'; message: string; messageCode?: ServerMessageCode; messageParams?: ServerMessageParams }
+export type SpeechResult = { ok: true; wav: Buffer; generated: boolean } | { ok: false; reason: 'unavailable' | 'failed'; message: string; messageCode?: HostMessageCode; messageParams?: HostMessageParams }
 
 export class PiperSpeech {
   private queue: Promise<unknown> = Promise.resolve()
@@ -53,7 +53,7 @@ export class PiperSpeech {
     private readonly synthesize: (text: string, model: string, pace: number) => Promise<Uint8Array>,
   ) {}
 
-  /** Whether the Piper program is installed on this server. */
+  /** Whether the Piper program is installed on this host. */
   piperInstalled(): boolean {
     return existsSync(this.config.piperBin)
   }
@@ -64,7 +64,7 @@ export class PiperSpeech {
     return existsSync(file) && existsSync(`${file}.json`) ? file : null
   }
 
-  /** Whether Piper and the voice are installed on this server. */
+  /** Whether Piper and the voice are installed on this host. */
   available(voiceKey?: string): boolean {
     return this.piperInstalled() && this.voiceFile(voiceKey) !== null
   }
@@ -88,7 +88,7 @@ export class PiperSpeech {
     const file = join(this.config.cacheDir, `${key}.wav`)
     if (existsSync(file)) return { ok: true, wav: await readFile(file), generated: false }
     const model = this.voiceFile(voiceKey)
-    if (!this.piperInstalled() || !model) return { ok: false, reason: 'unavailable', ...serverMessage('speech.notInstalled', { voice: this.voiceName(voiceKey) }) }
+    if (!this.piperInstalled() || !model) return { ok: false, reason: 'unavailable', ...hostMessage('speech.notInstalled', { voice: this.voiceName(voiceKey) }) }
     const running = this.inFlight.get(key)
     if (running) return running
     // One Piper at a time: a song's clips are requested together, the laptop must keep its CPU for audio.

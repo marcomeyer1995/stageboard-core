@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { AsyncJobSchema, messageFieldsOf, ServerMessageError, type AsyncJob, type AudioImportJob, type OpusConvertJob, type StemSeparationJob, type TrackMeta } from 'shared-types'
+import { AsyncJobSchema, messageFieldsOf, HostMessageError, type AsyncJob, type AudioImportJob, type OpusConvertJob, type StemSeparationJob, type TrackMeta } from 'shared-types'
 import { allDocs, getDoc, putDocWithRetry, waitForChange, type DatabaseConfig, type DatabaseDoc } from './database.js'
 import { workspaceDbName } from './workspaceProvisioning.js'
 import { deleteAudioFile, isSafeAudioId, readAudioFile, writeAudioFile } from './audioStore.js'
@@ -96,7 +96,7 @@ export function createAsyncJobWatcher(options: AsyncJobWatcherOptions): AsyncJob
   let stopped = false
   let currentJobId: string | null = null
 
-  /** What the server ever writes into a job - the fields every job type shares, plus its result. */
+  /** What the host ever writes into a job - the fields every job type shares, plus its result. */
   type JobPatch = Partial<Pick<AsyncJob, 'status' | 'progress' | 'error' | 'errorCode' | 'errorParams' | 'runner'>> & { trackId?: string; stemTrackIds?: string[] }
 
   /** The `error` patch for a failure: the German text, plus its code when it has one (#679). */
@@ -119,7 +119,7 @@ export function createAsyncJobWatcher(options: AsyncJobWatcherOptions): AsyncJob
   async function appendTrack(variantId: string, meta: TrackMeta): Promise<void> {
     const docId = `${SONG_VARIANT_PREFIX}${variantId}`
     await putDocWithRetry<Record<string, unknown> & DatabaseDoc>(database, workspaceDb, docId, (existing) => {
-      if (!existing) throw new ServerMessageError('job.variantGone')
+      if (!existing) throw new HostMessageError('job.variantGone')
       const tracks: unknown[] = Array.isArray(existing.tracks) ? existing.tracks : []
       return { ...existing, tracks: [...tracks, meta] }
     })
@@ -178,7 +178,7 @@ export function createAsyncJobWatcher(options: AsyncJobWatcherOptions): AsyncJob
   async function replaceStems(variantId: string, sourceTrackId: string, stems: TrackMeta[]): Promise<string[]> {
     let replaced: string[] = []
     await putDocWithRetry<Record<string, unknown> & DatabaseDoc>(database, workspaceDb, `${SONG_VARIANT_PREFIX}${variantId}`, (existing) => {
-      if (!existing) throw new ServerMessageError('job.variantGone')
+      if (!existing) throw new HostMessageError('job.variantGone')
       const tracks = (Array.isArray(existing.tracks) ? existing.tracks : []) as Record<string, unknown>[]
       const isOldStem = (t: Record<string, unknown>) => t.kind === 'stem' && t.parentTrackId === sourceTrackId
       replaced = tracks.filter(isOldStem).map((t) => String(t.id))
@@ -303,7 +303,7 @@ export function createAsyncJobWatcher(options: AsyncJobWatcherOptions): AsyncJob
   async function failJobsLeftRunning(): Promise<void> {
     for (const stuck of stuckJobsOfHost(await loadJobs(), hostId, currentJobId, options.needsOf)) {
       log.error('Async job was left running by a previous process - marking it failed', { jobId: stuck.id })
-      await patchJob(stuck.id, errorPatch(new ServerMessageError('job.interrupted')))
+      await patchJob(stuck.id, errorPatch(new HostMessageError('job.interrupted')))
     }
   }
 

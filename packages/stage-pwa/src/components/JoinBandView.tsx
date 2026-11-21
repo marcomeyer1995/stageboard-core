@@ -2,9 +2,9 @@ import { useSettledVisualViewport, visibleArea } from '../lib/useVisualViewport'
 import { useEffect, useRef, useState } from 'react'
 import type { WorkspaceRoster, WorkspaceSummary } from 'shared-types'
 import { decodeQrFrame, parseJoinPayload, type JoinPayload } from '../lib/qrCode'
-import { isNativeApp, pairingConfirmation, pairWithServer, serverFingerprint } from '../lib/native'
+import { isNativeApp, pairingConfirmation, pairWithHost, hostFingerprint } from '../lib/native'
 import { useHostUrlStore } from '../store/useHostUrlStore'
-import { NetworkServerList } from './NetworkServerList'
+import { NetworkHostList } from './NetworkHostList'
 import { useActiveProfileStore } from '../store/useActiveProfileStore'
 import { useDialogStore } from '../store/useDialogStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
@@ -93,7 +93,7 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
   // The native app (#348) pairs with a Host first - its own origin isn't one.
   const native = isNativeApp()
   const serverUrl = useHostUrlStore((state) => state.url)
-  const [serverAddress, setServerAddress] = useState('')
+  const [serverAddress, setHostAddress] = useState('')
   const [connectError, setConnectError] = useState<string | null>(null)
 
   const [cameraStatus, setCameraStatus] = useState<CameraStatus>('idle')
@@ -136,7 +136,7 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
 
   useEffect(() => stopCamera, [])
 
-  // The server already hosts a band (#364): founding another needs an admin login this device
+  // The host already hosts a band (#364): founding another needs an admin login this device
   // doesn't have yet.
   const workspacesExist = !!workspaces && workspaces.length > 0
 
@@ -148,13 +148,13 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
   }
 
   useEffect(() => {
-    // The native app without a paired server has nothing to ask yet - pairing loads the list.
+    // The native app without a paired host has nothing to ask yet - pairing loads the list.
     if (native && !serverUrl) return
     void loadWorkspaces()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  /** Native app: trust the server by the certificate it presents (after the user confirms its
+  /** Native app: trust the host by the certificate it presents (after the user confirms its
    * fingerprint) and use it - for a typed-in address, without a QR code. */
   async function connectByAddress() {
     const host = serverAddress.trim().replace(/^https?:\/\//, '').replace(/\/.*$/, '')
@@ -162,7 +162,7 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
     setConnectError(null)
     let fingerprint: string
     try {
-      fingerprint = await serverFingerprint(host)
+      fingerprint = await hostFingerprint(host)
     } catch {
       setConnectError(t('join.noServerAt', { host }))
       return
@@ -170,7 +170,7 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
     const question = pairingConfirmation(host, host, fingerprint)
     const trusted = await confirm(question.message, { title: question.title, confirmLabel: t('connect') })
     if (!trusted) return
-    await pairWithServer(host, fingerprint)
+    await pairWithHost(host, fingerprint)
     await loadWorkspaces()
   }
 
@@ -181,7 +181,7 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
         setConnectError(t('join.noServerId'))
         return
       }
-      await pairWithServer(payload.host, payload.fingerprint)
+      await pairWithHost(payload.host, payload.fingerprint)
     }
     await handleFetchRoster(payload.workspaceId, payload.code)
   }
@@ -459,7 +459,7 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
             ) : (
               <p className="text-sm text-ink-muted">{t('join.serverHint')}</p>
             )}
-            {/* Already paired (#377): the address field is only for switching to another server,
+            {/* Already paired (#377): the address field is only for switching to another host,
                 so it folds away instead of looking like a step that still has to be done. */}
             {serverUrl ? (
               <details>
@@ -468,7 +468,7 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
                 <div className="flex gap-2">
                   <input
                     value={serverAddress}
-                    onChange={(e) => setServerAddress(e.target.value)}
+                    onChange={(e) => setHostAddress(e.target.value)}
                     placeholder="192.168.178.158"
                     inputMode="url"
                     className={`h-form min-w-0 flex-1 min-w-0 px-3 text-base ${INPUT_FREE}`}
@@ -480,7 +480,7 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
                 </div>
                 {connectError && <p className="text-sm text-warn">{connectError}</p>}
                 {/* #351: servers announcing themselves - searched right away while not yet paired. */}
-                <NetworkServerList autoSearch={!serverUrl} onPaired={() => void loadWorkspaces()} />
+                <NetworkHostList autoSearch={!serverUrl} onPaired={() => void loadWorkspaces()} />
                 </div>
               </details>
             ) : (
@@ -488,7 +488,7 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
               <div className="flex gap-2">
                 <input
                   value={serverAddress}
-                  onChange={(e) => setServerAddress(e.target.value)}
+                  onChange={(e) => setHostAddress(e.target.value)}
                   placeholder="192.168.178.158"
                   inputMode="url"
                   className={`h-form min-w-0 flex-1 min-w-0 px-3 text-base ${INPUT_FREE}`}
@@ -500,7 +500,7 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
               </div>
               {connectError && <p className="text-sm text-warn">{connectError}</p>}
               {/* #351: servers announcing themselves - searched right away while not yet paired. */}
-              <NetworkServerList autoSearch={!serverUrl} onPaired={() => void loadWorkspaces()} />
+              <NetworkHostList autoSearch={!serverUrl} onPaired={() => void loadWorkspaces()} />
               </>
             )}
           </form>
@@ -573,7 +573,7 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
           <div className="h-px flex-1 bg-line" />
         </div>
 
-        {/* #364: once the server has a band, only an admin of one can found another - a device on
+        {/* #364: once the host has a band, only an admin of one can found another - a device on
             this screen has no admin login, so offering it here could only fail. The first band
             on a fresh server (or a band without any server) is still founded here. */}
         {workspacesExist ? (

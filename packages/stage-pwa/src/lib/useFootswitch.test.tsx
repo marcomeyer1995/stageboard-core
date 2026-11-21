@@ -36,7 +36,7 @@ vi.mock('../store/useLogicalDevicesStore', () => {
 })
 
 const { useFootswitch } = await import('./useFootswitch')
-const { getServerTime } = await import('./clockSync')
+const { getHostTime } = await import('./clockSync')
 const { useKeybindingsStore } = await import('../store/useKeybindingsStore')
 const { KeybindingSettings } = await import('../components/KeybindingSettings')
 const { ONE_BUTTON_SHOW, PROMPTER_SCROLL_EVENT, bindingFromV2 } = await import('./keybindings')
@@ -222,7 +222,7 @@ describe('pedal press and release (docs/23 §4a) and rights (§5a)', () => {
     vi.useFakeTimers()
     useKeybindingsStore.setState({ bindings: [{ key: 't', behavior: { kind: 'momentary', press: blinder(true), release: { kind: 'after', amount: 2, unit: 'bars', action: blinder(false) } } }] })
     renderHook(() => useFootswitch(true))
-    const pressedAt = getServerTime()
+    const pressedAt = getHostTime()
     fireEvent.keyDown(window, { key: 't' })
     fireEvent.keyUp(window, { key: 't' })
     // Handed over 1 s ahead with its moment: 2 bars at 120 bpm 4/4 = 4 s after the press.

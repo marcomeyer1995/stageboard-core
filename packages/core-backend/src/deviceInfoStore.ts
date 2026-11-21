@@ -26,7 +26,7 @@ export const patchEntry = (...args: Parameters<HostDeviceInfo['patchEntry']>) =>
 export const subscribe = (...args: Parameters<HostDeviceInfo['subscribe']>) => store.subscribe(...args)
 export const allEntries = () => store.allEntries()
 
-/** Test-only: this instance is shared across the whole process by design (one server, many bands) - tests need
+/** Test-only: this instance is shared across the whole process by design (one host, many bands) - tests need
  * a way to reset it between runs. */
 export function __resetDeviceInfoStoreForTests(now: () => number = () => Date.now()): void {
   store = createHostDeviceInfo({ now })

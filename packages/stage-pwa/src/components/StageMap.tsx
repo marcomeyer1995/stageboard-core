@@ -920,7 +920,7 @@ export function StageMap() {
               <span className="text-base text-ink-muted">{subtitle(selectedNode)}</span>
               {selectedNode.deviceId === ownId && <Badge tone="accent">{t('stage.thisDevice')}</Badge>}
             </div>
-            {/* The host: its server plugins, installable where it can run them (docs/25 §6). */}
+            {/* The host: its host plugins, installable where it can run them (docs/25 §6). */}
             {(selectedNode.kind === 'host-computer' || appsOf(selectedNode).some((id) => isHostTarget(id, targetWorld))) && <HostPlugins canInstall={canEdit} />}
             {(selectedNode.kind === 'host-computer' || appsOf(selectedNode).some((id) => isHostTarget(id, targetWorld))) && <HostRole boxId={selectedNode.id} canEdit={canEdit} />}
             {appsOf(selectedNode).length > 1 && (

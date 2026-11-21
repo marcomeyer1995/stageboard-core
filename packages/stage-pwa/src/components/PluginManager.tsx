@@ -4,7 +4,7 @@ import { API_VERSION_MISMATCH_CODE, apiVersionFits, HEALTH_TIMEOUT_MS, type Plug
 import { usePluginsStore } from '../store/usePluginsStore'
 import { capabilitiesLabel, installableCatalog, isTestPlugin, pluginKind, type PluginKind } from '../lib/pluginCatalog'
 import { useDialogStore } from '../store/useDialogStore'
-import { useServerNow } from '../lib/useNow'
+import { useHostNow } from '../lib/useNow'
 import { AnnouncementTextsDialog } from './AnnouncementTextsDialog'
 import { SpeechVoiceDialog } from './SpeechVoiceDialog'
 import { RepositoryAddonInstall } from './RepositoryAddonInstall'
@@ -34,7 +34,7 @@ export function PluginManager({ kind = 'extensions' }: { kind?: PluginKind }) {
   const confirm = useDialogStore((state) => state.confirm)
   // `lastSeenAt` is the Host's stamp - compared in its time, not this device's (the Fire's clock
   // runs 18 s fast: every add-on read "Heartbeat veraltet", 2026-11-14).
-  const now = useServerNow()
+  const now = useHostNow()
   const [settingsOf, setSettingsOf] = useState<string | null>(null)
   // Only the admin installs from a repository (docs/32 §12a) - the host refuses anyone else too.
   const workspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)

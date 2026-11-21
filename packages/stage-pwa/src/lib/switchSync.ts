@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { SwitchStateEventSchema, type SwitchStateEvent } from 'shared-types'
-import { getServerTime } from './clockSync'
+import { getHostTime } from './clockSync'
 import { getDeviceId } from './deviceId'
 import { useShowModeOnDemand } from './showMode'
 import { getHostUrl } from './hostUrl'
@@ -45,7 +45,7 @@ export function useSwitchSync(): void {
     if (!workspaceId) return
     const deviceId = getDeviceId()
     resetTriggerState()
-    setSwitchPublisher((switchId, kind) => send(workspaceId, { deviceId, switchId, kind, at: getServerTime() }))
+    setSwitchPublisher((switchId, kind) => send(workspaceId, { deviceId, switchId, kind, at: getHostTime() }))
 
     const streamUrl = url(workspaceId, 'stream')
     const source = streamUrl && typeof EventSource !== 'undefined' ? new EventSource(streamUrl) : null
@@ -60,7 +60,7 @@ export function useSwitchSync(): void {
       }
     }
     const tick = setInterval(() => {
-      for (const switchId of switchesHeldHere()) send(workspaceId, { deviceId, switchId, kind: 'held', at: getServerTime() })
+      for (const switchId of switchesHeldHere()) send(workspaceId, { deviceId, switchId, kind: 'held', at: getHostTime() })
       expireRemoteHolders(latest.current, drivesAutomation(useShowStateStore.getState()))
     }, HEARTBEAT_MS)
     return () => {

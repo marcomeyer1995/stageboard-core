@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { getServerTime } from './clockSync'
+import { getHostTime } from './clockSync'
 
 /**
  * Re-renders on a fixed interval and returns the current epoch ms. Needed because some
@@ -25,11 +25,11 @@ export function useNow(intervalMs = 5_000): number {
  * all server capabilities flipped to "degraded" and back every 5 s, the Master logged each flip,
  * and the sync indicator never settled.
  */
-export function useServerNow(intervalMs = 5_000): number {
-  const [now, setNow] = useState(() => getServerTime())
+export function useHostNow(intervalMs = 5_000): number {
+  const [now, setNow] = useState(() => getHostTime())
 
   useEffect(() => {
-    const timer = setInterval(() => setNow(getServerTime()), intervalMs)
+    const timer = setInterval(() => setNow(getHostTime()), intervalMs)
     return () => clearInterval(timer)
   }, [intervalMs])
 

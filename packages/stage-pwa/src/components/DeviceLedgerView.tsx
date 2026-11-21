@@ -2,7 +2,7 @@ import i18n from '../i18n'
 import { useTargetWorld } from '../lib/targetWorld'
 import { useEffect, useRef, useState } from 'react'
 import { DEVICE_INFO_TIMEOUT_MS, hostTargetOf, type AudioOutputHealth, type Device, type DeviceVitalsSummary, type LogicalDevice } from 'shared-types'
-import { getServerTime } from '../lib/clockSync'
+import { getHostTime } from '../lib/clockSync'
 import { useNow } from '../lib/useNow'
 import { useHostUrlStatus } from '../lib/useHostUrlStatus'
 import { useDeviceInfoStore } from '../store/useDeviceInfoStore'
@@ -19,7 +19,7 @@ import { useTranslation } from 'react-i18next'
 
 /** How long the Host has to collect reports before a missing one means "inactive". */
 const COLLECT_MS = 5 * 60 * 1000
-/** Fallback for an older server (no `collectingSince`): seen this recently = not inactive. */
+/** Fallback for an older host (no `collectingSince`): seen this recently = not inactive. */
 const RECENT_MS = 24 * 60 * 60 * 1000
 
 const ENVIRONMENTS = ['browser', 'pwa', 'native'] as const
@@ -162,16 +162,16 @@ export function DeviceLedgerView() {
     return BUILT_IN_OUTPUTS.find((output) => output.capability === device.capability)?.label ?? device.name
   }
   /** Live signal (app open or reachable). Right after a Host start no device has reported
-   * yet - then every device would look inactive (found on the real server, 2026-10-07), so
-   * missing reports only count once the server has collected for a while; an older server
+   * yet - then every device would look inactive (found on the real host, 2026-10-07), so
+   * missing reports only count once the host has collected for a while; an older host
    * without `collectingSince` falls back to "not seen for a day". */
   // `collectingSince` and the reports' `lastSeenAt` are the Host's clock - compared in
   // server time, so a tablet clock that is off doesn't shift the window (#426 review).
-  const serverNow = now - Date.now() + getServerTime()
-  const collectedLongEnough = deviceInfo.collectingSince !== undefined && serverNow - deviceInfo.collectingSince >= COLLECT_MS
+  const hostNow = now - Date.now() + getHostTime()
+  const collectedLongEnough = deviceInfo.collectingSince !== undefined && hostNow - deviceInfo.collectingSince >= COLLECT_MS
   const isActive = (device: Device) => {
     const info = deviceInfo.devices[device.id]
-    if (info && (serverNow - info.lastSeenAt <= DEVICE_INFO_TIMEOUT_MS || info.networkReachable === true)) return true
+    if (info && (hostNow - info.lastSeenAt <= DEVICE_INFO_TIMEOUT_MS || info.networkReachable === true)) return true
     if (collectedLongEnough) return false
     return deviceInfo.collectingSince !== undefined || now - device.lastSeenAt < RECENT_MS
   }
@@ -274,7 +274,7 @@ export function DeviceLedgerView() {
       <div className="flex flex-col gap-2">
         {sorted.map((device) => {
           const info = deviceInfo.devices[device.id]
-          const appOpen = info ? serverNow - info.lastSeenAt <= DEVICE_INFO_TIMEOUT_MS : false
+          const appOpen = info ? hostNow - info.lastSeenAt <= DEVICE_INFO_TIMEOUT_MS : false
           const used = usedBy(device.id)
 
           return (

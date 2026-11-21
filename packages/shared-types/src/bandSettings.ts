@@ -62,7 +62,7 @@ export const BandSettingsSchema = z.object({
    * DEFAULT_PLAY_LEAD_MS. Long enough for the Play to reach every device and for the slowest output
    * to schedule it (Marco, 2026-11-06: set it in Bühne, a device that needed more says so). */
   playLeadMs: z.number().int().optional(),
-  /** The primary host and the backup devices may follow (#912); absent: the one paired server only. */
+  /** The primary host and the backup devices may follow (#912); absent: the one paired host only. */
   hosts: BandHostsSchema.optional(),
 })
 export type BandSettings = z.infer<typeof BandSettingsSchema>

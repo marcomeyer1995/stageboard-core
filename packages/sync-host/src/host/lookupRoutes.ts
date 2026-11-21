@@ -1,4 +1,4 @@
-import type { ServerMessage } from 'shared-types'
+import type { HostMessage } from 'shared-types'
 import type { HostRoute, HostRouteResponse } from './routes.js'
 
 /**
@@ -14,7 +14,7 @@ export interface LookupPorts {
   search(provider: string, query: string): Promise<unknown | null>
   fetchDetail(provider: string, resultId: string): Promise<unknown | null>
   /** Why this band may not use this provider (its add-on is missing), or null. `workspace` is the band the app says it asks for. */
-  refusal(provider: string, workspace: string | undefined): Promise<ServerMessage | null>
+  refusal(provider: string, workspace: string | undefined): Promise<HostMessage | null>
   /** The body of a failed look-up (its code and message). */
   errorBody(err: unknown): unknown
   log?: { error: (meta: Record<string, unknown>, message: string) => void }

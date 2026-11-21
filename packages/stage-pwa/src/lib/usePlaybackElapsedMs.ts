@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
-import { getServerTime } from './clockSync'
+import { getHostTime } from './clockSync'
 import { computeActiveMs } from './playbackTransport'
 import { useShowStateStore } from '../store/useShowStateStore'
 
 /**
  * Ticks with the current entry's synced active-playback elapsed time - ShowState-backed
  * (ShowTransportWidget.tsx), so every tablet in the workspace agrees on it, using each
- * tablet's own clockSync.ts offset (getServerTime()) rather than trusting one device's raw
+ * tablet's own clockSync.ts offset (getHostTime()) rather than trusting one device's raw
  * clock. Returns null while playbackStatus is 'stopped' (nothing live is running), so callers
  * fall back to a local clock for non-live contexts - e.g. BackingTrackPlayerWidget's
  * home-practice pairing with PrompterWidget never touches ShowState.playbackStatus at all, so
@@ -16,7 +16,7 @@ import { useShowStateStore } from '../store/useShowStateStore'
 export function gigElapsedMsNow(): number | null {
   const { playbackStatus: status, playbackStartedAt: startedAt, playbackAccumulatedMs: accumulatedMs, playbackJump: jump } = useShowStateStore.getState().state
   if (status === 'stopped') return null
-  return computeActiveMs({ status, startedAt, accumulatedMs, jump }, getServerTime())
+  return computeActiveMs({ status, startedAt, accumulatedMs, jump }, getHostTime())
 }
 
 export function usePlaybackElapsedMs(): number | null {
@@ -39,5 +39,5 @@ export function usePlaybackElapsedMs(): number | null {
   }, [status])
 
   if (status === 'stopped') return null
-  return computeActiveMs({ status, startedAt, accumulatedMs, jump }, getServerTime())
+  return computeActiveMs({ status, startedAt, accumulatedMs, jump }, getHostTime())
 }

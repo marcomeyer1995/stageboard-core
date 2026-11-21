@@ -1,5 +1,5 @@
 import type { ShowControlEvent, ShowControlResult } from 'shared-types'
-import { serverText } from './serverMessage'
+import { hostText } from './hostMessage'
 import { getHostUrl, NO_HOST_MESSAGE } from './hostUrl'
 
 /** The low-latency cue channel CueGrid/ShowPlaybackWidget's comments have been waiting for. */
@@ -17,9 +17,9 @@ export async function triggerShowControl(
       body: JSON.stringify(event),
     })
     const body = (await response.json()) as ShowControlResult
-    if (!response.ok) return { status: 'error', message: serverText(body) ?? `HTTP ${response.status}` }
+    if (!response.ok) return { status: 'error', message: hostText(body) ?? `HTTP ${response.status}` }
     // A plugin's own error (OSC, Demucs, ...) comes with status 200 - in this device's language too (#679).
-    return body.status === 'error' ? { ...body, message: serverText(body) } : body
+    return body.status === 'error' ? { ...body, message: hostText(body) } : body
   } catch (err) {
     return { status: 'error', message: err instanceof Error ? err.message : String(err) }
   }

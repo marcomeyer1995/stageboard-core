@@ -65,8 +65,8 @@ describe('cues while practising (#799 step 4)', () => {
     expect(sent()).toEqual(['verse'])
     act(() => void vi.advanceTimersByTime(200))
     expect(sent()).toEqual(['verse', 'chorus'])
-    const ctx = world.fireCue.mock.calls[1]![1] as { sendsServerCues: boolean; timing: { scheduledAt: number } }
-    expect(ctx.sendsServerCues).toBe(false)
+    const ctx = world.fireCue.mock.calls[1]![1] as { sendsHostCues: boolean; timing: { scheduledAt: number } }
+    expect(ctx.sendsHostCues).toBe(false)
     // Song time 4 s after a start at 1 000 000, in server time (no offset in the test).
     expect(ctx.timing.scheduledAt).toBe(1_004_000)
     await act(async () => {})

@@ -1,4 +1,4 @@
-import { ServerMessageError, type StemRole, type StemSeparationJob, type TrackMeta } from 'shared-types'
+import { HostMessageError, type StemRole, type StemSeparationJob, type TrackMeta } from 'shared-types'
 import { createProgressWriter } from './progress.js'
 import { errorPatch, type JobPatch } from './trackFormat.js'
 
@@ -70,15 +70,15 @@ export async function runStemSeparation(job: StemSeparationJob, ctx: StemJobCont
   const written: string[] = []
   const progress = createProgressWriter({ patch: ctx.patchJob, intervalMs: ctx.progressIntervalMs ?? 1_500, now: () => ctx.now(), onError: (err) => log.error('Failed to write job progress', { jobId: job.id, error: String(err) }) })
   try {
-    if (!ctx.isSafeId(job.variantId) || !ctx.isSafeId(job.sourceTrackId)) throw new ServerMessageError('job.invalidIds')
-    if (!(await ctx.bandHasStemPlugin())) throw new ServerMessageError('job.stemPluginMissing')
+    if (!ctx.isSafeId(job.variantId) || !ctx.isSafeId(job.sourceTrackId)) throw new HostMessageError('job.invalidIds')
+    if (!(await ctx.bandHasStemPlugin())) throw new HostMessageError('job.stemPluginMissing')
     await ctx.patchJob({ status: 'running', progress: 0 })
     const variant = await ctx.readVariant(job.variantId)
-    if (!variant) throw new ServerMessageError('job.variantGone')
+    if (!variant) throw new HostMessageError('job.variantGone')
     const source = ((Array.isArray(variant.tracks) ? variant.tracks : []) as Record<string, unknown>[]).find((t) => t.id === job.sourceTrackId)
-    if (!source) throw new ServerMessageError('job.trackGone')
+    if (!source) throw new HostMessageError('job.trackGone')
     const audio = await ctx.readAudio(job.variantId, job.sourceTrackId)
-    if (!audio) throw new ServerMessageError('job.audioMissing')
+    if (!audio) throw new HostMessageError('job.audioMissing')
 
     const separated = await ctx.separate(audio, { model: job.model, splitGuitar: job.splitGuitar }, (fraction) => progress.report(fraction))
     dispose = separated.dispose

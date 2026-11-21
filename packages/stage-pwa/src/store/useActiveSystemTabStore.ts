@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 
-/** Sorted by scope (System split, 2026-10-16): this device, the band, the server, then the rest.
+/** Sorted by scope (System split, 2026-10-16): this device, the band, the host, then the rest.
  * 'hardware' = Bühnentechnik, 'devices' = Tablets & Handys, 'plugins' = Add-ons. */
 export type SystemTab = 'device' | 'band' | 'hardware' | 'devices' | 'rigcheck' | 'server' | 'plugins' | 'debug'
 

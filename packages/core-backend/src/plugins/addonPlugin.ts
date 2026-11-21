@@ -1,4 +1,4 @@
-import { serverMessage, type IShowControlPlugin, type PluginContext, type ShowControlEvent, type ShowControlResult } from 'shared-types'
+import { hostMessage, type IShowControlPlugin, type PluginContext, type ShowControlEvent, type ShowControlResult } from 'shared-types'
 import { addonMissingTool } from '../addons/helpers.js'
 import type { AddonInfo } from '../addons/addonMethods.js'
 
@@ -20,10 +20,10 @@ export function createAddonPlugin(info: AddonInfo): IShowControlPlugin {
       else ctx.log.info(`${info.pluginId} ready`)
     },
     async trigger(event: ShowControlEvent): Promise<ShowControlResult> {
-      if (event.type !== 'test') return { status: 'error', ...serverMessage('plugin.unknownEvent', { plugin: info.pluginId, type: event.type }) }
+      if (event.type !== 'test') return { status: 'error', ...hostMessage('plugin.unknownEvent', { plugin: info.pluginId, type: event.type }) }
       const missing = addonMissingTool(info.helpers)
       context?.log.info(`${info.pluginId} test`, { ok: missing === null })
-      return missing === null ? { status: 'ok' } : { status: 'error', ...serverMessage('addon.toolMissing', { tool: missing, addon: info.pluginId }) }
+      return missing === null ? { status: 'ok' } : { status: 'error', ...hostMessage('addon.toolMissing', { tool: missing, addon: info.pluginId }) }
     },
   }
 }

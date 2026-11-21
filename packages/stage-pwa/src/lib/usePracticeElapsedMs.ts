@@ -5,7 +5,7 @@ import { useWorkspaceStore } from '../store/useWorkspaceStore'
 
 /** Practice mode's counterpart to usePlaybackElapsedMs.ts - same tick/compute logic, just off
  * the local practice state instead of synced ShowState, and plain Date.now() rather than
- * clockSync.ts's getServerTime() (there's only ever one device involved, nothing to
+ * clockSync.ts's getHostTime() (there's only ever one device involved, nothing to
  * cross-tablet-synchronize). Returns null while stopped, same "nothing to show" contract.
  * A section jump (#479) continues the clock at its target, the loop trainer's speed (#683) is the
  * transport's `rate`. */

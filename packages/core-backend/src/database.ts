@@ -67,7 +67,7 @@ export async function deleteDb(config: DatabaseConfig, db: string): Promise<void
 export interface DatabaseSecurityDoc {
   /** Database-level admins (see #56) - can administer this one database (e.g. change its own
    * `_security`), still scoped to just this database, not server admins. NOT automatically
-   * exempt from `validate_doc_update` the way a true server admin is (verified live against a
+   * exempt from `validate_doc_update` the way a true host admin is (verified live against a
    * real the database instance) - workspaceProvisioning.ts's roster validator checks `userCtx.roles`
    * explicitly rather than relying on that.
    *

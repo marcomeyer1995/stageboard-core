@@ -65,7 +65,7 @@ export interface StageLiveInput {
   /** Server time, ms. */
   now: number
   /** Whether the Host answers - null: none is set, or not asked yet. */
-  serverReachable: boolean | null
+  hostReachable: boolean | null
   health: PluginHealth
   ownDeviceId: string
   /** What this device sees itself, fresher than its report - null when not known. */
@@ -113,7 +113,7 @@ function appOf(box: StageEquipment, front: Readonly<Record<string, string>>, hos
  *   latency value of what runs over it is.
  */
 export function stageLive(input: StageLiveInput): StageLive {
-  const { equipment, setup, flows, outputs, builtInIds, deviceInfo, now, serverReachable, health, ownDeviceId, ownMidiOutputs, ownSilenced, front, profiles } = input
+  const { equipment, setup, flows, outputs, builtInIds, deviceInfo, now, hostReachable, health, ownDeviceId, ownMidiOutputs, ownSilenced, front, profiles } = input
   const hostApp = input.hostApp ?? LEGACY_HOST_TARGET
   const byId = new Map(equipment.map((e) => [e.id, e]))
   const fresh = (id: string): DeviceInfoEntry | null => {
@@ -203,7 +203,7 @@ export function stageLive(input: StageLiveInput): StageLive {
   for (const e of equipment) {
     const notes: LiveNote[] = []
     if (e.kind === 'host-computer') {
-      notes.push(serverReachable === null ? { status: 'off', key: 'noServer' } : serverReachable ? { status: 'ok', key: 'serverOnline' } : { status: 'error', key: 'serverOffline' })
+      notes.push(hostReachable === null ? { status: 'off', key: 'noServer' } : hostReachable ? { status: 'ok', key: 'serverOnline' } : { status: 'error', key: 'serverOffline' })
     } else if (e.kind === 'stageboard') {
       const apps = appsOf(e)
       if (apps.length === 0) notes.push({ status: 'off', key: 'placeholder' })

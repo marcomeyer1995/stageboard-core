@@ -1170,7 +1170,7 @@ describe('fetchActiveWorkspaceAdmins', () => {
   })
 })
 
-describe('fetchServerInfo', () => {
+describe('fetchHostInfo', () => {
   beforeEach(() => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     ;(import.meta.env as any).VITE_HOST_URL = 'https://host-computer:3001'
@@ -1183,7 +1183,7 @@ describe('fetchServerInfo', () => {
   it('fetches the server\'s own LAN IP and hostname', async () => {
     const fetchMock = stubFetch({ ok: true, status: 200, json: async () => ({ lanIp: '192.168.1.50', hostname: 'stageboard.local' }) })
 
-    const result = await useWorkspaceStore.getState().fetchServerInfo()
+    const result = await useWorkspaceStore.getState().fetchHostInfo()
 
     expect(result).toEqual({ lanIp: '192.168.1.50', hostname: 'stageboard.local' })
     expect(fetchMock.mock.calls[0][0]).toBe('https://host-computer:3001/host/info')
@@ -1191,7 +1191,7 @@ describe('fetchServerInfo', () => {
 
   it('returns null when the Host is unreachable', async () => {
     stubFetch(null)
-    expect(await useWorkspaceStore.getState().fetchServerInfo()).toBeNull()
+    expect(await useWorkspaceStore.getState().fetchHostInfo()).toBeNull()
   })
 })
 

@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { isSongEntry, isTransitionEntry, type ShowState } from 'shared-types'
 import { cachedQueue, computeQueue, type Queue } from './computeQueue'
-import { getServerTime } from './clockSync'
+import { getHostTime } from './clockSync'
 import { randomId } from './id'
 import { clickTimeline } from './beatGrid'
 import { barMsAt, countInLeadMs, LIVE_TEMPO_ADJUST_LIMIT_PERCENT } from './metronome'
@@ -123,7 +123,7 @@ function showBookkeepingPatch(state: ShowState, now: number): Partial<ShowState>
 async function activateEntry(entryId: string): Promise<void> {
   const { isMaster, state, applyPatch } = useShowStateStore.getState()
   if (!isMaster) return
-  const now = getServerTime()
+  const now = getHostTime()
   finalizeCurrentSong(state, now)
   await applyPatch({
     activeEntryId: entryId,
@@ -176,11 +176,11 @@ export async function playSong(opts: PlayOptions = {}): Promise<void> {
   // arrangement in its place (Queue.currentArrangement). The status bar says why.
   if (currentSong && !currentArrangement) return
   // Server time, not this device's clock: every tablet - this one included - computes the
-  // elapsed time as getServerTime() minus playbackStartedAt (usePlaybackElapsedMs.ts). Stamped
+  // elapsed time as getHostTime() minus playbackStartedAt (usePlaybackElapsedMs.ts). Stamped
   // with Date.now(), a Master whose clock ran 2.1 s ahead of the Host froze every
   // tablet's song clock for 2.1 s after Play and kept it 2.1 s late (measured 2026-09-27 -
   // docs/12's "Uhr-Basis beim Transportstart" risk).
-  const now = getServerTime()
+  const now = getHostTime()
 
   const isFreshStart = state.activeEntryStartedAt === null
   // A new take - after Weiter/Zurück as much as after Stop - gets the count-in and the
@@ -227,7 +227,7 @@ export async function playSong(opts: PlayOptions = {}): Promise<void> {
 export async function pauseSong(): Promise<void> {
   const { isMaster, state, applyPatch } = useShowStateStore.getState()
   if (!isMaster) return
-  const now = getServerTime()
+  const now = getHostTime()
   recordShowEvent({ type: 'playback', action: 'pause', at: Math.round(now), showId: state.currentShowId, ...songAt(state, now) })
   await applyPatch(transportPatch(pauseTransport(currentTransport(state), now)))
 }
@@ -237,7 +237,7 @@ export async function pauseSong(): Promise<void> {
 export async function stopSong(): Promise<void> {
   const { isMaster, state, applyPatch } = useShowStateStore.getState()
   if (!isMaster) return
-  const now = getServerTime()
+  const now = getHostTime()
   const { currentEntry, currentVariant } = getQueueSnapshot()
   const ended = stoppedNearEnd(currentEntry && isSongEntry(currentEntry) ? currentEntry : null, currentVariant, state.trackOverride, computeActiveMs(currentTransport(state), now))
   recordShowEvent({ type: 'playback', action: 'stop', at: Math.round(now), showId: state.currentShowId, ...songAt(state, now) })
@@ -250,7 +250,7 @@ export async function stopSong(): Promise<void> {
 export async function stopSongAtTrackEnd(): Promise<void> {
   const { isMaster, state, applyPatch } = useShowStateStore.getState()
   if (!isMaster) return
-  const now = getServerTime()
+  const now = getHostTime()
   recordShowEvent({ type: 'playback', action: 'track-end', at: Math.round(now), showId: state.currentShowId, ...songAt(state, now) })
   finalizeCurrentSong(state, now)
   await applyPatch({ ...REARM_PATCH, trackEnded: true })
@@ -268,7 +268,7 @@ export function endSongLocally(): void {
 export async function resetSong(): Promise<void> {
   const { isMaster, state, applyPatch } = useShowStateStore.getState()
   if (!isMaster) return
-  const now = getServerTime()
+  const now = getHostTime()
   recordShowEvent({ type: 'playback', action: 'reset', at: Math.round(now), showId: state.currentShowId, ...songAt(state, now) })
   await applyPatch(REARM_PATCH)
 }
@@ -282,7 +282,7 @@ export async function resetSong(): Promise<void> {
 export async function setTrackOverride(trackId: string | null): Promise<void> {
   const { isMaster, state, applyPatch } = useShowStateStore.getState()
   if (!isMaster) return
-  const { songId, songTitle } = songAt(state, getServerTime())
+  const { songId, songTitle } = songAt(state, getHostTime())
   // The track's name; '' = back to the setlist's own track.
   const value = trackId ? (getQueueSnapshot().currentVariant?.tracks.find((track) => track.id === trackId)?.label ?? trackId) : ''
   recordShowEvent({ type: 'sound', what: 'track', showId: state.currentShowId, songId, songTitle, value })
@@ -299,7 +299,7 @@ export async function setLiveTempoAdjustPercent(percent: number): Promise<void> 
   const clamped = Math.max(-LIVE_TEMPO_ADJUST_LIMIT_PERCENT, Math.min(LIVE_TEMPO_ADJUST_LIMIT_PERCENT, percent))
   const { state } = useShowStateStore.getState()
   if (clamped !== state.liveTempoAdjustPercent) {
-    const { songId, songTitle } = songAt(state, getServerTime())
+    const { songId, songTitle } = songAt(state, getHostTime())
     recordShowEvent({ type: 'sound', what: 'tempo', showId: state.currentShowId, songId, songTitle, value: String(clamped) })
   }
   await applyPatch({ liveTempoAdjustPercent: clamped })
@@ -321,7 +321,7 @@ export async function nudgeLiveTempoAdjustPercent(deltaPercent: number): Promise
 export async function setClickTrackOverride(override: 'on' | 'off' | null): Promise<void> {
   const { isMaster, state, applyPatch } = useShowStateStore.getState()
   if (!isMaster) return
-  const { songId, songTitle } = songAt(state, getServerTime())
+  const { songId, songTitle } = songAt(state, getHostTime())
   // 'on' / 'off', '' = the song's own setting again.
   recordShowEvent({ type: 'sound', what: 'click', showId: state.currentShowId, songId, songTitle, value: override ?? '' })
   await applyPatch({ clickTrackOverride: override })
@@ -343,7 +343,7 @@ export async function extendClickTrack(bars: number): Promise<void> {
   const { currentVariant, currentArrangement } = getQueueSnapshot()
   if (!currentArrangement) return
   const activeSong = currentArrangement
-  const elapsedMs = computeActiveMs(currentTransport(state), getServerTime())
+  const elapsedMs = computeActiveMs(currentTransport(state), getHostTime())
   const perBarMs = barMsAt(
     elapsedMs,
     clickTimeline({
@@ -353,7 +353,7 @@ export async function extendClickTrack(bars: number): Promise<void> {
       countInBars: currentVariant?.countInEnabled ? currentVariant.countInBars : 0,
     }),
   )
-  const { songId, songTitle } = songAt(state, getServerTime())
+  const { songId, songTitle } = songAt(state, getHostTime())
   recordShowEvent({ type: 'sound', what: 'click-extend', showId: state.currentShowId, songId, songTitle, value: String(bars) })
   await applyPatch({ clickExtendMs: state.clickExtendMs + bars * perBarMs })
 }

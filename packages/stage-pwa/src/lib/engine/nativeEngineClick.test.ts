@@ -15,7 +15,7 @@ vi.mock('../nativeOutput', () => {
     useNativeOutputStore: { getState: () => ({ delayMs: 410 }) },
   }
 })
-vi.mock('../clockSync', () => ({ getServerTime: () => Date.now() + 2126 }))
+vi.mock('../clockSync', () => ({ getHostTime: () => Date.now() + 2126 }))
 
 const { useOutputPlanStore, PLAIN_PLAN } = await import('../audioMix')
 const { __resetNativeEngineSessionForTests, acquireNativeEngine, releaseNativeEngine } = await import('./nativeEngineSession')

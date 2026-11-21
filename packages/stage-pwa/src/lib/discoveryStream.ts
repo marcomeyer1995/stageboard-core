@@ -4,14 +4,14 @@ import { getHostUrl } from './hostUrl'
 
 /**
  * Server-Sent Events stream of the workspace's Discovery Mode session (discoverySessionStore.ts,
- * core-backend) - same pattern as presenceStream.ts: the server pushes the *full* snapshot on
+ * core-backend) - same pattern as presenceStream.ts: the host pushes the *full* snapshot on
  * every change, so no merge logic needed here, and `EventSource` retries dropped connections on
  * its own. No Host configured means there's nothing to subscribe to - Discovery Mode
- * needs the server as its coordinator, so the caller just keeps the default (inactive) session.
+ * needs the host as its coordinator, so the caller just keeps the default (inactive) session.
  */
 export function subscribeToDiscovery(workspaceId: string, onSession: (session: DiscoverySession) => void): () => void {
   const base = getHostUrl()
-  // No band yet (the native app paired with a server before joining, #348): nothing to subscribe to.
+  // No band yet (the native app paired with a host before joining, #348): nothing to subscribe to.
   if (!base || !workspaceId) {
     onSession(EMPTY_DISCOVERY_SESSION)
     return () => {}

@@ -24,8 +24,8 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
-        registerPlugin(ServerTrustPlugin.class);
-        registerPlugin(ServerDiscoveryPlugin.class);
+        registerPlugin(HostTrustPlugin.class);
+        registerPlugin(HostDiscoveryPlugin.class);
         registerPlugin(PrintPlugin.class);
         registerPlugin(AudioRoutePlugin.class);
         registerPlugin(NativeOutputPlugin.class);

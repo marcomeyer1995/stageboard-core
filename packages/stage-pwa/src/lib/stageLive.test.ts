@@ -32,7 +32,7 @@ function stage(overrides: Partial<StageLiveInput> = {}): StageLiveInput {
     builtInIds: ['klick', 'track', 'ansagen'],
     deviceInfo: { devices: { redmi: entry({ midiOutputs: ['Kemper Player'], battery: { pct: 80, charging: false } }), fire: entry() } },
     now: NOW,
-    serverReachable: true,
+    hostReachable: true,
     health: { plugins: { 'kemper-plugin': { status: 'online', lastSeenAt: NOW - 1_000 } } },
     ownDeviceId: 'fire',
     ownMidiOutputs: null,
@@ -115,14 +115,14 @@ describe('stageLive (#747, docs/31 §9)', () => {
   })
 
   it('the Host answers, does not, or none is set', () => {
-    const withServer = (serverReachable: boolean | null) => {
-      const input = stage({ serverReachable })
+    const withHost = (hostReachable: boolean | null) => {
+      const input = stage({ hostReachable })
       const server = equipmentFrom(BUILTIN_MODELS.find((m) => m.kind === 'host-computer')!, 'server', 'Host')
       return stageLive({ ...input, equipment: [...input.equipment, server] }).equipment.server
     }
-    expect(withServer(true)).toMatchObject({ status: 'ok', notes: [{ key: 'serverOnline' }] })
-    expect(withServer(false)).toMatchObject({ status: 'error', notes: [{ key: 'serverOffline' }] })
-    expect(withServer(null)).toMatchObject({ status: 'off', notes: [{ key: 'noServer' }] })
+    expect(withHost(true)).toMatchObject({ status: 'ok', notes: [{ key: 'serverOnline' }] })
+    expect(withHost(false)).toMatchObject({ status: 'error', notes: [{ key: 'serverOffline' }] })
+    expect(withHost(null)).toMatchObject({ status: 'off', notes: [{ key: 'noServer' }] })
   })
 
   it('headphones pulled on the Redmi: the device and the cable its click leaves on turn red, from its report', () => {

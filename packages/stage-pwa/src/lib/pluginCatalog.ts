@@ -114,7 +114,7 @@ export const PLUGIN_CATALOG: Array<Omit<PluginInstallation, 'installedAt' | 'ena
     id: 'mock-mixer',
     name: 'Mock Mixer',
     version: '0.0.1',
-    // 'both': a real server-hosted mixer adapter (mockMixerPlugin.ts, core-backend) AND a
+    // 'both': a real host-hosted mixer adapter (mockMixerPlugin.ts, core-backend) AND a
     // client-runtime Translator (clientTranslator.ts) sharing one manifest - #98. Which one
     // actually executes a given trigger is now the Logical Device's own executionTarget, not a
     // separate HardwareSetup routing decision.
@@ -421,7 +421,7 @@ export const PLUGIN_CATALOG: Array<Omit<PluginInstallation, 'installedAt' | 'ena
     version: '0.0.1',
     // The Host generates the voice for spoken announcements (#63) with Piper, an offline
     // speech program installed next to it (docs/21 §9) - each text once, as a clip every device
-    // downloads. Without Piper on the server the plugin installs, but announcements stay silent.
+    // downloads. Without Piper on the host the plugin installs, but announcements stay silent.
     runtime: 'host',
     capabilities: [CAPABILITIES.speechSynthesis],
     transports: [],
@@ -437,7 +437,7 @@ export const PLUGIN_CATALOG: Array<Omit<PluginInstallation, 'installedAt' | 'ena
     // (like the MIDI-Clock, #478): one device per program that listens.
     runtime: 'host',
     capabilities: ['osc'],
-    // The server holds a cue until its moment (scheduledAt) and sends it then.
+    // The host holds a cue until its moment (scheduledAt) and sends it then.
     timing: [{ capability: 'osc', timingClass: 'realtime', honoursScheduledAt: true }],
     transports: [
       {
@@ -457,7 +457,7 @@ export const PLUGIN_CATALOG: Array<Omit<PluginInstallation, 'installedAt' | 'ena
     version: '0.1.0',
     // OSC as a trigger (#484, docs/23 §4): a controller (TouchOSC, a lighting desk, a Stream Deck)
     // sends to the Host's OSC port (8000); its buttons fire actions like a pedal or a MIDI
-    // controller - "Knöpfe belegen" in Bühnentechnik. A transport without fields: the server's port
+    // controller - "Knöpfe belegen" in Bühnentechnik. A transport without fields: the host's port
     // is fixed (STAGEBOARD_OSC_IN_PORT) - it makes this a driver, offered as a device type.
     runtime: 'host',
     capabilities: ['osc-input'],

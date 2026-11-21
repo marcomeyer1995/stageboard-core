@@ -141,7 +141,7 @@ export function announcementsDue(items: readonly Announcement[], elapsedMs: numb
   return due
 }
 
-/** Spoken at most this much faster than the band's pace (SPEECH_SPEED_MAX on the server). */
+/** Spoken at most this much faster than the band's pace (SPEECH_SPEED_MAX on the host). */
 export const FIT_MAX_SPEED = 1.6
 /** A word ends this long before the next one starts - room for its last sound to fade. */
 const FIT_GAP_MS = 30

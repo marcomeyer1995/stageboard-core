@@ -1,5 +1,5 @@
 import type { ShowControlEvent } from 'shared-types'
-import { getServerTime } from './clockSync'
+import { getHostTime } from './clockSync'
 
 /**
  * When a Translator should send an event's MIDI, in the `performance.now()` time base WebMIDI's
@@ -9,5 +9,5 @@ import { getServerTime } from './clockSync'
  */
 export function midiSendTime(event: Pick<ShowControlEvent, 'scheduledAt'>): number | undefined {
   if (event.scheduledAt === undefined) return undefined
-  return performance.now() + (event.scheduledAt - getServerTime())
+  return performance.now() + (event.scheduledAt - getHostTime())
 }

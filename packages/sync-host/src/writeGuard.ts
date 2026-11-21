@@ -22,7 +22,7 @@ export function inList(ctx: UserCtx, list: { names?: string[]; roles?: string[] 
   return (ctx.name !== null && (list.names ?? []).includes(ctx.name)) || (list.roles ?? []).some((r) => ctx.roles.includes(r))
 }
 
-export const isServerAdmin = (ctx: UserCtx) => ctx.roles.includes('_admin')
+export const isHostAdmin = (ctx: UserCtx) => ctx.roles.includes('_admin')
 
 /** A validate_doc_update function from a design document - written only by admins. */
 type Validator = (newDoc: unknown, oldDoc: unknown, userCtx: UserCtx, secObj: SecurityDoc) => void
@@ -48,7 +48,7 @@ const json = (status: number, body: unknown): SyncResponse => ({ status, body })
 export function createWriteGuard(options: WriteGuardOptions) {
   /** The band's validators against each incoming document; a refused one comes back as an error row. */
   const validate = async (name: string, ctx: UserCtx, docs: Record<string, unknown>[]): Promise<{ ok: Record<string, unknown>[]; refused: Refusal[] }> => {
-    if (isServerAdmin(ctx)) return { ok: docs, refused: [] }
+    if (isHostAdmin(ctx)) return { ok: docs, refused: [] }
     const store = options.open(name)
     if (!store) return { ok: [], refused: docs.map((d) => ({ id: String(d._id), error: 'not_found', reason: 'Database does not exist.' })) }
     const designs = await store.allDocs({ startkey: '_design/', endkey: '_design/￿', include_docs: true })

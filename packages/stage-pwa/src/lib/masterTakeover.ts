@@ -17,7 +17,7 @@ export function getMasterStatus(input: {
   holderId: string | null
   deviceId: string
   heartbeat: MasterHeartbeat | null | undefined
-  /** Server time (`getServerTime()`), since the heartbeat's `at` is stamped by the server. */
+  /** Server time (`getHostTime()`), since the heartbeat's `at` is stamped by the server. */
   now: number
 }): MasterStatus {
   const { holderId, deviceId, heartbeat, now } = input
@@ -44,7 +44,7 @@ export type MasterSelfCheck = 'ok' | 'sync-error' | 'offline' | 'unconfirmed'
  * device whose sync died keeps reading "master = me" while another device took over on the
  * server (Fire, 2026-10-04). A holder therefore only acts as master while
  * - its band sync works (not `error`/`offline`), and
- * - the server confirms it: the latest heartbeat the server stamped is this device's own and
+ * - the host confirms it: the latest heartbeat the host stamped is this device's own and
  *   fresh - or it has held the token for less than one timeout (its first beats are underway).
  * Without a Host at all (a local-only band) there is nothing to confirm against and no
  * other device to take over - the holder always passes.
@@ -55,7 +55,7 @@ export function masterSelfCheck(input: {
   hasHostUrl: boolean
   deviceId: string
   heartbeat: MasterHeartbeat | null | undefined
-  /** Server time (`getServerTime()`). */
+  /** Server time (`getHostTime()`). */
   now: number
   /** Server time at which this device started holding the token (as far as it knows). */
   holdingSince: number

@@ -30,7 +30,7 @@ export const ShowStateSchema = z.object({
   masterClaimedAt: z.number().nullable(),
   playbackStatus: PlaybackStatusSchema,
   /** Wall-clock timestamp the current `playing` run began - null while paused/stopped. Readers
-   * on other tablets add their own clockSync.ts offset (`getServerTime()`) rather than trusting
+   * on other tablets add their own clockSync.ts offset (`getHostTime()`) rather than trusting
    * this device's raw clock, so every tablet computes the same elapsed time. */
   playbackStartedAt: z.number().nullable(),
   /** Active (unpaused) ms accumulated for the current entry's play-through across any number of
@@ -143,7 +143,7 @@ export const ShowStatePushSchema = z.object({
 })
 export type ShowStatePush = z.infer<typeof ShowStatePushSchema>
 
-/** A device reporting when a pushed change reached it - logged by the server, to measure how much
+/** A device reporting when a pushed change reached it - logged by the host, to measure how much
  * ahead-of-time a Play needs (`PLAY_LEAD_MS`). Times are server time (ms). */
 export const ShowStatePushAckSchema = z.object({
   deviceId: z.string().min(1).max(200),

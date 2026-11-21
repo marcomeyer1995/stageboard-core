@@ -206,7 +206,7 @@ function ConnectionStep({
   const world = useTargetWorld()
   const hostApp = hostTargetOf(world)
   const [manualTarget, setManualTarget] = useState(migrateExecutionTarget(device?.executionTarget, world.currentHostId) ?? '')
-  // What this device (or, for a Host device, the server) already has - shown again when editing.
+  // What this device (or, for a Host device, the host) already has - shown again when editing.
   const configs = useDeviceTransportConfigStore((state) => state.configs)
   const existingConfig = configs.find((c) => c.id === `${isHostTarget(device?.executionTarget, world) ? hostApp : getDeviceId()}:${draft.id}`)
   const [manualTransportId, setManualTransportId] = useState(existingConfig?.transportId ?? '')

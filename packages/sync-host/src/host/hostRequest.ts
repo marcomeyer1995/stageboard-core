@@ -10,7 +10,7 @@ export interface HostRequest {
   path: string
   query: Readonly<Record<string, string>>
   authorization?: string
-  /** The address the connection came from, as the native server saw it. */
+  /** The address the connection came from, as the native host saw it. */
   remoteAddress?: string
   /** JSON parsed; an upload as `{ data, contentType }`. */
   body?: unknown
@@ -54,7 +54,7 @@ export function bandOfPath(path: string): { db: string; inner: string } | null {
   return { db, inner: '/' + parts.join('/') }
 }
 
-/** The native server asks `/_host-login/<db>` before it relays a live channel: which band database that is, or null. */
+/** The native host asks `/_host-login/<db>` before it relays a live channel: which band database that is, or null. */
 export function loginCheckOf(path: string): string | null {
   const match = /^\/_host-login\/([^/]+)$/.exec(path)
   const db = match ? decodeURIComponent(match[1]!) : null
@@ -72,7 +72,7 @@ const tableOf = (deps: HostRequestDeps): HostRoute[] => {
   return table
 }
 
-/** An upload arrives from the native server as `{ data, contentType }`; the shared routes take the bytes. */
+/** An upload arrives from the native host as `{ data, contentType }`; the shared routes take the bytes. */
 const bodyOf = (body: unknown): unknown => (body && typeof body === 'object' && (body as { data?: unknown }).data instanceof Uint8Array ? (body as { data: Uint8Array }).data : body)
 
 /**
@@ -94,7 +94,7 @@ export async function answerHostRequest(request: HostRequest, deps: HostRequestD
   if ((path === '/host/info' || path === '/server-info') && method === 'GET') {
     return json(200, { lanIp: deps.address, port: deps.port, hostname: 'stageboard.local', certFingerprint: deps.certFingerprint })
   }
-  // A live stream the native server does not relay yet (it carries show state, switches and presence): the device
+  // A live stream the native host does not relay yet (it carries show state, switches and presence): the device
   // lacks the capability - never a plain 404 (#962).
   const stream = method === 'GET' ? matchChannelStream(path) : null
   if (stream) {

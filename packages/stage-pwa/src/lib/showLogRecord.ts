@@ -1,5 +1,5 @@
 import type { ShowLogEvent } from 'shared-types'
-import { getServerTime } from './clockSync'
+import { getHostTime } from './clockSync'
 import { randomId } from './id'
 
 type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never
@@ -20,7 +20,7 @@ export type ShowLogInput = DistributiveOmit<ShowLogEvent, 'id' | 'showId' | 'at'
  * importing the show log's database with them would tie every one of them (and its tests) to it.
  */
 export function recordShowEvent(input: ShowLogInput): void {
-  const at = Math.round(input.at ?? getServerTime())
+  const at = Math.round(input.at ?? getHostTime())
   if (input.showId === null) return
   void Promise.all([import('../store/useShowStateStore'), import('../store/useShowLogStore')])
     .then(([showState, showLog]) => {

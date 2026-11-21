@@ -8,7 +8,7 @@ import { usePluginsStore } from '../store/usePluginsStore'
 import { useStageMapStore } from '../store/useStageMapStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { useOutputPlanStore } from './audioMix'
-import { getServerTime } from './clockSync'
+import { getHostTime } from './clockSync'
 import { getDeviceId } from './deviceId'
 import { silencedSources } from './outputPlan'
 import { stageLive, type StageLive } from './stageLive'
@@ -40,7 +40,7 @@ export function useStageLive(active: boolean, map: StageLiveMap): StageLive | nu
   const front = useStageMapStore((state) => state.front)
   const profiles = useLatencyProfilesStore((state) => state.profiles)
   const plan = useOutputPlanStore((state) => state.plan)
-  const [now, setNow] = useState(() => getServerTime())
+  const [now, setNow] = useState(() => getHostTime())
   const [ownMidi, setOwnMidi] = useState<string[] | null>(null)
 
   useEffect(() => {
@@ -55,7 +55,7 @@ export function useStageLive(active: boolean, map: StageLiveMap): StageLive | nu
     const read = () => void knownMidiOutputNames().then((names) => !stopped && setOwnMidi(names))
     read()
     const stopWatching = watchMidiPorts(read)
-    const tick = setInterval(() => setNow(getServerTime()), TICK_MS)
+    const tick = setInterval(() => setNow(getHostTime()), TICK_MS)
     return () => {
       stopped = true
       stopWatching()
@@ -67,6 +67,6 @@ export function useStageLive(active: boolean, map: StageLiveMap): StageLive | nu
   const hostApp = hostTargetOf(useTargetWorld())
   return useMemo(() => {
     if (!active || !setup || (!loaded && reachable === null)) return null
-    return stageLive({ equipment, setup, flows, outputs, builtInIds, deviceInfo, now, serverReachable: reachable, health, ownDeviceId: getDeviceId(), ownMidiOutputs: ownMidi, ownSilenced: silencedSources(plan), front, profiles, hostApp })
+    return stageLive({ equipment, setup, flows, outputs, builtInIds, deviceInfo, now, hostReachable: reachable, health, ownDeviceId: getDeviceId(), ownMidiOutputs: ownMidi, ownSilenced: silencedSources(plan), front, profiles, hostApp })
   }, [active, setup, loaded, reachable, equipment, flows, outputs, builtInIds, deviceInfo, now, health, ownMidi, plan, front, profiles, hostApp])
 }

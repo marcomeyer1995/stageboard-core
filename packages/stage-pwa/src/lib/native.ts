@@ -6,50 +6,50 @@ import { getHostUrl } from './hostUrl'
 /**
  * The native Android app (#348): the same web build inside a Capacitor shell. Only a few places
  * differ from the browser - mainly that the app's own origin (`https://localhost`) isn't the
- * Host, so the server address comes from pairing, and the server's self-signed
+ * Host, so the host address comes from pairing, and the host's self-signed
  * certificate is trusted by fingerprint instead of a "Trotzdem fortfahren" tap.
  */
 export function isNativeApp(): boolean {
   return Capacitor.isNativePlatform()
 }
 
-/** The shell's certificate pinning (`ServerTrustPlugin.java`): the WebView accepts a server's
+/** The shell's certificate pinning (`HostTrustPlugin.java`): the WebView accepts a host's
  * certificate only if its SHA-256 fingerprint matches the one pinned for that host. */
-interface ServerTrustPlugin {
+interface HostTrustPlugin {
   pin(options: { host: string; fingerprint: string }): Promise<void>
-  /** Reads the certificate the server presents (without trusting it) - for pairing by address. */
+  /** Reads the certificate the host presents (without trusting it) - for pairing by address. */
   fingerprintOf(options: { host: string }): Promise<{ fingerprint: string }>
-  /** Downloads an update from the paired server (pinned certificate) and opens the installer. */
+  /** Downloads an update from the paired host (pinned certificate) and opens the installer. */
   downloadAndInstall(options: { url: string }): Promise<void>
   /** The fingerprint pinned for a host, or null. */
   pinned(options: { host: string }): Promise<{ fingerprint: string | null }>
 }
 
-const ServerTrust = registerPlugin<ServerTrustPlugin>('ServerTrust')
+const HostTrust = registerPlugin<HostTrustPlugin>('HostTrust')
 
 /** A Host found on the network (`ServerDiscoveryPlugin.java`, DNS-SD `_stageboard._tcp`, #351). */
-export interface FoundServer {
+export interface FoundHost {
   name: string
   /** `address` or `address:port` - the form the app stores and pins. */
   host: string
-  /** From the server's announcement - only used to recognise the paired server, never to trust a new one. */
+  /** From the host's announcement - only used to recognise the paired host, never to trust a new one. */
   fingerprint: string | null
 }
 
-const ServerDiscovery = registerPlugin<{ discover(options: { timeoutMs: number }): Promise<{ servers: { name: string; address: string; port: number; fingerprint: string | null }[] }> }>('ServerDiscovery')
+const HostDiscovery = registerPlugin<{ discover(options: { timeoutMs: number }): Promise<{ servers: { name: string; address: string; port: number; fingerprint: string | null }[] }> }>('HostDiscovery')
 
 /** Hosts announcing themselves on the local network. Empty in the browser. */
-export async function discoverServers(timeoutMs = 3000): Promise<FoundServer[]> {
+export async function discoverHosts(timeoutMs = 3000): Promise<FoundHost[]> {
   if (!isNativeApp()) return []
-  const { servers } = await ServerDiscovery.discover({ timeoutMs })
+  const { servers } = await HostDiscovery.discover({ timeoutMs })
   return servers
     .map((s) => ({ name: s.name, host: s.port === 443 ? s.address : `${s.address}:${s.port}`, fingerprint: s.fingerprint }))
     .sort((a, b) => a.name.localeCompare(b.name))
 }
 
-/** The paired server at a new address: the one announcing exactly the pinned fingerprint, on
- * another host. Never a server with a different certificate (#351). */
-export function pickMovedServer(found: readonly FoundServer[], pinnedFingerprint: string, currentHost: string): FoundServer | null {
+/** The paired host at a new address: the one announcing exactly the pinned fingerprint, on
+ * another host. Never a host with a different certificate (#351). */
+export function pickMovedHost(found: readonly FoundHost[], pinnedFingerprint: string, currentHost: string): FoundHost | null {
   return found.find((s) => s.fingerprint === pinnedFingerprint && s.host !== currentHost) ?? null
 }
 
@@ -58,7 +58,7 @@ export function pickMovedServer(found: readonly FoundServer[], pinnedFingerprint
  * network and switch to it silently when it is there under a new address with the same
  * certificate (#351) - e.g. another router at the venue gave it a new IP.
  */
-export async function followServerIfMoved(): Promise<'reachable' | 'moved' | 'not-found' | 'skipped'> {
+export async function followHostIfMoved(): Promise<'reachable' | 'moved' | 'not-found' | 'skipped'> {
   const base = useHostUrlStore.getState().url
   if (!isNativeApp() || !base) return 'skipped'
   const controller = new AbortController()
@@ -71,11 +71,11 @@ export async function followServerIfMoved(): Promise<'reachable' | 'moved' | 'no
     clearTimeout(timer)
   }
   const currentHost = new URL(base).host
-  const { fingerprint } = await ServerTrust.pinned({ host: currentHost })
+  const { fingerprint } = await HostTrust.pinned({ host: currentHost })
   if (!fingerprint) return 'not-found'
-  const moved = pickMovedServer(await discoverServers(4000), fingerprint, currentHost)
+  const moved = pickMovedHost(await discoverHosts(4000), fingerprint, currentHost)
   if (!moved) return 'not-found'
-  await pairWithServer(moved.host, fingerprint)
+  await pairWithHost(moved.host, fingerprint)
   return 'moved'
 }
 
@@ -114,10 +114,10 @@ export async function pinListedHosts(hosts: readonly { url: string; certFingerpr
     const pinned: Record<string, string | null> = {}
     for (const entry of hosts) {
       const host = hostOfUrl(entry.url)
-      pinned[host] = (await ServerTrust.pinned({ host })).fingerprint
+      pinned[host] = (await HostTrust.pinned({ host })).fingerprint
     }
     const result = hostsToPin(hosts, pinned)
-    for (const { host, fingerprint } of result.pin) await ServerTrust.pin({ host, fingerprint })
+    for (const { host, fingerprint } of result.pin) await HostTrust.pin({ host, fingerprint })
     return result
   } catch {
     return { pin: [], conflicts: [] }
@@ -129,15 +129,15 @@ export function shortFingerprint(fingerprint: string): string {
   return (fingerprint.match(/../g) ?? []).slice(0, 8).join(' ').toUpperCase()
 }
 
-/** Pairs this app with a Host: pins its certificate and makes it the server address. */
-export async function pairWithServer(host: string, fingerprint: string): Promise<void> {
-  await ServerTrust.pin({ host, fingerprint: fingerprint.toLowerCase() })
+/** Pairs this app with a Host: pins its certificate and makes it the host address. */
+export async function pairWithHost(host: string, fingerprint: string): Promise<void> {
+  await HostTrust.pin({ host, fingerprint: fingerprint.toLowerCase() })
   useHostUrlStore.getState().setUrl(`https://${host}`)
 }
 
 /** The certificate fingerprint a host presents, for pairing by a typed-in address. */
-export async function serverFingerprint(host: string): Promise<string> {
-  return (await ServerTrust.fingerprintOf({ host })).fingerprint
+export async function hostFingerprint(host: string): Promise<string> {
+  return (await HostTrust.fingerprintOf({ host })).fingerprint
 }
 
 /** This app build's number (scripts/build-android-app.sh) - 0 for a dev/debug build. */
@@ -148,7 +148,7 @@ export interface AppUpdate {
   versionName: string
 }
 
-/** The app build the paired Host offers - null without a server, when it has no app
+/** The app build the paired Host offers - null without a host, when it has no app
  * build, or when it can't be reached. */
 export async function fetchOfferedAppVersion(): Promise<AppUpdate | null> {
   const base = getHostUrl()
@@ -162,7 +162,7 @@ export async function fetchOfferedAppVersion(): Promise<AppUpdate | null> {
   }
 }
 
-/** The server's app build if it is newer than this one. Null in the browser, for dev builds, and
+/** The host's app build if it is newer than this one. Null in the browser, for dev builds, and
  * whenever `fetchOfferedAppVersion` has nothing. */
 export async function checkForAppUpdate(): Promise<AppUpdate | null> {
   if (!isNativeApp() || APP_VERSION_CODE === 0) return null
@@ -170,11 +170,11 @@ export async function checkForAppUpdate(): Promise<AppUpdate | null> {
   return offered && offered.versionCode > APP_VERSION_CODE ? offered : null
 }
 
-/** Downloads the server's app build and opens Android's installer. */
+/** Downloads the host's app build and opens Android's installer. */
 export async function installAppUpdate(): Promise<void> {
   const base = getHostUrl()
   if (!base) throw new Error('Kein Host verbunden')
-  await ServerTrust.downloadAndInstall({ url: `${base}/app/stageboard.apk` })
+  await HostTrust.downloadAndInstall({ url: `${base}/app/stageboard.apk` })
 }
 
 /** The native side's own reason for a failed update (e.g. "certificate is not the paired one"),

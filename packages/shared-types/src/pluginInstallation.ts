@@ -83,12 +83,12 @@ export const PluginInstallationSchema = z.object({
   transports: z.array(TransportDescriptorSchema).default([]),
   /** Cheap identity metadata (#106) so a tablet can recognize a newly-connected WebMIDI/WebUSB
    * device that matches this plugin, without loading its code - see hardwareId.ts. Empty for a
-   * plugin with nothing to auto-detect (the server-only mock plugins today). */
+   * plugin with nothing to auto-detect (the host-only mock plugins today). */
   hardwareIds: z.array(HardwareIdSchema).default([]),
   /** How Discovery Mode should ask a musician to physically identify this device when catalog
    * metadata alone can't tell two candidates apart (e.g. two guitarists' Kempers) - see
    * discoveryTrigger.ts. Absent for a plugin with no such action (or nothing that needs
-   * disambiguating - a workspace rarely has two of the same server-only mixer, say). */
+   * disambiguating - a workspace rarely has two of the same host-only mixer, say). */
   discoveryTrigger: DiscoveryTriggerSchema.optional(),
   /** How precisely each of `capabilities` must land on the song time, whether its Translator
    * sends at `scheduledAt` itself, its known latency and how it can be calibrated (docs/21) - one

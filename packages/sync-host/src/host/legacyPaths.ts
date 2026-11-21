@@ -1,5 +1,5 @@
 /**
- * The paths of a host's own routes (#964). They used to begin with `/server/` (and `/server-info`): a host is not a server, any device can be one, so they
+ * The paths of a host's own routes (#964). They used to begin with `/server/` (and `/server-info`): a host is not a host, any device can be one, so they
  * now all begin with `/host/`. An app built before the change still asks the old path, so every old path answers too, as an alias of its new one -
  * until no such app is left.
  */

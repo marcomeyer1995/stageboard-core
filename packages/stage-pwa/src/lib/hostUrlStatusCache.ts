@@ -13,8 +13,8 @@ const EMPTY: HostUrlSnapshot = { lanIp: null, hostname: null, workspaces: null, 
  * The last Host status this page actually got an answer for, shared by every screen that
  * shows it (Settings, the Band tab, the Device Ledger) - so opening one of them shows the last
  * known state instantly and refreshes it in the background, instead of every open starting from a
- * blank "Lade…". In memory only, and only ever holds data from a server that answered: it's
- * cleared the moment the server is found unreachable, so it never presents stale data as current.
+ * blank "Lade…". In memory only, and only ever holds data from a host that answered: it's
+ * cleared the moment the host is found unreachable, so it never presents stale data as current.
  * Its own tiny module (no imports beyond types) so the test setup can clear it after every test
  * without dragging the whole store into every test file.
  */

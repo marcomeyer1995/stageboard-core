@@ -41,7 +41,7 @@ export function MasterControl() {
   const masterHolderId = useShowStateStore((state) => state.state.masterHolderId)
   // The master token lives in the band's synced ShowState doc. With a permanently failed sync
   // (401/403 - e.g. stale credentials after a band restore) this device only sees its own local
-  // copy: it may still read "Dieses Gerät" while another device took over on the server (#378,
+  // copy: it may still read "Dieses Gerät" while another device took over on the host (#378,
   // found on the Fire 2026-10-04). Say so instead of presenting it as valid.
   const holdsToken = useShowStateStore((state) => state.holdsToken)
   const selfCheck = useShowStateStore((state) => state.selfCheck)

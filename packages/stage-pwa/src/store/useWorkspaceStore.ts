@@ -1,7 +1,7 @@
 import i18n from '../i18n'
 import type { LocalChangesHandle } from '../lib/localChanges'
 import { create } from 'zustand'
-import type { ActiveWorkspaceAdmins, AdminPinProof, ServerInfo, WorkspaceRoster, WorkspaceSummary } from 'shared-types'
+import type { ActiveWorkspaceAdmins, AdminPinProof, HostInfo, WorkspaceRoster, WorkspaceSummary } from 'shared-types'
 import { getDeviceId } from '../lib/deviceId'
 import { randomId } from '../lib/id'
 import { isNativeApp } from '../lib/native'
@@ -104,7 +104,7 @@ interface WorkspaceState {
    * Host for the first time (see the Tier-A local-only-founding follow-up) - the
    * workspace/founder ids were already decided locally at founding time, so this just calls the
    * same `POST /workspaces` route `addWorkspace` calls for a brand-new one, only later. Does
-   * NOT touch any other roster member's account - useProfilesStore.ts's `connectToServer`
+   * NOT touch any other roster member's account - useProfilesStore.ts's `connectToHost`
    * calls this first, then provisions everyone else via `createMember`. */
   connectWorkspace: (workspaceId: string, serverUrl: string) => Promise<boolean>
   deleteWorkspace: (id: string) => Promise<boolean>
@@ -132,7 +132,7 @@ interface WorkspaceState {
   /** "Von diesem Gerät entfernen" (2026-09-02 thirteenth follow-up, at Marco's explicit
    * request) - the non-destructive counterpart to `deleteWorkspace`: drops this workspace from
    * this device's own list and wipes its local PouchDB data (`destroyLocalWorkspaceDb`), but
-   * never touches the server at all - unlike `deleteWorkspace`, not admin-only, since it's
+   * never touches the host at all - unlike `deleteWorkspace`, not admin-only, since it's
    * purely a local housekeeping action. Re-joining later (the band's own standing access code)
    * pulls everything fresh again. */
   removeWorkspaceLocally: (id: string) => Promise<void>
@@ -177,7 +177,7 @@ interface WorkspaceState {
   /** This box's own address/name (`GET /host/info`) - `null` on a fetch failure, same
    * "collapse not-configured and unreachable into one null" shape as every other fetch* action
    * here (useHostUrlStatus.ts is what turns that into a displayed reachability state). */
-  fetchServerInfo: () => Promise<ServerInfo | null>
+  fetchHostInfo: () => Promise<HostInfo | null>
   /** The admins (id + name) of the band this Host is currently serving, with no band code
    * (`GET /host/active-workspace/admins`) - what lets the hardware-switch wizard show whose PIN
    * closes that band. `null` on any failure, including nothing being active; the caller falls
@@ -188,7 +188,7 @@ interface WorkspaceState {
    * reject a wrong PIN at the step it was typed. Alerts on failure, like the other actions here. */
   verifyAdminPin: (workspaceId: string, profileId: string, pin: string) => Promise<boolean>
   /** Switches this Host's hardware to serve `workspaceId` (one box, one band at a time -
-   * SwitchServerBandWizard.tsx). `opening` is an admin of that workspace; `closing` is an admin of
+   * SwitchHostBandWizard.tsx). `opening` is an admin of that workspace; `closing` is an admin of
    * the band currently active on the box, only needed (and only sent) when switching away from
    * one - proof the caller may interrupt whatever's actually live. Both are verified server-side
    * (index.ts's `verifyAdminPin`), not device credentials. */
@@ -243,7 +243,7 @@ interface WorkspaceState {
 let nameChangesHandle: LocalChangesHandle<{ code: string; name: string }> | null = null
 
 /** What to do when a deliberate server action has no server to go to. The native app (#348)
- * pairs with a server; the browser always knows the address it was loaded from. */
+ * pairs with a host; the browser always knows the address it was loaded from. */
 function noServerMessage(): string {
   return isNativeApp()
     ? i18n.t('band:err.notPaired')
@@ -252,7 +252,7 @@ function noServerMessage(): string {
 
 /**
  * `POST /workspaces` with proof (#364): after the first band, the Host only founds a band
- * for an admin of a band on it (or a request from the server machine itself) - this sends an
+ * for an admin of a band on it (or a request from the host machine itself) - this sends an
  * admin login this device already has. `null` = not provisioned (already told the user).
  */
 async function provisionWithProof(
@@ -262,7 +262,7 @@ async function provisionWithProof(
 ): Promise<{ username: string; password: string } | null> {
   const dialogs = useDialogStore.getState()
   // The admin logins this device has belong to its Host (one per device, #84) - never hand
-  // them to another server typed in by hand when connecting a solo band there (#396 review).
+  // them to another host typed in by hand when connecting a solo band there (#396 review).
   const sameServer = base.replace(/\/+$/, '') === (getHostUrl() ?? '').replace(/\/+$/, '')
   const admin = sameServer ? known.find((w) => w.isAdmin && w.username && w.password) : undefined
   const proof = admin ? { adminUsername: admin.username!, adminPassword: admin.password! } : {}
@@ -317,8 +317,8 @@ export const useWorkspaceStore = create<WorkspaceState>()(
       // entirely locally instead of refusing - same Workspace shape, `username`/`password`
       // just stay unset (App.tsx's startSync guard already no-ops correctly on that). The
       // workspace/founder ids are decided right here either way, so `connectWorkspace` below can
-      // provision this exact workspace against a real server later without anything changing.
-      // A server that *is* configured but unreachable still fails loudly, on purpose - silently
+      // provision this exact workspace against a real host later without anything changing.
+      // A host that *is* configured but unreachable still fails loudly, on purpose - silently
       // downgrading to local-only there would hide a real connectivity problem.
       addWorkspace: async (name) => {
         const id = randomId()
@@ -555,7 +555,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           return null
         }
       },
-      // Grants or revokes admin for an already-provisioned member. The server rejects a revoke
+      // Grants or revokes admin for an already-provisioned member. The host rejects a revoke
       // that would leave zero admins (see core-backend's countOtherAdmins) - that specific
       // failure gets its own message, everything else falls back to a generic one.
       setMemberAdmin: async (workspaceId, profileId, isAdmin) => {
@@ -748,7 +748,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
       // step. Doesn't touch local state at all; JoinBandView.tsx just renders the result.
       listWorkspaces: async () => {
         const base = getHostUrl()
-        // A background load (band list, join screen, "Aktive Band") - no pop-up without a server:
+        // A background load (band list, join screen, "Aktive Band") - no pop-up without a host:
         // the screens say themselves that pairing is missing.
         if (!base) return null
 
@@ -792,14 +792,14 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           return null
         }
       },
-      fetchServerInfo: async () => {
+      fetchHostInfo: async () => {
         const base = getHostUrl()
         if (!base) return null
 
         try {
           const response = await fetch(`${base}/host/info`)
           if (!response.ok) throw new Error(`HTTP ${response.status}`)
-          return (await response.json()) as ServerInfo
+          return (await response.json()) as HostInfo
         } catch (err) {
           console.error('Failed to fetch server info', err)
           return null
@@ -882,7 +882,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
 
         // Split from the HTTP-status branch below on purpose (see the 2026-08-31 tablet
         // debugging session): a thrown fetch (network down, cert not trusted on this device,
-        // CORS block, ...) and a real wrong-code response from the server are different
+        // CORS block, ...) and a real wrong-code response from the host are different
         // problems with different fixes - collapsing them into one message sent a real network
         // issue down a completely wrong debugging path.
         let response: Response

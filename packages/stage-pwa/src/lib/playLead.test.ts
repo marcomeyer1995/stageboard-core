@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_SHOW_STATE, type ShowState } from 'shared-types'
 
-const serverNow = vi.fn(() => 10_000)
+const hostNow = vi.fn(() => 10_000)
 const nativeDelay = vi.fn((): number | null => 483)
-vi.mock('./clockSync', () => ({ getServerTime: () => serverNow() }))
+vi.mock('./clockSync', () => ({ getHostTime: () => hostNow() }))
 vi.mock('./nativeOutput', () => ({ nativeOutputDelayMs: () => nativeDelay() }))
 vi.mock('../store/useShowStateStore', async () => {
   const { create } = await import('zustand')
@@ -48,12 +48,12 @@ describe('playLead', () => {
     startLeadCheck()
     expect(useLeadNeededStore.getState().neededMs).toBeNull()
 
-    serverNow.mockReturnValue(9_150)
+    hostNow.mockReturnValue(9_150)
     useShowStateStore.setState({ state: { ...DEFAULT_SHOW_STATE, playbackStatus: 'playing', playbackStartedAt: 9_000, playbackAccumulatedMs: -4800 } })
     expect(useLeadNeededStore.getState().neededMs).toBe(150 + 483 + LEAD_RESERVE_MS)
 
     // Resumed from Pause in the middle of the song: no lead to measure.
-    serverNow.mockReturnValue(20_000)
+    hostNow.mockReturnValue(20_000)
     useShowStateStore.setState({ state: { ...DEFAULT_SHOW_STATE, playbackStatus: 'playing', playbackStartedAt: 19_000, playbackAccumulatedMs: 30_000 } })
     expect(useLeadNeededStore.getState().neededMs).toBe(150 + 483 + LEAD_RESERVE_MS)
   })

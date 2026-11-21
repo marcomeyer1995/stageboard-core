@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import type { CapabilityId } from './capability.js'
-import { ServerMessageParamsSchema } from './serverMessage.js'
+import { HostMessageParamsSchema } from './hostMessage.js'
 
 export interface PluginContext {
   log: {
@@ -22,7 +22,7 @@ export const ShowControlEventSchema = z.object({
   type: z.string().min(1),
   payload: z.record(z.string(), z.unknown()).optional(),
   /** Ahead-of-time dispatch (docs/00 §4): a synchronized-clock timestamp (see
-   * clockSync.ts's `getServerTime()`) to fire at, rather than immediately on receipt - the
+   * clockSync.ts's `getHostTime()`) to fire at, rather than immediately on receipt - the
    * Show Control Gateway delays the actual plugin trigger until this timestamp, absorbing
    * per-device network jitter instead of every tablet firing the instant its own packet
    * arrives. Gateway-only concern: stripped before the event reaches `IShowControlPlugin`. */
@@ -36,9 +36,9 @@ export type ShowControlEvent = z.infer<typeof ShowControlEventSchema>
 export const ShowControlResultSchema = z.object({
   status: z.enum(['ok', 'error']),
   message: z.string().optional(),
-  /** `message` as a code the device translates (#679, serverMessage.ts). */
+  /** `message` as a code the device translates (#679, hostMessage.ts). */
   messageCode: z.string().optional(),
-  messageParams: ServerMessageParamsSchema.optional(),
+  messageParams: HostMessageParamsSchema.optional(),
   data: z.record(z.string(), z.unknown()).optional(),
 })
 export type ShowControlResult = z.infer<typeof ShowControlResultSchema>

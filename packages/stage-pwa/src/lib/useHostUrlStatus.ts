@@ -30,17 +30,17 @@ const EMPTY: HostUrlSnapshot = { lanIp: null, hostname: null, workspaces: null, 
  * conflate), and DeviceLedgerView.tsx's "this is the Host itself" row.
  *
  * Built so a slow answer never leaves the screen on a bare "Lade…" (found live: 30+ seconds in
- * Settings, with the server itself answering in milliseconds - its answers were stuck behind the
+ * Settings, with the host itself answering in milliseconds - its answers were stuck behind the
  * app's own audio downloads on the same connection, audioStorageManager.ts):
  * - The last answer this page got (hostUrlStatusCache.ts) is shown instantly, `refreshing`
  *   marking that it's being re-checked.
  * - The three requests are applied one by one as they arrive, not held until the slowest is in.
  * - With no answer at all after STATUS_SLOW_AFTER_MS, `slow` is set - and that is all: a slow
- *   answer is not an unreachable server (an earlier version said "nicht erreichbar" here while the
+ *   answer is not an unreachable host (an earlier version said "nicht erreichbar" here while the
  *   server was fine and merely congested), and nothing is aborted, so the answer still shows up.
  *   `'unreachable'` is only for when the requests actually *fail*.
  *
- * `status` is `'reachable'` as soon as *any* request got an answer - a server that's up but has
+ * `status` is `'reachable'` as soon as *any* request got an answer - a host that's up but has
  * never had a workspace activated on it is still reachable, just with `activeWorkspaceId: null`.
  * It's `'unreachable'` only when nothing answered (which also covers "no Host configured
  * at all" - there's nothing meaningfully different to show for that case here).
@@ -50,8 +50,8 @@ const EMPTY: HostUrlSnapshot = { lanIp: null, hostname: null, workspaces: null, 
 export function useHostUrlStatus() {
   const listWorkspaces = useWorkspaceStore((state) => state.listWorkspaces)
   const fetchActiveWorkspaceHardware = useWorkspaceStore((state) => state.fetchActiveWorkspaceHardware)
-  const fetchServerInfo = useWorkspaceStore((state) => state.fetchServerInfo)
-  // Re-check when the app gets paired (or re-paired) with a server.
+  const fetchHostInfo = useWorkspaceStore((state) => state.fetchHostInfo)
+  // Re-check when the app gets paired (or re-paired) with a host.
   const serverUrl = useHostUrlStore((state) => state.url)
 
   const cached = getLastKnownHost()
@@ -100,7 +100,7 @@ export function useHostUrlStatus() {
       fetchActiveWorkspaceHardware().then((result) => {
         if (result) applyAnswer({ activeWorkspaceId: result.activeWorkspaceId })
       }),
-      fetchServerInfo().then((info) => {
+      fetchHostInfo().then((info) => {
         if (info) applyAnswer({ lanIp: info.lanIp, hostname: info.hostname })
       }),
     ])

@@ -2,7 +2,7 @@ import { create } from 'zustand'
 
 interface ClockSyncState {
   /** Correction added to Date.now() to get the synchronized master-clock time - see
-   * clockSync.ts's getServerTime(). 0 before the first successful sync. */
+   * clockSync.ts's getHostTime(). 0 before the first successful sync. */
   offsetMs: number
   /** The winning (lowest-RTT) sample's round trip time from the last successful burst -
    * null before the first successful sync. */

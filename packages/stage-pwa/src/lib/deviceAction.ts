@@ -3,7 +3,7 @@ import { currentTargetWorld } from './targetWorld'
 import type { ShowControlEvent } from 'shared-types'
 import { pluginProviding } from './capabilities'
 import { capabilityTiming } from './capabilityTiming'
-import { getServerTime } from './clockSync'
+import { getHostTime } from './clockSync'
 import { getTranslator, preloadDynamicTranslator, supportsLocalExecution } from './clientTranslator'
 import { triggerDeviceControl } from './deviceControlClient'
 import { resolveHardwareBindingById, resolveHardwareEngine } from './hardwareRouting'
@@ -55,6 +55,6 @@ export async function fireDeviceAction(targetLogicalDeviceId: string, type: stri
 }
 
 function waitUntil(serverTime: number): Promise<void> {
-  const delayMs = serverTime - getServerTime()
+  const delayMs = serverTime - getHostTime()
   return delayMs > 0 ? new Promise((resolve) => setTimeout(resolve, delayMs)) : Promise.resolve()
 }

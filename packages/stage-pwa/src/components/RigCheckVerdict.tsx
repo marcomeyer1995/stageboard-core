@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { getServerTime } from '../lib/clockSync'
+import { getHostTime } from '../lib/clockSync'
 import { getDeviceId } from '../lib/deviceId'
 import { deviceReportId, verdictRun, writeOwnReport, type RigCheckDeviceReport } from '../lib/rigCheck'
 import { useNow } from '../lib/useNow'
@@ -24,7 +24,7 @@ export function RigCheckVerdict() {
   const [choice, setChoice] = useState<'question' | 'problem' | null>(null)
   const [typed, setTyped] = useState<string | null>(null)
   const [, setTick] = useState(0)
-  const run = verdictRun(events, getServerTime())
+  const run = verdictRun(events, getHostTime())
   if (!run || run.cancelled || later.has(run.showId)) return null
   const id = deviceReportId(run.showId, getDeviceId())
   const own = events.find((e): e is RigCheckDeviceReport => e.id === id && e.type === 'rig-check-device')

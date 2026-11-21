@@ -125,7 +125,7 @@ export interface AddonMethodsOptions {
   log?: Log
   /** The helpers an add-on gets instead of this device's own (a test stands in for Chrome, yt-dlp, Piper ...). */
   runHelper?: (addonId: string) => HelperRunFn | undefined
-  /** Permissions on top of the manifest's, per add-on (a test points a look-up at a local server: that origin is declared like any other). */
+  /** Permissions on top of the manifest's, per add-on (a test points a look-up at a local host: that origin is declared like any other). */
   extraPermissions?: Record<string, string[]>
   /** What an add-on gets in `init`, per add-on. */
   settings?: Record<string, Record<string, unknown>>

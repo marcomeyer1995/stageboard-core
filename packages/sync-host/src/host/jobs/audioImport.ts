@@ -1,4 +1,4 @@
-import { ServerMessageError, type AudioImportJob, type ServerMessageCode, type TrackMeta } from 'shared-types'
+import { HostMessageError, type AudioImportJob, type HostMessageCode, type TrackMeta } from 'shared-types'
 import { createProgressWriter } from './progress.js'
 import { errorPatch, toTrackFormat, type JobPatch } from './trackFormat.js'
 
@@ -40,14 +40,14 @@ export async function runAudioImport(job: AudioImportJob, ctx: AudioImportContex
   log.info('Starting async job', { jobId: job.id, type: job.type, addonId: job.addonId, variantId: job.variantId })
 
   // A replicated document is untrusted input: the variant id becomes a path, the add-on id and method name what is asked of which sandbox.
-  const rejection: { code: ServerMessageCode; params?: Record<string, string> } | null = !(await ctx.bandHasAddon(job.addonId).catch(() => false))
+  const rejection: { code: HostMessageCode; params?: Record<string, string> } | null = !(await ctx.bandHasAddon(job.addonId).catch(() => false))
     ? { code: 'addon.notInstalled', params: { addon: job.addonId } }
     : !ctx.isSafeVariantId(job.variantId)
       ? { code: 'job.invalidVariantId' }
       : null
   if (rejection) {
     log.error('Rejected async job', { jobId: job.id, reason: rejection.code })
-    await ctx.patchJob(errorPatch(new ServerMessageError(rejection.code, rejection.params))).catch((err) => log.error('Failed to mark async job as failed', { jobId: job.id, error: String(err) }))
+    await ctx.patchJob(errorPatch(new HostMessageError(rejection.code, rejection.params))).catch((err) => log.error('Failed to mark async job as failed', { jobId: job.id, error: String(err) }))
     return
   }
 
@@ -56,7 +56,7 @@ export async function runAudioImport(job: AudioImportJob, ctx: AudioImportContex
   const progress = createProgressWriter({ patch: ctx.patchJob, intervalMs: ctx.progressIntervalMs ?? 1_500, now: () => ctx.now(), onError: (err) => log.error('Failed to write job progress', { jobId: job.id, error: String(err) }) })
   try {
     await ctx.patchJob({ status: 'running', progress: 0 })
-    if (!(await ctx.variantExists(job.variantId))) throw new ServerMessageError('job.variantGone')
+    if (!(await ctx.variantExists(job.variantId))) throw new HostMessageError('job.variantGone')
     const fetched = await ctx.fetchAudio(job.addonId, job.method, job.args, (fraction) => progress.report(fraction))
     dispose = fetched.dispose
     await progress.settled()

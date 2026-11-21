@@ -17,7 +17,7 @@ export const MASTER_MODE_LABEL: Record<'device' | 'account', string> = {
 /**
  * How master works in a band (Marco, 2026-10-16: a band setting, so it sits with the band - the
  * badge beside "Aktiv" and the band's ⋯ open this; it used to be a section below the members).
- * Admins of a server-connected band change it; everyone else reads what it means.
+ * Admins of a host-connected band change it; everyone else reads what it means.
  */
 export function MasterModeDialog({ workspace, onClose }: { workspace: Workspace; onClose: () => void }) {
   const { t } = useTranslation('band')

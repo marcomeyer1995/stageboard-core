@@ -19,7 +19,7 @@ import type { BuiltinAddon } from '../lib/addonUi/builtinAddons'
 import { INPUT } from './ui/styles'
 import { AddRow, Button, Dialog, IconButton } from './ui'
 import { useTranslation } from 'react-i18next'
-import { serverErrorText } from '../lib/serverMessage'
+import { hostErrorText } from '../lib/hostMessage'
 
 const JOB_LABELS: Record<AsyncJob['type'], string> = {
   get 'audio-import'() {
@@ -273,7 +273,7 @@ export function TrackManagerField({ variantId, tracks, disabled, searchQuery = '
             <div key={job.id} className="flex items-center gap-2 text-xs">
               {job.status === 'error' ? (
                 <span className="text-danger">
-                  {t('tm.failed', { job: JOB_LABELS[job.type], error: serverErrorText(job) })}
+                  {t('tm.failed', { job: JOB_LABELS[job.type], error: hostErrorText(job) })}
                 </span>
               ) : job.status === 'done' ? (
                 <span className="text-ink-faint">{t('tm.done', { job: JOB_LABELS[job.type] })}</span>

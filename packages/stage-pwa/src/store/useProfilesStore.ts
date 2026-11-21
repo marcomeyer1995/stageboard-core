@@ -48,7 +48,7 @@ interface ProfilesState {
    * creating them here with unknown random passwords would only lock self-service join out for
    * every one of them (an already-existing account demands a password nobody was ever told).
    * `false` on failure to connect at all. */
-  connectToServer: (serverUrl: string) => Promise<boolean>
+  connectToHost: (serverUrl: string) => Promise<boolean>
 }
 
 let changesHandle: LocalChangesHandle<Profile> | null = null
@@ -67,7 +67,7 @@ function activeWorkspace() {
  * Tier-A local-only-founding follow-up. Until then, every roster edit here (create, admin
  * toggle, remove) stays a plain local write: there's no account or validator yet for
  * useWorkspaceStore.ts's backend calls to act on. */
-function isServerConnected(workspace: ReturnType<typeof activeWorkspace>): boolean {
+function isHostConnected(workspace: ReturnType<typeof activeWorkspace>): boolean {
   return !!workspace?.username
 }
 
@@ -92,7 +92,7 @@ export const useProfilesStore = create<ProfilesState>((set, get) => ({
   // plain local write, nothing new to provision, auto-admin (so "at least one admin" holds
   // from the moment a band exists). Tier-A local-only-founding follow-up: every profile after
   // that stays a plain local write too, for as long as the workspace itself has never been
-  // connected to a server (`isServerConnected`) - once it has, a brand-new personal the database
+  // connected to a host (`isHostConnected`) - once it has, a brand-new personal the database
   // account is provisioned first (`useWorkspaceStore`'s `createMember`), same as before.
   create: async (name, options = {}) => {
     const workspace = activeWorkspace()
@@ -103,7 +103,7 @@ export const useProfilesStore = create<ProfilesState>((set, get) => ({
       return { profile, credentials: null }
     }
 
-    if (!isServerConnected(workspace)) {
+    if (!isHostConnected(workspace)) {
       const profile: Profile = { id: randomId(), name, stageRoles: options.isAdmin ? ['admin'] : [] }
       await putProfile(profile)
       return { profile, credentials: null }
@@ -144,7 +144,7 @@ export const useProfilesStore = create<ProfilesState>((set, get) => ({
     const workspace = activeWorkspace()
     // Local-only workspace (see the Tier-A follow-up): no account or validator exists
     // yet for the backend call below to act on - this stays a plain local edit.
-    if (wasAdmin !== willBeAdmin && isServerConnected(workspace)) {
+    if (wasAdmin !== willBeAdmin && isHostConnected(workspace)) {
       const ok = await useWorkspaceStore.getState().setMemberAdmin(workspace?.id ?? '', id, willBeAdmin)
       if (!ok) return false
       // This device's own admin-UI gate has to track its own profile's admin bit, or a device
@@ -163,14 +163,14 @@ export const useProfilesStore = create<ProfilesState>((set, get) => ({
   // exists yet to deprovision, so this is just a local removal.
   remove: async (id) => {
     const workspace = activeWorkspace()
-    if (isServerConnected(workspace)) {
+    if (isHostConnected(workspace)) {
       const ok = await useWorkspaceStore.getState().removeMember(workspace!.id, id)
       if (!ok) return false
     }
     await removeProfile(id)
     return true
   },
-  connectToServer: async (serverUrl) => {
+  connectToHost: async (serverUrl) => {
     const workspace = activeWorkspace()
     if (!workspace) return false
 

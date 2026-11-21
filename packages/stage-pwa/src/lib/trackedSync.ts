@@ -136,7 +136,7 @@ export function trackedSync<T extends object>(
 
             // the database (2.0+) reports how many changes are still left on every batch of its
             // `_changes` feed - not in @types/pouchdb-replication's declarations, but present
-            // at runtime (pouchdb-browser's http adapter attaches it when the server sends
+            // at runtime (pouchdb-browser's http adapter attaches it when the host sends
             // one). Only meaningful for pull: push reads from the local IndexedDB adapter,
             // which has no such concept.
             //
@@ -166,7 +166,7 @@ export function trackedSync<T extends object>(
           .on('error', (err) => {
             // 404: the Host has no such band database (#897) - not a transient failure.
             if (options.workspaceId) {
-              useSyncStore.getState().setNotOnServer(options.workspaceId, (err as { status?: number } | undefined)?.status === 404)
+              useSyncStore.getState().setNotOnHost(options.workspaceId, (err as { status?: number } | undefined)?.status === 404)
             }
             report('error')
             clearStreamProgress(name)
@@ -179,7 +179,7 @@ export function trackedSync<T extends object>(
             graceTimer = null
             clearStream(name)
             clearStreamProgress(name)
-            if (options.workspaceId) useSyncStore.getState().setNotOnServer(options.workspaceId, false)
+            if (options.workspaceId) useSyncStore.getState().setNotOnHost(options.workspaceId, false)
             settle()
           })
       }),

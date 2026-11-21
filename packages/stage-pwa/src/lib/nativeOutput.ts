@@ -113,7 +113,7 @@ export const nativeEngine = {
   enable: (on: boolean) => send(NativeOutput.engineEnable({ on })),
   transport: (t: { status: number; startedAt: number; accumulatedMs: number; rate: number; hasJump: boolean; jumpAt: number; jumpToMs: number; jumpRate: number }) => send(NativeOutput.engineTransport(t)),
   beats: (songMs: Float64Array, accent: Uint8Array) => send(NativeOutput.engineBeats({ songMs: Array.from(songMs), accent: Array.from(accent) })),
-  /** Band time - wall clock: the server offset plus this output's trim. */
+  /** Band time - wall clock: the host offset plus this output's trim. */
   offset: (offsetMs: number) => send(NativeOutput.engineOffset({ offsetMs })),
   /** `bus` as engine.h (0 click), -1 the master. */
   gain: (bus: number, gain: number) => send(NativeOutput.engineGain({ bus, gain })),

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useClockSyncStore } from '../store/useClockSyncStore'
-import { __resetClockSyncForTests, getServerTime, syncClock } from './clockSync'
+import { __resetClockSyncForTests, getHostTime, syncClock } from './clockSync'
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -8,7 +8,7 @@ afterEach(() => {
   __resetClockSyncForTests()
 })
 
-describe('syncClock / getServerTime', () => {
+describe('syncClock / getHostTime', () => {
   it('computes the offset from a single round trip (server time minus the RTT midpoint)', async () => {
     vi.stubEnv('VITE_HOST_URL', 'https://stage.example')
 
@@ -25,7 +25,7 @@ describe('syncClock / getServerTime', () => {
     const offset = await syncClock(1)
     // t0=0, t1=50, midpoint=25, offset = serverTime - midpoint = 1_000_000 - 25
     expect(offset).toBe(999_975)
-    expect(getServerTime()).toBe(now + offset)
+    expect(getHostTime()).toBe(now + offset)
 
     const state = useClockSyncStore.getState()
     expect(state.offsetMs).toBe(999_975)
@@ -229,8 +229,8 @@ describe('syncClock / getServerTime', () => {
     expect(useClockSyncStore.getState().lastSyncedAt).toBeNull()
   })
 
-  it('getServerTime falls back to plain local time before any sync', () => {
+  it('getHostTime falls back to plain local time before any sync', () => {
     vi.spyOn(Date, 'now').mockReturnValue(42)
-    expect(getServerTime()).toBe(42)
+    expect(getHostTime()).toBe(42)
   })
 })

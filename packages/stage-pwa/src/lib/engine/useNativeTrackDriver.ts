@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { CAPABILITIES } from 'shared-types'
 import { mixGain, useOutputPlanStore } from '../audioMix'
-import { getServerTime } from '../clockSync'
+import { getHostTime } from '../clockSync'
 import { resolveTrackForEntry } from '../computeQueue'
 import { useAudioOutputLatencyMs } from '../latencyCompensation'
 import { setLocalTrackHeldByEngine } from '../localAudioEngine'
@@ -65,7 +65,7 @@ export function useNativeTrackDriver(): void {
     useNativeTrackStore.setState({ active: true })
     setLocalTrackHeldByEngine(true)
     acquireNativeEngine('track')
-    const transportNow = () => (stateRef.current.mode === 'practice' ? Date.now() : getServerTime())
+    const transportNow = () => (stateRef.current.mode === 'practice' ? Date.now() : getHostTime())
     const update = () => {
       sendNativeOffset(transportNow, stateRef.current.outputLatencyMs)
       // The stems play instead (docs/22 §3): the track is silent, as the element is then.

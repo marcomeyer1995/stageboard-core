@@ -7,18 +7,18 @@ import { getHostUrl } from '../lib/hostUrl'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { Group } from './SystemSettings'
 import { Button, Section, Select } from './ui'
-import { serverText } from '../lib/serverMessage'
+import { hostText } from '../lib/hostMessage'
 
 /** How long "Pegel prüfen" listens; "Testklick" plays its clicks inside that window. */
 const LISTEN_MS = 2500
-/** The test clicks, after the server's input has settled (micCapture.ts SETTLE_MS = 600). */
+/** The test clicks, after the host's input has settled (micCapture.ts SETTLE_MS = 600). */
 const TEST_CLICKS_MS = [1000, 1600, 2200]
 
 const KINDS: MeasureInputKind[] = ['mic', 'cable']
 
-/** The server's measuring-input calls - like the backup settings, only for an admin of the band
- * the server serves (the server checks the login again). */
-function useServerCall() {
+/** The host's measuring-input calls - like the backup settings, only for an admin of the band
+ * the host serves (the host checks the login again). */
+function useHostCall() {
   const { t } = useTranslation('rigcheck')
   const workspace = useWorkspaceStore((s) => s.workspaces.find((w) => w.id === s.activeWorkspaceId))
   return useCallback(
@@ -31,7 +31,7 @@ function useServerCall() {
         body: JSON.stringify({ adminUsername: workspace.username, adminPassword: workspace.password, ...extra }),
       })
       const body = (await res.json().catch(() => null)) as (T & { message?: string }) | null
-      if (!res.ok) throw new Error(serverText(body) ?? t('inputs.http', { status: res.status }))
+      if (!res.ok) throw new Error(hostText(body) ?? t('inputs.http', { status: res.status }))
       return body as T
     },
     [workspace?.username, workspace?.password, t],
@@ -41,12 +41,12 @@ function useServerCall() {
 /** One measuring input: device and channel, and a quick look whether anything arrives. */
 function InputRow({ kind, overview, onChange }: { kind: MeasureInputKind; overview: MeasureInputsOverview; onChange: (input: MeasureInput | null) => void }) {
   const { t } = useTranslation('rigcheck')
-  const call = useServerCall()
+  const call = useHostCall()
   const selected = overview.selected[kind]
   const [result, setResult] = useState<string | null>(null)
   const [listening, setListening] = useState(false)
   const known = overview.inputs.find((input) => input.device === selected?.device)
-  // What the server falls back to (MeasureInputStore.resolve): an unset cable listens like the microphone.
+  // What the host falls back to (MeasureInputStore.resolve): an unset cable listens like the microphone.
   const listenOn: MeasureInput = selected ?? overview.selected.mic ?? { device: overview.fallbackMic, channel: 0 }
   const channels = Math.max(known?.channels ?? 2, (selected?.channel ?? 0) + 1)
 
@@ -62,7 +62,7 @@ function InputRow({ kind, overview, onChange }: { kind: MeasureInputKind; overvi
     setResult(null)
     try {
       if (withClicks) {
-        // The clicks from this device, timed into the window the server listens in.
+        // The clicks from this device, timed into the window the host listens in.
         const ctx = getSharedAudioContext()
         await ctx.resume().catch(() => {})
         const start = ctx.currentTime
@@ -117,12 +117,12 @@ function InputRow({ kind, overview, onChange }: { kind: MeasureInputKind; overvi
 /**
  * System → Rig-Check → Messeingänge (docs/24 §7.2, #662): which of the Host's audio inputs
  * listens when it measures a device's click - a microphone for speakers, a cable for headphones,
- * in-ear and Bluetooth. Kept by the server (its hardware); only admins see and change it.
+ * in-ear and Bluetooth. Kept by the host (its hardware); only admins see and change it.
  */
 export function RigCheckInputs() {
   const { t } = useTranslation('rigcheck')
   const isAdmin = useWorkspaceStore((s) => s.workspaces.find((w) => w.id === s.activeWorkspaceId)?.isAdmin ?? false)
-  const call = useServerCall()
+  const call = useHostCall()
   const [overview, setOverview] = useState<MeasureInputsOverview | null>(null)
   const [error, setError] = useState<string | null>(null)
 

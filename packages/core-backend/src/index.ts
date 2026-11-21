@@ -6,8 +6,8 @@ import { readFile } from 'node:fs/promises'
 import { CalibrationRuns } from './calibration/calibrationRuns.js'
 import { MeasureInputStore } from './calibration/measureInputs.js'
 import { startMicCapture } from './calibration/micCapture.js'
-import { registerServerSettingsRoutes } from './serverSettingsRoutes.js'
-import { serverSpeech, serverVoices } from './speech/serverSpeech.js'
+import { registerHostSettingsRoutes } from './hostSettingsRoutes.js'
+import { hostSpeech, hostVoices } from './speech/hostSpeech.js'
 import { PiperSpeech } from './speech/piperSpeech.js'
 import { createServer } from 'node:http'
 import { hostname, networkInterfaces } from 'node:os'
@@ -42,7 +42,7 @@ import {
   ShowControlEventSchema,
   type Device,
 } from 'shared-types'
-import { CAPABILITIES, messageFieldsOf, serverMessage, type ServerMessage } from 'shared-types'
+import { CAPABILITIES, messageFieldsOf, hostMessage, type HostMessage } from 'shared-types'
 import { createBackupService, realBackupDeps, type BackupService } from './backup.js'
 import { deleteAudioFile, readAudioFile, writeAudioFile } from './audioStore.js'
 import { readPersistedActiveWorkspace } from './activeWorkspaceStateStore.js'
@@ -81,7 +81,7 @@ import {
 
 const certFile = fileURLToPath(new URL('../../../certs/dev-cert.pem', import.meta.url))
 const keyFile = fileURLToPath(new URL('../../../certs/dev-key.pem', import.meta.url))
-/** Computed once, at module load: whether this server will actually listen over HTTPS (see
+/** Computed once, at module load: whether this host will actually listen over HTTPS (see
  * `buildApp()`/`main()` below, both of which gate on this same cert-presence check). The
  * default FRONTEND_ORIGIN below derives its scheme from this too - it used to be hardcoded to
  * `http://`, which silently CORS-blocked every cross-origin PUT/DELETE (audio upload/delete,
@@ -92,7 +92,7 @@ const CERTS_AVAILABLE = existsSync(certFile) && existsSync(keyFile)
 /** `localhost` for whoever opens this dev server directly, `stageboard.local` for the mDNS
  * name devices normally use (docs/03) - covers both without requiring FRONTEND_ORIGIN to be
  * set by hand for the common cases. `https://localhost` is the native Android app's own origin
- * (Capacitor, #348): its UI is bundled in the APK, so every server call is cross-origin. */
+ * (Capacitor, #348): its UI is bundled in the APK, so every host call is cross-origin. */
 const DEFAULT_FRONTEND_ORIGINS = [
   `${CERTS_AVAILABLE ? 'https' : 'http'}://localhost:5173`,
   `${CERTS_AVAILABLE ? 'https' : 'http'}://stageboard.local:5173`,
@@ -129,7 +129,7 @@ export function basicAuthCredentials(header: string | undefined): { username: st
   return { username: decoded.slice(0, colon), password: decoded.slice(colon + 1) }
 }
 
-/** SHA-256 fingerprint of the server's certificate (lowercase hex, no separators), or null
+/** SHA-256 fingerprint of the host's certificate (lowercase hex, no separators), or null
  * without HTTPS. The native app pins exactly this certificate when pairing (#348) - the invite
  * QR code carries it, so a self-signed certificate is trusted without any CA on the device. */
 const CERT_FINGERPRINT = CERTS_AVAILABLE ? certFingerprint(readFileSync(certFile, 'utf8')) : null
@@ -199,7 +199,7 @@ function beginSseStream(request: FastifyRequest, reply: FastifyReply): void {
  * Wires up the Fastify instance and every route, with fresh, empty plugin registries - no
  * the database sync, no LOOKUP_CATALOG registration, no `listen()`. Split out from `main()` so
  * tests can exercise real routes via `.inject()` without any of that I/O; `main()` is the
- * only caller that goes on to populate the registries and actually start the server.
+ * only caller that goes on to populate the registries and actually start the host.
  */
 /** The UDP port OSC triggers arrive on (#484) - TouchOSC and most controllers send to 8000 by default. */
 const OSC_IN_PORT = Number(process.env.STAGEBOARD_OSC_IN_PORT ?? 8000)
@@ -215,7 +215,7 @@ export async function buildApp(options: { backupService?: BackupService; databas
   // the underlying `server` property directly, so one shared `FastifyInstance` type serves
   // both branches without spreading this union through every consumer.
   // Audio track uploads (see #30) regularly exceed Fastify's 1 MB default bodyLimit -
-  // this is a LAN-only server (docs/01), so a generous ceiling costs nothing real.
+  // this is a LAN-only host (docs/01), so a generous ceiling costs nothing real.
   const bodyLimit = Number(process.env.MAX_AUDIO_UPLOAD_BYTES ?? 200 * 1024 * 1024)
 
   // Admin database credentials - core-backend is the trusted, physically-secured Host
@@ -350,7 +350,7 @@ export async function buildApp(options: { backupService?: BackupService; databas
   // (e.g. connected via a typed raw IP) but still wants to show this box's name, not just its
   // address.
   // Latency calibration with the Host's microphone (docs/21 §4, #491): a device asks for a
-  // run, plays its click at the irregular times returned, and polls for the delay the server heard.
+  // run, plays its click at the irregular times returned, and polls for the delay the host heard.
   // Which input listens (#662): the microphone for speakers, the cable for everything plugged in.
   const measureInputs = new MeasureInputStore()
   const calibrationRuns = new CalibrationRuns((kind) => {
@@ -361,14 +361,14 @@ export async function buildApp(options: { backupService?: BackupService; databas
     const parsed = CalibrationRunRequestSchema.safeParse(request.body ?? {})
     if (!parsed.success) return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
     const run = calibrationRuns.start(parsed.data.count, parsed.data.input ?? 'mic')
-    if (!run) return reply.status(409).send({ status: 'error', ...serverMessage('calibration.busy') })
+    if (!run) return reply.status(409).send({ status: 'error', ...hostMessage('calibration.busy') })
     app.log.info({ runId: run.id, deviceId: parsed.data.deviceId, input: parsed.data.input ?? 'mic', listensOn: measureInputs.resolve(parsed.data.input ?? 'mic'), clicks: run.times.length, recordUntil: run.recordUntil }, 'Calibration run started')
     return run
   })
   app.get('/calibration/runs/:id', async (request, reply) => {
     const { id } = request.params as { id: string }
     const status = calibrationRuns.get(id)
-    if (!status) return reply.status(404).send({ status: 'error', ...serverMessage('calibration.unknownRun') })
+    if (!status) return reply.status(404).send({ status: 'error', ...hostMessage('calibration.unknownRun') })
     if (status.state === 'failed') app.log.error({ runId: id, error: status.error }, 'Calibration run failed')
     if (status.state === 'done') app.log.info({ runId: id, onsets: status.onsets, result: status.result }, 'Calibration run finished')
     return status
@@ -376,7 +376,7 @@ export async function buildApp(options: { backupService?: BackupService; databas
 
   for (const path of withLegacyPath('/host/info')) app.get(path, async () => ({
     lanIp: process.env.LAN_IP ?? detectLanIp(),
-    // The port this server listens on - a host off 443 (a laptop, a second server) must put it
+    // The port this host listens on - a host off 443 (a laptop, a second host) must put it
     // into the invite QR, else a scan lands on whatever answers on 443 (#896).
     port: Number(process.env.PORT ?? 3001),
     hostname: process.env.MDNS_HOSTNAME ?? 'stageboard.local',
@@ -394,7 +394,7 @@ export async function buildApp(options: { backupService?: BackupService; databas
 
   // The live channels (#962, step 2) are sync-host's: what a device sends into one (show state, switches, plugin health,
   // device triggers, Discovery) is answered by the shared route table, and what it listens to is one transport here -
-  // each snapshot as a server-sent event. A named '/plugin-health', not '/health': per-plugin reachability, not liveness.
+  // each snapshot as a host-sent event. A named '/plugin-health', not '/health': per-plugin reachability, not liveness.
   // No login on a stream: a page opens it with EventSource, which cannot send one (presence reveals only which
   // already-visible roster member is active).
   const openStream = (request: FastifyRequest, reply: FastifyReply, subscribe: (send: (payload: unknown) => void) => () => void) => {
@@ -671,11 +671,11 @@ export async function buildApp(options: { backupService?: BackupService; databas
       speech: {
         pluginInstalled: () => registry.get(pluginIdProviding(CAPABILITIES.speechSynthesis) ?? '') !== undefined,
         normalise: PiperSpeech.normalise,
-        speak: (text, voice, speed) => serverSpeech.speak(text, voice, speed),
+        speak: (text, voice, speed) => hostSpeech.speak(text, voice, speed),
         voices: {
-          list: () => serverVoices.list(serverSpeech.piperInstalled()),
-          license: (key) => serverVoices.license(key),
-          install: (key) => serverVoices.install(key),
+          list: () => hostVoices.list(hostSpeech.piperInstalled()),
+          license: (key) => hostVoices.license(key),
+          install: (key) => hostVoices.install(key),
         },
         log: { info: (meta, message) => app.log.info(meta, message), error: (meta, message) => app.log.error(meta, message) },
       },
@@ -693,7 +693,7 @@ export async function buildApp(options: { backupService?: BackupService; databas
   )
 
   // OSC devices (#484): host and port are the device's transport config for the Host
-  // (Bühnentechnik), in the band whose hardware this server serves.
+  // (Bühnentechnik), in the band whose hardware this host serves.
   setOscTargetResolver(async (logicalDeviceId) => {
     const workspaceId = workspaceHardware.getActiveWorkspaceId()
     if (!workspaceId || !logicalDeviceId) return null
@@ -855,13 +855,13 @@ export async function buildApp(options: { backupService?: BackupService; databas
 
   /** Ultimate Guitar only for a band that installed its add-on (#546) - the app sends its band as
    * `workspace`. Other providers (MusicBrainz) need nothing. Returns the refusal, or null. */
-  async function lookupRefusal(provider: string, workspace: string | undefined): Promise<ServerMessage | null> {
+  async function lookupRefusal(provider: string, workspace: string | undefined): Promise<HostMessage | null> {
     // The manifest says which provider answers only bands that installed it (`lookup.requiresInstall`) - this route knows no provider by name.
     const addon = LOOKUP_ADDONS.find((info) => info.id === provider)
     if (!addon?.lookup?.requiresInstall) return null
-    if (!workspace || !/^[a-z0-9_-]+$/i.test(workspace)) return serverMessage('ug.bandMissing')
+    if (!workspace || !/^[a-z0-9_-]+$/i.test(workspace)) return hostMessage('ug.bandMissing')
     const installed = await bandHasAddon(database, workspace, addon.pluginId).catch(() => false)
-    return installed ? null : serverMessage('ug.addonMissing')
+    return installed ? null : hostMessage('ug.addonMissing')
   }
 
 
@@ -878,15 +878,15 @@ export async function buildApp(options: { backupService?: BackupService; databas
     if (!declared || !Object.prototype.hasOwnProperty.call(declared, method) || declared[method]!.callableByDevices !== true) {
       return reply.status(403).send({ ok: false, error: { code: 'method.not-callable', message: `The method "${method}" of "${id}" is not offered to devices.`, params: { addon: id, method } } })
     }
-    if (!(await bandHasAddon(database, workspace, id).catch(() => false))) return reply.status(403).send({ status: 'error', ...serverMessage('addon.notInstalled', { addon: id }) })
+    if (!(await bandHasAddon(database, workspace, id).catch(() => false))) return reply.status(403).send({ status: 'error', ...hostMessage('addon.notInstalled', { addon: id }) })
     return addonMethods.call(id, method, request.body ?? {})
   })
 
   // Provisions a brand-new workspace: its database, `_security` doc, roster validation doc, and
   // the founding device's own personal account (see per-person-accounts follow-up -
   // every roster member gets their own account, the founder is just the first one, auto-admin).
-  // Who may found a band (#364, Marco 2026-10-05): the first band on a fresh server anyone; every
-  // further one only an admin of a band on this server (or the server machine itself).
+  // Who may found a band (#364, Marco 2026-10-05): the first band on a fresh host anyone; every
+  // further one only an admin of a band on this host (or the host machine itself).
   const adminProofThrottle = createPinThrottle()
 
   /** An admin login as proof for founding (any band's admin) - locked after 5 wrong tries per
@@ -947,11 +947,11 @@ export async function buildApp(options: { backupService?: BackupService; databas
   })
 
   // Which workspace (if any) this specific box's hardware currently serves - not scoped under
-  // /workspaces/:workspaceId since it describes the server, not a workspace, and needs no auth
+  // /workspaces/:workspaceId since it describes the host, not a workspace, and needs no auth
   // for the same reason /host/info needs none: not new information beyond what's already
   // observable on the LAN.
   // The Host's backups (#363, Marco 2026-10-08): targets chosen in the app (System →
-  // Backup), run by the server itself - backup.ts. Admin of the band this server serves.
+  // Backup), run by the host itself - backup.ts. Admin of the band this host serves.
   const backups: BackupService =
     options.backupService ??
     createBackupService(
@@ -965,17 +965,17 @@ export async function buildApp(options: { backupService?: BackupService; databas
   async function activeBandAdmin(request: FastifyRequest, reply: FastifyReply, body: { adminUsername: string; adminPassword: string }): Promise<boolean> {
     const workspaceId = workspaceHardware.getActiveWorkspaceId()
     if (!workspaceId) {
-      void reply.status(409).send({ status: 'error', ...serverMessage('band.noneActive') })
+      void reply.status(409).send({ status: 'error', ...hostMessage('band.noneActive') })
       return false
     }
     if (!(await isWorkspaceAdmin(request, workspaceId, body.adminUsername, body.adminPassword))) {
       app.log.warn({ workspaceId, remoteAddress: request.ip }, 'Server setting refused: not this band\'s admin')
-      void reply.status(403).send({ status: 'error', ...serverMessage('band.activeAdminOnly') })
+      void reply.status(403).send({ status: 'error', ...hostMessage('band.activeAdminOnly') })
       return false
     }
     return true
   }
-  registerServerSettingsRoutes(app, { backups, activeBandAdmin, measureInputs, calibrationRuns })
+  registerHostSettingsRoutes(app, { backups, activeBandAdmin, measureInputs, calibrationRuns })
 
   // 2026-09-02 fourth follow-up, at Marco's explicit request: consolidates the PWA, this API,
   // and the database onto this one origin, so a new device only ever has to accept one self-signed
@@ -985,7 +985,7 @@ export async function buildApp(options: { backupService?: BackupService; databas
   //
   // Pure passthrough proxy, not a real integration: whatever Basic Auth header the client (a
   // real PouchDB instance, using that specific person's own account) already sends
-  // travels straight through to real the database unmodified - this server's own trusted admin
+  // travels straight through to real the database unmodified - this host's own trusted admin
   // `database` credentials above are never injected here, and the database itself still does every bit
   // of the actual authentication/authorization exactly as if the client had connected to it
   // directly. `stage-pwa`'s `workspaceDb.ts` now builds its remote database URL from this
@@ -1021,7 +1021,7 @@ export async function buildApp(options: { backupService?: BackupService; databas
   // routing needed: the app has no client-side URL router at all, just one `index.html` and
   // in-memory React state, so `@fastify/static`'s default file-or-404 behavior is already
   // exactly right - `/` is the only path anything ever actually requests.
-  // The native Android app (#348), built by scripts/build-android-app.sh next to the server's data.
+  // The native Android app (#348), built by scripts/build-android-app.sh next to the host's data.
   registerAppRoutes(app, process.env.STAGEBOARD_APP_DIR ?? join(process.env.STAGEBOARD_STATE_DIR ?? './data', 'app'))
 
   const pwaDist = fileURLToPath(new URL('../../stage-pwa/dist', import.meta.url))
@@ -1071,7 +1071,7 @@ async function main() {
 
   try {
     // Validator rules added after a band was founded (protected dashboard templates, #16) reach
-    // its database here. A failure must not keep the server from starting.
+    // its database here. A failure must not keep the host from starting.
     try {
       const updated = await updateRosterValidators(database, (db, err) => app.log.error({ err, db }, 'Could not update the roster validator of this band'))
       if (updated.length > 0) app.log.info({ databases: updated }, 'Roster validator updated')
@@ -1080,14 +1080,14 @@ async function main() {
     }
 
     // Which plugins run is not configured here: the band installs them in the PWA, and the
-    // installation documents replicate to this server over the database (docs/01, mesh).
+    // installation documents replicate to this host over the database (docs/01, mesh).
     //
     // 2026-09-02 fourteenth follow-up, at Marco's explicit request, after finding a phantom
     // empty "band-a" workspace kept reappearing in "Verfügbare Bands" no matter how often he
     // deleted it: this used to default to workspaceId 'band-a' when STAGEBOARD_WORKSPACE
     // wasn't set - a leftover from before the WiFi-style redesign, when a Host
     // belonged to exactly one fixed band. `start()` (pluginSync.ts) calls `ensureDb()`
-    // unconditionally, which *creates* that database if it's missing - so every server
+    // unconditionally, which *creates* that database if it's missing - so every host
     // restart silently recreated an empty "band-a" nobody ever founded through the app. Now
     // this hardware/plugin sync simply doesn't run at all unless a real workspace is
     // deliberately configured, rather than ever phantom-creating one of its own.
@@ -1179,17 +1179,17 @@ async function main() {
     // (found live: `FST_ERR_INSTANCE_ALREADY_LISTENING`), so both need to go first even though
     // neither actually depends on the HTTPS listener being up yet.
     if (CERTS_AVAILABLE) {
-      const redirectServer = createServer((request, response) => {
+      const redirectHost = createServer((request, response) => {
         const host = (request.headers.host ?? 'stageboard.local').split(':')[0]
         response.writeHead(301, { Location: `https://${host}${request.url ?? '/'}` })
         response.end()
       })
-      redirectServer.on('error', (err) => {
+      redirectHost.on('error', (err) => {
         app.log.warn({ err }, 'Could not start the port-80 HTTP->HTTPS redirect listener - the main HTTPS server is unaffected')
       })
-      redirectServer.listen(80, '0.0.0.0')
+      redirectHost.listen(80, '0.0.0.0')
       app.addHook('onClose', async () => {
-        await new Promise<void>((resolve) => redirectServer.close(() => resolve()))
+        await new Promise<void>((resolve) => redirectHost.close(() => resolve()))
       })
     }
 
@@ -1224,12 +1224,12 @@ async function main() {
     const mdnsHostname = process.env.MDNS_HOSTNAME ?? 'stageboard.local'
     if (lanIp) {
       // Never awaited and never throws: at boot the Wi-Fi may not have its address yet (#339) -
-      // the responder retries on its own while the server already serves by raw IP.
+      // the responder retries on its own while the host already serves by raw IP.
       const mdns = startMdnsResponder({
         lanIp,
         hostname: mdnsHostname,
         port,
-        // The name the native app lists this server under (#351).
+        // The name the native app lists this host under (#351).
         instance: process.env.MDNS_INSTANCE ?? `StageBoard ${hostname().split('.')[0]}`,
         certFingerprint: CERT_FINGERPRINT,
         log: pluginLog,
@@ -1253,7 +1253,7 @@ async function main() {
   }
 }
 
-// Only start the real server when this file is the process entrypoint (`tsx src/index.ts`
+// Only start the real host when this file is the process entrypoint (`tsx src/index.ts`
 // or `node dist/index.js`) - not when it's imported, e.g. by index.test.ts for `buildApp()`.
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   main()

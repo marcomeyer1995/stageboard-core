@@ -230,7 +230,7 @@ describe('useProfilesStore', () => {
     })
   })
 
-  describe('connectToServer (2026-09-01 redesign: only provisions the founder now)', () => {
+  describe('connectToHost (2026-09-01 redesign: only provisions the founder now)', () => {
     it('provisions just the founder via connectWorkspace - every other existing profile stays unprovisioned for lazy self-service join', async () => {
       useWorkspaceStore.setState({
         workspaces: [{ id: 'band-a', name: 'Band A', ownProfileId: 'founder-id', isAdmin: true }],
@@ -246,7 +246,7 @@ describe('useProfilesStore', () => {
       const createMember = vi.fn()
       useWorkspaceStore.setState({ connectWorkspace, createMember })
 
-      const result = await useProfilesStore.getState().connectToServer('https://host-computer:3001')
+      const result = await useProfilesStore.getState().connectToHost('https://host-computer:3001')
 
       expect(connectWorkspace).toHaveBeenCalledWith('band-a', 'https://host-computer:3001')
       expect(createMember).not.toHaveBeenCalled()
@@ -262,7 +262,7 @@ describe('useProfilesStore', () => {
       })
       useWorkspaceStore.setState({ connectWorkspace: vi.fn().mockResolvedValue(false) })
 
-      const result = await useProfilesStore.getState().connectToServer('https://host-computer:3001')
+      const result = await useProfilesStore.getState().connectToHost('https://host-computer:3001')
 
       expect(result).toBe(false)
     })

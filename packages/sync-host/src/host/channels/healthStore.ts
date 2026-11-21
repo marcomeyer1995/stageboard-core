@@ -55,7 +55,7 @@ export function subscribe(workspaceId: string, subscriber: Subscriber): () => vo
   }
 }
 
-/** Test-only: this module's state is shared across the whole process by design (one server,
+/** Test-only: this module's state is shared across the whole process by design (one host,
  * many workspaces) - tests need a way to reset it between runs. */
 export function __resetHealthStoreForTests(): void {
   stateByWorkspace.clear()

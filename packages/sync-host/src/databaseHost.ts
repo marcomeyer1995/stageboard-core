@@ -4,12 +4,12 @@ import { basicCredentials, same } from './passwords.js'
 import { createBandAccountStore } from './host/bandAccountStore.js'
 import { createBandAccounts, type BandAccounts } from './host/bandAccounts.js'
 import { BAND_SETTINGS_DOC_ID, listedHostIds } from './host/hostRole.js'
-import { createWriteGuard, inList, isServerAdmin, type SecurityDoc, type UserCtx } from './writeGuard.js'
+import { createWriteGuard, inList, isHostAdmin, type SecurityDoc, type UserCtx } from './writeGuard.js'
 
 /**
  * The database host of a Host (docs/25, #960): what core-backend's database client and the devices ask of a
  * database, over PouchDB databases - so a laptop, a Linux box and an Android tablet can all be the host with the same
- * code. On top of the replication protocol (index.ts): the server admin, the login of a device (an `account:` document of
+ * code. On top of the replication protocol (index.ts): the host admin, the login of a device (an `account:` document of
  * the band's own database, `createBandAccounts`), each band's access rules (`_security`), the validation functions stored
  * in a band (`_design/…`), and making, listing and deleting databases. Plain WebCrypto, no Node API.
  */
@@ -19,7 +19,7 @@ export interface DatabaseHostOptions {
   storage: (name: string) => SyncDatabase
   /** The names of the databases that exist, and their bookkeeping. */
   catalog: Catalog
-  /** The server admin - core-backend's own login (STAGEBOARD_DB_USER / STAGEBOARD_DB_PASSWORD). */
+  /** The host admin - core-backend's own login (STAGEBOARD_DB_USER / STAGEBOARD_DB_PASSWORD). */
   admin: { user: string; password: string }
   longpollMaxMs?: number
 }
@@ -55,7 +55,7 @@ export function createDatabaseHost(options: DatabaseHostOptions) {
   }
   const exists = async (name: string) => (await options.catalog.list()).includes(name)
 
-  // The server admin's login is checked in constant time and needs no remembering; a device's login is remembered by
+  // The host admin's login is checked in constant time and needs no remembering; a device's login is remembered by
   // its band's accounts (below) - PBKDF2 is slow, and every sync request would otherwise wait for it.
 
   // The accounts of each band, kept in the band's own database (#960). One instance per band: it keeps its own
@@ -75,7 +75,7 @@ export function createDatabaseHost(options: DatabaseHostOptions) {
     return accounts
   }
 
-  /** Who is asking: the server admin, a device login of the band whose database this is, anybody without a login (an
+  /** Who is asking: the host admin, a device login of the band whose database this is, anybody without a login (an
    * anonymous request - it gets into nothing), or nobody (a login that does not check out). */
   const whoIs = async (authorization: string | undefined, dbName?: string): Promise<UserCtx | null> => {
     const creds = basicCredentials(authorization)
@@ -98,7 +98,7 @@ export function createDatabaseHost(options: DatabaseHostOptions) {
 
   /** the database 3: a database without members is for admins only. */
   const access = async (name: string, ctx: UserCtx): Promise<'admin' | 'member' | null> => {
-    if (isServerAdmin(ctx)) return 'admin'
+    if (isHostAdmin(ctx)) return 'admin'
     const sec = await security(name)
     if (inList(ctx, sec.admins)) return 'admin'
     if (inList(ctx, sec.members)) return 'member'
@@ -117,7 +117,7 @@ export function createDatabaseHost(options: DatabaseHostOptions) {
 
     if (first === undefined) return sync(request)
     if (first === '_all_dbs') {
-      if (!isServerAdmin(ctx)) return error(403, 'forbidden', 'Server admin only.')
+      if (!isHostAdmin(ctx)) return error(403, 'forbidden', 'Server admin only.')
       return json(200, (await options.catalog.list()).sort())
     }
     if (first === '_up') return json(200, { status: 'ok' })
@@ -125,7 +125,7 @@ export function createDatabaseHost(options: DatabaseHostOptions) {
     const name = decodeURIComponent(first)
     // The database itself: create, delete.
     if (second === undefined && (method === 'PUT' || method === 'DELETE')) {
-      if (!isServerAdmin(ctx)) return error(403, 'forbidden', 'Server admin only.')
+      if (!isHostAdmin(ctx)) return error(403, 'forbidden', 'Server admin only.')
       if (method === 'PUT') {
         if (await exists(name)) return error(412, 'file_exists', 'The database could not be created, the file already exists.')
         await options.catalog.add(name)

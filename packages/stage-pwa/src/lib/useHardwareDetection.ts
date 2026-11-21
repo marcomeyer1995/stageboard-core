@@ -121,7 +121,7 @@ export async function handleDetected(detected: DetectedHardware) {
   const discovery = useDiscoverySessionStore.getState()
   if (discovery.session.active) {
     // Discovery Mode is running: defer entirely to the bandwide session instead of this
-    // tablet's own passive #106 flow below - reporting is idempotent (the server just updates
+    // tablet's own passive #106 flow below - reporting is idempotent (the host just updates
     // the existing candidate entry on a repeat report), so replaying an already-reported device
     // here (the hook below does this on every session-active edge) is harmless. Actually binding
     // a winning candidate is resolveDiscoveryWins's job, triggered off the session store itself

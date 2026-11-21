@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
 import { AUDIO_OUTPUT, AudioRouteSchema, CAPABILITIES, latencyProfileId, PLAYBACK_CUE_TARGET, type LogicalDevice } from 'shared-types'
 import { describeCue, commandsFor } from '../lib/deviceCommands'
-import { getServerTime } from '../lib/clockSync'
+import { getHostTime } from '../lib/clockSync'
 import { routeLabel } from '../lib/latencyProfiles'
 import { cancelRigCheck, latestRun, openRun, prepareRigCheck, runIsPlayable, runReports, startRigCheck, type RigCheckDeviceReport, type RigCheckRun, type StartResult } from '../lib/rigCheck'
 import { runAnalysisCheck, type AnalysisCheck } from '../lib/rigCheckAnalysis'
@@ -236,7 +236,7 @@ export function RigCheckView() {
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
 
-  const now = getServerTime()
+  const now = getHostTime()
   const last = latestRun(events)
   const open = openRun(events, now)
   const state = runState(last, open)

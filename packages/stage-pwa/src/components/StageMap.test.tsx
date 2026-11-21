@@ -457,8 +457,8 @@ describe('StageMap (docs/31 §7)', () => {
 
   it('"Prüfen" shows what each device reports: an offline tablet is red, on the map and in the list, and editing is off (#747)', async () => {
     setUp(true)
-    const { getServerTime } = await import('../lib/clockSync')
-    reported.devices = { [me]: { ip: '10.0.0.2', os: 'Android', environment: 'native', syncStatus: 'idle', lastSeenAt: getServerTime(), networkReachable: true, hostname: null, battery: { pct: 64, charging: false } } }
+    const { getHostTime } = await import('../lib/clockSync')
+    reported.devices = { [me]: { ip: '10.0.0.2', os: 'Android', environment: 'native', syncStatus: 'idle', lastSeenAt: getHostTime(), networkReachable: true, hostname: null, battery: { pct: 64, charging: false } } }
     const { container } = render(<StageMap />)
     expect(container.querySelector('circle[data-live]')).toBeNull()
 

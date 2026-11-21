@@ -113,7 +113,7 @@ export function resolveExecutionEngine(
 ): HardwareRoutingEngine {
   if (mode === 'practice') return supportsLocalExecution ? 'local-mine' : 'none'
   const target = logicalDevice?.executionTarget ?? null
-  // No tablet chosen for Klick / Backing-Track (and no real server plugin): the device that runs
+  // No tablet chosen for Klick / Backing-Track (and no real host plugin): the device that runs
   // the show plays it (System split, Marco 2026-10-16) - before, Gig sent it to the do-nothing
   // server stand-in and nobody heard it.
   if (masterFallback && (target === null || isHostTarget(target, world)) && !pluginId) return masterFallback.drivesAutomation ? 'local-mine' : 'local-other'
@@ -126,6 +126,6 @@ export function masterPlays(capability: CapabilityId): boolean {
   return capability === CAPABILITIES.clickTrack || capability === CAPABILITIES.audioPlayback
 }
 
-/** The server stand-ins Klick / Backing-Track used to need for Gig routing - they play nothing,
+/** The host stand-ins Klick / Backing-Track used to need for Gig routing - they play nothing,
  * so routing never sends a show to them. */
 export const STAND_IN_PLUGIN_IDS: readonly string[] = ['mock-click', 'mock-playback']

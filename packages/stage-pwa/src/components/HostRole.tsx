@@ -28,7 +28,7 @@ export function HostRole({ boxId, canEdit }: { boxId: string; canEdit: boolean }
   async function setRole(role: 'primary' | 'backup') {
     const address = await promptText(t(role === 'primary' ? 'hostRole.askPrimary' : 'hostRole.askBackup'), {
       label: t('hostRole.address'),
-      // The paired server is the natural primary; a backup is another machine, so nothing to suggest.
+      // The paired host is the natural primary; a backup is another machine, so nothing to suggest.
       defaultValue: role === 'primary' ? (getHostUrl() ?? '') : '',
       submitLabel: t('hostRole.check'),
     })

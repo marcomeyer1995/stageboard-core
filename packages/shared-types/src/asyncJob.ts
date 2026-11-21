@@ -1,10 +1,10 @@
 import { z } from 'zod'
-import { ServerMessageParamsSchema } from './serverMessage.js'
+import { HostMessageParamsSchema } from './hostMessage.js'
 
 /**
  * A replicated background-job document (#5): the Host watches this workspace's shared
  * db for new ones the same way it watches for plugin installs (`pluginSync.ts`) - a tablet
- * creates the doc, the server picks it up over the database `_changes` feed and does the actual
+ * creates the doc, the host picks it up over the database `_changes` feed and does the actual
  * work (network access, a shell-out), and progress/result flow back the same way every other
  * replicated document does, no dedicated HTTP endpoint needed.
  *
@@ -25,9 +25,9 @@ const AsyncJobBase = {
   variantId: z.string().min(1),
   /** Set once `status` reaches `error` - human-readable (German), the fallback for `errorCode`. */
   error: z.string().min(1).optional(),
-  /** The error as a code the device translates (#679, serverMessage.ts), when the server has one. */
+  /** The error as a code the device translates (#679, hostMessage.ts), when the server has one. */
   errorCode: z.string().min(1).optional(),
-  errorParams: ServerMessageParamsSchema.optional(),
+  errorParams: HostMessageParamsSchema.optional(),
   /** Who works on it (#964): `host:<hostId>` - a host that can do it took it (sync-host's job queue: a job needs a capability of
    * its host, a capable host claims it and goes on only if the job still names it once the claim has replicated); or
    * `device:<Device.id>` - a device whose own helper does the job (docs/32 §8, the YouTube helper on Android). Whoever is named keeps

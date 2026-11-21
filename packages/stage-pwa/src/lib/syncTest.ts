@@ -1,6 +1,6 @@
 import { createAudioClock } from './audioClock'
 import { playClickAt } from './clickEngine'
-import { getServerTime } from './clockSync'
+import { getHostTime } from './clockSync'
 import { getSharedAudioContext } from './sharedAudioContext'
 import { getMidiOutputById } from './webMidiOutput'
 
@@ -21,7 +21,7 @@ export interface SyncTestOptions {
   click: boolean
   durationS: number
   /** Schedule the click earlier by this device's stored output latency (#491) - to check the
-   * compensation: the click then lands on the server second. 0 (default) = the raw latency, what a
+   * compensation: the click then lands on the host second. 0 (default) = the raw latency, what a
    * calibration measures. */
   clickLatencyMs?: number
 }
@@ -55,12 +55,12 @@ export async function startSyncTest(options: SyncTestOptions): Promise<void> {
   const ctx = options.click ? getSharedAudioContext() : null
   if (ctx) await ctx.resume()
   const clock = createAudioClock()
-  const endsAt = getServerTime() + options.durationS * 1000
-  let lastMarked = getServerTime()
+  const endsAt = getHostTime() + options.durationS * 1000
+  let lastMarked = getHostTime()
   status = { running: true, marked: 0, endsAt }
 
   const tick = () => {
-    const now = getServerTime()
+    const now = getHostTime()
     const until = Math.min(now + SCHEDULE_AHEAD_MS + (options.clickLatencyMs ?? 0), endsAt)
     const audioNow = ctx ? clock.now(ctx) : 0
     for (const second of secondsToMark(lastMarked, until, now)) {

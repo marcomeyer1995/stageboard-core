@@ -2,7 +2,7 @@ import i18n from '../i18n'
 import { useEffect, useRef } from 'react'
 import type { ShowLogEvent } from 'shared-types'
 import { measureInputFor, runAudioCalibration } from './audioCalibration'
-import { getServerTime } from './clockSync'
+import { getHostTime } from './clockSync'
 import { getDeviceId } from './deviceId'
 import { audioOutputLatencyMs } from './latencyProfiles'
 import { useAudioRouteStore } from '../store/useAudioRouteStore'
@@ -27,7 +27,7 @@ export type MeasuredClick = NonNullable<RigCheckDeviceReport['measured']>
 export const MEASURE_SLOT_MS = 18_000
 /** Time the devices get to learn about the round before the first slot. */
 const MEASURE_LEAD_MS = 1500
-/** How long a device keeps asking when the server is still busy with the slot before. */
+/** How long a device keeps asking when the host is still busy with the slot before. */
 const RETRY_FOR_MS = 3000
 
 /** Limits of a good result (docs/24 §7.1, Marco 2026-10-29). */
@@ -85,7 +85,7 @@ export function correctedLatencyMs(measured: MeasuredClick): number | null {
  */
 export async function startMeasureRound(run: RigCheckRun, reports: readonly RigCheckDeviceReport[]): Promise<number> {
   if (!useShowStateStore.getState().isMaster || run.startedAt !== undefined) return 0
-  const now = Math.round(getServerTime())
+  const now = Math.round(getHostTime())
   const devices = reports.filter((report) => report.mode === 'gig')
   const slots = devices.map((report, i) => ({ deviceId: report.deviceId, deviceName: report.deviceName, at: now + MEASURE_LEAD_MS + i * MEASURE_SLOT_MS }))
   if (slots.length === 0) return 0
@@ -100,12 +100,12 @@ async function measureOwnClick(slotAt: number): Promise<MeasuredClick> {
   const storedMs = audioOutputLatencyMs(useLatencyProfilesStore.getState().profiles, deviceId, route, true)
   const input = measureInputFor(route)
   let outcome = await runAudioCalibration(storedMs)
-  // The slot before may still be finishing on the server (a late start there) - ask again briefly.
-  while (!outcome.ok && outcome.busy && getServerTime() < slotAt + RETRY_FOR_MS) {
+  // The slot before may still be finishing on the host (a late start there) - ask again briefly.
+  while (!outcome.ok && outcome.busy && getHostTime() < slotAt + RETRY_FOR_MS) {
     await new Promise((resolve) => setTimeout(resolve, 500))
     outcome = await runAudioCalibration(storedMs)
   }
-  const base = { at: Math.round(getServerTime()), input, audioRoute: route, storedMs }
+  const base = { at: Math.round(getHostTime()), input, audioRoute: route, storedMs }
   if (!outcome.ok) return { ...base, offsetMs: null, jitterMs: null, matched: 0, total: 12, reliable: false, error: outcome.message.slice(0, 300) }
   if (outcome.status.state === 'failed') return { ...base, offsetMs: null, jitterMs: null, matched: 0, total: 12, reliable: false, error: outcome.status.error.slice(0, 300) }
   if (outcome.status.state !== 'done' || !outcome.status.result) return { ...base, offsetMs: null, jitterMs: null, matched: 0, total: 12, reliable: false }
@@ -128,7 +128,7 @@ export function useRigCheckMeasurer(): void {
   const measuredFor = useRef<string | null>(null)
   useEffect(() => {
     const tick = () => {
-      const now = getServerTime()
+      const now = getHostTime()
       const events = useShowLogStore.getState().events
       // Inline instead of openRun (rigCheck.ts imports this module).
       let run: RigCheckRun | null = null

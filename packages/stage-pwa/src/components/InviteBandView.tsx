@@ -2,7 +2,7 @@ import i18n from '../i18n'
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { buildJoinUrl, renderQrCode } from '../lib/qrCode'
-import { fetchServerAddress } from '../lib/serverInfo'
+import { fetchHostAddress } from '../lib/hostInfo'
 import { useDialogStore } from '../store/useDialogStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { useBackHandler } from '../lib/backNavigation'
@@ -32,7 +32,7 @@ import { useTranslation } from 'react-i18next'
  * 2026-09-02 seventh follow-up, at Marco's explicit request: the QR now encodes a real
  * `https://<LAN IP>/?ws=&code=` URL (`buildJoinUrl`), not just `workspaceId:code` text, so a
  * phone's *native* camera app can open it directly and land on the right Host, not only
- * the in-app scanner. The IP is fetched fresh (`fetchServerAddress`) every time this screen mounts - so
+ * the in-app scanner. The IP is fetched fresh (`fetchHostAddress`) every time this screen mounts - so
  * every "Einladen" press embeds whatever address is current right now, not a stale build-time
  * or first-load one - and shown as plain text alongside the QR, with a note that the code needs
  * regenerating if that address ever changes, since there's no way to update an already-printed
@@ -63,7 +63,7 @@ export function InviteBandView({
 
   async function loadQr(nextCode: string, address: { host: string; certFingerprint: string | null } | null) {
     // The QR carries workspaceId+code together (WiFi-QR-style - SSID and password in one
-    // scan) either way; wrapped in a real URL when the server's current LAN IP is known, so a
+    // scan) either way; wrapped in a real URL when the host's current LAN IP is known, so a
     // scanning device's native camera app can open it directly - falls back to the older bare
     // `workspaceId:code` text (still fine for the in-app scanner) if the IP couldn't be
     // determined, rather than blocking the invite screen on that.
@@ -75,9 +75,9 @@ export function InviteBandView({
   useEffect(() => {
     let cancelled = false
     // Fetched fresh on every mount, i.e. every time "Einladen" is opened (Marco's explicit
-    // request) - not cached/reused, so a QR regenerated after the server's IP changes always
+    // request) - not cached/reused, so a QR regenerated after the host's IP changes always
     // reflects the current address, never a stale one from an earlier visit to this screen.
-    const addressPromise = fetchServerAddress().then((address) => {
+    const addressPromise = fetchHostAddress().then((address) => {
       if (!cancelled) setServer(address)
       return address
     })

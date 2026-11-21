@@ -100,7 +100,7 @@ import { useTranslation } from 'react-i18next'
  * founds and builds its roster entirely locally - `activeWorkspace.username` unset is that
  * state, not an error. The "Diese Band läuft nur lokal" banner below is the one way out of it:
  * "Verbinden" provisions just the founder's own account (`useProfilesStore.ts`'s
- * `connectToServer`) - every other already-typed-in roster member stays unprovisioned, exactly
+ * `connectToHost`) - every other already-typed-in roster member stays unprovisioned, exactly
  * like a brand-new one, ready for the same lazy self-service auto-provisioning above.
  *
  * 2026-09-02 ninth follow-up, at Marco's explicit request: a member row now carries two
@@ -130,7 +130,7 @@ import { useTranslation } from 'react-i18next'
  * (`removeWorkspaceLocally`, useWorkspaceStore.ts) - previously "Löschen" was the *only* way to
  * stop a band showing up here, and it always deletes the workspace for everyone, server-side,
  * admin-only. The new action is purely local (drops it from this device's list, wipes its
- * local PouchDB data, never touches the server) and offered to every member of a server-
+ * local PouchDB data, never touches the host) and offered to every member of a host-
  * connected band, not just admins - a plain member previously had no way at all to remove a
  * band from their own device.
  */
@@ -181,7 +181,7 @@ export function BandManagementView() {
   const updateProfile = useProfilesStore((state) => state.update)
   const updateStageRoles = useProfilesStore((state) => state.updateStageRoles)
   const removeProfile = useProfilesStore((state) => state.remove)
-  const connectToServer = useProfilesStore((state) => state.connectToServer)
+  const connectToHost = useProfilesStore((state) => state.connectToHost)
   const setHostUrl = useHostUrlStore((state) => state.setUrl)
   const activeProfileId = useActiveProfileStore((state) => state.byWorkspace[activeWorkspaceId])
   const setActiveProfile = useActiveProfileStore((state) => state.setActive)
@@ -448,7 +448,7 @@ export function BandManagementView() {
                   // Only a *different* address becomes a manual override (hostUrl.ts's
                   // overrideForTypedUrl) - confirming the automatic one must not pin it.
                   setHostUrl(overrideForTypedUrl(serverUrl))
-                  await connectToServer(normalizeHostUrl(serverUrl))
+                  await connectToHost(normalizeHostUrl(serverUrl))
                 }}>
                 {t('connect')}
               </Button>
@@ -581,7 +581,7 @@ export function BandManagementView() {
                         <RowActionButton icon="delete"
                           danger
                           // An admin doesn't remove themselves - only another admin can (Marco, 2026-10-08,
-                          // like their own admin rights in #428; the server refuses it too).
+                          // like their own admin rights in #428; the host refuses it too).
                           disabled={isLastAdmin(profile) || (isActiveProfile && profile.stageRoles.includes('admin'))}
                           title={
                             isLastAdmin(profile)

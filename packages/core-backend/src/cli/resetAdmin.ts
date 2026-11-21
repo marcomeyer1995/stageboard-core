@@ -1,8 +1,8 @@
 /**
  * Server-local admin recovery (#70 break-glass): when no admin can get into a band any more -
  * every device's login gone at once, nobody left to press "Passwort zurücksetzen" in the app.
- * Runs on the Host itself with the server's own database login (serviceEnv.ts), adds no
- * network route and no client-visible secret: only someone with a shell on the server can use it.
+ * Runs on the Host itself with the host's own database login (serviceEnv.ts), adds no
+ * network route and no client-visible secret: only someone with a shell on the host can use it.
  *
  *   npm run admin:reset -w core-backend                                  # list bands
  *   npm run admin:reset -w core-backend -- <band>                        # list its members
@@ -63,7 +63,7 @@ export function findMember(members: Member[], query: string, makeAdmin: boolean)
 
 async function main(): Promise<void> {
   const database = serverDatabaseConfig()
-  // Imported after the environment is set, like the server itself.
+  // Imported after the environment is set, like the host itself.
   const { listWorkspaces, workspaceDbName } = await import('../workspaceProvisioning.js')
   const { createBandAccountsFor } = await import('../bandAccounts.js')
   const { allDocs, putDocWithRetry } = await import('../database.js')
@@ -98,7 +98,7 @@ async function main(): Promise<void> {
   await accounts.setPin(member.profileId, pin)
   if (!member.isAdmin) {
     await accounts.setAdmin(member.profileId, true)
-    // The roster entry gets the admin role too, so the app shows it. Written with the server's
+    // The roster entry gets the admin role too, so the app shows it. Written with the host's
     // own database admin login (the roster validator lets `_admin` through) and re-read on a
     // conflict - a plain putDoc ignored a 409 and the roster silently stayed non-admin while this
     // still said "ist jetzt Admin" (#421 review).

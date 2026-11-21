@@ -5,8 +5,8 @@ import { useHostUrlStore } from '../store/useHostUrlStore'
 
 /**
  * Native app only (#348): when the Host offers a newer app build than this one, a bar at
- * the bottom offers the update - downloaded from the server and handed to Android's installer.
- * Checked on start and whenever the paired server changes; "Später" hides it until the next start.
+ * the bottom offers the update - downloaded from the host and handed to Android's installer.
+ * Checked on start and whenever the paired host changes; "Später" hides it until the next start.
  */
 export function AppUpdateBanner() {
   const { t } = useTranslation('common')

@@ -45,7 +45,7 @@ beforeEach(() => {
     // "unreachable" state instead of a stray real fetch.
     listWorkspaces: vi.fn().mockResolvedValue(null),
     fetchActiveWorkspaceHardware: vi.fn().mockResolvedValue(null),
-    fetchServerInfo: vi.fn().mockResolvedValue(null),
+    fetchHostInfo: vi.fn().mockResolvedValue(null),
   })
   useDevicesStore.setState({
     devices: [{ id: 'device-1', name: 'Marcos iPad', lastSeenAt: Date.now(), firstSeenAt: Date.now() - 100_000, revoked: false }],
@@ -322,7 +322,7 @@ describe('DeviceLedgerView', () => {
       useWorkspaceStore.setState({
         listWorkspaces: vi.fn().mockImplementation(never),
         fetchActiveWorkspaceHardware: vi.fn().mockImplementation(never),
-        fetchServerInfo: vi.fn().mockImplementation(never),
+        fetchHostInfo: vi.fn().mockImplementation(never),
       })
       render(<DeviceLedgerView />)
 
@@ -339,7 +339,7 @@ describe('DeviceLedgerView', () => {
       useWorkspaceStore.setState({
         listWorkspaces: vi.fn().mockResolvedValue([{ workspaceId: 'band-a', workspaceName: 'Band A' }]),
         fetchActiveWorkspaceHardware: vi.fn().mockResolvedValue({ activeWorkspaceId: 'band-a' }),
-        fetchServerInfo: vi.fn().mockResolvedValue({ lanIp: '192.168.1.50', hostname: 'stageboard.local' }),
+        fetchHostInfo: vi.fn().mockResolvedValue({ lanIp: '192.168.1.50', hostname: 'stageboard.local' }),
       })
 
       render(<DeviceLedgerView />)
@@ -353,7 +353,7 @@ describe('DeviceLedgerView', () => {
       useWorkspaceStore.setState({
         listWorkspaces: vi.fn().mockResolvedValue([]),
         fetchActiveWorkspaceHardware: vi.fn().mockResolvedValue({ activeWorkspaceId: null }),
-        fetchServerInfo: vi.fn().mockResolvedValue({ lanIp: '192.168.1.50', hostname: 'stageboard.local' }),
+        fetchHostInfo: vi.fn().mockResolvedValue({ lanIp: '192.168.1.50', hostname: 'stageboard.local' }),
       })
 
       render(<DeviceLedgerView />)

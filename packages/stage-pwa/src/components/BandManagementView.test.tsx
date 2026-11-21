@@ -64,7 +64,7 @@ beforeEach(() => {
     update: vi.fn(),
     updateStageRoles: vi.fn(),
     remove: vi.fn(),
-    connectToServer: vi.fn(),
+    connectToHost: vi.fn(),
   })
   useActiveProfileStore.setState({ byWorkspace: { 'band-a': 'p1' } })
   usePresenceStore.setState({ presence: { devices: {} } })
@@ -744,18 +744,18 @@ describe('BandManagementView', () => {
       expect(screen.getByText('Verbinden')).toBeInTheDocument()
     })
 
-    it('"Verbinden" asks for a server address, persists a different one as override, and calls connectToServer - no per-member follow-up anymore (2026-09-01 redesign)', async () => {
+    it('"Verbinden" asks for a server address, persists a different one as override, and calls connectToHost - no per-member follow-up anymore (2026-09-01 redesign)', async () => {
       vi.stubEnv('VITE_HOST_URL', 'https://stageboard.local')
       useHostUrlStore.setState({ url: null })
-      const connectToServer = vi.fn().mockResolvedValue(true)
+      const connectToHost = vi.fn().mockResolvedValue(true)
       const promptText = vi.fn().mockResolvedValue('https://host-computer:3001/')
-      useProfilesStore.setState({ connectToServer })
+      useProfilesStore.setState({ connectToHost })
       useDialogStore.setState({ promptText })
 
       render(<BandManagementView />)
       fireEvent.click(screen.getByText('Verbinden'))
 
-      await waitFor(() => expect(connectToServer).toHaveBeenCalledWith('https://host-computer:3001'))
+      await waitFor(() => expect(connectToHost).toHaveBeenCalledWith('https://host-computer:3001'))
       // Pre-filled with the automatic address, so on a tablet served by the Host it's
       // just a confirmation.
       expect(promptText).toHaveBeenCalledWith('Mit Host verbinden', expect.objectContaining({ defaultValue: 'https://stageboard.local' }))
@@ -768,14 +768,14 @@ describe('BandManagementView', () => {
     it('"Verbinden" with the pre-filled automatic address connects without pinning it as an override', async () => {
       vi.stubEnv('VITE_HOST_URL', 'https://stageboard.local')
       useHostUrlStore.setState({ url: 'https://stale-override' })
-      const connectToServer = vi.fn().mockResolvedValue(true)
-      useProfilesStore.setState({ connectToServer })
+      const connectToHost = vi.fn().mockResolvedValue(true)
+      useProfilesStore.setState({ connectToHost })
       useDialogStore.setState({ promptText: vi.fn().mockResolvedValue('https://stageboard.local') })
 
       render(<BandManagementView />)
       fireEvent.click(screen.getByText('Verbinden'))
 
-      await waitFor(() => expect(connectToServer).toHaveBeenCalledWith('https://stageboard.local'))
+      await waitFor(() => expect(connectToHost).toHaveBeenCalledWith('https://stageboard.local'))
       expect(useHostUrlStore.getState().url).toBeNull()
     })
 

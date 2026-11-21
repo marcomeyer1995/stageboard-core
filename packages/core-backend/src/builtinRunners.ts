@@ -2,7 +2,7 @@ import { cpus, totalmem } from 'node:os'
 import { createJobRunners, type DeviceDescription, type JobRunner, type JobRunners } from 'sync-host'
 import { loadAddonInfos } from './addons/addonMethods.js'
 import { addonMissingTool } from './addons/helpers.js'
-import { serverSpeech } from './speech/serverSpeech.js'
+import { hostSpeech } from './speech/hostSpeech.js'
 
 /**
  * The runners a Node host ships with (#964, step 3): each is one capability with a manifest (sync-host's `JobRunner`) - what it lacks on
@@ -17,7 +17,7 @@ const needs = (ok: boolean, tool: string) => (ok ? null : tool)
 export const BUILTIN_RUNNERS: readonly JobRunner[] = [
   // What a Node machine does without any extra tool.
   ...['backup', 'measure-inputs', 'calibration', 'lookup', 'plugin-runtime', 'hardware', 'osc-in', 'host-lookup'].map((id): JobRunner => ({ id, kind: 'job' })),
-  { id: 'speech', kind: 'job', missing: () => needs(serverSpeech.available(), 'piper') },
+  { id: 'speech', kind: 'job', missing: () => needs(hostSpeech.available(), 'piper') },
   // Every add-on that gives the band a capability, and the programs its helpers need - read from its manifest (`addons/addonMethods.ts`), so a new add-on
   // adds a runner without a line here.
   ...loadAddonInfos()

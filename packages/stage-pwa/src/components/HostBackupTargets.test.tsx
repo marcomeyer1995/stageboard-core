@@ -12,7 +12,7 @@ vi.mock('pouchdb-browser', () => ({
 }))
 vi.mock('../lib/hostUrl', () => ({ getHostUrl: () => 'https://server' }))
 const { useWorkspaceStore } = await import('../store/useWorkspaceStore')
-const { ServerBackupTargets } = await import('./ServerBackupTargets')
+const { HostBackupTargets } = await import('./HostBackupTargets')
 
 const overview: BackupOverview = {
   targets: [
@@ -49,10 +49,10 @@ beforeEach(() => {
 })
 afterEach(() => vi.unstubAllGlobals())
 
-describe('ServerBackupTargets (#363)', () => {
+describe('HostBackupTargets (#363)', () => {
   it('lists the targets with their state and the server key, asking with the admin login', async () => {
     admin(true)
-    render(<ServerBackupTargets />)
+    render(<HostBackupTargets />)
     expect(await screen.findByText(/Fehlgeschlagen.*Ziel nicht da/)).toBeInTheDocument()
     expect(screen.getByText(/Medium nicht eingesteckt/)).toBeInTheDocument()
     expect(screen.getByText(/Letzte Sicherung vor 2 Std\., 2,5 GB/)).toBeInTheDocument()
@@ -62,7 +62,7 @@ describe('ServerBackupTargets (#363)', () => {
 
   it('a new NAS target can only be saved once host, user and folder are filled', async () => {
     admin(true)
-    render(<ServerBackupTargets />)
+    render(<HostBackupTargets />)
     fireEvent.click(await screen.findByText('Ziel hinzufügen'))
     fireEvent.click(screen.getByText('NAS über Netzwerk'))
     const save = screen.getByRole('button', { name: 'Speichern' })
@@ -78,7 +78,7 @@ describe('ServerBackupTargets (#363)', () => {
 
   it('shows nothing to a member who is not admin', () => {
     admin(false)
-    const { container } = render(<ServerBackupTargets />)
+    const { container } = render(<HostBackupTargets />)
     expect(container).toBeEmptyDOMElement()
   })
 })

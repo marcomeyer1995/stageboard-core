@@ -1,7 +1,7 @@
 import { HostCapabilitiesSchema, type HostCapabilities } from 'shared-types'
 import { getHostUrl } from './hostUrl'
 
-/** What the Host can run (docs/25 §6) - null without a server, or from one that doesn't
+/** What the Host can run (docs/25 §6) - null without a host, or from one that doesn't
  * say yet (built before 2026-11-07). */
 export async function fetchHostCapabilities(): Promise<HostCapabilities | null> {
   const base = getHostUrl()

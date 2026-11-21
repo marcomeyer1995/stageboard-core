@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { AUDIO_OUTPUT, DEVICE_INFO_TIMEOUT_MS, latencyProfileId } from 'shared-types'
-import { getServerTime } from '../lib/clockSync'
+import { getHostTime } from '../lib/clockSync'
 import { getDeviceId } from '../lib/deviceId'
 import { findLatencyProfile, routeLabel } from '../lib/latencyProfiles'
 import { ALIGN_RANGE_MS, ALIGN_SOUND, bracketMiddle, clampAlignValue, laneOffsets, median, pairOffsets } from '../lib/alignByEar'
@@ -33,10 +33,10 @@ export function AlignByEarDialog({ targetDeviceId, onClose }: { targetDeviceId: 
   const deviceInfo = useDeviceInfoStore((state) => state.deviceInfo)
   const infoLoaded = useDeviceInfoStore((state) => state.loaded)
   const masterHolderId = useShowStateStore((state) => state.state.masterHolderId)
-  const serverNow = getServerTime()
+  const hostNow = getHostTime()
   const isActive = (id: string) => {
     const info = deviceInfo.devices[id]
-    return info !== undefined && serverNow - info.lastSeenAt <= DEVICE_INFO_TIMEOUT_MS
+    return info !== undefined && hostNow - info.lastSeenAt <= DEVICE_INFO_TIMEOUT_MS
   }
   const allOthers = devices.filter((d) => d.id !== targetDeviceId)
   const activeOthers = allOthers.filter((d) => isActive(d.id))

@@ -29,7 +29,7 @@ export function localDbName(workspaceId: string): string {
  * nicht den kompletten Workspace auf dem Server"). Never touches the remote database at
  * all - `deleteWorkspace` (useWorkspaceStore.ts) is the separate, admin-only, actually-
  * destructive-for-everyone action for that. Re-joining later just re-pulls everything fresh
- * from the server, so this is fully recoverable, not a real "delete." A fresh `PouchDB(name)`
+ * from the host, so this is fully recoverable, not a real "delete." A fresh `PouchDB(name)`
  * handle rather than reusing `getWorkspaceDb`'s module-level one on purpose: this needs to work
  * for *any* workspace id, not just the currently-active one, and PouchDB's own `destroy()`
  * already tears down any live replication attached to the database it's given.
@@ -116,7 +116,7 @@ export function isStatusDocId(id: string): boolean {
 }
 
 /**
- * `serverUrl`: the Host this sync talks to. The caller passes the current one so a server
+ * `serverUrl`: the Host this sync talks to. The caller passes the current one so a host
  * switch restarts the sync - before, the stream kept long-polling the old server, and the
  * indicator said "Synchronisiert" while the device was paired with another one (#897).
  */

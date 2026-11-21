@@ -31,9 +31,9 @@ type MdnsRecord =
 
 /**
  * What to answer for one mDNS query (#351): the A record for the hostname (since docs/03 §0a),
- * and DNS-SD for `_stageboard._tcp` - PTR to this server's instance, SRV (port, hostname) and TXT
+ * and DNS-SD for `_stageboard._tcp` - PTR to this host's instance, SRV (port, hostname) and TXT
  * with the certificate fingerprint, so the app can list servers and recognise the one it is paired
- * with at a new address. Null when the query isn't about this server.
+ * with at a new address. Null when the query isn't about this host.
  */
 export function mdnsAnswer(questions: readonly MdnsQuestion[], id: MdnsIdentity): { answers: MdnsRecord[]; additionals: MdnsRecord[] } | null {
   const instanceName = `${id.instance}.${SERVICE_TYPE}`
@@ -84,7 +84,7 @@ export interface MdnsResponderHandle {
  * why it's built this way). Never throws: at boot the service can start before Wi-Fi has its
  * address, and joining the multicast group then fails (`addMembership ENODEV`) - that used to
  * crash the whole Host (#339). It now logs once and retries every `retryMs` until the
- * network is up; the server works by raw IP meanwhile.
+ * network is up; the host works by raw IP meanwhile.
  */
 export function startMdnsResponder(options: MdnsResponderOptions): MdnsResponderHandle {
   const { lanIp, hostname, port, instance, certFingerprint, log, retryMs = MDNS_RETRY_MS, createSocket = createMdnsSocket } = options

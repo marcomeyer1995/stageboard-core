@@ -8,7 +8,7 @@ import {
   ShowStatePushAckSchema,
   ShowStatePushSchema,
   SwitchStateEventSchema,
-  serverMessage,
+  hostMessage,
 } from 'shared-types'
 import type { HostChannels } from './channels/index.js'
 import type { HostRoute, HostRouteResponse } from './routes.js'
@@ -97,7 +97,7 @@ export function createChannelRoutes(deps: ChannelRoutesDeps): HostRoute[] {
       if (refused) return refused
       return channels.triggerDevice(workspaceId, safeDecode(request.params.deviceId ?? ''), parsed.data)
         ? { status: 200, body: { status: 'ok' } }
-        : { status: 200, body: { status: 'error', ...serverMessage('device.notConnected') } }
+        : { status: 200, body: { status: 'error', ...hostMessage('device.notConnected') } }
     }),
     guarded('POST', '/workspaces/:workspaceId/discovery/stop', async (workspaceId) => {
       channels.discovery.stop(workspaceId)

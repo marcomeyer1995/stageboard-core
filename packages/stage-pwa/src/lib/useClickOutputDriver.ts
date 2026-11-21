@@ -9,7 +9,7 @@ import { holdAudioOutputAwake } from './sharedAudioContext'
 import { adjustedBpm, effectiveClickEnabled } from './metronome'
 import { useCapabilityRouting } from './useCapabilityRouting'
 import { useShowModeCore } from './showMode'
-import { getServerTime } from './clockSync'
+import { getHostTime } from './clockSync'
 import { clickTimeline } from './beatGrid'
 import { useAudioOutputLatencyMs } from './latencyCompensation'
 import { playbackLookup } from './playbackCues'
@@ -126,8 +126,8 @@ export function useClickOutputDriver(): void {
       outputLatencyMs,
       clickOnAt,
       jump,
-      // Solo Üben runs on this device's clock (usePracticeElapsedMs.ts), the Gig on the server's.
-      transportNow: mode === 'practice' ? Date.now : getServerTime,
+      // Solo Üben runs on this device's clock (usePracticeElapsedMs.ts), the Gig on the host's.
+      transportNow: mode === 'practice' ? Date.now : getHostTime,
       ...(transport ? { transport } : {}),
     }
   })
