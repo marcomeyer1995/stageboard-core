@@ -149,7 +149,7 @@ export interface AudioInputInfo {
   channels: number | null
 }
 
-/** Answer of `POST /server/measure-inputs/overview`. */
+/** Answer of `POST /host/measure-inputs/overview`. */
 export interface MeasureInputsOverview {
   inputs: AudioInputInfo[]
   selected: MeasureInputs
@@ -157,7 +157,7 @@ export interface MeasureInputsOverview {
   fallbackMic: string
 }
 
-/** Answer of `POST /server/measure-inputs/level`: the loudest moment in a short recording. */
+/** Answer of `POST /host/measure-inputs/level`: the loudest moment in a short recording. */
 export interface MeasureLevel {
   /** Peak level, dBFS (0 = full scale); null: nothing recorded. */
   peakDb: number | null

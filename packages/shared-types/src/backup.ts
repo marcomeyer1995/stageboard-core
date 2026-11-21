@@ -69,7 +69,7 @@ export const BackupOverviewSchema = z.object({
 })
 export type BackupOverview = z.infer<typeof BackupOverviewSchema>
 
-/** Admin routes (/server/backup/...): the admin login of the active band, like other admin routes. */
+/** Admin routes (/host/backup/...): the admin login of the active band, like other admin routes. */
 export const BackupAdminRequestSchema = z.object({
   adminUsername: z.string().min(1),
   adminPassword: z.string().min(1),

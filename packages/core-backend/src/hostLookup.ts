@@ -13,7 +13,7 @@ const FINGERPRINT = /^[0-9a-f]{64}$/
 
 /**
  * Asks a host who it is (host backup, #914): its `hostId` from `/time` and its certificate fingerprint
- * from `/server-info`, so the admin never types either. Both requests are unpinned - it *is* the host the
+ * from `/host/info`, so the admin never types either. Both requests are unpinned - it *is* the host the
  * admin just named, and the fingerprint is what gets pinned afterwards. The stage app asks its own
  * Host to do this (#945): a page may only talk to hosts it already trusts, and a fresh backup is
  * not one of them yet, so the host-to-host call keeps the certificate question in one place.
@@ -23,7 +23,9 @@ const FINGERPRINT = /^[0-9a-f]{64}$/
  */
 export async function lookUpHost(address: string, get: (url: string) => Promise<unknown>): Promise<LookedUpHost | null> {
   const url = address.trim().replace(/\/+$/, '')
-  const [time, info] = await Promise.all([get(`${url}/time`), get(`${url}/server-info`)])
+  const [time, newInfo] = await Promise.all([get(`${url}/time`), get(`${url}/host/info`)])
+  // A host from before the paths changed (#964) knows only the old one.
+  const info = newInfo ?? (await get(`${url}/server-info`))
   const answer = HostTimeAnswerSchema.safeParse(time)
   if (!answer.success || !answer.data.hostId) return null
   const fingerprint = (info as { certFingerprint?: unknown } | null)?.certFingerprint

@@ -193,7 +193,7 @@ export const ActivateWorkspaceHardwareRequestSchema = z.object({
 })
 export type ActivateWorkspaceHardwareRequest = z.infer<typeof ActivateWorkspaceHardwareRequestSchema>
 
-/** Response shape for `GET /server/active-workspace` - which workspace (if any) this specific
+/** Response shape for `GET /host/active-workspace` - which workspace (if any) this specific
  * Host's local hardware currently serves. `null` before any workspace has ever been
  * activated on this box. */
 export const ActiveWorkspaceStatusSchema = z.object({
@@ -201,7 +201,7 @@ export const ActiveWorkspaceStatusSchema = z.object({
 })
 export type ActiveWorkspaceStatus = z.infer<typeof ActiveWorkspaceStatusSchema>
 
-/** Response of `GET /server/active-workspace/admins` - the roster admins (names + ids only) of the
+/** Response of `GET /host/active-workspace/admins` - the roster admins (names + ids only) of the
  * band this Host is *currently serving*, no band code needed: that band is already
  * registered here, and the hardware-switch wizard only needs to show whose PIN can close it. Only
  * ever the active band - the route takes no workspace parameter, so it can't be used to enumerate
@@ -212,7 +212,7 @@ export const ActiveWorkspaceAdminsSchema = z.object({
 })
 export type ActiveWorkspaceAdmins = z.infer<typeof ActiveWorkspaceAdminsSchema>
 
-/** Response shape for `GET /server-info` - this specific box's own address/name, not tied to
+/** Response shape for `GET /host/info` - this specific box's own address/name, not tied to
  * any one workspace. `hostname` is the same name already broadcast over mDNS (`MDNS_HOSTNAME`
  * env var, defaulting to `stageboard.local`), just also exposed here so a device that's never
  * seen the mDNS broadcast (e.g. typed a raw IP) can still show it, for example in the Device
@@ -385,7 +385,7 @@ export type HostCapabilities = z.infer<typeof HostCapabilitiesSchema>
 export const HostEntrySchema = z.object({
   deviceId: z.string().min(1).max(200),
   deviceName: z.string().max(120).optional(),
-  /** SHA-256 of the tablet's certificate - lowercase hex, no separators (like `/server-info`'s). */
+  /** SHA-256 of the tablet's certificate - lowercase hex, no separators (like `/host/info`'s). */
   certFingerprint: z.string().regex(/^[0-9a-f]{64}$/),
   port: z.number().int().min(1).max(65535),
   updatedAt: z.number(),

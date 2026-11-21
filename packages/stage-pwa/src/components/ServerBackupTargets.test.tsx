@@ -57,7 +57,7 @@ describe('ServerBackupTargets (#363)', () => {
     expect(screen.getByText(/Medium nicht eingesteckt/)).toBeInTheDocument()
     expect(screen.getByText(/Letzte Sicherung vor 2 Std\., 2,5 GB/)).toBeInTheDocument()
     expect(screen.getByText('ssh-ed25519 AAAA stageboard-backup')).toBeInTheDocument()
-    expect(calls[0]).toMatchObject({ url: 'https://server/server/backup/overview', body: { adminUsername: 'marco', adminPassword: 'pw' } })
+    expect(calls[0]).toMatchObject({ url: 'https://server/host/backup/overview', body: { adminUsername: 'marco', adminPassword: 'pw' } })
   })
 
   it('a new NAS target can only be saved once host, user and folder are filled', async () => {

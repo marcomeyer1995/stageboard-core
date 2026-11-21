@@ -57,7 +57,7 @@ export function ServerBackupTargets() {
     async (path: string, extra: object = {}): Promise<unknown> => {
       const base = getHostUrl()
       if (!base || !workspace?.username || !workspace.password) throw new Error(t('bk.noAdmin'))
-      const res = await fetch(`${base}/server/backup/${path}`, {
+      const res = await fetch(`${base}/host/backup/${path}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ adminUsername: workspace.username, adminPassword: workspace.password, ...extra }),

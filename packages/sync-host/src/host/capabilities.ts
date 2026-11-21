@@ -7,6 +7,7 @@ import { HostCapabilitiesSchema } from 'shared-types'
  * knows to send it to a host that can. The table is the one list of "things that need a capable device"; the laptop answers
  * them itself, the tablet refuses the ones it cannot run.
  */
+import { withLegacyPath } from './legacyPaths.js'
 export interface JobRoute {
   method: 'GET' | 'POST'
   /** Fastify-style. */
@@ -15,16 +16,16 @@ export interface JobRoute {
   job: string
 }
 
-export const JOB_ROUTES: readonly JobRoute[] = [
-  { method: 'POST', pattern: '/server/backup/overview', job: 'backup' },
-  { method: 'POST', pattern: '/server/backup/save', job: 'backup' },
-  { method: 'POST', pattern: '/server/backup/delete', job: 'backup' },
-  { method: 'POST', pattern: '/server/backup/run', job: 'backup' },
-  { method: 'POST', pattern: '/server/backup/test', job: 'backup' },
-  { method: 'GET', pattern: '/server/backup-status', job: 'backup' },
-  { method: 'POST', pattern: '/server/measure-inputs/overview', job: 'measure-inputs' },
-  { method: 'POST', pattern: '/server/measure-inputs/save', job: 'measure-inputs' },
-  { method: 'POST', pattern: '/server/measure-inputs/level', job: 'measure-inputs' },
+const CURRENT_JOB_ROUTES: readonly JobRoute[] = [
+  { method: 'POST', pattern: '/host/backup/overview', job: 'backup' },
+  { method: 'POST', pattern: '/host/backup/save', job: 'backup' },
+  { method: 'POST', pattern: '/host/backup/delete', job: 'backup' },
+  { method: 'POST', pattern: '/host/backup/run', job: 'backup' },
+  { method: 'POST', pattern: '/host/backup/test', job: 'backup' },
+  { method: 'GET', pattern: '/host/backup-status', job: 'backup' },
+  { method: 'POST', pattern: '/host/measure-inputs/overview', job: 'measure-inputs' },
+  { method: 'POST', pattern: '/host/measure-inputs/save', job: 'measure-inputs' },
+  { method: 'POST', pattern: '/host/measure-inputs/level', job: 'measure-inputs' },
   { method: 'POST', pattern: '/calibration/runs', job: 'calibration' },
   { method: 'GET', pattern: '/calibration/runs/:id', job: 'calibration' },
   { method: 'GET', pattern: '/speech', job: 'speech' },
@@ -45,6 +46,9 @@ export const JOB_ROUTES: readonly JobRoute[] = [
   { method: 'GET', pattern: '/osc-in/info', job: 'osc-in' },
   { method: 'GET', pattern: '/host/look-up', job: 'host-lookup' },
 ]
+
+/** The table, with the old `/server/...` path of each route as well (#964) - what a host must recognise to answer "capability_missing" for either. */
+export const JOB_ROUTES: readonly JobRoute[] = CURRENT_JOB_ROUTES.flatMap((route) => withLegacyPath(route.pattern).map((pattern) => ({ ...route, pattern })))
 
 /** Every job id the table names (without the per-plugin ones) - what a host must say something about. */
 export const JOB_IDS: readonly string[] = [...new Set(JOB_ROUTES.map((route) => route.job).filter((job) => !job.startsWith('plugin:')))]

@@ -25,7 +25,7 @@ function useServerCall() {
     async <T,>(path: string, extra: object = {}): Promise<T> => {
       const base = getHostUrl()
       if (!base || !workspace?.username || !workspace.password) throw new Error(t('inputs.noAdmin'))
-      const res = await fetch(`${base}/server/measure-inputs/${path}`, {
+      const res = await fetch(`${base}/host/measure-inputs/${path}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ adminUsername: workspace.username, adminPassword: workspace.password, ...extra }),

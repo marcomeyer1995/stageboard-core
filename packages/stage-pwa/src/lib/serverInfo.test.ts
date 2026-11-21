@@ -7,12 +7,12 @@ afterEach(() => {
 })
 
 describe('fetchServerAddress', () => {
-  it('returns the lanIp and certificate fingerprint from GET /server-info', async () => {
+  it('returns the lanIp and certificate fingerprint from GET /host/info', async () => {
     vi.stubEnv('VITE_HOST_URL', 'https://stage.example')
     vi.stubGlobal(
       'fetch',
       vi.fn().mockImplementation(async (url: string) => {
-        expect(url).toBe('https://stage.example/server-info')
+        expect(url).toBe('https://stage.example/host/info')
         return { ok: true, json: async () => ({ lanIp: '192.168.1.5', certFingerprint: 'ab12' }) }
       }),
     )

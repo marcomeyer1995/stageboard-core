@@ -19,7 +19,7 @@ export const DEFAULT_COMMENT_TEMPLATES: readonly string[] = ['A cappella', 'Buil
 /**
  * One host the band's devices may follow (host backup, #912, docs/25 §6e). `certFingerprint` is what
  * the native app's pinning compares against (SHA-256, lowercase hex, no separators - same form as
- * `GET /server-info`); a band's admin enters it once, so every device can switch to the backup
+ * `GET /host/info`); a band's admin enters it once, so every device can switch to the backup
  * without having confirmed its certificate itself (Marco, 2026-11-17). Absent for a host without pinning.
  */
 export const BandHostEntrySchema = z.object({

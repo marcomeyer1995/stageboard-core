@@ -66,7 +66,7 @@ describe('what a passive backup answers (#947)', () => {
       status: 200,
       body: { serverTime: 1_700_000_000_123, hostId: 'tablet-1', epoch: 2, active: false },
     })
-    expect(await answerHostRequest({ method: 'GET', path: '/server-info', query: {} }, deps)).toEqual({
+    expect(await answerHostRequest({ method: 'GET', path: '/host/info', query: {} }, deps)).toEqual({
       status: 200,
       body: { lanIp: '10.0.0.2', port: 8443, hostname: 'stageboard.local', certFingerprint: 'b'.repeat(64) },
     })

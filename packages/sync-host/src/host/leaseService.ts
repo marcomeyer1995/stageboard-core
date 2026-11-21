@@ -184,7 +184,10 @@ export function createHostLeaseService(deps: {
         const selfFingerprint = typeof deps.selfFingerprint === 'function' ? deps.selfFingerprint() : deps.selfFingerprint
         if (selfUrl && accessCode && deps.now() - lastInviteAt >= INVITE_INTERVAL_MS) {
           lastInviteAt = deps.now()
-          const serving = ActiveWorkspaceStatusSchema.safeParse(await get(`${otherUrl}/server/active-workspace`, other.certFingerprint))
+          // An older host only knows the old path (#964): asked second when the new one gives no usable answer.
+          const asked = async (path: string) => ActiveWorkspaceStatusSchema.safeParse(await get(`${otherUrl}${path}`, other.certFingerprint))
+          const first = await asked('/host/active-workspace')
+          const serving = first.success ? first : await asked('/server/active-workspace')
           if (serving.success && serving.data.activeWorkspaceId === null) {
             await post(
               `${otherUrl}/host/join-band-invite`,

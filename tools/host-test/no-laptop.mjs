@@ -58,12 +58,12 @@ const brief = (value) => JSON.stringify(value)?.slice(0, 160)
 const caps = await call('GET', '/host/capabilities')
 check('GET /host/capabilities answers (any host)', caps.status === 200 && caps.body?.kind, `kind=${caps.body?.kind} cores=${caps.body?.cpuCores ?? '?'} memoryMb=${caps.body?.memoryMb ?? '?'}`)
 check('GET /health', (await call('GET', '/health')).status === 200)
-const info = await call('GET', '/server-info')
-check('GET /server-info', info.status === 200 && info.body?.port, brief(info.body))
+const info = await call('GET', '/host/info')
+check('GET /host/info', info.status === 200 && info.body?.port, brief(info.body))
 
 // ---- jobs the device cannot do: 501 with the capability, never 404 -------------------------------------------------
 for (const [method, path, capability] of [
-  ['POST', '/server/backup/run', 'backup'],
+  ['POST', '/host/backup/run', 'backup'],
   ['GET', '/speech?text=hallo', 'speech'],
   ['GET', '/lookup/ultimate-guitar/search?q=x', 'lookup'],
   ['POST', '/plugins/stem-separation/trigger', 'plugin:stem-separation'],

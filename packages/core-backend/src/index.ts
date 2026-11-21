@@ -25,7 +25,7 @@ import { createHostRoleStore } from './hostRoleStore.js'
 import { makeLocalBandDb, makeRemoteBandDb } from './bandPouch.js'
 import { createAudioMirror, createReplicationRunner } from 'sync-host'
 import { createBandBootstrapStore } from './bandJoin.js'
-import { createVerifyWithPrimary, joinBandInvite, effectiveHosts, joinBand } from 'sync-host'
+import { withLegacyPath, createVerifyWithPrimary, joinBandInvite, effectiveHosts, joinBand } from 'sync-host'
 import { listHeldKeys, saveMirrorFile } from './audioMirrorFiles.js'
 import { tracksOfVariantDocs } from 'sync-host'
 import { createPinnedFetch } from './pinnedFetch.js'
@@ -373,7 +373,7 @@ export async function buildApp(options: { backupService?: BackupService; databas
     return status
   })
 
-  app.get('/server-info', async () => ({
+  for (const path of withLegacyPath('/host/info')) app.get(path, async () => ({
     lanIp: process.env.LAN_IP ?? detectLanIp(),
     // The port this server listens on - a host off 443 (a laptop, a second server) must put it
     // into the invite QR, else a scan lands on whatever answers on 443 (#896).
@@ -943,7 +943,7 @@ export async function buildApp(options: { backupService?: BackupService; databas
 
   // Which workspace (if any) this specific box's hardware currently serves - not scoped under
   // /workspaces/:workspaceId since it describes the server, not a workspace, and needs no auth
-  // for the same reason /server-info needs none: not new information beyond what's already
+  // for the same reason /host/info needs none: not new information beyond what's already
   // observable on the LAN.
   // The Host's backups (#363, Marco 2026-10-08): targets chosen in the app (System →
   // Backup), run by the server itself - backup.ts. Admin of the band this server serves.

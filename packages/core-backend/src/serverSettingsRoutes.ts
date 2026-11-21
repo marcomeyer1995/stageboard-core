@@ -1,4 +1,5 @@
 import { existsSync, readFileSync } from 'node:fs'
+import { withLegacyPath } from 'sync-host'
 import { join } from 'node:path'
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 import { BackupAdminRequestSchema, BackupSaveRequestSchema, BackupTargetRequestSchema, MeasureInputsSaveRequestSchema, MeasureLevelRequestSchema, serverMessage, type MeasureInputsOverview } from 'shared-types'
@@ -22,27 +23,27 @@ export interface ServerSettingsDeps {
 
 export function registerServerSettingsRoutes(app: FastifyInstance, deps: ServerSettingsDeps): void {
   const { backups, activeBandAdmin, measureInputs, calibrationRuns } = deps
-  app.post('/server/backup/overview', async (request, reply) => {
+  for (const path of withLegacyPath('/host/backup/overview')) app.post(path, async (request, reply) => {
     const parsed = BackupAdminRequestSchema.safeParse(request.body)
     if (!parsed.success) return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
     if (!(await activeBandAdmin(request, reply, parsed.data))) return reply
     return reply.status(200).send(await backups.overview())
   })
-  app.post('/server/backup/save', async (request, reply) => {
+  for (const path of withLegacyPath('/host/backup/save')) app.post(path, async (request, reply) => {
     const parsed = BackupSaveRequestSchema.safeParse(request.body)
     if (!parsed.success) return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
     if (!(await activeBandAdmin(request, reply, parsed.data))) return reply
     backups.save(parsed.data.target)
     return reply.status(200).send(await backups.overview())
   })
-  app.post('/server/backup/delete', async (request, reply) => {
+  for (const path of withLegacyPath('/host/backup/delete')) app.post(path, async (request, reply) => {
     const parsed = BackupTargetRequestSchema.safeParse(request.body)
     if (!parsed.success) return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
     if (!(await activeBandAdmin(request, reply, parsed.data))) return reply
     backups.remove(parsed.data.targetId)
     return reply.status(200).send(await backups.overview())
   })
-  app.post('/server/backup/run', async (request, reply) => {
+  for (const path of withLegacyPath('/host/backup/run')) app.post(path, async (request, reply) => {
     const parsed = BackupTargetRequestSchema.safeParse(request.body)
     if (!parsed.success) return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
     if (!(await activeBandAdmin(request, reply, parsed.data))) return reply
@@ -50,7 +51,7 @@ export function registerServerSettingsRoutes(app: FastifyInstance, deps: ServerS
     void backups.run(parsed.data.targetId, 'manual').catch((err) => app.log.error({ err }, 'Backup run failed'))
     return reply.status(202).send({ status: 'started' })
   })
-  app.post('/server/backup/test', async (request, reply) => {
+  for (const path of withLegacyPath('/host/backup/test')) app.post(path, async (request, reply) => {
     const parsed = BackupTargetRequestSchema.safeParse(request.body)
     if (!parsed.success) return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
     if (!(await activeBandAdmin(request, reply, parsed.data))) return reply
@@ -59,14 +60,14 @@ export function registerServerSettingsRoutes(app: FastifyInstance, deps: ServerS
 
   // Measuring inputs (docs/24 §7.2, #662): which of the server's audio inputs listens to speakers
   // (microphone) and to headphones / in-ear / Bluetooth (cable) - System → Rig-Check, admins only.
-  app.post('/server/measure-inputs/overview', async (request, reply) => {
+  for (const path of withLegacyPath('/host/measure-inputs/overview')) app.post(path, async (request, reply) => {
     const parsed = BackupAdminRequestSchema.safeParse(request.body)
     if (!parsed.success) return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
     if (!(await activeBandAdmin(request, reply, parsed.data))) return reply
     const overview: MeasureInputsOverview = { inputs: await listAudioInputs(), selected: measureInputs.get(), fallbackMic: fallbackMicDevice() }
     return reply.status(200).send(overview)
   })
-  app.post('/server/measure-inputs/save', async (request, reply) => {
+  for (const path of withLegacyPath('/host/measure-inputs/save')) app.post(path, async (request, reply) => {
     const parsed = MeasureInputsSaveRequestSchema.safeParse(request.body)
     if (!parsed.success) return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
     if (!(await activeBandAdmin(request, reply, parsed.data))) return reply
@@ -74,7 +75,7 @@ export function registerServerSettingsRoutes(app: FastifyInstance, deps: ServerS
     app.log.info({ selected: parsed.data.selected }, 'Measuring inputs saved')
     return reply.status(200).send({ status: 'ok' })
   })
-  app.post('/server/measure-inputs/level', async (request, reply) => {
+  for (const path of withLegacyPath('/host/measure-inputs/level')) app.post(path, async (request, reply) => {
     const parsed = MeasureLevelRequestSchema.safeParse(request.body)
     if (!parsed.success) return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
     if (!(await activeBandAdmin(request, reply, parsed.data))) return reply
@@ -87,7 +88,7 @@ export function registerServerSettingsRoutes(app: FastifyInstance, deps: ServerS
 
   // The status line in the app (Geräte → Host): the configured targets' summary; before
   // any target exists, the last run of a hand-started scripts/backup.mjs; null = never set up.
-  app.get('/server/backup-status', async (_request, reply) => {
+  for (const path of withLegacyPath('/host/backup-status')) app.get(path, async (_request, reply) => {
     const summary = backups.summary()
     if (summary) return reply.status(200).send(summary)
     const file = join(process.env.STAGEBOARD_STATE_DIR ?? './data', 'backup-status.json')

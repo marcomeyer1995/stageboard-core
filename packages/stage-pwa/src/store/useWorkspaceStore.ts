@@ -174,12 +174,12 @@ interface WorkspaceState {
    * Discovery Mode's MIDI watcher - currently serves. `null` on a fetch failure; a resolved
    * `activeWorkspaceId: null` is a valid answer (nothing activated on that box yet). */
   fetchActiveWorkspaceHardware: () => Promise<{ activeWorkspaceId: string | null } | null>
-  /** This box's own address/name (`GET /server-info`) - `null` on a fetch failure, same
+  /** This box's own address/name (`GET /host/info`) - `null` on a fetch failure, same
    * "collapse not-configured and unreachable into one null" shape as every other fetch* action
    * here (useHostUrlStatus.ts is what turns that into a displayed reachability state). */
   fetchServerInfo: () => Promise<ServerInfo | null>
   /** The admins (id + name) of the band this Host is currently serving, with no band code
-   * (`GET /server/active-workspace/admins`) - what lets the hardware-switch wizard show whose PIN
+   * (`GET /host/active-workspace/admins`) - what lets the hardware-switch wizard show whose PIN
    * closes that band. `null` on any failure, including nothing being active; the caller falls
    * back to the code-gated roster. Silent (no alert): a failure just means "ask for the code". */
   fetchActiveWorkspaceAdmins: () => Promise<ActiveWorkspaceAdmins['admins'] | null>
@@ -784,7 +784,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
         if (!base) return null
 
         try {
-          const response = await fetch(`${base}/server/active-workspace`)
+          const response = await fetch(`${base}/host/active-workspace`)
           if (!response.ok) throw new Error(`HTTP ${response.status}`)
           return (await response.json()) as { activeWorkspaceId: string | null }
         } catch (err) {
@@ -797,7 +797,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
         if (!base) return null
 
         try {
-          const response = await fetch(`${base}/server-info`)
+          const response = await fetch(`${base}/host/info`)
           if (!response.ok) throw new Error(`HTTP ${response.status}`)
           return (await response.json()) as ServerInfo
         } catch (err) {
@@ -810,7 +810,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
         if (!base) return null
 
         try {
-          const response = await fetch(`${base}/server/active-workspace/admins`)
+          const response = await fetch(`${base}/host/active-workspace/admins`)
           if (!response.ok) return null
           return ((await response.json()) as ActiveWorkspaceAdmins).admins
         } catch (err) {

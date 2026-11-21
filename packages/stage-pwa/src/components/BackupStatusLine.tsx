@@ -35,7 +35,7 @@ export function BackupStatusLine() {
     const base = getHostUrl()
     if (!base) return
     let cancelled = false
-    fetch(`${base}/server/backup-status`)
+    fetch(`${base}/host/backup-status`)
       .then((res) => (res.ok ? (res.json() as Promise<BackupStatus | null>) : undefined))
       .then((value) => {
         if (!cancelled) setStatus(value)

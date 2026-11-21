@@ -39,7 +39,7 @@ const CertSha256Schema = z.string().regex(/^[0-9a-f]{64}$/)
 
 /**
  * The native helper programs an add-on needs per platform (docs/32 §8). `desktop`: a program
- * on a laptop/box host (the host reports whether it is there, `GET /server/capabilities`).
+ * on a laptop/box host (the host reports whether it is there, `GET /host/capabilities`).
  * `android`: a separate app package next to StageBoard; only a package signed with one of
  * `certSha256` is ever talked to - the add-on's trust list, not the device's.
  */

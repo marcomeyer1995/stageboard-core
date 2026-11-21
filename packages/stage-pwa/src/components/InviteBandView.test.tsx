@@ -19,7 +19,7 @@ const { useDialogStore } = await import('../store/useDialogStore')
 const { useWorkspaceStore } = await import('../store/useWorkspaceStore')
 const { InviteBandView } = await import('./InviteBandView')
 
-// fetchLanIp() hits GET /server-info - defaults to "no Host configured" (no lanIp
+// fetchLanIp() hits GET /host/info - defaults to "no Host configured" (no lanIp
 // display, plain code-only QR) for every test below except the two that explicitly stub a
 // VITE_HOST_URL/fetch response to exercise the embedded-IP behavior. Without this, the
 // real `.env`'s VITE_HOST_URL would leak in and every other test would make a live,

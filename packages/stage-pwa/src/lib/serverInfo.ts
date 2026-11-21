@@ -1,7 +1,7 @@
 import { getHostUrl } from './hostUrl'
 
 /**
- * Fetches the Host's own current LAN IP and certificate fingerprint (core-backend's `GET /server-info`, detected
+ * Fetches the Host's own current LAN IP and certificate fingerprint (core-backend's `GET /host/info`, detected
  * fresh on every call - see #21 seventh follow-up, at Marco's explicit request) - used by
  * `InviteBandView.tsx` to embed a reachable address in the invite QR code instead of baking one
  * host in forever. `null` on any failure (unreachable server, no LAN interface detected) - the
@@ -18,7 +18,7 @@ export async function fetchServerAddress(): Promise<{ host: string; certFingerpr
   const base = getHostUrl()
   if (!base) return null
   try {
-    const response = await fetch(`${base}/server-info`)
+    const response = await fetch(`${base}/host/info`)
     if (!response.ok) return null
     const { lanIp, port, certFingerprint } = (await response.json()) as { lanIp: string | null; port?: number | null; certFingerprint?: string | null }
     // The certificate fingerprint lets the native app pin the server when it scans the QR (#348).
