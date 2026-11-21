@@ -96,7 +96,7 @@ export type Port = z.infer<typeof PortSchema>
 
 export const EquipmentKindSchema = z.enum([
   'stageboard',
-  'stage-server',
+  'host-computer',
   'mixer',
   'audio-interface',
   'midi-device',
@@ -129,7 +129,7 @@ export type Earth = z.infer<typeof EarthSchema>
 /** Where a path ends: whoever hears or sees it. */
 export const LISTENER_KINDS: readonly EquipmentKind[] = ['person', 'hall']
 /** StageBoard itself: its matrix has the virtual ports. */
-export const DRIVER_KINDS: readonly EquipmentKind[] = ['stageboard', 'stage-server']
+export const DRIVER_KINDS: readonly EquipmentKind[] = ['stageboard', 'host-computer']
 
 /** One row or column of a routing matrix: a physical port (one channel of a group), or a virtual
  * port of StageBoard (a Logical Device id) on a StageBoard device - for a stereo one (the track)
@@ -205,7 +205,7 @@ export const StageEquipmentSchema = z.object({
   routing: RoutingSchema.nullable().default(null),
   /** The StageBoard device this is (kind `stageboard`). */
   deviceId: z.string().min(1).nullable().default(null),
-  /** Further apps on the same hardware (Marco, 2026-11-07): the Dev app, Chrome, the Stage-Server
+  /** Further apps on the same hardware (Marco, 2026-11-07): the Dev app, Chrome, the Host
    * (`server`) beside `deviceId` - one box, one set of sockets. Joined by hand ("Ist dasselbe Gerät
    * wie …"): no app can tell by itself that another one runs on the same device. */
   appIds: z.array(z.string().min(1)).optional(),
@@ -334,7 +334,7 @@ export const BUILTIN_MODELS: readonly EquipmentModel[] = [
     // The default map (decision 6): Klick, Track and Ansagen on the device's own speaker.
     free(...DEFAULT_VIRTUAL_OUTPUTS.map((v) => via(virtual(v.id), at('speaker')))),
   ),
-  builtin('stage-server', 'Stage-Server', 'stage-server', [port('net', 'Netzwerk', 'ethernet', ['net'], 'both'), port('usb', 'USB', 'usb-a', ['midi', 'dmx'], 'both')], free()),
+  builtin('host-computer', 'Host', 'host-computer', [port('net', 'Netzwerk', 'ethernet', ['net'], 'both'), port('usb', 'USB', 'usb-a', ['midi', 'dmx'], 'both')], free()),
   builtin(
     'mixer',
     'Mischpult',
@@ -588,15 +588,15 @@ export function equipmentFrom(model: EquipmentModel, id: string, name: string, e
 
 export const deviceEquipmentId = (deviceId: string): string => `device:${deviceId}`
 
-/** Every app on a box: its device, the further ones on the same hardware, and the Stage-Server when
+/** Every app on a box: its device, the further ones on the same hardware, and the Host when
  * that box is the server itself. */
 export function appsOf(e: StageEquipment): string[] {
-  return [...(e.deviceId ? [e.deviceId] : []), ...(e.kind === 'stage-server' ? [SERVER_EXECUTION_TARGET] : []), ...(e.appIds ?? [])]
+  return [...(e.deviceId ? [e.deviceId] : []), ...(e.kind === 'host-computer' ? [SERVER_EXECUTION_TARGET] : []), ...(e.appIds ?? [])]
 }
 
 /**
  * "Ist dasselbe Gerät wie …" (2026-11-07): box `merge` (an app the map put in a box of its own -
- * the Dev app beside the release app, the Stage-Server beside Chrome on the laptop) goes into
+ * the Dev app beside the release app, the Host beside Chrome on the laptop) goes into
  * `keep`: its apps join, its cables, place and matrix move over where `keep` has none
  * (mergeEquipmentInSetup), and it is removed.
  */
@@ -1473,7 +1473,7 @@ export const BUILT_IN_OUTPUT_CAPABILITIES: readonly CapabilityId[] = DEFAULT_VIR
 /**
  * Where the map sends a virtual port (a Logical Device - "Kemper") in the active setup (docs/31 §6
  * step 2, part 2, 2026-11-07): the app that executes it - the device whose matrix routes it to one
- * of its ports, the one in front of several apps there, or the Stage-Server - and the MIDI port
+ * of its ports, the one in front of several apps there, or the Host - and the MIDI port
  * name on the cable from that port, if one is set. `app: null`: the map routes it nowhere, nobody
  * sends. Null without a map - the old binding applies. `setupId`: a setup other than the active
  * one (practising "as in setup …", #799).
@@ -1482,7 +1482,7 @@ export function mapRoute(map: StageMap, virtualPortId: string, frontApp: Readonl
   const setup = setupOf(map, setupId)
   if (!setup) return null
   for (const box of map.equipment) {
-    if ((box.kind !== 'stageboard' && box.kind !== 'stage-server') || !setup.positions[box.id]) continue
+    if ((box.kind !== 'stageboard' && box.kind !== 'host-computer') || !setup.positions[box.id]) continue
     // An output ("Kemper") is routed onto a port; an input ("Pedal") from one.
     const routing = effectiveRouting(box, setup)
     const out = routing.find((c) => c.from.kind === 'virtual' && c.from.virtualPortId === virtualPortId && c.to.kind === 'port')
@@ -1492,7 +1492,7 @@ export function mapRoute(map: StageMap, virtualPortId: string, frontApp: Readonl
     // The cable sits on the container of a part (docs/31 §7b).
     const portId = cablePortId(box.ports, point.portId)
     const apps = appsOf(box)
-    const app = box.kind === 'stage-server' ? SERVER_EXECUTION_TARGET : frontApp[box.id] && apps.includes(frontApp[box.id]!) ? frontApp[box.id]! : (box.deviceId ?? apps[0] ?? null)
+    const app = box.kind === 'host-computer' ? SERVER_EXECUTION_TARGET : frontApp[box.id] && apps.includes(frontApp[box.id]!) ? frontApp[box.id]! : (box.deviceId ?? apps[0] ?? null)
     const cables = setup.links.filter((l) => (l.from.equipmentId === box.id && l.from.portId === portId) || (l.to.equipmentId === box.id && l.to.portId === portId))
     // Several cables on one socket (a hub on the tablet's USB-C, #813): the one to the device this
     // plugin drives (MG-30 model ↔ MG-30 plugin), else one that names its MIDI port, else the first.
@@ -1524,7 +1524,7 @@ export function pluginWiring(
     const [mine, theirs] = link.from.equipmentId === equipmentId ? [link.from, link.to] : link.to.equipmentId === equipmentId ? [link.to, link.from] : [null, null]
     if (!mine || !theirs) continue
     const box = map.equipment.find((e) => e.id === theirs.equipmentId)
-    if (!box || (box.kind !== 'stageboard' && box.kind !== 'stage-server')) continue
+    if (!box || (box.kind !== 'stageboard' && box.kind !== 'host-computer')) continue
     const port = box.ports.find((p) => p.id === theirs.portId)
     if (!port) continue
     const out = port.parts?.find((part) => part.signals.includes('midi') && part.direction !== 'in')

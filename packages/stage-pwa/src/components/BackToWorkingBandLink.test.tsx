@@ -36,8 +36,8 @@ describe('BackToWorkingBandLink', () => {
     useWorkspaceStore.setState({
       workspaces: [
         { id: 'band-a', name: 'Band A' },
-        { id: 'band-b', name: 'Band B', couchPassword: 'pw-b' },
-        { id: 'band-c', name: 'Band C', couchPassword: 'pw-c' },
+        { id: 'band-b', name: 'Band B', password: 'pw-b' },
+        { id: 'band-c', name: 'Band C', password: 'pw-c' },
       ],
       activeWorkspaceId: 'band-a',
     })
@@ -52,7 +52,7 @@ describe('BackToWorkingBandLink', () => {
     useWorkspaceStore.setState({
       workspaces: [
         { id: 'band-a', name: 'Band A' },
-        { id: 'band-b', name: 'Band B', couchPassword: 'pw-b' },
+        { id: 'band-b', name: 'Band B', password: 'pw-b' },
       ],
       activeWorkspaceId: 'band-a',
     })

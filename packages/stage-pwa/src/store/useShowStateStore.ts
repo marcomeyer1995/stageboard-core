@@ -119,7 +119,7 @@ export const useShowStateStore = create<ShowStateStore>((set, get) => ({
       set({ state: merged, ...mastership(merged.masterHolderId === get().masterIdentity, get().selfCheck) })
     })
 
-    // The master's changes, pushed through the Stage-Server - usually long before replication.
+    // The master's changes, pushed through the Host - usually long before replication.
     unsubscribePush = subscribeToShowStatePush(workspaceId, (push) => {
       if (push.deviceId === get().deviceId) return // this device already applied its own change
       if (push.issuedAt <= (get().state.stateIssuedAt ?? 0)) return // older than what we have

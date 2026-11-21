@@ -92,7 +92,7 @@ import {
  * baseline. Named by meaning, not by shape, so the same action always gets the same icon.
  * lucide-react is tree-shaken and bundled, so it works offline like the rest of the UI.
  */
-const ICONS = {
+export const ICONS = {
   menu: Menu,
   /** Bento menu (nine dots): pick and manage dashboards (docs/15 D8). */
   dashboards: Grip,

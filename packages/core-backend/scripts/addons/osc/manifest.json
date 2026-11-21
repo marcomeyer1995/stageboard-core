@@ -1,0 +1,70 @@
+{
+  "id": "osc",
+  "name": "OSC",
+  "version": "1.0.0",
+  "protocol": 3,
+  "workFile": "work.js",
+  "permissions": [],
+  "contributes": {
+    "methods": {
+      "send": {
+        "in": {
+          "type": "object",
+          "required": [
+            "address"
+          ],
+          "properties": {
+            "address": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "args": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "host": {
+              "type": "string",
+              "maxLength": 255
+            },
+            "port": {
+              "type": "integer"
+            },
+            "device": {
+              "type": "string",
+              "maxLength": 100
+            }
+          }
+        },
+        "out": {
+          "type": "object",
+          "required": [
+            "sent"
+          ],
+          "properties": {}
+        },
+        "timeoutMs": 8000
+      }
+    },
+    "devices": [
+      {
+        "kind": "osc-target",
+        "title": "OSC",
+        "transport": "network-osc",
+        "state": {
+          "lastCue": {
+            "type": "string"
+          }
+        },
+        "commands": {}
+      }
+    ],
+    "ui": [
+      {
+        "slot": "device.panel",
+        "id": "osc-last-cue",
+        "title": "OSC"
+      }
+    ]
+  },
+  "viewFile": "view.js"
+}

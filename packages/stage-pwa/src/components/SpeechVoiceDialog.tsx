@@ -10,7 +10,7 @@ const mb = (bytes: number) => `${Math.round(bytes / 1_000_000)} MB`
 
 /**
  * piper-speech's settings (#63): the band's voice - language, then voice, its licence, download to
- * the Stage-Server, and "Probehören" on this device before choosing. Every device then announces
+ * the Host, and "Probehören" on this device before choosing. Every device then announces
  * with it.
  */
 export function SpeechVoiceDialog({ onClose }: { onClose: () => void }) {

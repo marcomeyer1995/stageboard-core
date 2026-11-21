@@ -450,9 +450,9 @@ describe('several apps on one device (Marco, 2026-11-07)', () => {
     expect(appsOf(separateApp(joined, 'redmi-dev'))).toEqual(['redmi'])
   })
 
-  it('the Stage-Server joins the laptop: the server is one of its apps', () => {
+  it('the Host joins the laptop: the server is one of its apps', () => {
     const laptop = equipmentFrom(BUILTIN_MODELS.find((m) => m.id === 'tablet')!, 'device:laptop', 'Laptop', { deviceId: 'laptop' })
-    const server = equipmentFrom(BUILTIN_MODELS.find((m) => m.id === 'stage-server')!, 'server', 'Stage-Server')
+    const server = equipmentFrom(BUILTIN_MODELS.find((m) => m.id === 'host-computer')!, 'server', 'Host')
     expect(appsOf(joinDevices(laptop, server))).toEqual(['laptop', 'server'])
   })
 })

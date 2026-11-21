@@ -1,0 +1,45 @@
+import { BandHostsSchema, type BandHostEntry } from 'shared-types'
+import { leaseKey, verifyAccountRequest } from './leaseAuth.js'
+
+export interface ReplicationAccountIssuer {
+  /** A login for the other listed host to read this band with, or null if the request is not good. */
+  issue(raw: unknown): Promise<{ username: string; password: string } | null>
+}
+
+/**
+ * The host's side of the passive copy (host backup, #919, docs/25 §6e) - the same on the laptop and on the tablet: the
+ * other host asks, signed with the band code (`leaseAuth.ts`), for a login of this band to copy its database with. The
+ * login is an ordinary member login of the band named after the asking host (`mint` makes it, as a document of the band),
+ * handed out only to the *other* host the band lists, once per request - a request must carry a higher `sentAt` than the
+ * last one of that host, so a recorded one is worth nothing. `sentAt` can be kept somewhere that survives a restart.
+ */
+export function createReplicationAccountIssuer(deps: {
+  selfHostId: string
+  workspaceId: () => string | null
+  readHosts: (workspaceId: string) => Promise<readonly BandHostEntry[] | null>
+  readAccessCode: (workspaceId: string) => Promise<string | null>
+  mint: (workspaceId: string, hostId: string) => Promise<{ username: string; password: string }>
+  /** The highest `sentAt` seen per host; in memory when absent. */
+  sentAt?: { get: (hostId: string) => number | undefined; set: (hostId: string, at: number) => void }
+}): ReplicationAccountIssuer {
+  const memory = new Map<string, number>()
+  const lastSentAt = deps.sentAt ?? { get: (hostId: string) => memory.get(hostId), set: (hostId: string, at: number) => void memory.set(hostId, at) }
+  return {
+    async issue(raw) {
+      try {
+        const workspaceId = deps.workspaceId()
+        if (!workspaceId) return null
+        const hosts = BandHostsSchema.safeParse(await deps.readHosts(workspaceId))
+        const code = await deps.readAccessCode(workspaceId)
+        if (!hosts.success || hosts.data.length < 2 || !code) return null
+        const request = await verifyAccountRequest(raw, await leaseKey(code, workspaceId))
+        if (!request || request.hostId === deps.selfHostId || !hosts.data.some((h) => h.hostId === request.hostId)) return null
+        if (request.sentAt <= (lastSentAt.get(request.hostId) ?? -1)) return null
+        lastSentAt.set(request.hostId, request.sentAt)
+        return await deps.mint(workspaceId, request.hostId)
+      } catch {
+        return null
+      }
+    },
+  }
+}

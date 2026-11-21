@@ -21,7 +21,7 @@ vi.mock('../store/useDialogStore', () => ({
 }))
 const fetchBandHost = vi.fn()
 vi.mock('../lib/fetchBandHost', () => ({ fetchBandHost: (input: string) => fetchBandHost(input) }))
-vi.mock('../lib/stageServer', () => ({ getStageServerUrl: () => 'https://paired.local' }))
+vi.mock('../lib/hostUrl', () => ({ getHostUrl: () => 'https://paired.local' }))
 const { HostRole } = await import('./HostRole')
 
 const BOX = 'box-laptop'

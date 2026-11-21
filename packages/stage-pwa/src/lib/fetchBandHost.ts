@@ -1,5 +1,5 @@
 import { BandHostEntrySchema, type BandHostEntry } from 'shared-types'
-import { getStageServerUrl } from './stageServer'
+import { getHostUrl } from './hostUrl'
 
 const TIMEOUT_MS = 5_000
 
@@ -13,14 +13,14 @@ export function hostUrlFromInput(input: string): string | null {
 
 /**
  * Who is at that address (host backup, #914): its `hostId` and its certificate fingerprint, so the admin
- * never types either. The *own* Stage-Server does the asking (#945): a page may only talk to hosts it
+ * never types either. The *own* Host does the asking (#945): a page may only talk to hosts it
  * already trusts, and a fresh backup is not one of them yet - in a browser that is CORS, in the app a
- * missing pin. Null when it is not a Stage-Server, was built before host ids existed (it cannot be named
+ * missing pin. Null when it is not a Host, was built before host ids existed (it cannot be named
  * in the list), or sends a fingerprint in a form the list would reject.
  */
 export async function fetchBandHost(input: string): Promise<Omit<BandHostEntry, 'priority' | 'equipmentId'> | null> {
   const url = hostUrlFromInput(input)
-  const base = getStageServerUrl()
+  const base = getHostUrl()
   if (!url || !base) return null
   try {
     const response = await fetch(`${base}/host/look-up?address=${encodeURIComponent(url)}`, { signal: AbortSignal.timeout(TIMEOUT_MS) })

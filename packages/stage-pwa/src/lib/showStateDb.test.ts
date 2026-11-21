@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
-/** A database that, like CouchDB, rejects a write with a stale revision (409). */
+/** A database that, like the database, rejects a write with a stale revision (409). */
 const store: { doc: Record<string, unknown> | null; rev: number } = { doc: null, rev: 0 }
 const fakeDb = {
   get: vi.fn(async () => {

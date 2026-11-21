@@ -7,7 +7,7 @@ import { reportPresence } from './reportPresence'
 const REPORT_INTERVAL_MS = 10_000
 
 /**
- * Mounted once in App.tsx, same shape as useClockSync. Periodically tells the Stage-Server
+ * Mounted once in App.tsx, same shape as useClockSync. Periodically tells the Host
  * "this device is currently signed in as this profile" (reportPresence.ts) while both a
  * workspace and a real profile are active - `BandManagementView.tsx`'s presence indicators
  * are built entirely from these reports (`usePresenceStore.ts`, the other side).

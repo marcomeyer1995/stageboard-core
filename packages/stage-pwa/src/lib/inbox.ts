@@ -4,7 +4,7 @@
  *
  * A channel hands in its newest value; only the newest per channel is kept ("the newest wins"),
  * and it is applied in an idle slice between frames - at the latest after `maxDelayMs`. Why
- * (Redmi, 2026-10-28): the Stage-Server sends the plugin status once per plugin heartbeat, 7 in a
+ * (Redmi, 2026-10-28): the Host sends the plugin status once per plugin heartbeat, 7 in a
  * row every 5 s, and each one re-rendered everything showing a status - an ~80 ms freeze that made
  * the timeline jerk. Whatever a producer sends, it can't take the frame away any more.
  *

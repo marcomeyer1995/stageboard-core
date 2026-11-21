@@ -1,28 +1,13 @@
-import { messageFieldsOf, type ServerMessage, type ServerMessageCode, type ServerMessageParams } from 'shared-types'
+import { messageFieldsOf } from 'shared-types'
 
-/**
- * A lookup failure the musician can act on (#15): a stable `code` for the app, a German message
- * that says what happened and what to do, and the technical cause for the log. Plugins may come
- * from a separately built bundle, so the routes recognise it by shape (`lookupErrorBody`), not
- * by `instanceof`.
- */
-export type LookupErrorCode = 'no-browser' | 'timeout' | 'unavailable' | 'blocked' | 'source-changed' | 'not-importable'
-
+/** A lookup failure the musician can act on (#15): a stable `code` the app tells apart (`blocked`, `timeout`, ...) and the words the add-on wrote for it. The routes recognise it by shape (`lookupErrorBody`), not by `instanceof`. */
 export class LookupError extends Error {
-  readonly messageCode?: ServerMessageCode
-  readonly messageParams?: ServerMessageParams
   constructor(
-    readonly code: LookupErrorCode,
-    /** Preferably a `serverMessage(...)`, so the device can show it in its language (#679). */
-    message: ServerMessage | string,
-    readonly cause?: unknown,
+    readonly code: string,
+    message: string,
   ) {
-    super(typeof message === 'string' ? message : message.message)
+    super(message)
     this.name = 'LookupError'
-    if (typeof message !== 'string') {
-      this.messageCode = message.messageCode
-      if (message.messageParams) this.messageParams = message.messageParams
-    }
   }
 }
 

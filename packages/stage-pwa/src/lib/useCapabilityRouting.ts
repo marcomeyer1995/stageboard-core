@@ -22,7 +22,7 @@ export interface CapabilityRouting {
  * instead of shared, and the copies had already drifted: ClickTrackWidget.tsx's own copy (and
  * useClickOutputDriver.ts's separate one) both hard-coded `pluginId` to `null`. In
  * ClickTrackWidget.tsx this was a real, user-visible bug - a click-track Logical Device bound
- * through the Stage-Server (not a specific tablet) was unreachable, the widget always showed
+ * through the Host (not a specific tablet) was unreachable, the widget always showed
  * "Kein Klick-Ausgabegerät eingerichtet" even though it was correctly configured via the
  * Hardware Setup Wizard (#148, found in #144's review). In useClickOutputDriver.ts the same
  * hardcoded `null` was actually inert (that hook only ever checks `engine === 'local-mine'`,

@@ -32,7 +32,7 @@ export function useDeferredSliderValue<T>(
 
   // Stay in sync with external changes (another device editing the same widget, or the
   // config resetting) - but not while this device has its own pending edit in flight, or
-  // the live value ticking back in from CouchDB sync would fight the user's own drag.
+  // the live value ticking back in from the database sync would fight the user's own drag.
   useEffect(() => {
     if (pendingRef.current === null) {
       configLog(debugLabel ?? '(slider)', 'external value ->', value, '(applying to display)')

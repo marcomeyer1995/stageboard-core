@@ -1,19 +1,19 @@
 import { deliverInBackground, dropFromInbox } from './inbox'
 import { DEFAULT_PRESENCE, type Presence } from 'shared-types'
-import { getStageServerUrl } from './stageServer'
+import { getHostUrl } from './hostUrl'
 
 /**
  * Server-Sent Events stream of "who's currently logged in, from how many devices" for one
- * workspace - same pattern as pluginHealthStream.ts. The Stage-Server pushes the *full*
+ * workspace - same pattern as pluginHealthStream.ts. The Host pushes the *full*
  * snapshot on every change, so there is no merge logic here - just replace.
  *
  * `EventSource` retries dropped connections on its own (a browser built-in) - no explicit
- * reconnect/backoff logic needed. No `VITE_STAGE_SERVER_URL` (e.g. Tier 1 "Solo," no server
+ * reconnect/backoff logic needed. No `VITE_HOST_URL` (e.g. Tier 1 "Solo," no server
  * at all) means there is nothing to subscribe to - the caller just keeps the default (empty)
  * presence.
  */
 export function subscribeToPresence(workspaceId: string, onPresence: (presence: Presence) => void): () => void {
-  const base = getStageServerUrl()
+  const base = getHostUrl()
   // No band yet (the native app paired with a server before joining, #348): nothing to subscribe to.
   if (!base || !workspaceId) {
     onPresence(DEFAULT_PRESENCE)

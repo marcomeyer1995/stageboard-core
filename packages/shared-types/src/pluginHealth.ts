@@ -12,7 +12,7 @@ export const PluginHealthEntrySchema = z.object({
 export type PluginHealthEntry = z.infer<typeof PluginHealthEntrySchema>
 
 /**
- * Runtime health of the server-side plugins, written by the Stage-Server and read by
+ * Runtime health of the server-side plugins, written by the Host and read by
  * every tablet. Separate from PluginInstallation on purpose: "installed" is a property
  * of the band, "reachable" is a property of tonight's venue (docs/07 Graceful Degradation).
  */
@@ -24,14 +24,14 @@ export type PluginHealth = z.infer<typeof PluginHealthSchema>
 export const DEFAULT_PLUGIN_HEALTH: PluginHealth = { plugins: {} }
 
 /**
- * How long a heartbeat stays valid. Nobody writes "offline" when the Stage-Server dies,
+ * How long a heartbeat stays valid. Nobody writes "offline" when the Host dies,
  * so a stale entry is the only signal the tablets get - and it has to be one.
  */
 export const HEALTH_TIMEOUT_MS = 15_000
 
 /**
  * Body a tablet POSTs to report its own client-hosted plugin's status (e.g. a WebMIDI foot
- * pedal, or the tuner's mic input) - not every plugin is Stage-Server-hosted (docs/02: Tier 1
+ * pedal, or the tuner's mic input) - not every plugin is Host-hosted (docs/02: Tier 1
  * has no server at all), so health can originate from either side. `lastSeenAt` is stamped
  * server-side on receipt, not supplied by the reporting tablet.
  */

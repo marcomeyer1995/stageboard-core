@@ -8,7 +8,7 @@ import { getMidiOutputById } from './webMidiOutput'
  * Sync test (docs/21 §4, #477/#302): every device runs it at once and marks each full second of
  * server time - a MIDI note on its chosen output (note number = the second mod 128, so a receiver
  * can match the same second across devices) and, optionally, the real click sound through the same
- * audio path as the Gig click (same clock smoothing, same tone). A laptop that is the Stage-Server
+ * audio path as the Gig click (same clock smoothing, same tone). A laptop that is the Host
  * logs the arrivals against its own clock: the offset of each device from server time, the offset
  * between devices, and - from a microphone - each device's audio output latency
  * (scripts/midi-timing-probe/sync-receiver.py).

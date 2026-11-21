@@ -3,7 +3,7 @@ import { useClockSyncStore } from '../store/useClockSyncStore'
 import { useHostContactStore } from './hostContact'
 import { useHostEpochStore } from './hostEpoch'
 import { clockSyncLog } from './clockSyncDebug'
-import { getStageServerUrl } from './stageServer'
+import { getHostUrl } from './hostUrl'
 
 interface ClockSample {
   rtt: number
@@ -37,7 +37,7 @@ const MIN_R_SQUARED_FOR_ASYMMETRY_FIT = 0.5
 /** How many recent bursts' winning offsets to keep for the drift reading below - see
  * `driftMs`'s doc comment in useClockSyncStore.ts. 5 syncs at the 60s resync interval is a
  * 5-minute trailing window: long enough to smooth out one noisy burst, short enough to still
- * flag a real problem (a Stage-Server clock jump, a device actually drifting) within a few
+ * flag a real problem (a Host clock jump, a device actually drifting) within a few
  * minutes rather than papering over it forever. */
 const OFFSET_HISTORY_SIZE = 5
 
@@ -82,7 +82,7 @@ const MIN_SLOPE_SPAN_MS = 60_000
 const MAX_PER_MS = 100e-6
 /** The offset in use moves towards the estimate by at most this - 0.2 %, so band time never jumps. */
 const SLEW_MS_PER_S = 2
-/** Further away than this the estimate is taken at once (first lock, a Stage-Server clock change) -
+/** Further away than this the estimate is taken at once (first lock, a Host clock change) -
  * after the first lock only once FAR_CONFIRMATIONS estimates in a row agree on it. */
 const JUMP_MS = 50
 const FAR_CONFIRMATIONS = 5
@@ -253,12 +253,12 @@ function estimateOffset(samples: ClockSample[]): { offsetMs: number; usedAsymmet
  * trust signal.
  *
  * Writes the result to useClockSyncStore for any widget to read; getServerTime() below reads
- * the same store. Never throws: no configured Stage-Server, or one that's entirely
+ * the same store. Never throws: no configured Host, or one that's entirely
  * unreachable, just leaves the previous sync in the store untouched, so a caller can always
  * retry later without special-casing failure.
  */
 export async function syncClock(sampleCount = BURST_SAMPLE_COUNT): Promise<number> {
-  const base = getStageServerUrl()
+  const base = getHostUrl()
   if (!base) return useClockSyncStore.getState().offsetMs
 
   const samples: ClockSample[] = []
@@ -290,7 +290,7 @@ export async function syncClock(sampleCount = BURST_SAMPLE_COUNT): Promise<numbe
 /** One continuous sample (every SAMPLE_INTERVAL_MS, useClockSync.ts): adds it to the window and
  * aims the offset in use at the window's estimate. Never throws. */
 export async function sampleClock(): Promise<void> {
-  const base = getStageServerUrl()
+  const base = getHostUrl()
   if (!base) return
   const sample = await takeSample(base, true)
   if (!sample) return
@@ -307,7 +307,7 @@ export async function sampleClock(): Promise<void> {
 /**
  * The synchronized master-clock time (docs/00 §4) - local time corrected by the last
  * syncClock() call's offset. Falls back to plain local time before the first sync, or when
- * the Stage-Server has never been reachable, rather than throwing.
+ * the Host has never been reachable, rather than throwing.
  */
 export function getServerTime(): number {
   const now = Date.now()
@@ -321,9 +321,9 @@ const CLOCK_FIRST_MAX_WAIT_MS = 15_000
 let clockFirst: Promise<void> | null = null
 let clockFirstDone = false
 
-/** Whether clockLockedFirst() has resolved already (always without a Stage-Server, and in tests). */
+/** Whether clockLockedFirst() has resolved already (always without a Host, and in tests). */
 export function isClockLockedFirst(): boolean {
-  return clockFirstDone || import.meta.env.MODE === 'test' || !getStageServerUrl()
+  return clockFirstDone || import.meta.env.MODE === 'test' || !getHostUrl()
 }
 
 /**
@@ -333,7 +333,7 @@ export function isClockLockedFirst(): boolean {
  * the Redmi's band time sat 12 ms off for 55 s, until the downloads were done (2026-11-05).
  */
 export function clockLockedFirst(): Promise<void> {
-  if (import.meta.env.MODE === 'test' || !getStageServerUrl()) return Promise.resolve()
+  if (import.meta.env.MODE === 'test' || !getHostUrl()) return Promise.resolve()
   clockFirst ??= new Promise((resolve) => {
     const started = Date.now()
     const check = () => {

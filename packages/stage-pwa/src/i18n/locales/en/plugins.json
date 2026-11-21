@@ -80,7 +80,7 @@
   "catalog": {
     "networkOsc": "Network (OSC)",
     "networkWs": "Network (WebSocket)",
-    "networkOscIn": "Network (OSC to the Stage-Server)",
+    "networkOscIn": "Network (OSC to the Host)",
     "midiOut": "MIDI output",
     "midiIn": "MIDI input",
     "midiChannel": "MIDI channel (1-16)",

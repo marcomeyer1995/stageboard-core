@@ -1,7 +1,7 @@
 /**
  * Server-local admin recovery (#70 break-glass): when no admin can get into a band any more -
  * every device's login gone at once, nobody left to press "Passwort zurücksetzen" in the app.
- * Runs on the Stage-Server itself with the server's own CouchDB login (serviceEnv.ts), adds no
+ * Runs on the Host itself with the server's own database login (serviceEnv.ts), adds no
  * network route and no client-visible secret: only someone with a shell on the server can use it.
  *
  *   npm run admin:reset -w core-backend                                  # list bands
@@ -12,8 +12,9 @@
  * <band> is the band's id or exact name, <member> the profile id or the name as in the roster
  * (case-insensitive). The new 4-digit PIN is printed once - like "Passwort zurücksetzen" in the app.
  */
+import { randomInt } from 'node:crypto'
 import { pathToFileURL } from 'node:url'
-import { serverCouchConfig } from './serviceEnv.js'
+import { serverDatabaseConfig } from './serviceEnv.js'
 
 export interface Band {
   workspaceId: string
@@ -41,7 +42,7 @@ export function parseArgs(args: string[]): Request {
 
 export function findBand(bands: Band[], query: string): Band | string {
   const band = bands.find((b) => b.workspaceId === query) ?? bands.find((b) => b.workspaceName === query)
-  return band ?? `Keine Band "${query}" auf diesem Stage-Server. Ohne Angabe aufrufen, um alle Bands zu sehen.`
+  return band ?? `Keine Band "${query}" auf diesem Host. Ohne Angabe aufrufen, um alle Bands zu sehen.`
 }
 
 /** The member to reset, or why not: unknown, ambiguous, or not an admin without --make-admin. */
@@ -61,16 +62,17 @@ export function findMember(members: Member[], query: string, makeAdmin: boolean)
 }
 
 async function main(): Promise<void> {
-  const couch = serverCouchConfig()
+  const database = serverDatabaseConfig()
   // Imported after the environment is set, like the server itself.
-  const { listWorkspaces, workspaceDbName, resetAdminPin, setMemberAdmin } = await import('../workspaceProvisioning.js')
-  const { allDocs, putDocWithRetry } = await import('../couch.js')
+  const { listWorkspaces, workspaceDbName } = await import('../workspaceProvisioning.js')
+  const { createBandAccountsFor } = await import('../bandAccounts.js')
+  const { allDocs, putDocWithRetry } = await import('../database.js')
   type ProfileDoc = { _id: string; _rev?: string; id?: string; name?: string; stageRoles?: string[] }
 
   const request = parseArgs(process.argv.slice(2))
-  const bands = await listWorkspaces(couch)
+  const bands = await listWorkspaces(database)
   if (request.kind === 'bands') {
-    console.log('Bands auf diesem Stage-Server:')
+    console.log('Bands auf diesem Host:')
     for (const band of bands) console.log(`  ${band.workspaceId}  ${band.workspaceName}`)
     console.log('\nMitglieder einer Band: npm run admin:reset -w core-backend -- <Band>')
     return
@@ -78,7 +80,7 @@ async function main(): Promise<void> {
   const band = findBand(bands, request.band)
   if (typeof band === 'string') throw new Error(band)
   const db = workspaceDbName(band.workspaceId)
-  const profiles = await allDocs<ProfileDoc>(couch, db, { startkey: 'profiles:', endkey: 'profiles:￰' })
+  const profiles = await allDocs<ProfileDoc>(database, db, { startkey: 'profiles:', endkey: 'profiles:￰' })
   const members: Member[] = profiles.map((p) => ({ profileId: p.id!, name: p.name ?? '?', isAdmin: (p.stageRoles ?? []).includes('admin') }))
 
   if (request.kind === 'members') {
@@ -91,20 +93,22 @@ async function main(): Promise<void> {
 
   const member = findMember(members, request.member, request.makeAdmin)
   if (typeof member === 'string') throw new Error(member)
-  const credentials = await resetAdminPin(couch, band.workspaceId, member.profileId)
+  const accounts = createBandAccountsFor(database)(band.workspaceId)
+  const pin = randomInt(0, 10_000).toString().padStart(4, '0')
+  await accounts.setPin(member.profileId, pin)
   if (!member.isAdmin) {
-    await setMemberAdmin(couch, band.workspaceId, member.profileId, true)
+    await accounts.setAdmin(member.profileId, true)
     // The roster entry gets the admin role too, so the app shows it. Written with the server's
-    // own CouchDB admin login (the roster validator lets `_admin` through) and re-read on a
+    // own database admin login (the roster validator lets `_admin` through) and re-read on a
     // conflict - a plain putDoc ignored a 409 and the roster silently stayed non-admin while this
     // still said "ist jetzt Admin" (#421 review).
-    await putDocWithRetry<ProfileDoc>(couch, db, `profiles:${member.profileId}`, (profile) => {
+    await putDocWithRetry<ProfileDoc>(database, db, `profiles:${member.profileId}`, (profile) => {
       if (!profile) throw new Error(`Roster-Eintrag von ${member.name} fehlt - Rechte gesetzt, aber in der App nicht als Admin sichtbar.`)
       return { ...profile, stageRoles: [...new Set([...(profile.stageRoles ?? []), 'admin'])] }
     })
   }
   console.log(`${member.name} in "${band.workspaceName}"${member.isAdmin ? '' : ' ist jetzt Admin'}.`)
-  console.log(`Neue PIN: ${credentials.password}`)
+  console.log(`Neue PIN: ${pin}`)
   console.log('In der App: Band beitreten, den Namen wählen, diese PIN eingeben - danach unter Einstellungen eine eigene PIN setzen.')
   console.log('Nach vielen Fehlversuchen ist das Konto ein paar Minuten gesperrt - dann warten oder: systemctl --user restart stageboard')
 }

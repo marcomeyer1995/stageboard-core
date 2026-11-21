@@ -6,10 +6,10 @@ import { createWriteGuard, type UserCtx } from './writeGuard.js'
 
 PouchDB.plugin(MemoryAdapter)
 
-// The band's rules as the Stage-Server writes them (core-backend's ROSTER_VALIDATOR_SOURCE, shortened).
+// The band's rules as the Host writes them (core-backend's ROSTER_VALIDATOR_SOURCE, shortened).
 const VALIDATOR = `function(newDoc, oldDoc, userCtx) {
   var isAdmin = userCtx.roles.indexOf('admin') !== -1 || userCtx.roles.indexOf('_admin') !== -1;
-  if (newDoc._id === 'host-accounts' && userCtx.roles.indexOf('_admin') === -1) throw({forbidden: 'Only the Stage-Server writes the host accounts.'});
+  if (newDoc._id === 'host-accounts' && userCtx.roles.indexOf('_admin') === -1) throw({forbidden: 'Only the Host writes the host accounts.'});
   if (newDoc._id.indexOf('profiles:') === 0 && !isAdmin) throw({forbidden: 'Only a band admin may edit the roster.'});
 }`
 
@@ -36,7 +36,7 @@ describe('write guard: the band rules on any host (docs/25)', () => {
     expect((await store.get('profiles:1')) as unknown).toMatchObject({ name: 'Marco' })
   })
 
-  it('an admin may edit the roster; nobody but the Stage-Server writes host-accounts', async () => {
+  it('an admin may edit the roster; nobody but the Host writes host-accounts', async () => {
     const roster = await store.get('profiles:1')
     expect((await host(admin, 'PUT', '/band/profiles:1', { ...roster, name: 'Marco M.' })).status).toBe(201)
     expect((await host(admin, 'PUT', '/band/host-accounts', { accounts: [] })).status).toBe(403)

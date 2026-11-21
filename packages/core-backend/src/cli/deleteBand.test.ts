@@ -28,7 +28,7 @@ describe('band:delete planDeletion', () => {
   it('reports an unknown id', () => {
     expect(planDeletion(['zzz', '--confirm', 'x'], bands, 'ccc')).toEqual({
       kind: 'error',
-      message: 'Keine Band mit der ID zzz auf diesem Stage-Server.',
+      message: 'Keine Band mit der ID zzz auf diesem Host.',
     })
   })
 })

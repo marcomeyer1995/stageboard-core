@@ -1,14 +1,14 @@
-import { getStageServerUrl, NO_STAGE_SERVER_MESSAGE } from './stageServer'
+import { getHostUrl, NO_HOST_MESSAGE } from './hostUrl'
 
 /**
  * Talks to core-backend's `/audio/:variantId/:trackId` routes (see #30) - the canonical
- * store for track audio now lives on the Stage-Server's disk, not as a PouchDB attachment,
+ * store for track audio now lives on the Host's disk, not as a PouchDB attachment,
  * so tablets no longer receive every band's whole audio catalog through the `song-variants`
  * live sync stream.
  */
 
 function audioUrl(variantId: string, trackId: string): string | null {
-  const base = getStageServerUrl()
+  const base = getHostUrl()
   if (!base) return null
   return `${base}/audio/${encodeURIComponent(variantId)}/${encodeURIComponent(trackId)}`
 }
@@ -21,7 +21,7 @@ export async function uploadTrack(
   file: Blob,
 ): Promise<AudioUploadResult> {
   const url = audioUrl(variantId, trackId)
-  if (!url) return { status: 'error', message: NO_STAGE_SERVER_MESSAGE }
+  if (!url) return { status: 'error', message: NO_HOST_MESSAGE }
 
   try {
     const response = await fetch(url, {

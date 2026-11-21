@@ -34,7 +34,7 @@ afterEach(() => {
 
 describe('subscribeToPresence', () => {
   it('opens a stream scoped to the workspace and forwards parsed snapshots (in free time, docs/26)', async () => {
-    vi.stubEnv('VITE_STAGE_SERVER_URL', 'https://stage.example')
+    vi.stubEnv('VITE_HOST_URL', 'https://stage.example')
     const onPresence = vi.fn()
 
     subscribeToPresence('band-a', onPresence)
@@ -50,7 +50,7 @@ describe('subscribeToPresence', () => {
   })
 
   it('opens no stream without a band yet (native app paired before joining, #348)', () => {
-    vi.stubEnv('VITE_STAGE_SERVER_URL', 'https://stage.example')
+    vi.stubEnv('VITE_HOST_URL', 'https://stage.example')
     const onPresence = vi.fn()
 
     subscribeToPresence('', onPresence)
@@ -60,7 +60,7 @@ describe('subscribeToPresence', () => {
   })
 
   it('ignores a malformed payload instead of throwing', () => {
-    vi.stubEnv('VITE_STAGE_SERVER_URL', 'https://stage.example')
+    vi.stubEnv('VITE_HOST_URL', 'https://stage.example')
     const onPresence = vi.fn()
 
     subscribeToPresence('band-a', onPresence)
@@ -70,7 +70,7 @@ describe('subscribeToPresence', () => {
   })
 
   it('closes the underlying stream on unsubscribe', () => {
-    vi.stubEnv('VITE_STAGE_SERVER_URL', 'https://stage.example')
+    vi.stubEnv('VITE_HOST_URL', 'https://stage.example')
     const unsubscribe = subscribeToPresence('band-a', vi.fn())
 
     unsubscribe()
@@ -78,8 +78,8 @@ describe('subscribeToPresence', () => {
     expect(FakeEventSource.instances[0].closed).toBe(true)
   })
 
-  it('reports the default (empty) presence and opens nothing when no Stage-Server is configured', () => {
-    vi.stubEnv('VITE_STAGE_SERVER_URL', '')
+  it('reports the default (empty) presence and opens nothing when no Host is configured', () => {
+    vi.stubEnv('VITE_HOST_URL', '')
     const onPresence = vi.fn()
 
     subscribeToPresence('band-a', onPresence)

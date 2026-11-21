@@ -68,7 +68,7 @@ describe('fireCue', () => {
     expect(triggerShowControl).not.toHaveBeenCalled()
   })
 
-  it('forwards to the Stage-Server plugin when unbound and a plugin is reachable', async () => {
+  it('forwards to the Host plugin when unbound and a plugin is reachable', async () => {
     const mixer1 = mixerDevice({ id: 'mixer-1', name: "Guitarist 1's Rig" })
     await fireCue(cue({ targetLogicalDeviceId: mixer1.id, payload: { channel: 'Band', volume: 80 } }), {
       deviceId: 'me',
@@ -142,7 +142,7 @@ describe('fireCue', () => {
     expect(await fireCue(cue({ targetLogicalDeviceId: 'gone' }), { deviceId: 'me', logicalDevices: [mixer1], installed: [], sendsServerCues: true })).toMatchObject({ ok: false, message: expect.stringContaining('nicht gefunden') })
   })
 
-  it('a tablet-only add-on with no tablet chosen is missed in words - never sent to the Stage-Server', async () => {
+  it('a tablet-only add-on with no tablet chosen is missed in words - never sent to the Host', async () => {
     const kemper: LogicalDevice = { id: 'kemper', name: 'Kemper', capability: 'kemper-control', pluginId: 'kemper-profiler', executionTarget: null }
     const installed = [plugin({ id: 'kemper-profiler', name: 'Kemper Profiler', runtime: 'client', capabilities: ['kemper-control'] })]
     expect(await fireCue(cue({ targetLogicalDeviceId: 'kemper' }), { deviceId: 'me', logicalDevices: [kemper], installed, sendsServerCues: true })).toEqual({ target: 'Kemper', ok: false, message: TABLET_ONLY_MESSAGE })
@@ -151,7 +151,7 @@ describe('fireCue', () => {
   })
 
   describe('ahead-of-time dispatch (#477)', () => {
-    it('a Stage-Server cue carries scheduledAt - the gateway holds it until then', async () => {
+    it('a Host cue carries scheduledAt - the gateway holds it until then', async () => {
       const mixer1 = mixerDevice({ id: 'mixer-1', name: 'Pult' })
       await fireCue(cue({ targetLogicalDeviceId: mixer1.id }), {
         deviceId: 'me',

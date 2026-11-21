@@ -19,13 +19,13 @@ const { useDialogStore } = await import('../store/useDialogStore')
 const { useWorkspaceStore } = await import('../store/useWorkspaceStore')
 const { InviteBandView } = await import('./InviteBandView')
 
-// fetchLanIp() hits GET /server-info - defaults to "no Stage-Server configured" (no lanIp
+// fetchLanIp() hits GET /server-info - defaults to "no Host configured" (no lanIp
 // display, plain code-only QR) for every test below except the two that explicitly stub a
-// VITE_STAGE_SERVER_URL/fetch response to exercise the embedded-IP behavior. Without this, the
-// real `.env`'s VITE_STAGE_SERVER_URL would leak in and every other test would make a live,
+// VITE_HOST_URL/fetch response to exercise the embedded-IP behavior. Without this, the
+// real `.env`'s VITE_HOST_URL would leak in and every other test would make a live,
 // self-signed-cert network call it doesn't care about.
 beforeEach(() => {
-  vi.stubEnv('VITE_STAGE_SERVER_URL', '')
+  vi.stubEnv('VITE_HOST_URL', '')
 })
 
 afterEach(() => {
@@ -62,10 +62,10 @@ describe('InviteBandView', () => {
     expect(document.body).not.toHaveClass('sb-has-print-sheet')
   })
 
-  it('embeds the Stage-Server\'s current LAN IP in the QR and shows it with a regeneration note', async () => {
+  it('embeds the Host\'s current LAN IP in the QR and shows it with a regeneration note', async () => {
     const getAccessCode = vi.fn().mockResolvedValue({ code: '12345678' })
     useWorkspaceStore.setState({ getAccessCode })
-    vi.stubEnv('VITE_STAGE_SERVER_URL', 'https://stage.example')
+    vi.stubEnv('VITE_HOST_URL', 'https://stage.example')
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ lanIp: '192.168.1.5' }) }))
 
     render(<InviteBandView workspaceId="band-a" onClose={vi.fn()} />)
@@ -77,12 +77,12 @@ describe('InviteBandView', () => {
   it('falls back to a code-only QR (no error shown) when the LAN IP could not be determined', async () => {
     const getAccessCode = vi.fn().mockResolvedValue({ code: '12345678' })
     useWorkspaceStore.setState({ getAccessCode })
-    vi.stubEnv('VITE_STAGE_SERVER_URL', '')
+    vi.stubEnv('VITE_HOST_URL', '')
 
     render(<InviteBandView workspaceId="band-a" onClose={vi.fn()} />)
 
     await waitFor(() => expect(screen.getAllByText('12345678')[0]).toBeInTheDocument())
-    expect(screen.getByText(/Server-Adresse konnte nicht ermittelt werden/)).toBeInTheDocument()
+    expect(screen.getByText(/Host-Adresse konnte nicht ermittelt werden/)).toBeInTheDocument()
   })
 
   it('shows an error when getAccessCode fails', async () => {

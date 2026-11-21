@@ -8,10 +8,10 @@ export interface TrackedSync {
 }
 
 /**
- * Gates when each of the ~9 independent live PouchDB<->CouchDB streams (songs, setlists,
+ * Gates when each of the ~9 independent live PouchDB<->the database streams (songs, setlists,
  * dashboards, ...) actually calls `.sync()`. Starting all of them at once means their
  * initial provisioning + first-changes-check requests all fire simultaneously against the
- * same CouchDB host - easily more than the browser's ~6-connections-per-host limit for
+ * same the database host - easily more than the browser's ~6-connections-per-host limit for
  * plain HTTP/1.1, so several streams never even get a response and sit reporting 'active'
  * forever (see #33's follow-up: the sync indicator never left "Synchronisiere…"). Each
  * queued stream now waits for the previous one to reach its first settled state (paused,
@@ -44,7 +44,7 @@ export interface TrackedSyncOptions {
    * A batch with a real document reports at once. 0 = report 'active' immediately.
    */
   activeGraceMs?: number
-  /** The band this stream syncs. A 404 on it is recorded as "not on this Stage-Server" for that
+  /** The band this stream syncs. A 404 on it is recorded as "not on this Host" for that
    * band (#897); without it nothing is recorded. */
   workspaceId?: string
 }
@@ -134,7 +134,7 @@ export function trackedSync<T extends object>(
               )
             }
 
-            // CouchDB (2.0+) reports how many changes are still left on every batch of its
+            // the database (2.0+) reports how many changes are still left on every batch of its
             // `_changes` feed - not in @types/pouchdb-replication's declarations, but present
             // at runtime (pouchdb-browser's http adapter attaches it when the server sends
             // one). Only meaningful for pull: push reads from the local IndexedDB adapter,
@@ -164,7 +164,7 @@ export function trackedSync<T extends object>(
             clearStreamProgress(name)
           })
           .on('error', (err) => {
-            // 404: the Stage-Server has no such band database (#897) - not a transient failure.
+            // 404: the Host has no such band database (#897) - not a transient failure.
             if (options.workspaceId) {
               useSyncStore.getState().setNotOnServer(options.workspaceId, (err as { status?: number } | undefined)?.status === 404)
             }

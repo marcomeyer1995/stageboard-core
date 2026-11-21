@@ -5,7 +5,7 @@
  * `listCachedKeys` to see current state.
  *
  * Hand-rolled IndexedDB rather than a dependency: this project keeps its dependency list
- * lean on purpose (see couch.ts), and the surface needed here is a handful of tiny operations.
+ * lean on purpose (see database.ts), and the surface needed here is a handful of tiny operations.
  */
 
 import { parseTrackKey, trackKey } from 'sync-host'

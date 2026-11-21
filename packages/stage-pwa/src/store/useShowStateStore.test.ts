@@ -155,7 +155,7 @@ describe('fast lane for show-state changes (#468)', () => {
     await useShowStateStore.getState().init('band')
   })
 
-  it('the master pushes every change through the Stage-Server and stamps it, then writes the database', async () => {
+  it('the master pushes every change through the Host and stamps it, then writes the database', async () => {
     useShowStateStore.setState({ isMaster: true, holdsToken: true })
     await useShowStateStore.getState().applyPatch({ playbackStatus: 'playing' })
     const push = vi.mocked(pushShowState).mock.calls[0]

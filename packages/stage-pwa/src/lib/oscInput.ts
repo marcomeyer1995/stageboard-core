@@ -4,7 +4,7 @@ import type { Behavior } from './actions'
 /**
  * OSC as a trigger (#484, docs/23 §4): a button of an OSC controller (TouchOSC, a lighting desk, a
  * Stream Deck plugin) is an address - its rule says what pressing it does, the same behaviours as
- * a pedal key or a MIDI controller. The controller sends to the Stage-Server's OSC port; the rules
+ * a pedal key or a MIDI controller. The controller sends to the Host's OSC port; the rules
  * belong to the "OSC-Eingang" device and are band-wide.
  */
 

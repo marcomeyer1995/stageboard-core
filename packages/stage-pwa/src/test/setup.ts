@@ -1,6 +1,6 @@
 import { afterEach } from 'vitest'
 import { cleanup } from '@testing-library/react'
-import { clearLastKnownStageServer } from '../lib/stageServerStatusCache'
+import { clearLastKnownHost } from '../lib/hostUrlStatusCache'
 import '@testing-library/jest-dom/vitest'
 import i18n from '../i18n'
 
@@ -10,9 +10,9 @@ import i18n from '../i18n'
 // test so component tests can't leak DOM state into one another.
 afterEach(() => {
   cleanup()
-  // The last-known Stage-Server status is shared module state (useStageServerStatus.ts) - without
+  // The last-known Host status is shared module state (useHostUrlStatus.ts) - without
   // this, one test's "reachable" server would be shown instantly in the next test's render.
-  clearLastKnownStageServer()
+  clearLastKnownHost()
 })
 
 // The app's texts (#456): German in every test, whatever language the test environment reports.

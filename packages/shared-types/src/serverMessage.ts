@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
 /**
- * Messages the Stage-Server shows to musicians (#679). The server serves devices in different
+ * Messages the Host shows to musicians (#679). The server serves devices in different
  * languages, so it sends a code with its values (`messageCode`, `messageParams`) and the device
  * translates it (stage-pwa `i18n/locales/<language>/server.json`). The German text below goes
  * along as `message`: an older app, a log line or `curl` still reads something sensible.
@@ -15,7 +15,7 @@ import { z } from 'zod'
 export const SERVER_MESSAGES_DE = {
   'backup.unknownTarget': 'Unbekanntes Ziel',
   'backup.folderMissing': 'Ordner nicht da (nicht eingesteckt oder nicht eingehängt): {{path}}',
-  'backup.folderNotWritable': 'Der Stage-Server darf in diesen Ordner nicht schreiben.',
+  'backup.folderNotWritable': 'Der Host darf in diesen Ordner nicht schreiben.',
   'backup.sameDisk': 'Der Ordner liegt auf derselben Platte wie die Daten - Medium nicht eingehängt? Ein zweites Medium wählen.',
   'backup.folderOk': 'Ordner ist beschreibbar und liegt auf einem eigenen Medium.',
   'backup.sshKeyMissing': 'SSH-Schlüssel des Servers fehlt.',
@@ -25,7 +25,7 @@ export const SERVER_MESSAGES_DE = {
   'backup.statusUnreadable': 'Status-Datei unlesbar',
   'calibration.busy': 'Gerade läuft schon eine Messung - bitte kurz warten.',
   'calibration.unknownRun': 'Unbekannte Messung',
-  'band.noneActive': 'Auf diesem Stage-Server ist keine Band aktiv.',
+  'band.noneActive': 'Auf diesem Host ist keine Band aktiv.',
   'band.activeAdminOnly': 'Nur ein Admin der aktiven Band.',
   'device.notConnected': 'Zielgerät nicht verbunden',
   'speech.pluginMissing': 'Plugin piper-speech ist nicht installiert.',
@@ -35,28 +35,16 @@ export const SERVER_MESSAGES_DE = {
   'speech.downloadBusy': 'Gerade läuft schon ein Download, oder die Stimme ist unbekannt.',
   'speech.notInstalled': 'Piper oder Stimme {{voice}} nicht installiert',
   'plugin.unknownEvent': '{{plugin}}: unbekannter Event-Typ "{{type}}".',
-  'stems.demucsMissing': 'Demucs ist auf dem Stage-Server nicht installiert (docs/03).',
-  'osc.unknownCommand': 'Unbekannter OSC-Befehl: {{type}}',
-  'osc.invalidAddress': 'Keine gültige OSC-Adresse: „{{address}}“',
-  'osc.noTarget': 'Für dieses OSC-Gerät fehlen Host und Port (Bühne).',
-  'osc.sendFailed': 'OSC an {{host}}:{{port}} fehlgeschlagen: {{error}}',
-  'job.interrupted': 'Durch einen Neustart des Stage-Servers unterbrochen.',
+  'stems.demucsMissing': 'Demucs ist auf dem Host nicht installiert (docs/03).',
+  'job.interrupted': 'Durch einen Neustart des Hosts unterbrochen.',
+  'addon.notInstalled': 'Das Add-on „{{addon}}“ ist für diese Band nicht installiert.',
   'job.variantGone': 'Die Song-Variante existiert nicht mehr.',
   'job.trackGone': 'Der Track existiert nicht mehr.',
-  'job.audioMissing': 'Die Audiodatei des Tracks liegt nicht auf dem Stage-Server.',
+  'job.audioMissing': 'Die Audiodatei des Tracks liegt nicht auf dem Host.',
   'job.stemPluginMissing': 'Das Plugin „Spuren trennen“ ist nicht installiert.',
   'job.invalidVariantId': 'Ungültige Song-Varianten-ID.',
   'job.invalidIds': 'Ungültige Song- oder Track-ID.',
-  'youtube.addonMissing': 'Das Add-on „YouTube-Download“ ist für diese Band nicht installiert.',
-  'youtube.bandMissing': 'Für die YouTube-Suche fehlt die Band (Add-on-Prüfung).',
-  'youtube.urlOnly': 'Nur youtube.com/youtu.be-Links werden unterstützt.',
-  'youtube.downloadTimeout': 'yt-dlp hat nach {{minutes}} Minuten nicht fertig geladen und wurde abgebrochen.',
-  'youtube.tooLarge': 'Die Audiospur ist größer als das Limit von {{mb}} MB.',
-  'youtube.searchTimeout': 'Die YouTube-Suche hat nicht geantwortet - ist der Stage-Server online?',
-  'youtube.noAudio': 'YouTube bietet zu diesem Video keine ladbare Audiospur an.',
-  'youtube.convertFailed': 'Die Audiospur ließ sich auf diesem Gerät nicht nach Opus umwandeln.',
-  'youtube.failed': 'Der YouTube-Download ist fehlgeschlagen.',
-  'youtube.interrupted': 'Der Download wurde unterbrochen (App beendet) - bitte neu starten.',
+  'audio.convertFailed': 'Die Audiospur ließ sich auf diesem Gerät nicht nach Opus umwandeln.',
   // Native helpers of add-ons (docs/32 §8) - on the device, through NativeHelperPlugin.
   'helper.missing': 'Das Hilfsprogramm des Add-ons ist auf diesem Gerät nicht installiert.',
   'helper.untrusted': 'Das Hilfsprogramm ist von jemand anderem signiert - StageBoard benutzt es nicht.',
@@ -67,16 +55,9 @@ export const SERVER_MESSAGES_DE = {
   'helper.failed': 'Das Hilfsprogramm ist fehlgeschlagen.',
   'helper.badRequest': 'Das Hilfsprogramm hat den Auftrag nicht verstanden.',
   'helper.tooOld': 'Das Hilfsprogramm ist zu alt für diese StageBoard-Version.',
-  'stems.notInstalled': 'Stem-Trennung ist auf dem Stage-Server nicht installiert (Demucs, siehe docs/03).',
+  'stems.notInstalled': 'Stem-Trennung ist auf dem Host nicht installiert (Demucs, siehe docs/03).',
   'ug.addonMissing': 'Das Add-on „Ultimate Guitar Import“ ist für diese Band nicht installiert.',
   'ug.bandMissing': 'Für Ultimate Guitar fehlt die Band (Add-on-Prüfung).',
-  'ug.chromePathWrong': 'CHROME_EXECUTABLE_PATH zeigt auf „{{path}}“ - dort ist kein Chrome/Chromium. Pfad korrigieren oder die Variable entfernen.',
-  'ug.chromeMissing': 'Für Ultimate Guitar braucht der Stage-Server Chrome oder Chromium - keins gefunden. Installieren (z. B. „sudo apt install chromium“) oder CHROME_EXECUTABLE_PATH setzen. Gesucht in: {{paths}}',
-  'ug.timeout': 'Ultimate Guitar antwortet nicht ({{seconds}} s). Internetverbindung des Stage-Servers prüfen und noch einmal versuchen.',
-  'ug.unavailable': 'Ultimate Guitar ist nicht erreichbar - hat der Stage-Server gerade Internet?',
-  'ug.blocked': 'Ultimate Guitar hat die Anfrage als Bot blockiert. In ein paar Minuten noch einmal versuchen.',
-  'ug.sourceChanged': 'Ultimate Guitar hat seine Seite umgebaut - der Import (Plugin „ultimate-guitar-scraper“) muss angepasst werden. Seitentitel: „{{title}}“',
-  'ug.notImportable': 'Diese Version hat keinen Text zum Übernehmen (z. B. eine Pro- oder Video-Version). Bitte eine andere Version wählen.',
 } as const
 
 export type ServerMessageCode = keyof typeof SERVER_MESSAGES_DE

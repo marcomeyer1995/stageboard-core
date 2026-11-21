@@ -1,7 +1,7 @@
 import { SERVER_MESSAGES_DE, type ServerMessageCode } from 'shared-types'
 import i18n from '../i18n'
 
-/** What a Stage-Server reply or result may carry (#679, shared-types serverMessage.ts). */
+/** What a Host reply or result may carry (#679, shared-types serverMessage.ts). */
 export type ServerMessageFields = { message?: string; messageCode?: string; messageParams?: Record<string, string | number> } | null | undefined
 
 /**

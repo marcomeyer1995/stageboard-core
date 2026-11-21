@@ -58,7 +58,7 @@ describe('ReadyCheckOverlay (#60)', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
-  it('reports this profile and dismisses once the Stage-Server took the answer', async () => {
+  it('reports this profile and dismisses once the Host took the answer', async () => {
     render(<ReadyCheckOverlay />)
     fireEvent.click(screen.getByText('Ich bin bereit'))
 
@@ -71,7 +71,7 @@ describe('ReadyCheckOverlay (#60)', () => {
     render(<ReadyCheckOverlay />)
     fireEvent.click(screen.getByText('Ich bin bereit'))
 
-    expect(await screen.findByText(/Keine Verbindung zum Stage-Server/)).toBeInTheDocument()
+    expect(await screen.findByText(/Keine Verbindung zum Host/)).toBeInTheDocument()
     expect(screen.getByRole('dialog')).toBeInTheDocument()
   })
 

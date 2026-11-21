@@ -32,7 +32,7 @@ flowchart LR
   subgraph Master
     P[Play] --> SS[ShowState<br/>startedAt = Serverzeit + 400 ms]
   end
-  SS -- Push 11-130 ms<br/>+ CouchDB --> G
+  SS -- Push 11-130 ms<br/>+ Datenbank --> G
   subgraph G[Jedes Gerät]
     CS[clockSync<br/>Offset zur Serverzeit] --> ST[Songzeit<br/>aus ShowState + Serverzeit]
     ST --> E1[Klick-Engine]
@@ -78,7 +78,7 @@ Jede Abweichung hat eine **Art**, und die Art entscheidet, wie man sie behandelt
 
 ### 3.2 Ankunft des Play-Befehls
 
-- Schneller Push 11-130 ms, CouchDB als zweiter Weg (docs/19 §6.1). Der Start liegt 400 ms in der Zukunft (`PLAY_LEAD_MS`), also kommt er normalerweise rechtzeitig an.
+- Schneller Push 11-130 ms, die Datenbank-Replikation als zweiter Weg (docs/19 §6.1). Der Start liegt 400 ms in der Zukunft (`PLAY_LEAD_MS`), also kommt er normalerweise rechtzeitig an.
 - Kommt er zu spät, steigt das Gerät an der richtigen Stelle ein (Songzeit aus `startedAt`), nur der Anfang fehlt - **kein Versatz**, sondern ein verspäteter Einstieg.
 - Ausnahme: **Fortsetzen nach Pause** startet „jetzt" ohne Vorlauf (docs/19 §6.2) → jedes Gerät steigt ~0,1-0,2 s später ein, Position richtig.
 - Art: kein Zeitfehler, solange die Songzeit aus der Serverzeit berechnet wird. Gehört aber zur Kette: Vorlauf muss größer sein als die längste Ankunft + längster Stillstand.
@@ -251,7 +251,7 @@ Vier Ebenen, jede mit Abnahmezahlen. Jeder Schritt in §8 wird vorher und nachhe
 
 1. **Simulation (CI):** Unit-Tests mit nachgebildeten Uhren - Sprünge in 64/128/192-ms-Schritten, Sägezahn des Zeitstempels, Drift ±100 ppm, ausgesetzter Kontext, Stillstände bis 150 ms. Prüft: alle Ausgänge planen dasselbe Ereignis auf dieselbe Bandzeit (≤ 0,1 ms in der Simulation). Plus Wächter-Test (§5.2).
 2. **Digitaler Mitschnitt im Gerät (ohne Mikrofon):** die Methode vom 2026-11-04 - jeder Audio-Ausgang wird vor dem Mischer abgegriffen, die Zeitstempel jeder MIDI-Nachricht werden mitgeschrieben, alles gegen die Bandzeit des Referenz-Songs ausgewertet. Erfasst die ganze Software-Kette bis zum Puffer. Wird als Diagnose eingebaut („Synchronität dieses Geräts", ~30 s), Ergebnis je Ausgang in ms.
-3. **Elektrisch/akustisch (UMC204HD):** Audio-Ausgang des Tablets in Eingang 1, MIDI über ein Gerät, das MIDI hörbar macht (z. B. Kemper-Clock-Blinken per Fotodiode, oder ein MIDI-zu-Audio-Wandler), oder ein zweites Tablet in Eingang 2. Der Laptop ist der Stage-Server, seine Uhr ist die Bandzeit - jede Ankunft direkt gegen den Sollzeitpunkt (Verfahren docs/21 §8). Prüft die Restlatenz je Weg und **Gerät gegen Gerät**.
+3. **Elektrisch/akustisch (UMC204HD):** Audio-Ausgang des Tablets in Eingang 1, MIDI über ein Gerät, das MIDI hörbar macht (z. B. Kemper-Clock-Blinken per Fotodiode, oder ein MIDI-zu-Audio-Wandler), oder ein zweites Tablet in Eingang 2. Der Laptop ist der Host, seine Uhr ist die Bandzeit - jede Ankunft direkt gegen den Sollzeitpunkt (Verfahren docs/21 §8). Prüft die Restlatenz je Weg und **Gerät gegen Gerät**.
 4. **Vor dem Gig:** Rig-Check-Messrunde (#662) mit Ergebnis je Gerät und Ausgang, grün/gelb/rot gegen die Ziele aus §1.
 
 ---
@@ -283,7 +283,7 @@ PR #689 (gemeinsame Audio-Uhr) ist eine Zwischenlösung: er macht die heutige Sc
 
 ## 10. Bestandsaufnahme (Schritt 0), 2026-11-04
 
-Dev-App 1.694 auf beiden Tablets, eigener AudioContext mit stummem Oszillator, je zwei Läufe à 3 min parallel auf beiden Geräten: alle 10 ms `getOutputTimestamp()`, `currentTime`, `performance.now()`, `Date.now()`; alle 2 s `GET /time` am Stage-Server (wie `clockSync`). Skript im Scratchpad der Sitzung (`survey.js`), Auswertung im Gerät.
+Dev-App 1.694 auf beiden Tablets, eigener AudioContext mit stummem Oszillator, je zwei Läufe à 3 min parallel auf beiden Geräten: alle 10 ms `getOutputTimestamp()`, `currentTime`, `performance.now()`, `Date.now()`; alle 2 s `GET /time` am Host (wie `clockSync`). Skript im Scratchpad der Sitzung (`survey.js`), Auswertung im Gerät.
 
 | | Fire HD 10 (Android 9, WebView 138) | Redmi Pad SE (Android 16, WebView 156) |
 |---|---|---|
@@ -380,7 +380,7 @@ Ziel ±2 ms je Gerät: erreicht (95 %). Grenze der Aussage: die Referenz nutzt d
 |---|---|---|
 | Fire | Schwankung 64 / 74 ms, Klick ↔ Track 59 ms | in den ersten ~2 min nach App-Start gleitet die Lage weich um ~30 ms ein, danach **±0,5 ms** (Takes 6-10, ganzer Song 238-241 ms) |
 | Redmi | 5 / 5 ms, 2,7 ms, Drift 15,7 ms/min | **0,5 / 0,8 ms, 0,5 ms, Drift 0** |
-| Laptop (Chrome, ist selbst der Stage-Server) | 9,4 / 9,9 ms, Klick ↔ Track 6,8 ms | **2,5 / 3,8 ms, 2,6 ms** |
+| Laptop (Chrome, ist selbst der Host) | 9,4 / 9,9 ms, Klick ↔ Track 6,8 ms | **2,5 / 3,8 ms, 2,6 ms** |
 
 Offen: das Einschwingen des Fire nach dem App-Start (welcher Wert ist richtig, und warum ändert er sich die ersten Minuten?) - klärt die akustische Messung (Schritt 3); die Gig-Messung über die Geräte mit der neuen Synchronisation; das Handy mit 1.704.
 

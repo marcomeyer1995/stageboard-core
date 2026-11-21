@@ -126,7 +126,7 @@ Legende: ● stark / vorhanden · ◐ teilweise · ○ fehlt
 
 1. **Gemeinsame Show-Uhr über alle Geräte.** Jedes Gerät weiß, wo im Song die Band gerade ist, auf wenige Millisekunden genau - nicht nur, welcher Song gewählt ist.
 2. **Verteilte Ausführung.** Das Gitarren-Tablet schaltet den Kemper per USB, das Drummer-Tablet spielt den Klick ins eigene Ohr, das Keyboard-Tablet sendet die Sounds - alle zur selben Song-Zeit, ohne Kabel quer über die Bühne.
-3. **Kein Single Point of Failure ohne doppelte Hardware.** Der Stage-Server hält den Zustand; fällt ein Tablet aus, übernimmt ein anderes die Master-Rolle. Ableton schafft Redundanz nur mit einem zweiten Rechner und Umschalt-Interface.
+3. **Kein Single Point of Failure ohne doppelte Hardware.** Der Host hält den Zustand; fällt ein Tablet aus, übernimmt ein anderes die Master-Rolle. Ableton schafft Redundanz nur mit einem zweiten Rechner und Umschalt-Interface.
 4. **Geräte als Bandmitglieder-Hardware statt MIDI-Kanäle.** „Marcos Kemper“, automatisch gebunden, Widget deaktiviert sich sauber, wenn er fehlt.
 5. **Alles in einem System von der Probe bis zum Gig**, bedienbar von den Musikern selbst, ohne Playback-Techniker: Bibliothek, Editor, Timeline, Üben, Show, Nachbericht.
 

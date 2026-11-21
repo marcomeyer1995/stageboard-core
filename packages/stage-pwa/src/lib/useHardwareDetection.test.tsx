@@ -378,7 +378,7 @@ describe('useHardwareDetection (hook)', () => {
   it('replays a device seen before the workspace-scoped stores finished loading, once they load', async () => {
     // The real-world race this regression-tests: WebMIDI's connect event for an
     // already-plugged-in device fires as soon as requestMIDIAccess() resolves, typically well
-    // before the stores' own async CouchDB load finishes - confirmed live against a real
+    // before the stores' own async the database load finishes - confirmed live against a real
     // browser + Kemper Profiler emulator (~/Device Emulators), where an early build of this
     // hook silently dropped the device forever because no further "connect" event was coming.
     usePluginsStore.setState({ installed: [], loaded: false })

@@ -2,10 +2,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // A tiny in-memory stand-in for pouchdb-browser, keyed by db name, so buildWorkspaceSnapshot/
 // restoreWorkspaceSnapshot can be exercised without a real IndexedDB (unavailable under
-// happy-dom) or a real CouchDB. One store per *workspace* now, not per collection - every
+// happy-dom) or a real the database. One store per *workspace* now, not per collection - every
 // kind shares one physical database (see workspaceDb.ts, #49 follow-up), discriminated by an
 // `${kind}:` prefix on each doc's `_id` - so this fake's `allDocs` needs to honor
-// startkey/endkey range filtering the same way real CouchDB does, or two kinds in the same
+// startkey/endkey range filtering the same way real the database does, or two kinds in the same
 // store would bleed into each other.
 const stores = new Map<string, Map<string, { _id: string; _rev: string; [key: string]: unknown }>>()
 

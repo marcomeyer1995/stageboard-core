@@ -27,7 +27,7 @@ Wichtig: Das System ist Local-First und Modular (Core + Plugin) designt.
 ### Use Case 2.2: Tone Match (IR-Generierung für Gitarristen)
 * Der Gitarrist spielt ein Signal ins Tablet. Das Tool vergleicht es mit der isolierten KI-Gitarren-Spur (aus der hybriden KI-Pipeline) und generiert eine `.wav` IR-Datei für das Effektgerät.
 
-## Phase 3: Setup beim Gig (Stage Server & Local Mesh)
+## Phase 3: Setup beim Gig (Host & Local Mesh)
 
 ### Use Case 3.1: Venue / Hardware Profiling & System Check
 * Der Bandleader wählt "Location: Club X (Allen & Heath CQ18T)". Das Gateway lädt das Plugin.
@@ -41,7 +41,7 @@ Wichtig: Das System ist Local-First und Modular (Core + Plugin) designt.
 * **MIDI/Licht:** Der Server feuert programmierte Cues an Instrumente und Lichtpulte.
 
 ### Use Case 4.2: Individuelle Text-Ansicht (Scroll vs. Pagination)
-* Der Sänger hat im User-Profil "Paginated View" gewählt. Das Tablet nutzt den Timecode des Stage-Servers, hebt den aktuellen Refrain visuell hervor (Section Highlighting) und blättert im exakt richtigen Moment automatisch zur nächsten Seite. Der Gitarrist nutzt hingegen den "Smooth Scroll".
+* Der Sänger hat im User-Profil "Paginated View" gewählt. Das Tablet nutzt den Timecode des Hosts, hebt den aktuellen Refrain visuell hervor (Section Highlighting) und blättert im exakt richtigen Moment automatisch zur nächsten Seite. Der Gitarrist nutzt hingegen den "Smooth Scroll".
 
 ### Use Case 4.3: Dynamische Live-Queue & Encore (Spontane Änderungen)
 * Ruft das Publikum nach einem Encore, nutzt der Inhaber des "Master-Tokens" das Kontextmenü ("Als nächstes spielen"), um die Queue spontan zu überschreiben.
@@ -55,13 +55,13 @@ Wichtig: Das System ist Local-First und Modular (Core + Plugin) designt.
 ### Use Case 4.6: Floating Master Token & Tablet-Absturz
 * Stürzt das Master-Tablet ab, drückt ein anderer Musiker "Take Over". Der Token wechselt, die Show läuft weiter.
 
-### Use Case 4.7: Stage-Server Failover (Redundanz-Notfall)
+### Use Case 4.7: Host Failover (Redundanz-Notfall)
 * Der Worst-Case: Das A-Rig fällt aus. Das Redundanz-Plugin auf dem B-Rig bemerkt den Ping-Verlust, übernimmt die Virtuelle IP und schaltet das I/O (Dante/Radial SW8) um. Show läuft ohne Unterbrechung weiter.
 
 ## Phase 5: Der Abbau & Nachbereitung
 
 ### Use Case 5.1: Graceful Shutdown & Auto-Backup
-* Strom wird hart gezogen. Die USV fängt den Ausfall ab, gibt den Shutdown-Befehl an den Stage-Server, dieser zieht per Plugin ein letztes Backup auf den USB-Stick und fährt sicher herunter.
+* Strom wird hart gezogen. Die USV fängt den Ausfall ab, gibt den Shutdown-Befehl an den Host, dieser zieht per Plugin ein letztes Backup auf den USB-Stick und fährt sicher herunter.
 
 ### Use Case 5.2: Post-Gig Report
 * Das System generiert aus dem Logfile eine "True Setlist" (inkl. aller spontanen Zugaben) für die GEMA/SUISA-Meldung.

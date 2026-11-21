@@ -15,7 +15,7 @@ export function useCapabilities(): Map<CapabilityId, CapabilityStatus> {
   const installed = usePluginsStore((state) => state.installed)
   const health = usePluginsStore((state) => state.health)
   const { status: midiStatus } = useMidiTrigger()
-  // Heartbeats carry the Stage-Server's time - compared in band time, not this device's clock.
+  // Heartbeats carry the Host's time - compared in band time, not this device's clock.
   const now = useServerNow()
   const workspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
 
@@ -24,7 +24,7 @@ export function useCapabilities(): Map<CapabilityId, CapabilityStatus> {
     [midiStatus],
   )
 
-  // Tells the Stage-Server about this tablet's own client-hosted plugins (e.g. WebMIDI), so
+  // Tells the Host about this tablet's own client-hosted plugins (e.g. WebMIDI), so
   // *other* tablets learn about them too (see #49 follow-up) - this tablet's own capability
   // resolution below never waits on this, it trusts the local probe directly, unchanged.
   useEffect(() => {

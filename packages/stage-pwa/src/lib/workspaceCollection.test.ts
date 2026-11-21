@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 // import time - unavailable under happy-dom (see songVariantsDb.test.ts's identical mock for
 // the same reason). One shared in-memory store per db *name* - every collection now shares
 // one physical database per workspace (see workspaceDb.ts), so this mock must support
-// startkey/endkey range queries and a local `changes` filter the same way real CouchDB does,
+// startkey/endkey range queries and a local `changes` filter the same way real the database does,
 // or the whole point of this test (kind-scoping) couldn't be verified.
 const stores = new Map<string, Map<string, { _id: string; _rev: string; [key: string]: unknown }>>()
 
@@ -32,7 +32,7 @@ vi.mock('pouchdb-browser', () => ({
     }
 
     async put(doc: { _id: string; _rev?: string; [key: string]: unknown }) {
-      // Real CouchDB/PouchDB's actual optimistic-concurrency precondition: a put naming a
+      // Real the database/PouchDB's actual optimistic-concurrency precondition: a put naming a
       // stale (or, for a new doc, any) _rev loses the race and rejects with a 409 - this is
       // what putWithConflictRetry (workspaceCollection.ts) exists to retry through.
       const current = this.store.get(doc._id)
@@ -143,7 +143,7 @@ describe('createWorkspaceCollection', () => {
 
     await widgets.put({ id: 'w1', name: 'Renamed Fader' })
 
-    // The fake bumps the revision on every successful write (real CouchDB does too) - what
+    // The fake bumps the revision on every successful write (real the database does too) - what
     // matters here is that the write succeeded at all (it would conflict without the correct
     // existing _rev as its precondition) and that _attachments survived the overwrite.
     const stored = storeFor(`stageboard-${workspaceId}`).get('widgets:w1')

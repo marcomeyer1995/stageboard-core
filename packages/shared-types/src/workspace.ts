@@ -5,7 +5,7 @@ import { z } from 'zod'
  * `workspaceId` is the client-generated local id (`useWorkspaceStore`'s `randomId()`) - the
  * server derives the database name from it, it never invents its own id. `founderId` is the
  * profile id the founding device will use for its *own* first roster entry - generated
- * client-side up front so the founder's personal CouchDB account (provisioned here) and their
+ * client-side up front so the founder's personal account (provisioned here) and their
  * later `profiles:<founderId>` roster doc share the same id, without a round trip in between.
  * `workspaceName` is stored server-side now too (2026-09-01 WiFi-style redesign) - previously
  * the server never learned a workspace's human name at all, only ever told one ephemerally by
@@ -15,6 +15,8 @@ export const WorkspaceProvisionRequestSchema = z.object({
   workspaceId: z.string().min(1),
   founderId: z.string().min(1),
   workspaceName: z.string().min(1),
+  /** The founding device: its own login is made for it, like for every device (#960). */
+  deviceId: z.string().min(1).optional(),
   /** Proof for provisioning (#364): an admin account of a band on this server. Not needed for the
    * first band on a fresh server, nor from the server machine itself. */
   adminUsername: z.string().min(1).optional(),
@@ -32,7 +34,7 @@ export type WorkspaceCredentials = z.infer<typeof WorkspaceCredentialsSchema>
  * Every admin-only route needs the caller to prove it genuinely holds *some* admin account for
  * this workspace (see per-person-accounts follow-up - there's no longer one fixed, derivable
  * admin username to check a password against, so the caller has to say which account it is).
- * Verified server-side via `verifyUser` (couch.ts), which also returns that account's roles -
+ * Verified server-side via `verifyUser` (database.ts), which also returns that account's roles -
  * the actual authorization check is "does it hold `'admin'`", not just "did the password match".
  */
 export const AdminProofSchema = z.object({
@@ -48,12 +50,12 @@ export type AdminProof = z.infer<typeof AdminProofSchema>
  * short-lived, admin-minted invite code (#21's original design, then a 2026-09-01 workspace-
  * level version) with one *standing* access code per workspace - generated once (workspace
  * founding, or lazily on first use for a workspace that predates this), persisted inside the
- * workspace's own CouchDB database (`workspaceProvisioning.ts`'s `workspace:access` doc), never
+ * workspace's own database (`workspaceProvisioning.ts`'s `workspace:access` doc), never
  * expiring on its own. The critical property the old design lacked: getting a working code
  * never depends on any admin device being currently online, logged in, or even still existing -
- * the Stage-Server itself is the sole source of truth, and it's already physically at the gig.
+ * the Host itself is the sole source of truth, and it's already physically at the gig.
  *
- * Every workspace the Stage-Server hosts is listed via `GET /workspaces` with no code needed at
+ * Every workspace the Host hosts is listed via `GET /workspaces` with no code needed at
  * all (the SSID-list equivalent) - only the next step, seeing the roster or actually joining,
  * needs the code (the password equivalent).
  */
@@ -65,6 +67,8 @@ export type WorkspaceSummary = z.infer<typeof WorkspaceSummarySchema>
 
 export const AccessCodeSchema = z.object({
   code: z.string().min(1),
+  /** The host that founded the band (#962): a tablet serves the bands it founded even while another one is active. */
+  hostId: z.string().min(1).optional(),
 })
 export type AccessCode = z.infer<typeof AccessCodeSchema>
 
@@ -121,7 +125,7 @@ export type WorkspaceRoster = z.infer<typeof WorkspaceRosterSchema>
  * access code's own last 4 digits). Ignored entirely for a non-admin target - there's nothing
  * to check. `deviceId` (this device's stable id, `deviceId.ts`'s `getDeviceId()`) is what makes
  * multiple tablets logged in as the *same* roster member actually work (#10 follow-up, found
- * live: a shared single CouchDB account per profile meant any device (re-)joining silently
+ * live: a shared single account per profile meant any device (re-)joining silently
  * rotated the one password every other device had cached, locking them all out) - see
  * `resolveOutcome`/`provisionDevice` in index.ts/workspaceProvisioning.ts. */
 export const JoinAsMemberRequestSchema = z.object({
@@ -135,7 +139,7 @@ export type JoinAsMemberRequest = z.infer<typeof JoinAsMemberRequestSchema>
  * (`provisionDevice`), never the shared profile-level one - verified against what the device
  * supplied, or freshly authorized via the code-based recovery path, but always a fresh or
  * reused per-device account so no other device's session is ever disturbed. `isAdmin` reflects
- * that account's actual CouchDB role (never true for a freshly auto-provisioned account -
+ * that account's actual the database role (never true for a freshly auto-provisioned account -
  * self-service join can never grant admin on its own), so the resolving device knows to set
  * `Workspace.isAdmin` locally. */
 export const JoinAsMemberResultSchema = WorkspaceCredentialsSchema.extend({
@@ -170,10 +174,10 @@ export type AdminPinProof = z.infer<typeof AdminPinProofSchema>
 export const VerifyAdminPinRequestSchema = AdminPinProofSchema
 export type VerifyAdminPinRequest = z.infer<typeof VerifyAdminPinRequestSchema>
 
-/** Body to make this Stage-Server's local hardware (plugin sync, Discovery Mode's MIDI watcher)
+/** Body to make this Host's local hardware (plugin sync, Discovery Mode's MIDI watcher)
  * serve this workspace. Activating always deactivates whichever workspace was previously active
  * on this box first - the two subsystems this gates are inherently tied to physically local
- * gear, so exactly one workspace's hardware ever runs on a given Stage-Server at a time, never
+ * gear, so exactly one workspace's hardware ever runs on a given Host at a time, never
  * two concurrently (see workspaceHardwareController.ts).
  *
  * Two separate admin proofs, not one, because they guard two different mistakes: the *opening*
@@ -190,7 +194,7 @@ export const ActivateWorkspaceHardwareRequestSchema = z.object({
 export type ActivateWorkspaceHardwareRequest = z.infer<typeof ActivateWorkspaceHardwareRequestSchema>
 
 /** Response shape for `GET /server/active-workspace` - which workspace (if any) this specific
- * Stage-Server's local hardware currently serves. `null` before any workspace has ever been
+ * Host's local hardware currently serves. `null` before any workspace has ever been
  * activated on this box. */
 export const ActiveWorkspaceStatusSchema = z.object({
   activeWorkspaceId: z.string().nullable(),
@@ -198,7 +202,7 @@ export const ActiveWorkspaceStatusSchema = z.object({
 export type ActiveWorkspaceStatus = z.infer<typeof ActiveWorkspaceStatusSchema>
 
 /** Response of `GET /server/active-workspace/admins` - the roster admins (names + ids only) of the
- * band this Stage-Server is *currently serving*, no band code needed: that band is already
+ * band this Host is *currently serving*, no band code needed: that band is already
  * registered here, and the hardware-switch wizard only needs to show whose PIN can close it. Only
  * ever the active band - the route takes no workspace parameter, so it can't be used to enumerate
  * any other band's admins (those stay behind that band's code, `POST /workspaces/:id/roster`). */
@@ -212,7 +216,7 @@ export type ActiveWorkspaceAdmins = z.infer<typeof ActiveWorkspaceAdminsSchema>
  * any one workspace. `hostname` is the same name already broadcast over mDNS (`MDNS_HOSTNAME`
  * env var, defaulting to `stageboard.local`), just also exposed here so a device that's never
  * seen the mDNS broadcast (e.g. typed a raw IP) can still show it, for example in the Device
- * Ledger's "this is the Stage-Server itself" row. */
+ * Ledger's "this is the Host itself" row. */
 export const ServerInfoSchema = z.object({
   lanIp: z.string(),
   hostname: z.string(),
@@ -243,14 +247,14 @@ export type RenameWorkspaceRequest = z.infer<typeof RenameWorkspaceRequestSchema
 
 /**
  * Body the admin's device sends `DELETE /workspaces/:id` with - irreversibly destroys the
- * workspace's database and every member's personal CouchDB account (see
+ * workspace's database and every member's personal account (see
  * workspaceProvisioning.ts's `deprovisionWorkspace`).
  */
 export const WorkspaceDeleteRequestSchema = AdminProofSchema
 export type WorkspaceDeleteRequest = z.infer<typeof WorkspaceDeleteRequestSchema>
 
 /**
- * Body to provision one new roster member's personal CouchDB account (see
+ * Body to provision one new roster member's personal account (see
  * per-person-accounts follow-up). `profileId` is client-generated (`randomId()`, same as any
  * other new `Profile.id`) so the caller can write the `profiles:<id>` roster doc itself via its
  * own existing admin sync connection, right after this call returns - core-backend's only job
@@ -274,7 +278,7 @@ export const SetMemberAdminRequestSchema = AdminProofSchema.extend({
 })
 export type SetMemberAdminRequest = z.infer<typeof SetMemberAdminRequestSchema>
 
-/** Body to deprovision one member's personal CouchDB account (roster doc removal is a separate,
+/** Body to deprovision one member's personal account (roster doc removal is a separate,
  * ordinary sync write the caller already has rights to do itself). Same last-admin rejection as
  * `SetMemberAdminRequestSchema` if the target is the sole remaining admin. */
 export const RemoveMemberRequestSchema = AdminProofSchema
@@ -327,7 +331,7 @@ export type ActivateProfileResult = z.infer<typeof ActivateProfileResultSchema>
  * be exactly 4 digits.
  *
  * `deviceId` (found live, 2026-09-10) - the PIN itself lives on the profile's shared anchor
- * account, but the caller's real CouchDB account is *this device's own* per-device one
+ * account, but the caller's real account is *this device's own* per-device one
  * (`deviceUsername`, workspaceProvisioning.ts); the route needs it to reissue that device's own
  * account after changing the anchor's PIN, rather than handing back the anchor's own credentials
  * (which every device sharing a PIN as its literal sync password would defeat the whole point of
@@ -346,16 +350,29 @@ export const SetOwnPinResultSchema = JoinAsMemberResultSchema
 export type SetOwnPinResult = z.infer<typeof SetOwnPinResultSchema>
 
 /**
- * What a host can do (docs/25 §6, Marco 2026-11-07): the map shows the server plugins at the host
- * and offers only those it can run - a Linux PC the download tool and stem separation, an Android
- * host none of the heavy ones. `needs`: what is missing for a plugin (a tool to install), or null.
+ * What a host can do (docs/25 §6, Marco 2026-11-07; #962): **only the power of the device decides** - there is no
+ * "server" kind of host. Every host answers `GET /host/capabilities`. `jobs` are the things a host can be asked to do
+ * (backup, stem separation, speech, ...): `available: false` says what is missing (`needs`), and a request for it is
+ * refused with 501 and that reason, never with 404. `plugins` are the same for the plugins of this build that run on
+ * the host (a Linux PC the download tool and stem separation, an Android host none of the heavy ones).
  */
+const CapabilityEntrySchema = z.object({
+  id: z.string(),
+  available: z.boolean(),
+  needs: z.string().nullable(),
+  /** Plain words for the person: why it is slow or missing here and how to improve it (a stronger device, charging, waiting). */
+  note: z.string().optional(),
+})
 export const HostCapabilitiesSchema = z.object({
-  kind: z.enum(['stage-server', 'android']),
+  kind: z.enum(['desktop', 'android']),
   platform: z.string(),
   arch: z.string(),
-  database: z.enum(['couchdb', 'builtin']),
-  plugins: z.array(z.object({ id: z.string(), available: z.boolean(), needs: z.string().nullable() })),
+  database: z.enum(['databases', 'builtin']),
+  /** The device's power, when it can tell: what a heavy job may be sent to. */
+  cpuCores: z.number().int().positive().optional(),
+  memoryMb: z.number().int().positive().optional(),
+  jobs: z.array(CapabilityEntrySchema).default([]),
+  plugins: z.array(CapabilityEntrySchema),
 })
 export type HostCapabilities = z.infer<typeof HostCapabilitiesSchema>
 

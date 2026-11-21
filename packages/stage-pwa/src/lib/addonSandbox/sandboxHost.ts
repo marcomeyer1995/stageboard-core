@@ -1,5 +1,6 @@
 import { ADDON_API_VERSION, type PluginInstallation, type ShowControlResult } from 'shared-types'
 import { ADDON_PROTOCOL_VERSION, type AddonEventContext, type AddonWorkerLike, type FromAddon } from './protocol'
+import { guardedSource } from './workerGuard'
 
 /** What an event may do on this device - the port is chosen by StageBoard, never by the add-on. */
 export interface SandboxIO {
@@ -20,7 +21,8 @@ export type WorkerFactory = (code: string, name: string) => AddonWorkerLike
 
 /** A real Worker from the add-on's code - a classic worker script, no imports. */
 export const browserWorker: WorkerFactory = (code, name) => {
-  const url = URL.createObjectURL(new Blob([code], { type: 'text/javascript' }))
+  // The network APIs of a Worker are removed before the add-on's own code runs (workerGuard.ts, docs/36 §5).
+  const url = URL.createObjectURL(new Blob([guardedSource(code)], { type: 'text/javascript' }))
   const worker = new Worker(url, { name })
   URL.revokeObjectURL(url)
   return worker as unknown as AddonWorkerLike

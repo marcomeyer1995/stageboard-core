@@ -17,7 +17,7 @@ export type MeasuredClick = NonNullable<RigCheckDeviceReport['measured']>
 /**
  * The measuring round before the run (docs/24 §7.1, #662): after "Vorbereiten" the master gives
  * every device of the run a slot; one after the other, each plays 12 clicks with its stored latency
- * while the Stage-Server listens on the input for its current route. Fixed slots instead of a
+ * while the Host listens on the input for its current route. Fixed slots instead of a
  * hand-over: a device that is off or busy simply misses its slot and stands as "nicht gemessen",
  * the round goes on.
  */

@@ -30,14 +30,14 @@ export interface WorkspaceCollection<T extends { id: string }> {
    * window on every write). Costs nothing over the network: it's the local PouchDB, not the
    * remote sync (see workspaceDb.ts's startWorkspaceSync for that). */
   changes: () => LocalChangesHandle<T>
-  /** The CouchDB `_id` a given application-level id maps to in the shared db - for the rare
+  /** The database `_id` a given application-level id maps to in the shared db - for the rare
    * call site that needs to reach the raw db directly (an attachment op, a doc patch) rather
    * than going through get/put/remove above. */
   docId: (id: string) => string
 }
 
 /** A rejected `db.put()` whose revision precondition lost a race, not a real failure - the
- * standard PouchDB/CouchDB shape for "someone else wrote this document since you read it". */
+ * standard PouchDB shape for "someone else wrote this document since you read it". */
 function isConflict(err: unknown): boolean {
   return typeof err === 'object' && err !== null && (err as { status?: number }).status === 409
 }
@@ -59,7 +59,7 @@ const MAX_PUT_RETRIES = 5
  * user-visible error). Queuing same-process writes to one document means the common case -
  * this tab's own writers - essentially never conflicts at all: each write only starts once
  * the previous one has actually landed, so it reads the true latest `_rev`. Conflicts from
- * *outside* this queue (another tab, a remote CouchDB pull racing a local write) still reach
+ * *outside* this queue (another tab, a remote the database pull racing a local write) still reach
  * writeWithConflictRetry's own retry loop below - that defense stays exactly as it was, this
  * is a layer in front of it, not a replacement for it.
  */
@@ -107,7 +107,7 @@ function queuedWrite<T extends { id: string }>(
  * each other too - a storm that visibly replayed every intermediate value to the UI. This
  * loop is now reached one write at a time per document via that queue, so it should rarely
  * see a 409 at all in the common same-tab case; it remains the correct fallback for a
- * genuine cross-context conflict - another tab, or a remote CouchDB pull landing mid-write.)
+ * genuine cross-context conflict - another tab, or a remote the database pull landing mid-write.)
  * Bounded retries, so a document that's *genuinely* stuck (not just transiently racing)
  * doesn't retry forever.
  */
@@ -147,12 +147,12 @@ async function writeWithConflictRetry<T extends { id: string }>(
 }
 
 /**
- * A workspace-scoped view over the one shared per-workspace CouchDB database (see
- * workspaceDb.ts) - `kind` prefixes every document's CouchDB `_id` (`${kind}:${doc.id}`) so
+ * A workspace-scoped view over the one shared per-workspace database (see
+ * workspaceDb.ts) - `kind` prefixes every document's the database `_id` (`${kind}:${doc.id}`) so
  * many document kinds can share one database (and therefore one live sync connection)
  * without colliding, while `_all_docs`' native `startkey`/`endkey` range query scopes reads
  * to just this kind - no secondary index needed. The document body's own `id` field (what
- * every `toX()` mapper actually reads) was already separate from CouchDB's `_id` before this
+ * every `toX()` mapper actually reads) was already separate from the database's `_id` before this
  * change, so nothing downstream of getAll/put/remove needs to know prefixing exists at all.
  */
 export function createWorkspaceCollection<T extends { id: string }>(
