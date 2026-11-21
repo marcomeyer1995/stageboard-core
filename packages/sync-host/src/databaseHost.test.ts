@@ -85,6 +85,13 @@ async function foundBands(...bands: string[]) {
 }
 
 describe('the database host (docs/25, #960)', () => {
+  it('the root answers anybody - a device that opens several databases is never taken for a wrong password (#964)', async () => {
+    for (const authorization of [undefined, 'Basic ' + Buffer.from('stageboard-band-a-someone:wrong').toString('base64')]) {
+      const response = await fetch(`${web.url}/`, { headers: authorization ? { Authorization: authorization } : {} })
+      expect(response.status).toBe(200)
+    }
+  })
+
   it('founding a band twice is refused, and a database that is not there is not found', async () => {
     await foundBands('band')
     expect((await call('/stageboard-band', { method: 'PUT', headers: admin })).status).toBe(412)

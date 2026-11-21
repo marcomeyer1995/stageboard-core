@@ -112,10 +112,13 @@ export function createDatabaseHost(options: DatabaseHostOptions) {
     const method = request.method.toUpperCase()
     const parts = request.path.split('/').filter((p) => p !== '')
     const [first, second] = parts
-    const ctx = await whoIs(request.authorization, first === undefined ? undefined : decodeURIComponent(first))
+    // The root says only that this is a database host (CouchDB's "Welcome"): PouchDB asks it before every database it opens, and it is public there. A
+    // login-less 401 here counted as a wrong password in front of the host (5 of them lock a login for 5 minutes) - a device that opened several databases at
+    // once locked itself out (found in a session with three clients, 2026-11-21).
+    if (first === undefined) return sync(request)
+    const ctx = await whoIs(request.authorization, decodeURIComponent(first))
     if (!ctx) return error(401, 'unauthorized', 'Name or password is incorrect.')
 
-    if (first === undefined) return sync(request)
     if (first === '_all_dbs') {
       if (!isHostAdmin(ctx)) return error(403, 'forbidden', 'Server admin only.')
       return json(200, (await options.catalog.list()).sort())
