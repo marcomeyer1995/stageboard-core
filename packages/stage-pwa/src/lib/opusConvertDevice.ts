@@ -1,5 +1,5 @@
 import type { AsyncJob, OpusConvertJob, TrackMeta } from 'shared-types'
-import { activeDeviceJobs, deviceRunner } from './youtubeDevice'
+import { activeDeviceJobs, deviceRunner } from './deviceJobs'
 
 /**
  * A track to Ogg Opus on this device (#822; Marco, 2026-11-14: "Gerät wandelt um"): the host
@@ -74,7 +74,7 @@ export async function runOpusConvert(job: OpusConvertJob, deviceId: string, deps
     await write({ status: 'done', progress: 1 })
     return 'done'
   } catch (err) {
-    await write({ status: 'error', error: err instanceof Error ? err.message || 'failed' : String(err), errorCode: 'youtube.convertFailed' })
+    await write({ status: 'error', error: err instanceof Error ? err.message || 'failed' : String(err), errorCode: 'audio.convertFailed' })
     return 'error'
   } finally {
     await writes

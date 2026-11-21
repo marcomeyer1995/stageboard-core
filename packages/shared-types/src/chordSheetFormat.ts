@@ -1,3 +1,5 @@
+// "Akkordzeilen zusammenführen" (#605) for pasted text. The `[ch]` tag below is only this file's internal way of marking a chord; reading a website's
+// markup (Ultimate Guitar's included) is the business of the add-on that imports from it, not of StageBoard (#964).
 const CHORD_TAG_RE = /\[ch\]([^[]*)\[\/ch\]/g
 
 /** A chord symbol UG forgot to wrap in `[ch]` (seen live: `Em7add#5`, `G13sus4/E` on Hotel
@@ -89,17 +91,6 @@ function parseChordLine(line: string): { stripped: string; tokens: ChordLineToke
   return { stripped, tokens }
 }
 
-/** Square brackets that are part of the *text* ("[Radar Love].(Unspoken)", "[Ike] Left a good
- * job...") - in ChordPro every `[...]` is a chord, so they'd turn into bogus chords or, once real
- * chords are spliced in, into nested garbage like `[Radar [F#m7]Love]`. They become parentheses;
- * UG's own `[ch]` tags are left alone for the caller to convert. */
-function neutralizeTextBrackets(line: string): string {
-  return line
-    .split(/(\[ch\][^[]*\[\/ch\])/)
-    .map((part, index) => (index % 2 === 1 ? part : part.replace(/\[/g, '(').replace(/\]/g, ')')))
-    .join('')
-}
-
 /** Merges a chord line's chords into the lyric line beneath it, at the same column offsets -
  * UG positions chords above lyrics by whitespace alignment; StageBoard's ChordPro wants them
  * inline (`[G]text`). Annotations (repeat marks, comments) go to the end of the line; layout
@@ -128,123 +119,6 @@ function chordLineToInline(stripped: string, tokens: ChordLineToken[]): string {
     cursor = sourcePos + text.length
   }
   return result + stripped.slice(cursor)
-}
-
-/** One string of a guitar tab staff: a string name (`e`, `B`, `Gb`, ...), a `|`, then frets and
- * dashes (`e|---5-2---|`, `D|---0-0---| x2`). */
-function isStaffLine(line: string): boolean {
-  return !line.includes('[ch]') && /^\s*[A-Ga-g][#b]?\s?\|.*-{2,}/.test(line)
-}
-
-/** The beat-count line UG puts under a riff (`   3 + 4 + 1 + 2 +`). */
-function isCountingLine(line: string): boolean {
-  return /\d/.test(line) && /^[\s\d+&.|]+$/.test(line)
-}
-
-/**
- * A guitar tab block starting at `start`: an optional chord line naming the chords above the
- * fret columns, two or more staff lines, and an optional counting line below. Returns the
- * block's lines - verbatim, only UG's chord tags stripped so the names keep their columns - and
- * the index after it; null when `start` doesn't open one. Found on 9 of 29 real repertoire tabs
- * (2026-09-26): before, the chord line was spliced *into* the first staff line as if it were a
- * lyric, garbling the riff.
- */
-function tabBlockAt(lines: readonly string[], start: number): { block: string[]; next: number } | null {
-  let i = start
-  const block: string[] = []
-  if (!isStaffLine(lines[i] ?? '') && parseChordLine(lines[i] ?? '') !== null) {
-    block.push(stripChordTags(lines[i]).stripped.trimEnd())
-    i += 1
-  }
-  let staffLines = 0
-  while (i < lines.length && isStaffLine(lines[i])) {
-    block.push(lines[i].trimEnd())
-    staffLines += 1
-    i += 1
-  }
-  if (staffLines < 2) return null
-  if (i < lines.length && isCountingLine(lines[i])) {
-    block.push(lines[i].trimEnd())
-    i += 1
-  }
-  return { block, next: i }
-}
-
-/** `[Verse 1]`, `[Intro]`, `[Chorus]` - a bracketed token starting the line that isn't one of
- * UG's own markup tags - plus whatever note follows it on the same line (`[Chorus] (x4)`,
- * `[Intro] (G in riff is really G5)`, `[Spoken]   [Ike singing]`; found on 5 of 29 real tabs,
- * 2026-09-26). Before, such a line wasn't a section at all, and the ChordPro parser then read
- * "[Chorus]" as a *chord*. The note has its own brackets stripped. */
-function sectionLabel(line: string): { label: string; note: string } | null {
-  const match = line.trim().match(/^\[([^\]]+)\](.*)$/)
-  if (!match) return null
-  if (/^\/?(ch|tab)$/.test(match[1]) || match[2].includes('[ch]')) return null
-  const rest = match[2].trim()
-  // Only note shapes seen on real tabs - a parenthetical, a repeat mark, another bracketed
-  // label. Anything else ("[Ike] Left a good job...") is a lyric line that happens to start
-  // with a bracket, and must stay a lyric rather than be demoted to a comment.
-  if (rest !== '' && !/^(\(.*\)|\[[^\]]*\]|x\s?\d+|\d+\s?x)$/i.test(rest)) return null
-  return { label: match[1], note: rest.replace(/[[\]]/g, '').trim() }
-}
-
-/**
- * Converts Ultimate Guitar's chord-sheet markup (`[ch]G[/ch]` tags on their own line above
- * the lyrics, `[Verse 1]` section headers, `[tab]...[/tab]` wrapping both) into StageBoard's
- * ChordPro (`[G]text` inline, `{part: Verse 1}` directives - see chordpro.ts). Pure and unit
- * tested against real content pulled from live tab pages; no network involved here.
- *
- * Chord lines are more than bare tags in practice (found on real tabs, 2026-09-26): bar lines
- * (`| C | F |`), chords in parentheses, repeat marks (`x4`), comments (`(Cesura)`) and chord
- * names UG left untagged - see `parseChordLine`. Guitar tab riffs become ChordPro tab blocks
- * (`{start_of_tab}` ... `{end_of_tab}`, for everyone) - see `tabBlockAt`. Whatever still carries a `[ch]` tag at the end
- * (a chord embedded in real text) is reduced to `[X]`, so raw UG markup never reaches a song.
- */
-export function convertUltimateGuitarContent(raw: string): string {
-  const rawLines = raw.replace(/\r\n/g, '\n').split('\n').map((line) => line.replace(/\[\/?tab\]/g, ''))
-
-  const output: string[] = []
-  let i = 0
-  while (i < rawLines.length) {
-    const line = rawLines[i]
-
-    const section = sectionLabel(line)
-    if (section !== null) {
-      output.push(`{part: ${section.label}}`)
-      if (section.note !== '') output.push(`{c: ${section.note}}`)
-      i += 1
-      continue
-    }
-
-    // Before chord lines: a chord line directly above a riff belongs to the tab block.
-    const tab = tabBlockAt(rawLines, i)
-    if (tab) {
-      output.push('{start_of_tab}', ...tab.block, '{end_of_tab}')
-      i = tab.next
-      continue
-    }
-
-    const chordLine = parseChordLine(line)
-    if (chordLine) {
-      const next = rawLines[i + 1]
-      // A line that still carries chord tags is never a lyric to splice into - that produced
-      // `[Am][ch[E7]]F[/...` garbage when two chord lines followed each other.
-      const nextIsLyric =
-        next !== undefined && next.trim() !== '' && !next.includes('[ch]') && sectionLabel(next) === null
-      if (nextIsLyric) {
-        output.push(spliceChordsIntoLyric(neutralizeTextBrackets(next), chordLine.tokens))
-        i += 2
-      } else {
-        output.push(chordLineToInline(chordLine.stripped, chordLine.tokens))
-        i += 1
-      }
-      continue
-    }
-
-    output.push(neutralizeTextBrackets(line).replace(CHORD_TAG_RE, '[$1]'))
-    i += 1
-  }
-
-  return output.join('\n')
 }
 
 /** A word of a pasted chord line that is a chord - the same strict vocabulary as UG's untagged

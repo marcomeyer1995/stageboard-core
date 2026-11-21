@@ -361,7 +361,7 @@
   },
   "tm": {
     "job": {
-      "youtube": "YouTube-Extraktion",
+      "audioImport": "Audio aus einem Add-on",
       "stems": "Spuren trennen",
       "opus": "Nach Opus umwandeln (auf einem Gerät)"
     },
@@ -378,8 +378,6 @@
     "uploading": "Lade Spur {{n}} von {{total}}…",
     "converting": "„{{name}}“ wird nach Opus umgewandelt… {{pct}} %",
     "noEncoder": "Dieses Gerät kann die Datei nicht nach Opus umwandeln (zu alter Browser). Bitte auf einem anderen Gerät hochladen.",
-    "youtubeLink": "Bitte einen youtube.com- oder youtu.be-Link einfügen.",
-    "youtubeRef": "YouTube Referenz",
     "removeAsk": "„{{name}}“ entfernen?",
     "tracks": "Tracks",
     "none": "Keine Tracks",
@@ -394,29 +392,12 @@
     "chooseFiles": "Dateien wählen",
     "chooseFile": "Datei wählen",
     "multi": "Mehrere Dateien auf einmal - alle gleich lang ab 0:00. Name und Rolle kommen aus dem Dateinamen.",
-    "orYoutube": "Oder eine Referenz von YouTube",
-    "searchYoutube": "YouTube durchsuchen",
-    "titleBand": "Titel und Band",
-    "nothing": "Nichts gefunden.",
-    "link": "YouTube-Link",
-    "linkPlaceholder": "oder Link einfügen: https://youtu.be/…",
-    "load": "Laden",
     "kindLabel": "Art",
     "kind": {
       "reference": "Referenz",
       "bandMix": "Band-Playback",
       "stem": "Stem"
-    },
-    "searching": "Suche…",
-    "search": "Suchen",
-    "youtubeNowhere": "Für YouTube fehlt hier beides: der Host hat kein yt-dlp, und auf diesem Gerät ist das YouTube-Hilfsprogramm nicht installiert.",
-    "youtubeNoHost": "Der Host kann gerade kein YouTube (yt-dlp fehlt). Unter „Erweitert“ auf „Automatisch“ oder „Dieses Gerät“ stellen.",
-    "youtubeNoHelper": "Auf diesem Gerät fehlt das YouTube-Hilfsprogramm. Es installieren, oder unter „Erweitert“ auf „Automatisch“ oder „Host“ stellen.",
-    "whereLabel": "YouTube laden über",
-    "whereAuto": "Automatisch",
-    "whereHost": "Host",
-    "whereDevice": "Dieses Gerät",
-    "advanced": "Erweitert"
+    }
   },
   "sep": {
     "title": "Spuren trennen: {{name}}",

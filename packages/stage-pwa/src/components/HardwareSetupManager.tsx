@@ -1,3 +1,4 @@
+import { DevicePanelSlots } from './DevicePanelSlots'
 import { StageMap } from './StageMap'
 import { StagePathList } from './StagePathList'
 import { useEffect, useState } from 'react'
@@ -83,6 +84,8 @@ function DeviceList({ onEdit, onAdd }: { onEdit: (device: LogicalDevice) => void
                 {usage.length > 0 && <span className="text-ink-faint">{t('usedIn', { songs: usage.map((u) => u.songTitle).join(', ') })}</span>}
                 {hasOwnTransportConfig && device.executionTarget === getDeviceId() && <span className="text-ink-faint">{t('ownPort')}</span>}
               </p>
+              {/* The add-on's own view of this device (docs/36 §6 slot `device.panel`): drawn from its description, bound to the device's live state. */}
+              <DevicePanelSlots logicalDeviceId={device.id} pluginId={device.pluginId} />
             </div>
             {/* Actions behind ⋯ like every list row - two buttons beside the text pushed past the
                 card on the phone and squeezed the text to a narrow column (2026-10-07). */}

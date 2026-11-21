@@ -4,7 +4,7 @@ import ReplicationPlugin from 'pouchdb-replication'
 import type { DatabaseConfig } from './database.js'
 import { ensureDb, putSecurity } from './database.js'
 import { createPinnedFetch } from './pinnedFetch.js'
-import type { RemoteTarget } from './replicationRunner.js'
+import type { RemoteTarget } from 'sync-host'
 import { workspaceDbName } from './workspaceProvisioning.js'
 
 PouchDB.plugin(HttpAdapter)

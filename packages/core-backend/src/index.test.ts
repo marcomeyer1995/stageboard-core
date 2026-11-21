@@ -515,28 +515,40 @@ describe('Fastify routes', () => {
     })
   })
 
-  describe('YouTube search and thumbnails (#618)', () => {
+  describe('POST /addons/:id/methods/:method (docs/36, #964)', () => {
     afterEach(() => {
       vi.unstubAllGlobals()
     })
+    const post = (url: string, payload: unknown = {}) => app.inject({ method: 'POST', url, payload: payload as never })
 
-    it('search: 400 without a query, 403 without a band or without the add-on', async () => {
-      expect((await app.inject({ method: 'GET', url: '/youtube/search?workspace=band-a' })).statusCode).toBe(400)
-      expect((await app.inject({ method: 'GET', url: '/youtube/search?q=blink' })).statusCode).toBe(403)
-      vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ rows: [] }) }) as Response))
-      const notInstalled = await app.inject({ method: 'GET', url: '/youtube/search?q=blink&workspace=band-a' })
-      expect(notInstalled.statusCode).toBe(403)
-      expect(notInstalled.json().message).toContain('YouTube-Download')
+    it('400 without a valid band, 404 for an add-on this host does not have', async () => {
+      expect((await post('/addons/youtube-download/methods/search')).statusCode).toBe(400)
+      expect((await post('/addons/youtube-download/methods/search?workspace=../x')).statusCode).toBe(400)
+      const unknown = await post('/addons/no-such-addon/methods/search?workspace=band-a')
+      expect(unknown.statusCode).toBe(404)
+      expect(unknown.json()).toMatchObject({ ok: false, error: { code: 'addon.unknown' } })
     })
 
-    it('thumbnail: only a real video id, fetched through the server', async () => {
-      expect((await app.inject({ method: 'GET', url: '/youtube/thumbnail?id=../../etc' })).statusCode).toBe(400)
-      const fetchMock = vi.fn(async () => ({ ok: true, status: 200, headers: new Headers({ 'content-type': 'image/jpeg' }), arrayBuffer: async () => new Uint8Array([1, 2, 3]).buffer }) as unknown as Response)
-      vi.stubGlobal('fetch', fetchMock)
-      const response = await app.inject({ method: 'GET', url: '/youtube/thumbnail?id=9Ht5RZpzPqw' })
-      expect(response.statusCode).toBe(200)
-      expect(response.headers['content-type']).toBe('image/jpeg')
-      expect(fetchMock).toHaveBeenCalledWith('https://i.ytimg.com/vi/9Ht5RZpzPqw/mqdefault.jpg', expect.anything())
+    it('403 for a band that did not install the add-on, naming it - the add-on is not started', async () => {
+      vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ rows: [] }) }) as Response))
+      const response = await post('/addons/youtube-download/methods/search?workspace=band-a', { query: 'x' })
+      expect(response.statusCode).toBe(403)
+      expect(response.json()).toMatchObject({ messageCode: 'addon.notInstalled', messageParams: { addon: 'youtube-download' } })
+    })
+
+    it('a method the add-on did not offer to devices is refused with 403 - OSC send, stem separation, fetching audio - and the add-on is never asked', async () => {
+      for (const [id, method] of [['osc', 'send'], ['stem-separation', 'separate'], ['youtube-download', 'fetchAudio'], ['piper-speech', 'speak']] as const) {
+        const response = await post(`/addons/${id}/methods/${method}?workspace=band-a`, { address: '/x', host: '10.0.0.9', port: 7000 })
+        expect(response.statusCode, `${id}.${method}`).toBe(403)
+        expect(response.json()).toMatchObject({ ok: false, error: { code: 'method.not-callable' } })
+      }
+    })
+
+    it('for a band that installed it, the add-on answers a method it offered - a bad body comes back as the contract\'s error, an undeclared method is refused before the add-on', async () => {
+      const installation = { _id: 'plugins:youtube-download', id: 'youtube-download', name: 'YouTube', version: '1.0.0', enabled: true, runtime: 'server', installedAt: 1, capabilities: [], source: 'builtin' }
+      vi.stubGlobal('fetch', vi.fn(async (url: string) => (String(url).includes('stageboard-band-a/_all_docs') ? ({ ok: true, status: 200, json: async () => ({ rows: [{ doc: installation }] }) } as Response) : ({ ok: false, status: 404, json: async () => ({}) } as Response))))
+      expect((await post('/addons/youtube-download/methods/format-disk?workspace=band-a')).json()).toMatchObject({ ok: false, error: { code: 'method.not-callable' } })
+      expect((await post('/addons/youtube-download/methods/search?workspace=band-a', { query: '' })).json()).toMatchObject({ ok: false, error: { code: 'method.input' } })
     })
   })
 

@@ -1,31 +1,28 @@
 import i18n from '../i18n'
-import { useEffect, useState } from 'react'
-import { CAPABILITIES, isYoutubeUrl, StemRoleSchema, type AsyncJob, type StemModel, type StemRole, type TrackKind, type TrackMeta, type YoutubeSearchResult } from 'shared-types'
+import { useEffect, useRef, useState } from 'react'
+import { CAPABILITIES, StemRoleSchema, type AsyncJob, type StemModel, type StemRole, type TrackKind, type TrackMeta } from 'shared-types'
 import { measureAudioDurationMs } from '../lib/measureAudioDuration'
 import { randomId } from '../lib/id'
 import { pluginProviding } from '../lib/capabilities'
 import { putAsyncJob, removeAsyncJob } from '../lib/asyncJobsDb'
 import { getTrack, putTrack, removeTrack, updateStem } from '../lib/songVariantsDb'
 import { guessStemRole, labelFromFileName, playableTracks, STEM_ROLE_LABELS, stemLengthsDiffer, stemsOf, uploadedStems } from '../lib/stems'
-import { formatVideoLength, searchYoutube, youtubeThumbnailUrl } from '../lib/youtubeSearch'
-import { useYoutubeRoute } from '../lib/useYoutubeRoute'
-import { loadYoutubeWhere, saveYoutubeWhere, type YoutubeWhere } from '../lib/youtubeDevice'
-import { newDeviceJob, runOnDevice, searchOnDevice } from '../lib/youtubeDevice'
-import { HelperError } from '../lib/nativeHelper'
-import { getDeviceId } from '../lib/deviceId'
 import { useAsyncJobsStore } from '../store/useAsyncJobsStore'
 import { NoEncoderError, toTrackFile, TRACK_MIME } from '../lib/engine/trackFile'
 import { useDialogStore } from '../store/useDialogStore'
 import { usePluginsStore } from '../store/usePluginsStore'
 import { StemSeparationDialog } from './StemSeparationDialog'
+import { TrackSourceSlots } from './TrackSourceSlots'
+import { AddonSourceDialog } from './AddonSourceDialog'
+import type { BuiltinAddon } from '../lib/addonUi/builtinAddons'
 import { INPUT } from './ui/styles'
-import { AddRow, Button, Dialog, IconButton, Segmented } from './ui'
+import { AddRow, Button, Dialog, IconButton } from './ui'
 import { useTranslation } from 'react-i18next'
-import { serverErrorText, serverText } from '../lib/serverMessage'
+import { serverErrorText } from '../lib/serverMessage'
 
 const JOB_LABELS: Record<AsyncJob['type'], string> = {
-  get 'youtube-extract'() {
-    return i18n.t('editor:tm.job.youtube')
+  get 'audio-import'() {
+    return i18n.t('editor:tm.job.audioImport')
   },
   get 'stem-separation'() {
     return i18n.t('editor:tm.job.stems')
@@ -56,6 +53,9 @@ const KIND_LABELS: Record<TrackKind, string> = {
   },
 }
 
+/** A finished job has nothing more to say - its result is the track in the list - so its line goes by itself after this long (a failed one stays until dismissed). */
+export const DONE_JOB_VISIBLE_MS = 5_000
+
 const NO_ROLE = 'none'
 
 /** Attach/remove any number of named tracks (reference/band-mix/stem) on a song variant - and,
@@ -66,32 +66,31 @@ export function TrackManagerField({ variantId, tracks, disabled, searchQuery = '
   const { t } = useTranslation('editor')
   const [busyTrackId, setBusyTrackId] = useState<string | null>(null)
   const [uploadKind, setUploadKind] = useState<TrackKind>('band-mix')
-  const [youtubeUrl, setYoutubeUrl] = useState('')
-  const [youtubeError, setYoutubeError] = useState<string | null>(null)
+  const fileInput = useRef<HTMLInputElement>(null)
   // Only this variant's jobs, oldest first - so a stray leftover from another song's editing
   // session never shows here, and multiple queued extractions (rare, but possible) list in the
   // order they were started.
   const variantJobs = useAsyncJobsStore((state) => state.jobs)
     .filter((job) => job.variantId === variantId)
     .sort((a, b) => a.createdAt - b.createdAt)
+  // Done jobs clear themselves: every download would otherwise leave a "done" line behind that has to be hidden by hand.
+  const doneJobIds = variantJobs.filter((job) => job.status === 'done').map((job) => job.id).join(',')
+  useEffect(() => {
+    if (doneJobIds === '') return
+    const timers = doneJobIds.split(',').map((id) => setTimeout(() => void removeAsyncJob(id).catch(() => {}), DONE_JOB_VISIBLE_MS))
+    return () => timers.forEach(clearTimeout)
+  }, [doneJobIds])
   const installed = usePluginsStore((state) => state.installed)
   const canSeparate = pluginProviding(installed, CAPABILITIES.stemSeparation) !== null
-  // "Von YouTube laden" only with the YouTube-Download add-on (#546).
-  const canDownload = pluginProviding(installed, CAPABILITIES.videoDownload) !== null
   const promptFields = useDialogStore((state) => state.promptFields)
   const confirm = useDialogStore((state) => state.confirm)
   // "+ Track hinzufügen" (#604): kind, then a file or a YouTube link - in a dialog, not squeezed
   // into the section.
   const [adding, setAdding] = useState(false)
-  const [query, setQuery] = useState(searchQuery)
-  const [hits, setHits] = useState<YoutubeSearchResult[] | null>(null)
-  const [searching, setSearching] = useState(false)
+  // An add-on's dialog replaces the 'Track hinzufügen' dialog - never on top of it. Going back reopens this one.
+  const [sourceAddon, setSourceAddon] = useState<{ addon: BuiltinAddon; query: string } | null>(null)
+  const query = searchQuery
   const [separating, setSeparating] = useState<TrackMeta | null>(null)
-  // The host's yt-dlp, else this device's YouTube helper (docs/25 §6b) - asked when the dialog opens.
-  // Where it runs can be narrowed per device (#822): the host only, or this device's helper only.
-  const [youtubeWhere, setYoutubeWhere] = useState<YoutubeWhere>(loadYoutubeWhere)
-  const youtube = useYoutubeRoute(canDownload && adding, youtubeWhere)
-  const nowhereText = youtubeWhere === 'host' ? t('tm.youtubeNoHost') : youtubeWhere === 'device' ? t('tm.youtubeNoHelper') : t('tm.youtubeNowhere')
   const [uploadProgress, setUploadProgress] = useState<string | null>(null)
   // The stem being listened to, as a local object URL (fetched from the Host on demand).
   const [listening, setListening] = useState<{ trackId: string; url: string } | null>(null)
@@ -249,85 +248,6 @@ export function TrackManagerField({ variantId, tracks, disabled, searchQuery = '
     setBusyTrackId(null)
   }
 
-  /** Queues a #5 YouTube-extraction job - the Host (`asyncJobWatcher.ts`) picks it up
-   * over the same replication every other cross-device command in this app uses (installing a
-   * plugin, opening a hardware setup), so nothing here talks to the server directly. */
-  async function handleYoutubeSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    const url = youtubeUrl.trim()
-    if (!isYoutubeUrl(url)) {
-      setYoutubeError(t('tm.youtubeLink'))
-      return
-    }
-    await queueYoutube(url, t('tm.youtubeRef'))
-  }
-
-  /** Searched by the Host (#618) - no copying links out of YouTube any more. */
-  async function handleSearch(e: React.FormEvent) {
-    e.preventDefault()
-    if (!query.trim()) return
-    setSearching(true)
-    setYoutubeError(null)
-    if (youtube.route === 'device' && youtube.helper) {
-      try {
-        setHits(await searchOnDevice(youtube.helper, query.trim(), youtube.trusted))
-      } catch (err) {
-        setHits(null)
-        setYoutubeError(helperText(err))
-      }
-      setSearching(false)
-      return
-    }
-    if (youtube.route === 'none') {
-      setSearching(false)
-      setYoutubeError(nowhereText)
-      return
-    }
-    const result = await searchYoutube(query.trim())
-    setSearching(false)
-    if (result.status === 'ok') setHits(result.data)
-    else {
-      setHits(null)
-      setYoutubeError(result.message)
-    }
-  }
-
-  function helperText(err: unknown): string {
-    return err instanceof HelperError ? (serverText({ message: err.message, messageCode: err.code }) ?? err.message) : String(err)
-  }
-
-  async function queueYoutube(url: string, label: string) {
-    setYoutubeError(null)
-    if (youtube.route === 'device' && youtube.helper) {
-      // This device downloads (no host with yt-dlp): the job is its own, the band sees it run.
-      const job = newDeviceJob(variantId, url, label, getDeviceId())
-      await putAsyncJob(job)
-      void runOnDevice(job, getDeviceId(), youtube.helper, youtube.trusted, { putJob: putAsyncJob, putTrack })
-      setYoutubeUrl('')
-      setHits(null)
-      setAdding(false)
-      return
-    }
-    if (youtube.route === 'none') {
-      setYoutubeError(nowhereText)
-      return
-    }
-    await putAsyncJob({
-      id: randomId(),
-      type: 'youtube-extract',
-      status: 'queued',
-      progress: 0,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-      variantId,
-      url,
-      label,
-    })
-    setYoutubeUrl('')
-    setHits(null)
-    setAdding(false)
-  }
-
   return (
     <div className="flex flex-col gap-1 text-sm text-ink-muted">
       {t('tm.tracks')}
@@ -399,105 +319,26 @@ export function TrackManagerField({ variantId, tracks, disabled, searchQuery = '
                 ))}
               </select>
             </label>
-            {/* A file input behind a button-sized label - the input itself can't be styled. */}
-            <label
-              className={`inline-flex min-h-form cursor-pointer items-center justify-center rounded-control bg-control-strong px-4 text-base text-ink [@media(hover:hover)]:hover:bg-control-strong-hover ${
-                busyTrackId !== null ? 'pointer-events-none opacity-40' : ''
-              }`}
-            >
+            {/* The file picker is a Button like every other way to add a track - same component, so the same height in every tier; the input itself can't be styled. */}
+            <Button fullWidth disabled={busyTrackId !== null} onClick={() => fileInput.current?.click()}>
               {uploadKind === 'stem' ? t('tm.chooseFiles') : t('tm.chooseFile')}
-              <input type="file" accept="audio/*" multiple={uploadKind === 'stem'} className="hidden" disabled={busyTrackId !== null} onChange={handleFiles} />
-            </label>
+            </Button>
+            <input ref={fileInput} type="file" accept="audio/*" multiple={uploadKind === 'stem'} className="hidden" disabled={busyTrackId !== null} onChange={handleFiles} />
             {uploadKind === 'stem' && (
               <span className="text-sm text-ink-faint">{t('tm.multi')}</span>
             )}
-            {canDownload && (
-              <div className="flex flex-col gap-2 border-t border-line pt-3">
-                <form onSubmit={handleSearch} className="flex flex-col gap-2">
-                  <span className="text-sm text-ink-muted">{t('tm.orYoutube')}</span>
-                  {/* Not inside a <label>: its text would become the button's name too. */}
-                  <div className="flex gap-2">
-                    <input
-                      type="search"
-                      aria-label={t('tm.searchYoutube')}
-                      value={query}
-                      onChange={(e) => setQuery(e.target.value)}
-                      placeholder={t('tm.titleBand')}
-                      className={`min-h-form flex-1 min-w-0 px-3 text-base placeholder:text-ink-faint ${INPUT}`}
-                    />
-                    <Button type="submit" disabled={searching || !query.trim()}>
-                      {searching ? t('tm.searching') : t('tm.search')}
-                    </Button>
-                  </div>
-                </form>
-                {hits && hits.length === 0 && <span className="text-sm text-ink-faint">{t('tm.nothing')}</span>}
-                {hits && hits.length > 0 && (
-                  // A tap on a hit loads it - the same job as a pasted link.
-                  <ul aria-label="Suchergebnisse" className="flex max-h-80 flex-col gap-1 overflow-y-auto">
-                    {hits.map((hit) => {
-                      // Through the host when it searched; straight from YouTube when this device did (it has the internet then).
-                      const thumbnail = youtube.route === 'device' ? `https://i.ytimg.com/vi/${hit.id}/mqdefault.jpg` : youtubeThumbnailUrl(hit.id)
-                      return (
-                        <li key={hit.id}>
-                          <button
-                            type="button"
-                            onClick={() => void queueYoutube(hit.url, hit.title)}
-                            className="flex min-h-form w-full items-center gap-3 rounded-control bg-control p-1 text-left [@media(hover:hover)]:hover:bg-control-hover"
-                          >
-                            {thumbnail && <img src={thumbnail} alt="" loading="lazy" className="h-form w-20 flex-none rounded-control bg-surface object-cover" />}
-                            <span className="flex min-w-0 flex-1 flex-col">
-                              <span className="line-clamp-2 text-base text-ink">{hit.title}</span>
-                              {/* The length always shows; a long channel name wraps instead of pushing it out (GUI check 2026-11-14). */}
-                              <span className="flex gap-2 text-sm text-ink-faint">
-                                <span className="line-clamp-2 min-w-0 flex-1">{hit.channel}</span>
-                                {hit.durationSec !== null && <span className="flex-none tabular-nums">{formatVideoLength(hit.durationSec)}</span>}
-                              </span>
-                            </span>
-                          </button>
-                        </li>
-                      )
-                    })}
-                  </ul>
-                )}
-                <form onSubmit={handleYoutubeSubmit} className="flex gap-2">
-                  <input
-                    type="url"
-                    aria-label={t('tm.link')}
-                    value={youtubeUrl}
-                    onChange={(e) => setYoutubeUrl(e.target.value)}
-                    placeholder={t('tm.linkPlaceholder')}
-                    className={`min-h-form flex-1 min-w-0 px-3 text-base placeholder:text-ink-faint ${INPUT}`}
-                  />
-                  <Button type="submit" disabled={youtubeUrl.trim() === ''}>
-                    {t('tm.load')}
-                  </Button>
-                </form>
-                {youtubeError && <span className="text-sm text-danger">{youtubeError}</span>}
-                {/* One side only (#822): where the band has both, a choice for a test or a host
-                    whose yt-dlp is broken. Most never open it. */}
-                <details className="text-sm text-ink-muted">
-                  <summary className="min-h-form cursor-pointer py-2">{t('tm.advanced')}</summary>
-                  <Segmented
-                    label={t('tm.whereLabel')}
-                    value={youtubeWhere}
-                    onChange={(value) => {
-                      const where = value as YoutubeWhere
-                      setYoutubeWhere(where)
-                      saveYoutubeWhere(where)
-                      setYoutubeError(null)
-                      setHits(null)
-                    }}
-                    options={[
-                      { value: 'auto', label: t('tm.whereAuto') },
-                      { value: 'host', label: t('tm.whereHost') },
-                      { value: 'device', label: t('tm.whereDevice') },
-                    ]}
-                  />
-                </details>
-              </div>
-            )}
+            {/* An add-on's own way to get a track (docs/36 §6, #964): the editor draws its description and knows nothing of the service. */}
+            <TrackSourceSlots query={query} onOpen={(addon, q) => (setSourceAddon({ addon, query: q }), setAdding(false))} />
           </div>
         </Dialog>
+      )}
+      {sourceAddon && (
+        <AddonSourceDialog
+          addon={sourceAddon.addon}
+          variantId={variantId}
+          query={sourceAddon.query}
+          onLeave={() => (setSourceAddon(null), setAdding(true))}
+        />
       )}
       {separating && (
         <StemSeparationDialog

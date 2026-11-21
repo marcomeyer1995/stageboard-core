@@ -1,4 +1,4 @@
-import { createAsyncJobWatcher, type AsyncJobWatcherHandle } from './asyncJobWatcher.js'
+import { createAsyncJobWatcher, type AsyncJobWatcherHandle, type AsyncJobWatcherOptions } from './asyncJobWatcher.js'
 import type { DatabaseConfig } from './database.js'
 import { createMidiWatcher, type MidiWatcherHandle } from './midiWatcher.js'
 import { createPluginSync, type PluginSyncHandle } from './plugins/pluginSync.js'
@@ -6,6 +6,8 @@ import type { PluginRegistry } from './plugins/registry.js'
 import { writePersistedActiveWorkspace } from './activeWorkspaceStateStore.js'
 
 export interface WorkspaceHardwareControllerOptions {
+  /** Who this host is and what it can do (#964): handed to the job watcher, which takes only the jobs this host can do. */
+  jobHost?: Pick<AsyncJobWatcherOptions, 'hostId' | 'canDo' | 'hasPeers' | 'needsOf' | 'stemSeparate' | 'addonMethods'>
   database: DatabaseConfig
   registry: PluginRegistry
   log: {
@@ -62,7 +64,7 @@ export function createWorkspaceHardwareController(
     const midiWatcher = createMidiWatcher({ database, workspaceId, log })
     // #5: practice-track extraction only ever runs for whichever band's hardware is currently
     // active on this box - same one-workspace-at-a-time model everything else here already uses.
-    const asyncJobs = createAsyncJobWatcher({ database, workspaceId, log })
+    const asyncJobs = createAsyncJobWatcher({ database, workspaceId, log, ...(options.jobHost ?? {}) })
     current = { workspaceId, sync, midiWatcher, asyncJobs }
 
     writePersistedActiveWorkspace(workspaceId)

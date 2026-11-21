@@ -14,15 +14,19 @@ import { hostname, networkInterfaces } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import cors from '@fastify/cors'
-import httpProxy from '@fastify/http-proxy'
-import { startBuiltinDatabase } from './builtinDatabase.js'
+import { registerDatabaseRoutes } from './databaseRoutes.js'
+import { startBuiltinDatabase, type BuiltinDatabase } from './builtinDatabase.js'
 import { addonHostNeeds, hostCapabilities } from './hostCapabilities.js'
+import { builtinRunners } from './builtinRunners.js'
+import { sharedAddonMethods } from './addons/addonMethods.js'
+import { relayAddonState } from './addons/stateRelay.js'
+import { createStemAddonSeparate } from './addons/stemAddon.js'
 import { createHostLeaseService, getFromHost, postJsonToHost } from './hostLeaseService.js'
 import { createHostRoleStore } from './hostRoleStore.js'
 import { makeLocalBandDb, makeRemoteBandDb } from './bandPouch.js'
-import { createReplicationRunner } from './replicationRunner.js'
-import { createAudioMirror } from './audioMirror.js'
-import { createBandBootstrapStore, joinBandInvite, effectiveHosts, joinBand } from './bandJoin.js'
+import { createAudioMirror, createReplicationRunner } from 'sync-host'
+import { createBandBootstrapStore } from './bandJoin.js'
+import { createVerifyWithPrimary, joinBandInvite, effectiveHosts, joinBand } from 'sync-host'
 import { listHeldKeys, saveMirrorFile } from './audioMirrorFiles.js'
 import { tracksOfVariantDocs } from 'sync-host'
 import { createPinnedFetch } from './pinnedFetch.js'
@@ -40,7 +44,6 @@ import {
   type Device,
 } from 'shared-types'
 import { messageFieldsOf, serverMessage, type ServerMessage } from 'shared-types'
-import { SpeechSpeedSchema, SpeechVoiceKeySchema, YOUTUBE_VIDEO_ID_RE } from 'shared-types'
 import { createBackupService, realBackupDeps, type BackupService } from './backup.js'
 import { deleteAudioFile, readAudioFile, writeAudioFile } from './audioStore.js'
 import { readPersistedActiveWorkspace } from './activeWorkspaceStateStore.js'
@@ -53,13 +56,13 @@ import { certFingerprint } from './certFingerprint.js'
 import { startMdnsResponder } from './mdnsResponder.js'
 import { startPingLoop } from './pingLoop.js'
 import { LOOKUP_CATALOG } from './plugins/lookupCatalog.js'
-import { bandHasAddon, ULTIMATE_GUITAR_PLUGIN_ID, ULTIMATE_GUITAR_PROVIDER, YOUTUBE_DOWNLOAD_PLUGIN_ID } from './plugins/importAddons.js'
+import { bandHasAddon, ULTIMATE_GUITAR_PLUGIN_ID, ULTIMATE_GUITAR_PROVIDER } from './plugins/importAddons.js'
 import { runYtDlpSearch } from './ytDlp.js'
 import { LookupRegistry } from './plugins/lookupRegistry.js'
 import { lookupErrorBody } from './plugins/lookupError.js'
 import { presence as presenceStore } from './presenceStore.js'
 import { registerHostRoutes } from './hostRoutes.js'
-import { addonRefusal, createBandCatalog, createHostChannels } from 'sync-host'
+import { addonRefusal, canDoFromCapabilities, createBandCatalog, createHostChannels } from 'sync-host'
 import { createLaptopBandStore } from './bandStore.js'
 import { createBandJoin, createBandMembers, createHostRoutes, createReplicationAccountIssuer, type BandJoin } from 'sync-host'
 import { PluginRegistry } from './plugins/registry.js'
@@ -200,7 +203,7 @@ function beginSseStream(request: FastifyRequest, reply: FastifyReply): void {
 /** The UDP port OSC triggers arrive on (#484) - TouchOSC and most controllers send to 8000 by default. */
 const OSC_IN_PORT = Number(process.env.STAGEBOARD_OSC_IN_PORT ?? 8000)
 
-export async function buildApp(options: { backupService?: BackupService } = {}) {
+export async function buildApp(options: { backupService?: BackupService; databaseHost?: BuiltinDatabase['handle'] } = {}) {
   // Same shared cert as Vite and the database (see #34, scripts/generate-dev-certs.sh) - the
   // tablet's WebMIDI/getUserMedia calls need the *page* origin to be secure, not this
   // server, but WSS/HTTPS here still matters once the PWA itself is HTTPS: an HTTPS page
@@ -398,7 +401,7 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
     const unsubscribe = subscribe((payload) => reply.raw.write(`data: ${JSON.stringify(payload)}\n\n`))
     request.raw.on('close', unsubscribe)
   }
-  for (const topic of ['show-state', 'switch-state', 'presence', 'osc-in', 'discovery'] as const) {
+  for (const topic of ['show-state', 'switch-state', 'presence', 'osc-in', 'discovery', 'device-state'] as const) {
     app.get(`/workspaces/:workspaceId/${topic}/stream`, (request, reply) => {
       const { workspaceId } = request.params as { workspaceId: string }
       openStream(request, reply, (send) => channels.subscribe(topic, workspaceId, send))
@@ -422,57 +425,37 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
     error: (msg: string, meta?: Record<string, unknown>) => app.log.error(meta ?? {}, msg),
   }
 
-  // Spoken announcements (#63): a speech clip per text and voice, generated once with Piper and
-  // cached - only while the band has the piper-speech plugin installed. Clips never change for the
-  // same text and voice, so devices may cache them for good. The voices themselves are listed and
-  // downloaded on request (voiceCatalog.ts), so the band picks one in the plugin's settings.
-  const speechReady = (reply: FastifyReply) => {
-    if (registry.get(PIPER_SPEECH_PLUGIN_ID)) return true
-    void reply.status(404).send({ status: 'error', ...serverMessage('speech.pluginMissing') })
-    return false
-  }
-  app.get('/speech', async (request, reply) => {
-    const query = request.query as { text?: unknown; voice?: unknown; speed?: unknown }
-    const text = PiperSpeech.normalise(String(query.text ?? ''))
-    if (!text) return reply.status(400).send({ status: 'error', ...serverMessage('speech.textMissing') })
-    const voice = query.voice === undefined || query.voice === '' ? undefined : SpeechVoiceKeySchema.safeParse(query.voice)
-    if (voice && !voice.success) return reply.status(400).send({ status: 'error', ...serverMessage('speech.invalidVoice') })
-    const speed = query.speed === undefined || query.speed === '' ? undefined : SpeechSpeedSchema.safeParse(Number(query.speed))
-    if (speed && !speed.success) return reply.status(400).send({ status: 'error', ...serverMessage('speech.invalidSpeed') })
-    if (!speechReady(reply)) return reply
-    const result = await serverSpeech.speak(text, voice?.data, speed?.data)
-    if (!result.ok) {
-      app.log.error({ text, voice: voice?.data, reason: result.reason, message: result.message }, 'Speech clip failed')
-      return reply.status(result.reason === 'unavailable' ? 503 : 500).send({ status: 'error', message: result.message, messageCode: result.messageCode, messageParams: result.messageParams })
-    }
-    if (result.generated) app.log.info({ text, voice: voice?.data, bytes: result.wav.length }, 'Speech clip generated')
-    return reply.header('Content-Type', 'audio/wav').header('Cache-Control', 'public, max-age=31536000, immutable').send(result.wav)
-  })
-  app.get('/speech/voices', async (_request, reply) => {
-    if (!speechReady(reply)) return reply
-    return serverVoices.list(serverSpeech.piperInstalled())
-  })
-  app.get('/speech/voices/:key/license', async (request, reply) => {
-    const key = SpeechVoiceKeySchema.safeParse((request.params as { key: string }).key)
-    if (!key.success) return reply.status(400).send({ status: 'error', ...serverMessage('speech.invalidVoice') })
-    if (!speechReady(reply)) return reply
-    return serverVoices.license(key.data)
-  })
-  app.post('/speech/voices/:key/install', async (request, reply) => {
-    const key = SpeechVoiceKeySchema.safeParse((request.params as { key: string }).key)
-    if (!key.success) return reply.status(400).send({ status: 'error', ...serverMessage('speech.invalidVoice') })
-    if (!speechReady(reply)) return reply
-    const started = await serverVoices.install(key.data)
-    if (!started) return reply.status(409).send({ status: 'error', ...serverMessage('speech.downloadBusy') })
-    app.log.info({ voice: key.data }, 'Speech voice download started')
-    return { status: 'ok' }
-  })
-
   // Owns which single workspace's hardware (plugin sync, Discovery Mode's MIDI watcher) this
   // box currently serves - lives here, not in main(), so the activate-hardware route below can
   // reach the same instance main() activates at boot. deactivate() on close covers both a real
   // shutdown and every test's afterEach(() => app.close()).
-  const workspaceHardware = createWorkspaceHardwareController({ database, registry, log: pluginLog })
+  // What this host can do: its runners (#964, step 3) - capabilities and what a background job needs are derived from them.
+  const runners = builtinRunners()
+  /** The add-ons whose methods this device runs (docs/36, #964) - each in a sandbox of its own, started when first asked. */
+  const addonMethods = sharedAddonMethods(pluginLog)
+  const workspaceHardware = createWorkspaceHardwareController({
+    database,
+    registry,
+    log: pluginLog,
+    // Background jobs (#964): this host takes the ones its own capabilities say it can do, and leaves the rest queued only when the
+    // band lists another host that might. Looked up when asked - the host list and the capabilities can change while it runs.
+    jobHost: {
+      hostId,
+      needsOf: (job) => runners.needsOfJob(job),
+      addonMethods,
+      // Stem separation as an add-on in a sandbox (#964, docs/32 §6) - opt in with STAGEBOARD_ADDON_SANDBOX=1 until it has run for hours on a real host.
+      ...(process.env.STAGEBOARD_ADDON_SANDBOX === '1' ? { stemSeparate: createStemAddonSeparate(addonMethods) } : {}),
+      canDo: (needs) => canDoFromCapabilities(hostCapabilities(runners))(needs),
+      hasPeers: async () => {
+        const workspaceId = workspaceHardware.getActiveWorkspaceId()
+        return workspaceId ? ((await readBandHosts(workspaceId))?.length ?? 0) >= 2 : false
+      },
+    },
+  })
+  // What an add-on's devices publish (docs/36 §5a) is checked against its manifest and shared with the band this host serves.
+  addonMethods.onState((addonId, body) => {
+    relayAddonState({ channels, workspaceId: workspaceHardware.getActiveWorkspaceId() ?? null, addonId, body, declared: addonMethods.declaredState(addonId), log: pluginLog })
+  })
   app.addHook('onClose', async () => workspaceHardware.deactivate())
 
   // A fresh backup has neither the band's host list nor its code in its own database yet: until the
@@ -568,19 +551,11 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
     selfHostId: hostId,
     selfUrl,
     activeWorkspaceId: () => workspaceHardware.getActiveWorkspaceId(),
-    verifyWithPrimary: async (primaryUrl, workspaceId, code, fingerprint) => {
-      // Roster is gated by the standing band code; /time tells us who the primary is.
-      // The roster route is a POST with the band code in the body (#364); a 200 means the code is right.
-      const confirmed = await postJsonToHost(
-        `${primaryUrl.replace(/\/+$/, '')}/workspaces/${encodeURIComponent(workspaceId)}/roster`,
-        { code },
-        fingerprint,
-        3_000,
-      )
-      if (!confirmed) return null
-      const time = await getFromHost(`${primaryUrl.replace(/\/+$/, '')}/time`, fingerprint, 3_000)
-      return HostTimeAnswerSchema.safeParse(time).data?.hostId ?? null
-    },
+    // The rule (confirm the code with the primary, then ask who it is) is sync-host's; the pinned requests are Node's.
+    verifyWithPrimary: createVerifyWithPrimary({
+      post: (url, body, fingerprint) => postJsonToHost(url, body, fingerprint, 3_000),
+      get: (url, fingerprint) => getFromHost(url, fingerprint, 3_000),
+    }),
     ensureLocalDb: async (workspaceId) => void (await makeLocalBandDb(database, workspaceId)),
     activate: (workspaceId) => workspaceHardware.activate(workspaceId),
     store: bootstrapStore,
@@ -682,7 +657,27 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
       isBandDevice,
       bands,
       channels,
-      capabilities: () => hostCapabilities(),
+      // Spoken announcements (#63): the routes are sync-host's; the engine - Piper and its voice files - is this machine's.
+      speech: {
+        pluginInstalled: () => registry.get(PIPER_SPEECH_PLUGIN_ID) !== undefined,
+        normalise: PiperSpeech.normalise,
+        speak: (text, voice, speed) => serverSpeech.speak(text, voice, speed),
+        voices: {
+          list: () => serverVoices.list(serverSpeech.piperInstalled()),
+          license: (key) => serverVoices.license(key),
+          install: (key) => serverVoices.install(key),
+        },
+        log: { info: (meta, message) => app.log.info(meta, message), error: (meta, message) => app.log.error(meta, message) },
+      },
+      // Song look-up (#546): the routes are sync-host's; the providers (a catalogue API, a scraped page) and the band's add-on check are this machine's.
+      lookup: {
+        search: (provider, query) => lookupRegistry.search(provider, query),
+        fetchDetail: (provider, resultId) => lookupRegistry.fetchDetail(provider, resultId),
+        refusal: lookupRefusal,
+        errorBody: lookupErrorBody,
+        log: { error: (meta, message) => app.log.error(meta, message) },
+      },
+      capabilities: () => hostCapabilities(runners),
       log: (message, meta) => app.log.info(meta, message),
     }),
   )
@@ -778,7 +773,7 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
     if (!parsed.success) return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
     try {
       const { preview } = await previewAddon(parsed.data.repository, { apiBase: process.env.STAGEBOARD_GITHUB_API })
-      // What this machine lacks to host the add-on's server part (#962): the admin sees it before installing.
+      // What this device lacks to run the add-on's jobs (#962): the admin sees it before installing.
       return { ...preview, hostNeeds: addonHostNeeds(preview.manifest) }
     } catch (err) {
       if (err instanceof AddonError) return reply.status(422).send({ status: 'error', code: err.code, message: err.message })
@@ -804,7 +799,7 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
       }
       const needs = addonHostNeeds(preview.manifest)
       if (needs) {
-        app.log.warn({ workspaceId, addon: preview.manifest.id, needs }, 'Add-on refused - this machine cannot host its server part')
+        app.log.warn({ workspaceId, addon: preview.manifest.id, needs }, 'Add-on refused - this device cannot run its jobs')
         const refused = addonRefusal(preview.manifest.id, needs)
         return reply.status(refused.status).send(refused.body)
       }
@@ -855,89 +850,22 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
     return installed ? null : serverMessage('ug.addonMissing')
   }
 
-  app.get('/lookup/:provider/search', async (request, reply) => {
-    const { provider } = request.params as { provider: string }
-    const { q, workspace } = request.query as { q?: string; workspace?: string }
-    if (!q) {
-      return reply.status(400).send({ status: 'error', message: 'Missing query parameter q' })
-    }
-    const refusal = await lookupRefusal(provider, workspace)
-    if (refusal) return reply.status(403).send({ status: 'error', ...refusal })
 
-    try {
-      const results = await lookupRegistry.search(provider, q)
-      if (results === null) {
-        return reply.status(404).send({ status: 'error', message: `Unknown provider: ${provider}` })
-      }
-      return results
-    } catch (err) {
-      app.log.error({ err, provider, cause: (err as { cause?: unknown }).cause }, 'Lookup search failed')
-      return reply.status(502).send(lookupErrorBody(err))
+  // An add-on's method, answered by its work script in a sandbox on this device (docs/36 §3, #964). The add-on must be installed for the band; what
+  // comes back is the add-on's own answer or its own error - this route knows no add-on's domain.
+  app.post('/addons/:id/methods/:method', async (request, reply) => {
+    const { id, method } = request.params as { id: string; method: string }
+    const { workspace } = request.query as { workspace?: string }
+    if (!workspace || !/^[a-z0-9_-]+$/i.test(workspace)) return reply.status(400).send({ status: 'error', message: 'Missing or invalid workspace' })
+    if (!addonMethods.has(id)) return reply.status(404).send({ ok: false, error: { code: 'addon.unknown', message: `No add-on "${id}" on this host`, params: { addon: id } } })
+    // Only what the add-on marked for devices: a method that sends a packet (OSC), runs Demucs or fetches audio is the host's own business - without this
+    // anyone on the network could make this host send UDP anywhere or start a program (found in review, 2026-11-21).
+    const declared = addonMethods.contributes(id)?.methods
+    if (!declared || !Object.prototype.hasOwnProperty.call(declared, method) || declared[method]!.callableByDevices !== true) {
+      return reply.status(403).send({ ok: false, error: { code: 'method.not-callable', message: `The method "${method}" of "${id}" is not offered to devices.`, params: { addon: id, method } } })
     }
-  })
-
-  // resultId travels as a query param, not a path param: an opaque id can embed a full source
-  // URL (see ultimateGuitarPlugin.ts), and Fastify's router rejects any single path param over
-  // 100 characters by default - a limit a real URL clears easily. Query strings have no such
-  // per-segment ceiling.
-  app.get('/lookup/:provider/detail', async (request, reply) => {
-    const { provider } = request.params as { provider: string }
-    const { resultId, workspace } = request.query as { resultId?: string; workspace?: string }
-    if (!resultId) {
-      return reply.status(400).send({ status: 'error', message: 'Missing query parameter resultId' })
-    }
-    const refusal = await lookupRefusal(provider, workspace)
-    if (refusal) return reply.status(403).send({ status: 'error', ...refusal })
-
-    try {
-      const detail = await lookupRegistry.fetchDetail(provider, resultId)
-      if (detail === null) {
-        return reply.status(404).send({ status: 'error', message: `Unknown provider: ${provider}` })
-      }
-      return detail
-    } catch (err) {
-      app.log.error({ err, provider, cause: (err as { cause?: unknown }).cause }, 'Lookup detail failed')
-      return reply.status(502).send(lookupErrorBody(err))
-    }
-  })
-
-  /** The YouTube add-on (#546) for this band, or the refusal - like `lookupRefusal` for UG. */
-  async function youtubeRefusal(workspace: string | undefined): Promise<ServerMessage | null> {
-    if (!workspace || !/^[a-z0-9_-]+$/i.test(workspace)) return serverMessage('youtube.bandMissing')
-    const installed = await bandHasAddon(database, workspace, YOUTUBE_DOWNLOAD_PLUGIN_ID).catch(() => false)
-    return installed ? null : serverMessage('youtube.addonMissing')
-  }
-
-  // YouTube search for "Track hinzufügen" (#618): the same yt-dlp as the download, metadata only.
-  app.get('/youtube/search', async (request, reply) => {
-    const { q, workspace } = request.query as { q?: string; workspace?: string }
-    if (!q?.trim()) return reply.status(400).send({ status: 'error', message: 'Missing query parameter q' })
-    const refusal = await youtubeRefusal(workspace)
-    if (refusal) return reply.status(403).send({ status: 'error', ...refusal })
-    try {
-      return await runYtDlpSearch(q.trim().slice(0, 200))
-    } catch (err) {
-      app.log.error({ err, q }, 'YouTube search failed')
-      return reply.status(502).send({ status: 'error', ...messageFieldsOf(err) })
-    }
-  })
-
-  // The hits' thumbnails through the Host (#618): the tablets on stage often have no
-  // internet of their own, only the server does.
-  app.get('/youtube/thumbnail', async (request, reply) => {
-    const { id } = request.query as { id?: string }
-    if (!id || !YOUTUBE_VIDEO_ID_RE.test(id)) return reply.status(400).send({ status: 'error', message: 'Invalid video id' })
-    try {
-      const response = await fetch(`https://i.ytimg.com/vi/${id}/mqdefault.jpg`, { signal: AbortSignal.timeout(10_000) })
-      if (!response.ok) return reply.status(404).send({ status: 'error', message: `Thumbnail HTTP ${response.status}` })
-      return reply
-        .type(response.headers.get('content-type') ?? 'image/jpeg')
-        .header('cache-control', 'public, max-age=86400')
-        .send(Buffer.from(await response.arrayBuffer()))
-    } catch (err) {
-      app.log.warn({ err, id }, 'YouTube thumbnail failed')
-      return reply.status(502).send({ status: 'error', message: 'Thumbnail not reachable' })
-    }
+    if (!(await bandHasAddon(database, workspace, id).catch(() => false))) return reply.status(403).send({ status: 'error', ...serverMessage('addon.notInstalled', { addon: id }) })
+    return addonMethods.call(id, method, request.body ?? {})
   })
 
   // Provisions a brand-new workspace: its database, `_security` doc, roster validation doc, and
@@ -1049,30 +977,14 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
   // directly. `stage-pwa`'s `workspaceDb.ts` now builds its remote database URL from this
   // server's own origin plus this `/db` prefix (`VITE_HOST_URL`) instead of a separate
   // `VITE_DB_URL` pointing at the database's own port - one address to configure, not two.
-  await app.register(httpProxy, {
-    upstream: database.url,
-    prefix: '/db',
-    rewritePrefix: '',
-    // A band's database only for that band's own accounts. the database's `_security` grants access by
-    // role, and the roles (`member`, `admin`) are the same in every band - without this, any
-    // band's device login could read and write every other band's database through here.
-    preHandler: (request, reply, done) => {
-      const refusal = bandDbProxyRefusal(request.url, request.headers.authorization)
-      if (refusal) {
-        app.log.warn({ url: request.url.split('?')[0], remoteAddress: request.ip, reason: refusal }, 'Database request for another band refused')
-        void reply.status(403).send({ error: 'forbidden', reason: 'Not an account of this band' })
-        return
-      }
-      // the database itself never locks a login - an admin's password is their 4-digit PIN, so guessing
-      // it here had no limit (#396 review). Same lock as the admin routes, shared per account.
-      const login = basicAuthCredentials(request.headers.authorization)
-      const lockedFor = login ? adminLoginThrottle.lockedForSeconds(login.username) : 0
-      if (lockedFor > 0) {
-        void reply.status(429).header('Retry-After', String(lockedFor)).send({ error: 'locked', reason: 'Too many wrong logins' })
-        return
-      }
-      done()
+  registerDatabaseRoutes(app, {
+    handle: options.databaseHost,
+    refusal: bandDbProxyRefusal,
+    lockedForSeconds: (authorization) => {
+      const login = basicAuthCredentials(authorization)
+      return login ? adminLoginThrottle.lockedForSeconds(login.username) : 0
     },
+    log: app.log,
   })
   app.addHook('onResponse', async (request, reply) => {
     if (!request.url.startsWith('/db')) return
@@ -1138,7 +1050,7 @@ async function main() {
     ...(process.env.STAGEBOARD_DB_STORAGE ? { storage: JSON.parse(process.env.STAGEBOARD_DB_STORAGE) } : {}),
   })
   process.env.STAGEBOARD_DB_URL = builtinDb.url
-  const { app, lookupRegistry, workspaceHardware, pluginLog, database, backups, hostLease, replication, audioMirror, catchUp, channels } = await buildApp()
+  const { app, lookupRegistry, workspaceHardware, pluginLog, database, backups, hostLease, replication, audioMirror, catchUp, channels } = await buildApp({ databaseHost: builtinDb.handle })
   app.log.info({ url: builtinDb.url }, 'Built-in database host')
   // Scheduled backups (daily time, USB medium plugged in) - checked every 30 s.
   backups.start()

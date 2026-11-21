@@ -1,8 +1,22 @@
 import { existsSync } from 'node:fs'
 import { spawn } from 'node:child_process'
-import { ServerMessageError, YOUTUBE_VIDEO_ID_RE, webmOpusToOgg, type YoutubeSearchResult } from 'shared-types'
+import { YOUTUBE_VIDEO_ID_RE, type YoutubeSearchResult } from 'shared-types'
 
-/** Same "find whichever binary is already on the host" pattern as ultimateGuitarPlugin.ts's
+/**
+ * What the yt-dlp program did wrong in a way a person should hear about: a **code** with parameters, never words - the add-on that asked for the
+ * helper says it in its own words (docs/36 §5, #964). The core's message catalog holds none of it.
+ */
+export class YtDlpFailure extends Error {
+  constructor(
+    readonly code: 'youtube.downloadTimeout' | 'youtube.tooLarge' | 'youtube.searchTimeout',
+    readonly params: Record<string, string | number> = {},
+  ) {
+    super(code)
+    this.name = 'YtDlpFailure'
+  }
+}
+
+/** Same "find whichever binary is already on the host" pattern as addons/browserHelper.ts's
  * `resolveChromeExecutable` - yt-dlp is not bundled or auto-installed (fetching an executable
  * at runtime/install time is its own can of worms), the operator installs it themselves. */
 const YT_DLP_CANDIDATES = ['/usr/bin/yt-dlp', '/usr/local/bin/yt-dlp']
@@ -29,24 +43,8 @@ export function parseYtDlpProgress(line: string): number | null {
   return match ? Number(match[1]) / 100 : null
 }
 
-/** yt-dlp writes the extension of the file it actually produced (`m4a`, `webm`, ...) - the
- * container/codec YouTube happens to offer for the requested format, not something this code
- * picks. Unlisted extensions still get *a* browser-playable guess rather than failing the whole
- * job, since `<audio>` mostly figures it out from the bytes regardless of a slightly-off
- * declared type. */
-const MIME_TYPES_BY_EXT: Record<string, string> = {
-  m4a: 'audio/mp4',
-  mp4: 'audio/mp4',
-  webm: 'audio/webm',
-  opus: 'audio/opus',
-  ogg: 'audio/ogg',
-  mp3: 'audio/mpeg',
-  wav: 'audio/wav',
-}
-
-export function mimeTypeForExt(ext: string): string {
-  return MIME_TYPES_BY_EXT[ext.toLowerCase()] ?? 'application/octet-stream'
-}
+/** The type of a downloaded file by its extension, and re-wrapping WebM/Opus to Ogg: sync-host's (the YouTube job recipe, #964). */
+export { mimeTypeForExt, toTrackFormat } from 'sync-host'
 
 /**
  * Args for extracting just the audio of one video, without a hard ffmpeg dependency: YouTube's own
@@ -69,19 +67,6 @@ export function buildYtDlpArgs(url: string, outputTemplate: string, maxFileSizeB
     '-o', outputTemplate,
     '--', url,
   ]
-}
-
-/**
- * A downloaded file in the track format (docs/30 §8h): WebM with Opus - nearly always, see
- * `buildYtDlpArgs` - becomes Ogg Opus, packet for packet (lossless; every device then starts it on
- * the same sample). Anything else stays as downloaded: the server has no decoder to encode it anew.
- */
-export function toTrackFormat(data: Buffer, ext: string): { data: Buffer; mimeType: string; remuxed: boolean } {
-  if (['webm', 'mkv'].includes(ext.toLowerCase())) {
-    const ogg = webmOpusToOgg(new Uint8Array(data.buffer, data.byteOffset, data.byteLength))
-    if (ogg) return { data: Buffer.from(ogg.buffer, ogg.byteOffset, ogg.byteLength), mimeType: 'audio/ogg', remuxed: true }
-  }
-  return { data, mimeType: mimeTypeForExt(ext), remuxed: false }
 }
 
 /** The message shown on the job: yt-dlp's own `ERROR:` lines when there are any - its stderr
@@ -167,11 +152,11 @@ export function runYtDlpExtract(
       clearTimeout(timer)
       if (pendingLine) handleLine(pendingLine)
       if (timedOut) {
-        reject(new ServerMessageError('youtube.downloadTimeout', { minutes: Math.round(timeoutMs / 60_000) }))
+        reject(new YtDlpFailure('youtube.downloadTimeout', { minutes: Math.round(timeoutMs / 60_000) }))
         return
       }
       if (tooLarge) {
-        reject(new ServerMessageError('youtube.tooLarge', { mb: Math.round(maxExtractBytes() / (1024 * 1024)) }))
+        reject(new YtDlpFailure('youtube.tooLarge', { mb: Math.round(maxExtractBytes() / (1024 * 1024)) }))
         return
       }
       if (code !== 0) {
@@ -240,7 +225,7 @@ export function runYtDlpSearch(query: string, timeoutMs: number = YT_DLP_SEARCH_
     })
     child.on('close', (code) => {
       clearTimeout(timer)
-      if (timedOut) return reject(new ServerMessageError('youtube.searchTimeout'))
+      if (timedOut) return reject(new YtDlpFailure('youtube.searchTimeout'))
       if (code !== 0) return reject(new Error(`yt-dlp exited with code ${code}: ${ytDlpErrorSummary(stderrTail)}`))
       try {
         resolve(parseYtDlpSearch(stdout))

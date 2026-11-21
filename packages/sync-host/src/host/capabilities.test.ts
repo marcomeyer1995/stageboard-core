@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { HostCapabilities } from 'shared-types'
 import { HostCapabilitiesSchema } from 'shared-types'
-import { JOB_IDS, JOB_ROUTES, addonRefusal, jobOfRequest, refusalFor, unavailableJobs, unmetRequirement } from './capabilities.js'
+import { canDoFromCapabilities, JOB_IDS, JOB_ROUTES, addonRefusal, jobOfRequest, refusalFor, unavailableJobs, unmetRequirement } from './capabilities.js'
 
 const tablet: HostCapabilities = {
   kind: 'android',
@@ -40,7 +40,7 @@ describe('jobs a host can be asked for (#962)', () => {
   })
 
   it('every job of the table is one a host has to say something about, and the schema accepts the answer', () => {
-    expect(JOB_IDS).toEqual(expect.arrayContaining(['backup', 'measure-inputs', 'calibration', 'speech', 'lookup', 'youtube-download', 'plugin-runtime', 'hardware', 'osc-in', 'host-lookup']))
+    expect(JOB_IDS).toEqual(expect.arrayContaining(['backup', 'measure-inputs', 'calibration', 'speech', 'lookup', 'plugin-runtime', 'hardware', 'osc-in', 'host-lookup']))
     expect(new Set(JOB_ROUTES.map((r) => `${r.method} ${r.pattern}`)).size).toBe(JOB_ROUTES.length)
     expect(HostCapabilitiesSchema.parse(tablet)).toEqual(tablet)
   })
@@ -72,5 +72,25 @@ describe('what an add-on needs from the device that hosts it (#962)', () => {
 
   it('refuses with 501 and the capability of the add-on', () => {
     expect(addonRefusal('stem-separation', '16 GB')).toMatchObject({ status: 501, body: { error: 'capability_missing', capability: 'plugin:stem-separation', needs: '16 GB' } })
+  })
+})
+
+describe('jobOfRequest - which capability a route needs (#964)', () => {
+  it('fills the add-on id of a method route into plugin:<id> - the literal pattern must never reach the host choice', () => {
+    expect(jobOfRequest('POST', '/addons/youtube-download/methods/search')).toBe('plugin:youtube-download')
+    expect(jobOfRequest('POST', '/plugins/stem-separation/trigger')).toBe('plugin:stem-separation')
+    expect(jobOfRequest('GET', '/speech/voices')).toBe('speech')
+    expect(jobOfRequest('POST', '/addons/no%20such/methods/search')).toBe('plugin:no such')
+  })
+})
+
+describe('what a device can do, as a yes/no for the job queue (#964)', () => {
+  it('says yes only for what the device lists as available - jobs and plugins', () => {
+    const can = canDoFromCapabilities({ ...tablet, jobs: [{ id: 'lookup', available: true, needs: null }, { id: 'speech', available: false, needs: 'piper' }], plugins: [{ id: 'stem-separation', available: true, needs: null }] })
+    expect(can('lookup')).toBe(true)
+    expect(can('speech')).toBe(false)
+    expect(can('plugin:stem-separation')).toBe(true)
+    expect(can('plugin:unknown')).toBe(false)
+    expect(can('never-listed')).toBe(false)
   })
 })

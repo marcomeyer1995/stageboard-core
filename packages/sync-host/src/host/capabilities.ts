@@ -11,7 +11,7 @@ export interface JobRoute {
   method: 'GET' | 'POST'
   /** Fastify-style. */
   pattern: string
-  /** The job's id in `HostCapabilities.jobs`, or - for a plugin - `plugin:<id>` (a `:name` in the pattern fills it in). */
+  /** The job's id in `HostCapabilities.jobs`, or - for a plugin - `plugin:<id>` (the named placeholder in the pattern fills it in). */
   job: string
 }
 
@@ -33,12 +33,12 @@ export const JOB_ROUTES: readonly JobRoute[] = [
   { method: 'POST', pattern: '/speech/voices/:key/install', job: 'speech' },
   { method: 'GET', pattern: '/lookup/:provider/search', job: 'lookup' },
   { method: 'GET', pattern: '/lookup/:provider/detail', job: 'lookup' },
-  { method: 'GET', pattern: '/youtube/search', job: 'youtube-download' },
-  { method: 'GET', pattern: '/youtube/thumbnail', job: 'youtube-download' },
   { method: 'GET', pattern: '/plugins', job: 'plugin-runtime' },
   { method: 'GET', pattern: '/plugins/:id/client.js', job: 'plugin-runtime' },
   { method: 'POST', pattern: '/plugins/:name/trigger', job: 'plugin:name' },
   { method: 'GET', pattern: '/addons/:id/:version/:file', job: 'plugin-runtime' },
+  // An add-on's method (docs/36 §3, #964): a device that has the add-on's helpers answers it.
+  { method: 'POST', pattern: '/addons/:id/methods/:method', job: 'plugin:id' },
   { method: 'POST', pattern: '/workspaces/:workspaceId/addons/preview', job: 'plugin-runtime' },
   { method: 'POST', pattern: '/workspaces/:workspaceId/addons/install', job: 'plugin-runtime' },
   { method: 'POST', pattern: '/workspaces/:workspaceId/activate-hardware', job: 'hardware' },
@@ -68,9 +68,12 @@ export function jobOfRequest(method: string, path: string): string | null {
     if (route.method !== method.toUpperCase()) continue
     const params = matches(route.pattern, clean)
     if (!params) continue
-    if (route.job === 'plugin:name') {
+    // Every `plugin:<placeholder>` route fills the id from the path - `/plugins/:name/trigger` and `/addons/:id/methods/:method` alike.
+    // Returning the pattern itself would make the app look for a host that can do the literal "plugin:id" (seen on the Fire, 2026-11-20).
+    const pluginParam = /^plugin:(\w+)$/.exec(route.job)?.[1]
+    if (pluginParam) {
       try {
-        return `plugin:${decodeURIComponent(params.name ?? '')}`
+        return `plugin:${decodeURIComponent(params[pluginParam] ?? '')}`
       } catch {
         return null
       }
@@ -108,7 +111,7 @@ export const parseCapabilities = (raw: unknown): HostCapabilities | null => {
   return parsed.success ? parsed.data : null
 }
 
-/** What an add-on's server part needs from a device (`AddonReleaseManifest.runsOn`). */
+/** What an add-on's jobs file needs from a device (`AddonReleaseManifest.runsOn`). */
 export interface RunsOn {
   platforms?: string[]
   minCpuCores?: number
@@ -116,7 +119,7 @@ export interface RunsOn {
 }
 
 /**
- * What this device lacks to run an add-on's server part, as words for the person - or null when it can (#962, step 4).
+ * What this device lacks to run an add-on's jobs file, as words for the person - or null when it can (#962, step 4).
  * Only what the device tells counts: a power it did not report is not held against it (it is not invented either way).
  */
 export function unmetRequirement(runsOn: RunsOn | undefined, capabilities: HostCapabilities): string | null {
@@ -131,4 +134,15 @@ export function unmetRequirement(runsOn: RunsOn | undefined, capabilities: HostC
 /** The 501 for an add-on this device cannot host. */
 export function addonRefusal(addonId: string, needs: string): { status: 501; body: unknown } {
   return { status: 501, body: { status: 'error', error: 'capability_missing', capability: `plugin:${addonId}`, needs, reason: `This device cannot host the add-on "${addonId}" - it needs ${needs}. Install it on a host that can.` } }
+}
+
+/**
+ * What a job needs (`jobNeeds`: a job id, or `plugin:<id>`) answered from this device's own capabilities (#964): the same function
+ * decides for every host which background job it may take. A need the device never listed is not something it can do.
+ */
+export function canDoFromCapabilities(capabilities: HostCapabilities): (needs: string) => boolean {
+  return (needs) => {
+    const entry = needs.startsWith('plugin:') ? capabilities.plugins.find((p) => p.id === needs.slice(7)) : capabilities.jobs.find((j) => j.id === needs)
+    return entry?.available === true
+  }
 }

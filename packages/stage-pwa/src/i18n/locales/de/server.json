@@ -37,12 +37,6 @@
     "demucsMissing": "Demucs ist auf dem Host nicht installiert (docs/03).",
     "notInstalled": "Stem-Trennung ist auf dem Host nicht installiert (Demucs, siehe docs/03)."
   },
-  "osc": {
-    "unknownCommand": "Unbekannter OSC-Befehl: {{type}}",
-    "invalidAddress": "Keine gültige OSC-Adresse: „{{address}}“",
-    "noTarget": "Für dieses OSC-Gerät fehlen Host und Port (Bühne).",
-    "sendFailed": "OSC an {{host}}:{{port}} fehlgeschlagen: {{error}}"
-  },
   "job": {
     "interrupted": "Durch einen Neustart des Hosts unterbrochen.",
     "variantGone": "Die Song-Variante existiert nicht mehr.",
@@ -52,28 +46,9 @@
     "invalidVariantId": "Ungültige Song-Varianten-ID.",
     "invalidIds": "Ungültige Song- oder Track-ID."
   },
-  "youtube": {
-    "addonMissing": "Das Add-on „YouTube-Download“ ist für diese Band nicht installiert.",
-    "bandMissing": "Für die YouTube-Suche fehlt die Band (Add-on-Prüfung).",
-    "urlOnly": "Nur youtube.com/youtu.be-Links werden unterstützt.",
-    "downloadTimeout": "yt-dlp hat nach {{minutes}} Minuten nicht fertig geladen und wurde abgebrochen.",
-    "tooLarge": "Die Audiospur ist größer als das Limit von {{mb}} MB.",
-    "searchTimeout": "Die YouTube-Suche hat nicht geantwortet - ist der Host online?",
-    "noAudio": "YouTube bietet zu diesem Video keine ladbare Audiospur an.",
-    "convertFailed": "Die Audiospur ließ sich auf diesem Gerät nicht nach Opus umwandeln.",
-    "failed": "Der YouTube-Download ist fehlgeschlagen.",
-    "interrupted": "Der Download wurde unterbrochen (App beendet) - bitte neu starten."
-  },
   "ug": {
     "addonMissing": "Das Add-on „Ultimate Guitar Import“ ist für diese Band nicht installiert.",
-    "bandMissing": "Für Ultimate Guitar fehlt die Band (Add-on-Prüfung).",
-    "chromePathWrong": "CHROME_EXECUTABLE_PATH zeigt auf „{{path}}“ - dort ist kein Chrome/Chromium. Pfad korrigieren oder die Variable entfernen.",
-    "chromeMissing": "Für Ultimate Guitar braucht der Host Chrome oder Chromium - keins gefunden. Installieren (z. B. „sudo apt install chromium“) oder CHROME_EXECUTABLE_PATH setzen. Gesucht in: {{paths}}",
-    "timeout": "Ultimate Guitar antwortet nicht ({{seconds}} s). Internetverbindung des Hosts prüfen und noch einmal versuchen.",
-    "unavailable": "Ultimate Guitar ist nicht erreichbar - hat der Host gerade Internet?",
-    "blocked": "Ultimate Guitar hat die Anfrage als Bot blockiert. In ein paar Minuten noch einmal versuchen.",
-    "sourceChanged": "Ultimate Guitar hat seine Seite umgebaut - der Import (Plugin „ultimate-guitar-scraper“) muss angepasst werden. Seitentitel: „{{title}}“",
-    "notImportable": "Diese Version hat keinen Text zum Übernehmen (z. B. eine Pro- oder Video-Version). Bitte eine andere Version wählen."
+    "bandMissing": "Für Ultimate Guitar fehlt die Band (Add-on-Prüfung)."
   },
   "helper": {
     "missing": "Das Hilfsprogramm des Add-ons ist auf diesem Gerät nicht installiert.",
@@ -85,5 +60,11 @@
     "failed": "Das Hilfsprogramm ist fehlgeschlagen.",
     "badRequest": "Das Hilfsprogramm hat den Auftrag nicht verstanden.",
     "tooOld": "Das Hilfsprogramm ist zu alt für diese StageBoard-Version."
+  },
+  "addon": {
+    "notInstalled": "Das Add-on „{{addon}}“ ist für diese Band nicht installiert."
+  },
+  "audio": {
+    "convertFailed": "Die Audiospur ließ sich auf diesem Gerät nicht nach Opus umwandeln."
   }
 }

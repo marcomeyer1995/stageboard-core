@@ -1,8 +1,9 @@
 import { spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { existsSync } from 'node:fs'
-import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
-import { basename, join } from 'node:path'
+import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { basename, dirname, join } from 'node:path'
 import { serverMessage, type ServerMessageCode, type ServerMessageParams } from 'shared-types'
 import { readWav16Mono, trimSpeech, writeWav16Mono } from './wavTrim.js'
 
@@ -43,7 +44,15 @@ export class PiperSpeech {
   private queue: Promise<unknown> = Promise.resolve()
   private inFlight = new Map<string, Promise<SpeechResult>>()
 
-  constructor(private readonly config: SpeechConfig) {}
+  /**
+   * @param synthesize How the text becomes Piper's raw WAV (`piper --model --length_scale --output_file`): by default the program is started here;
+   * a device that runs the speech add-on in a sandbox passes a function that asks the add-on instead (#964). Everything around it - the cache, the
+   * queue, the trimming, the errors - is the same either way.
+   */
+  constructor(
+    private readonly config: SpeechConfig,
+    private readonly synthesize: (text: string, model: string, pace: number) => Promise<Uint8Array> = (text, model, pace) => runPiperToBytes(config.piperBin, model, pace, text),
+  ) {}
 
   /** Whether the Piper program is installed on this server. */
   piperInstalled(): boolean {
@@ -96,19 +105,37 @@ export class PiperSpeech {
 
   private async generate(text: string, model: string, pace: number, file: string): Promise<SpeechResult> {
     await mkdir(this.config.cacheDir, { recursive: true })
-    const raw = `${file}.piper.wav`
     try {
-      await runPiper(this.config.piperBin, model, pace, text, raw)
-      const wav = writeWav16Mono(trimSpeech(readWav16Mono(await readFile(raw))))
+      const wav = writeWav16Mono(trimSpeech(readWav16Mono(Buffer.from(await this.synthesize(text, model, pace)))))
       await writeFile(`${file}.tmp`, wav)
       await rename(`${file}.tmp`, file)
       return { ok: true, wav, generated: true }
     } catch (err) {
       return { ok: false, reason: 'failed', message: err instanceof Error ? err.message : String(err) }
-    } finally {
-      await rm(raw, { force: true })
     }
   }
+
+  /** The model file of a voice, for a helper that runs Piper on this device's behalf (#964); null when it is not installed. */
+  voiceModel(voiceKey?: string): string | null {
+    return this.voiceFile(voiceKey)
+  }
+}
+
+/** The default `synthesize`: Piper started here, its WAV read back from a temp file. */
+async function runPiperToBytes(piperBin: string, model: string, pace: number, text: string): Promise<Uint8Array> {
+  await mkdir(tmpdir(), { recursive: true })
+  const raw = join(await mkdtemp(join(tmpdir(), 'stageboard-piper-')), 'clip.wav')
+  try {
+    await runPiper(piperBin, model, pace, text, raw)
+    return await readFile(raw)
+  } finally {
+    await rm(dirname(raw), { recursive: true, force: true }).catch(() => {})
+  }
+}
+
+/** Piper started with the configured binary - the program a helper (or the default `synthesize`) runs. */
+export function runPiperProgram(model: string, pace: number, text: string, outFile: string, piperBin: string = speechConfigFromEnv().piperBin): Promise<void> {
+  return runPiper(piperBin, model, pace, text, outFile)
 }
 
 function runPiper(piperBin: string, model: string, pace: number, text: string, outFile: string): Promise<void> {

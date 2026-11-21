@@ -1,4 +1,4 @@
-import { JOB_IDS } from 'sync-host'
+import { createJobRunners, JOB_IDS, type JobRunner } from 'sync-host'
 import type { HostCapabilities } from 'shared-types'
 
 /**
@@ -25,17 +25,14 @@ const NOTES: Record<string, string> = {
 const HEAVY_PLUGINS = ['stem-separation', 'piper-speech', 'ultimate-guitar-import', 'youtube-download']
 
 export function createTabletCapabilities(device: { platform: string; arch?: string; cpuCores?: number; memoryMb?: number }): HostCapabilities {
-  const entry = (id: string) => ({ id, available: false, needs: NOT_BUILT, ...(NOTES[id] ? { note: NOTES[id] } : {}) })
-  return {
-    kind: 'android',
-    platform: device.platform,
-    arch: device.arch ?? 'unknown',
-    database: 'builtin',
-    ...(device.cpuCores && device.cpuCores > 0 ? { cpuCores: Math.floor(device.cpuCores) } : {}),
-    ...(device.memoryMb && device.memoryMb > 0 ? { memoryMb: Math.floor(device.memoryMb) } : {}),
-    jobs: JOB_IDS.map(entry),
-    plugins: HEAVY_PLUGINS.map(entry),
-  }
+  // The same registry a Node host answers from (sync-host/jobRunners.ts, #964); what a tablet registers is runners that say "not built yet"
+  // with the note the person reads - each one is replaced by a real runner when the job exists on Android.
+  const unbuilt = (id: string, kind: 'job' | 'plugin'): JobRunner => ({ id, kind, missing: () => NOT_BUILT, ...(NOTES[id] ? { note: NOTES[id] } : {}) })
+  const runners = createJobRunners([...JOB_IDS.map((id) => unbuilt(id, 'job')), ...HEAVY_PLUGINS.map((id) => unbuilt(id, 'plugin'))])
+  return runners.capabilities(
+    { kind: 'android', platform: device.platform, arch: device.arch ?? 'unknown', ...(device.cpuCores && device.cpuCores > 0 ? { cpuCores: Math.floor(device.cpuCores) } : {}), ...(device.memoryMb && device.memoryMb > 0 ? { memoryMb: Math.floor(device.memoryMb) } : {}) },
+    { plugins: HEAVY_PLUGINS, notBuilt: NOT_BUILT },
+  )
 }
 
 /** The device as the browser tells it - best effort: absent values stay out of the answer rather than being invented. */

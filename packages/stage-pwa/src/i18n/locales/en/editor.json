@@ -361,7 +361,7 @@
   },
   "tm": {
     "job": {
-      "youtube": "YouTube extraction",
+      "audioImport": "Audio from an add-on",
       "stems": "Stem separation",
       "opus": "Convert to Opus (on a device)"
     },
@@ -378,8 +378,6 @@
     "uploading": "Uploading track {{n}} of {{total}}…",
     "converting": "Converting “{{name}}” to Opus… {{pct}} %",
     "noEncoder": "This device cannot convert the file to Opus (browser too old). Please upload it on another device.",
-    "youtubeLink": "Please paste a youtube.com or youtu.be link.",
-    "youtubeRef": "YouTube reference",
     "removeAsk": "Remove “{{name}}”?",
     "tracks": "Tracks",
     "none": "No tracks",
@@ -394,29 +392,12 @@
     "chooseFiles": "Choose files",
     "chooseFile": "Choose file",
     "multi": "Several files at once - all the same length from 0:00. Name and role come from the file name.",
-    "orYoutube": "Or a reference from YouTube",
-    "searchYoutube": "Search YouTube",
-    "titleBand": "Title and band",
-    "nothing": "Nothing found.",
-    "link": "YouTube link",
-    "linkPlaceholder": "or paste a link: https://youtu.be/…",
-    "load": "Load",
     "kindLabel": "Kind",
     "kind": {
       "reference": "Reference",
       "bandMix": "Band playback",
       "stem": "Stem"
-    },
-    "searching": "Searching…",
-    "search": "Search",
-    "youtubeNowhere": "YouTube needs one of two here: the host has no yt-dlp, and the YouTube helper is not installed on this device.",
-    "youtubeNoHost": "The host cannot do YouTube right now (yt-dlp missing). Set “Automatic” or “This device” under “Advanced”.",
-    "youtubeNoHelper": "The YouTube helper is not installed on this device. Install it, or set “Automatic” or “Host” under “Advanced”.",
-    "whereLabel": "Load YouTube via",
-    "whereAuto": "Automatic",
-    "whereHost": "Host",
-    "whereDevice": "This device",
-    "advanced": "Advanced"
+    }
   },
   "sep": {
     "title": "Separate stems: {{name}}",

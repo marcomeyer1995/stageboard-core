@@ -68,11 +68,11 @@ export function previewRepositoryAddon(workspaceId: string, repository: string):
 export function installationFromManifest(manifest: AddonReleaseManifest, existing: PluginInstallation | undefined, now: number): PluginInstallation {
   // Only what a release has, not a band's installation.
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { files, clientFile, serverFile, changes, minStageBoard, ...fields } = manifest
+  const { files, clientFile, jobsFile, changes, minStageBoard, ...fields } = manifest
   return {
     ...fields,
     ...(clientFile ? { clientSource: `/addons/${manifest.id}/${manifest.version}/${clientFile}` } : {}),
-    ...(serverFile ? { source: `/addons/${manifest.id}/${manifest.version}/${serverFile}` } : {}),
+    ...(jobsFile ? { source: `/addons/${manifest.id}/${manifest.version}/${jobsFile}` } : {}),
     enabled: existing?.enabled ?? true,
     installedAt: existing?.installedAt ?? now,
     ...(existing?.settings !== undefined ? { settings: existing.settings } : {}),
