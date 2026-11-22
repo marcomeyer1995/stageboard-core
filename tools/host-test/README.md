@@ -20,3 +20,18 @@ STAGEBOARD_DEV_APP=de.stageboard.app.dev.test node tools/cdp/cdp.mjs eval <Devic
 
 (The app's join screen also has "This device as a host" for a person without CDP.) Audio, clock sync and a real second
 phone stay "needs device verification".
+
+
+## session.mjs - one band's whole life against one host, measured
+
+```
+NODE_TLS_REJECT_UNAUTHORIZED=0 node tools/host-test/session.mjs --host https://<host>:<port> --label laptop --json out.json
+```
+
+The same script for a laptop host and a tablet host, so the two can be compared (#964, 2026-11-21): three clients with real PouchDBs (two tablets, a laptop
+browser) found a band, write 200 songs and 8 setlists, sync live (how long a change takes to arrive, p50/p95), edit one song at once (a conflict, nothing
+lost), move a 3 MB track up and down, use add-ons the way the app installs them (a `plugins:` document), push show state to a listener, and delete the band.
+PASS/FAIL/SKIP per check, every timing printed. It never types a PIN. For a **laptop** host to run the band's jobs and add-ons the band must be the one it
+serves, which needs an admin PIN a script never types: found the band with `--found-only creds.json`, restart the host with
+`STAGEBOARD_WORKSPACE=<band id>`, then run with `--band <id> --creds creds.json`. A tablet host needs none of that. One laptop plays all three clients, so
+their CPU is the laptop's - the numbers compare the **hosts**, not the clients.
