@@ -236,5 +236,6 @@
     "retryLater": " Bitte später erneut versuchen."
   },
   "connectPinTitle": "Admin-PIN für den Host wählen",
-  "connectPinSkipped": "Ohne PIN ist dein Admin-Konto auf dem Host noch offen: Wer den Band-Code kennt, könnte sich als Admin anmelden. Setze die PIN bald unter „Band“ → ⋯ → „Meinen PIN setzen“."
+  "connectPinSkipped": "Ohne PIN ist dein Admin-Konto auf dem Host noch offen: Wer den Band-Code kennt, könnte sich als Admin anmelden. Setze die PIN bald unter „Band“ → ⋯ → „Meinen PIN setzen“.",
+  "connectUnreachable": "Unter dieser Adresse antwortet kein Host. Adresse und WLAN prüfen, dann noch einmal versuchen."
 }

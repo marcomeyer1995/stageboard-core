@@ -11,6 +11,9 @@ vi.mock('pouchdb-browser', () => ({
   },
 }))
 
+const trustHostFor = vi.hoisted(() => vi.fn<(address: string, confirm: unknown) => Promise<'trusted' | 'declined' | 'unreachable'>>(async () => 'trusted'))
+vi.mock('../lib/native', async (importOriginal) => ({ ...(await importOriginal<typeof import('../lib/native')>()), trustHostFor }))
+
 const { useActiveProfileStore } = await import('../store/useActiveProfileStore')
 const { useDialogStore } = await import('../store/useDialogStore')
 const { usePresenceStore } = await import('../store/usePresenceStore')
@@ -39,6 +42,7 @@ afterEach(() => {
 })
 
 beforeEach(() => {
+  trustHostFor.mockReset().mockResolvedValue('trusted')
   vi.stubEnv('VITE_HOST_URL', '')
   useWorkspaceStore.setState({
     // username set: these tests exercise an already-server-connected band by default (the
@@ -742,6 +746,41 @@ describe('BandManagementView', () => {
 
       expect(screen.getByText(/läuft bisher nur lokal/)).toBeInTheDocument()
       expect(screen.getByText('Verbinden')).toBeInTheDocument()
+    })
+
+    describe('the native app trusts the host before the band is connected (#964)', () => {
+      const run = async (trust: 'trusted' | 'declined' | 'unreachable') => {
+        trustHostFor.mockResolvedValue(trust)
+        vi.stubEnv('VITE_HOST_URL', 'https://stageboard.local')
+        useHostUrlStore.setState({ url: null })
+        const connectToHost = vi.fn().mockResolvedValue(true)
+        const alert = vi.fn().mockResolvedValue(undefined)
+        useProfilesStore.setState({ connectToHost })
+        useWorkspaceStore.setState({ setOwnPin: vi.fn().mockResolvedValue(null) })
+        useDialogStore.setState({ promptText: vi.fn().mockResolvedValue('https://host-computer:3001/'), promptFields: vi.fn().mockResolvedValue(null), alert })
+        render(<BandManagementView />)
+        fireEvent.click(screen.getByText('Verbinden'))
+        return { connectToHost, alert }
+      }
+
+      it('pins the certificate of the typed address first, then connects', async () => {
+        const { connectToHost } = await run('trusted')
+        await waitFor(() => expect(connectToHost).toHaveBeenCalledWith('https://host-computer:3001'))
+        expect(trustHostFor).toHaveBeenCalledWith('https://host-computer:3001/', expect.any(Function))
+      })
+
+      it('connects nothing when the certificate is not accepted - the host stays unpaired', async () => {
+        const { connectToHost } = await run('declined')
+        await waitFor(() => expect(trustHostFor).toHaveBeenCalled())
+        await new Promise((resolve) => setTimeout(resolve, 50))
+        expect(connectToHost).not.toHaveBeenCalled()
+      })
+
+      it('says so when no host answers at that address, and connects nothing', async () => {
+        const { connectToHost, alert } = await run('unreachable')
+        await waitFor(() => expect(alert).toHaveBeenCalled())
+        expect(connectToHost).not.toHaveBeenCalled()
+      })
     })
 
     describe('the admin PIN when a local band meets its host (#964)', () => {

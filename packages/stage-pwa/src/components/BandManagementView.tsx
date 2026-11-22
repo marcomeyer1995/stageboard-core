@@ -1,4 +1,5 @@
 import { SwitchOverview } from './SwitchOverview'
+import { trustHostFor } from '../lib/native'
 import { ShowLogSettings } from './ShowLogSettings'
 import { CommentTemplatesSettings } from './CommentTemplatesSettings'
 import { useMemo, useState } from 'react'
@@ -445,6 +446,14 @@ export function BandManagementView() {
                     defaultValue: getAutomaticHostUrl() ?? '',
                   })
                   if (!serverUrl?.trim()) return
+                  // The native app only talks to a host whose certificate it has pinned: without this the connect fails with nothing to say why (found in the
+                  // local-founding test, 2026-11-22). Ask about the certificate like the join screen does, then go on.
+                  const trust = await trustHostFor(serverUrl, (question) => confirm(question.message, { title: question.title, confirmLabel: t('connect') }))
+                  if (trust === 'declined') return
+                  if (trust === 'unreachable') {
+                    await alert(t('connectUnreachable'))
+                    return
+                  }
                   // Only a *different* address becomes a manual override (hostUrl.ts's
                   // overrideForTypedUrl) - confirming the automatic one must not pin it.
                   setHostUrl(overrideForTypedUrl(serverUrl))
