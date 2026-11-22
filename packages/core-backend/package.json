@@ -11,6 +11,7 @@
     "test": "vitest run",
     "band:delete": "tsx src/cli/deleteBand.ts",
     "admin:reset": "tsx src/cli/resetAdmin.ts",
+    "band:import-couch": "tsx src/cli/importCouch.ts",
     "tracks:convert": "tsx src/cli/convertTracks.ts"
   },
   "dependencies": {
