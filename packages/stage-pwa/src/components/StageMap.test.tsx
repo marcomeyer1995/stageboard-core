@@ -89,6 +89,15 @@ describe('StageMap (docs/31 §7)', () => {
     expect(saveEquipment).not.toHaveBeenCalled()
   })
 
+  it('a box without a name (an old document of the band) is drawn, not a blank screen (found on the Phone, 2026-11-22)', () => {
+    setUp(false)
+    const state = useStageMapStore.getState()
+    const nameless = { id: 'device:undefined', kind: 'stageboard', modelId: 'tablet', deviceId: null, ports: [] } as never
+    useStageMapStore.setState({ equipment: [...state.equipment, nameless], setups: state.setups.map((st, i) => (i === 0 ? { ...st, positions: { ...st.positions, 'device:undefined': { x: 900, y: 100 } } } : st)) })
+    expect(() => render(<StageMap />)).not.toThrow()
+    expect(screen.getAllByText('Redmi').length).toBeGreaterThan(0)
+  })
+
   it('full screen stays below dialogs - adding equipment opened hidden behind the map (2026-11-07)', () => {
     setUp(true)
     const { container } = render(<StageMap />)
