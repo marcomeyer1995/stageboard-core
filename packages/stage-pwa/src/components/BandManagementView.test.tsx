@@ -744,6 +744,45 @@ describe('BandManagementView', () => {
       expect(screen.getByText('Verbinden')).toBeInTheDocument()
     })
 
+    describe('the admin PIN when a local band meets its host (#964)', () => {
+      // The PIN typed when the band was founded locally has nowhere to go (no account yet, setOwnPin is skipped) - without this, the host holds no PIN for the
+      // admin and the first device to claim the profile with the band code chooses one and becomes admin.
+      const connectWith = async (pins: (string | null)[]) => {
+        vi.stubEnv('VITE_HOST_URL', 'https://stageboard.local')
+        useHostUrlStore.setState({ url: null })
+        const setOwnPin = vi.fn().mockResolvedValue({ username: 'u', password: 'p' })
+        const promptFields = vi.fn()
+        for (const pin of pins) promptFields.mockResolvedValueOnce(pin === null ? null : { pin })
+        const alert = vi.fn().mockResolvedValue(undefined)
+        useProfilesStore.setState({ connectToHost: vi.fn().mockResolvedValue(true) })
+        useWorkspaceStore.setState({ setOwnPin })
+        useDialogStore.setState({ promptText: vi.fn().mockResolvedValue('https://host-computer:3001/'), promptFields, alert })
+        render(<BandManagementView />)
+        fireEvent.click(screen.getByText('Verbinden'))
+        return { setOwnPin, promptFields, alert }
+      }
+
+      it('asks the admin for a PIN once connected and sets it on the host', async () => {
+        const { setOwnPin, promptFields } = await connectWith(['4711'])
+        await waitFor(() => expect(setOwnPin).toHaveBeenCalledWith('band-a', 'p1', '4711'))
+        const [, fields] = promptFields.mock.calls[0]!
+        expect(fields).toEqual([expect.objectContaining({ key: 'pin', type: 'pin' })])
+      })
+
+      it('asks again for something that is not four digits, and does not set it', async () => {
+        const { setOwnPin, alert } = await connectWith(['12', '4711'])
+        await waitFor(() => expect(setOwnPin).toHaveBeenCalledWith('band-a', 'p1', '4711'))
+        expect(alert).toHaveBeenCalledTimes(1)
+        expect(setOwnPin).toHaveBeenCalledTimes(1)
+      })
+
+      it('tells the admin what is open when the PIN is skipped - nothing is set', async () => {
+        const { setOwnPin, alert } = await connectWith([null])
+        await waitFor(() => expect(alert).toHaveBeenCalled())
+        expect(setOwnPin).not.toHaveBeenCalled()
+      })
+    })
+
     it('"Verbinden" asks for a server address, persists a different one as override, and calls connectToHost - no per-member follow-up anymore (2026-09-01 redesign)', async () => {
       vi.stubEnv('VITE_HOST_URL', 'https://stageboard.local')
       useHostUrlStore.setState({ url: null })

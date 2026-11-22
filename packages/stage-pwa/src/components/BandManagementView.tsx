@@ -448,7 +448,22 @@ export function BandManagementView() {
                   // Only a *different* address becomes a manual override (hostUrl.ts's
                   // overrideForTypedUrl) - confirming the automatic one must not pin it.
                   setHostUrl(overrideForTypedUrl(serverUrl))
-                  await connectToHost(normalizeHostUrl(serverUrl))
+                  const connected = await connectToHost(normalizeHostUrl(serverUrl))
+                  // The PIN typed when this band was founded locally went nowhere (no account to set it on). The host now has the admin's login but no PIN:
+                  // until one is set, whoever claims the profile with the band code chooses it and becomes admin. So ask for it now (#964).
+                  const ownProfileId = activeWorkspace?.ownProfileId
+                  if (connected && ownProfileId) {
+                    let pin: string | undefined
+                    for (;;) {
+                      const result = await promptFields(t('connectPinTitle'), [{ key: 'pin', label: t('newPin'), type: 'pin' }])
+                      pin = result?.pin?.trim()
+                      if (!pin) break
+                      if (/^\d{4}$/.test(pin)) break
+                      await alert(t('pinDigits'))
+                    }
+                    if (pin) await setOwnPin(activeWorkspaceId, ownProfileId, pin)
+                    else await alert(t('connectPinSkipped'))
+                  }
                 }}>
                 {t('connect')}
               </Button>
