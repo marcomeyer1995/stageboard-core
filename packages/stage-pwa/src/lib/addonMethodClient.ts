@@ -1,6 +1,7 @@
 import type { AddonError } from 'shared-types'
-import { HOST_UNREACHABLE_MESSAGE, NO_HOST_MESSAGE } from './hostUrl'
-import { resolveHostFor } from './jobHost'
+import { getHostUrl, HOST_UNREACHABLE_MESSAGE, NO_HOST_MESSAGE } from './hostUrl'
+import { resolveExecutorFor } from './jobHost'
+import { loadOf, selfFor } from './executorSelf'
 import { bandParam } from './lookupClient'
 import { localAddonMethods } from './addonWork'
 
@@ -12,12 +13,14 @@ export type AddonMethodResult = { ok: true; body: unknown } | { ok: false; error
  */
 export async function callAddonMethod(addonId: string, method: string, body: unknown): Promise<AddonMethodResult> {
   const path = `/addons/${encodeURIComponent(addonId)}/methods/${encodeURIComponent(method)}`
-  const resolved = await resolveHostFor('POST', path)
-  if (resolved.base === null) {
-    // No host of the band can: this device answers itself when it has what the add-on needs (docs/36 §2) - otherwise the host's reason stands.
-    if (await localAddonMethods.canRun(addonId)) return localAddonMethods.call(addonId, method, body)
-    return { ok: false, error: { code: 'host.none', message: resolved.message === 'no-host' ? NO_HOST_MESSAGE : resolved.message } }
+  // First this device itself, when it has what the add-on needs; a heavy method only when no host is clearly stronger. Then the host it is on, then another one.
+  const executor = await resolveExecutorFor(addonId, loadOf(addonId, method), await selfFor(addonId))
+  if (executor.where === 'self') return localAddonMethods.call(addonId, method, body)
+  if (executor.where === 'none') {
+    const message = !getHostUrl() ? NO_HOST_MESSAGE : [executor.needs ? `Missing: ${executor.needs}.` : '', executor.note ?? ''].filter(Boolean).join(' ') || `No host of this band can run "${addonId}".`
+    return { ok: false, error: { code: 'host.none', message } }
   }
+  const resolved = { base: executor.url }
   try {
     const response = await fetch(`${resolved.base}${path}?${bandParam().slice(1)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body ?? {}) })
     const answer = (await response.json().catch(() => null)) as { ok?: boolean; body?: unknown; error?: AddonError; message?: string } | null

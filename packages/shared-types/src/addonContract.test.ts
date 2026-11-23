@@ -187,3 +187,11 @@ describe('parseContributes (#964, docs/36 §3)', () => {
     for (const bad of [[], 'ui', 42]) expect(() => parseContributes(bad), String(bad)).toThrow()
   })
 })
+
+describe('a method may be marked heavy (#964)', () => {
+  it('keeps `load`, and refuses anything but light or heavy', () => {
+    const decl = (load: string) => ({ methods: { separate: { in: {}, out: {}, load } } })
+    expect(parseContributes(decl('heavy')).contributes.methods.separate?.load).toBe('heavy')
+    expect(() => parseContributes(decl('medium'))).toThrow()
+  })
+})
