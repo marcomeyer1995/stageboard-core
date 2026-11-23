@@ -131,5 +131,11 @@
     "syncing": "Synchronising…",
     "offline": "Offline",
     "error": "Error"
+  },
+  "viewError": {
+    "title": "This view crashed",
+    "hint": "The rest of the app keeps running. Use the menu to switch to another view.",
+    "retry": "Try again",
+    "detail": "Error: {{message}}"
   }
 }

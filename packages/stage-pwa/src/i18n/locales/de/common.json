@@ -131,5 +131,11 @@
     "syncing": "Synchronisiere…",
     "offline": "Offline",
     "error": "Fehler"
+  },
+  "viewError": {
+    "title": "Diese Ansicht ist abgestürzt",
+    "hint": "Der Rest der App läuft weiter. Über das Menü kannst du in eine andere Ansicht wechseln.",
+    "retry": "Erneut versuchen",
+    "detail": "Fehler: {{message}}"
   }
 }
