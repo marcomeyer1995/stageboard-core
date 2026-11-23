@@ -1,4 +1,5 @@
 import { SwitchOverview } from './SwitchOverview'
+import { trustHostFor } from '../lib/native'
 import { ShowLogSettings } from './ShowLogSettings'
 import { CommentTemplatesSettings } from './CommentTemplatesSettings'
 import { useMemo, useState } from 'react'
@@ -445,10 +446,33 @@ export function BandManagementView() {
                     defaultValue: getAutomaticHostUrl() ?? '',
                   })
                   if (!serverUrl?.trim()) return
+                  // The native app only talks to a host whose certificate it has pinned: without this the connect fails with nothing to say why (found in the
+                  // local-founding test, 2026-11-22). Ask about the certificate like the join screen does, then go on.
+                  const trust = await trustHostFor(serverUrl, (question) => confirm(question.message, { title: question.title, confirmLabel: t('connect') }))
+                  if (trust === 'declined') return
+                  if (trust === 'unreachable') {
+                    await alert(t('connectUnreachable'))
+                    return
+                  }
                   // Only a *different* address becomes a manual override (hostUrl.ts's
                   // overrideForTypedUrl) - confirming the automatic one must not pin it.
                   setHostUrl(overrideForTypedUrl(serverUrl))
-                  await connectToHost(normalizeHostUrl(serverUrl))
+                  const connected = await connectToHost(normalizeHostUrl(serverUrl))
+                  // The PIN typed when this band was founded locally went nowhere (no account to set it on). The host now has the admin's login but no PIN:
+                  // until one is set, whoever claims the profile with the band code chooses it and becomes admin. So ask for it now (#964).
+                  const ownProfileId = activeWorkspace?.ownProfileId
+                  if (connected && ownProfileId) {
+                    let pin: string | undefined
+                    for (;;) {
+                      const result = await promptFields(t('connectPinTitle'), [{ key: 'pin', label: t('newPin'), type: 'pin' }])
+                      pin = result?.pin?.trim()
+                      if (!pin) break
+                      if (/^\d{4}$/.test(pin)) break
+                      await alert(t('pinDigits'))
+                    }
+                    if (pin) await setOwnPin(activeWorkspaceId, ownProfileId, pin)
+                    else await alert(t('connectPinSkipped'))
+                  }
                 }}>
                 {t('connect')}
               </Button>
