@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PluginInstallation, TrackMeta } from 'shared-types'
+import { useHostUrlStore } from '../store/useHostUrlStore'
 
 const db = vi.hoisted(() => ({ putAsyncJob: vi.fn(async () => {}), removeAsyncJob: vi.fn(async () => {}) }))
 vi.mock('../lib/asyncJobsDb', () => db)
@@ -9,7 +10,12 @@ vi.mock('../lib/songVariantsDb', () => variants)
 const addonMethods = vi.hoisted(() => ({ callAddonMethod: vi.fn() }))
 // Which host (if any) can run the add-on's methods, and what this device could do itself (docs/36 §2).
 const hostFor = vi.hoisted(() => ({ value: { base: 'https://host' } as { base: string } | { base: null; message: string } }))
-vi.mock('../lib/jobHost', () => ({ resolveHostFor: async () => hostFor.value }))
+// The same order as the real choice (executorChoice.ts): this device first when it can, else the host there is, else what is missing.
+vi.mock('../lib/jobHost', () => ({
+  resolveHostFor: async () => hostFor.value,
+  resolveExecutorFor: async (_addon: string, _load: string, self: { canRun: boolean }) =>
+    self.canRun ? { where: 'self' } : hostFor.value.base !== null ? { where: 'host', url: hostFor.value.base } : { where: 'none', needs: null, note: hostFor.value.message },
+}))
 const local = vi.hoisted(() => ({ canRun: vi.fn(async () => false), call: vi.fn() }))
 vi.mock('../lib/addonWork', () => ({ localAddonMethods: local }))
 vi.mock('../lib/addonMethodClient', () => addonMethods)
@@ -204,9 +210,25 @@ describe('TrackManagerField - YouTube search in "Track hinzufügen" (#618)', () 
     await waitFor(() => expect(db.putAsyncJob).toHaveBeenCalledWith(expect.objectContaining({ status: 'error', error: 'YouTube bietet zu diesem Video keine ladbare Audiospur an.' })))
   })
 
+  it('this device first: with the add-on\'s helper here it runs the job itself even though a host could do it (#964)', async () => {
+    usePluginsStore.setState({ installed: [ytPlugin] })
+    hostFor.value = { base: 'https://host' }
+    local.canRun.mockResolvedValue(true)
+    local.call.mockResolvedValue({ ok: true, body: { audio: 'x' } })
+    render(<TrackManagerField variantId="v1" tracks={[]} disabled={false} searchQuery="https://youtu.be/dQw4w9WgXcQ" />)
+    fireEvent.click(screen.getByRole('button', { name: /Track hinzufügen/ }))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'YouTube' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Suchen' }))
+    await waitFor(() => expect(local.call).toHaveBeenCalledWith('youtube-download', 'fetchAudio', { url: 'https://youtu.be/dQw4w9WgXcQ' }, expect.anything()))
+    expect(db.putAsyncJob).toHaveBeenCalledWith(expect.objectContaining({ type: 'audio-import', runner: expect.stringMatching(/^device:/) }))
+    expect(db.putAsyncJob).not.toHaveBeenCalledWith(expect.objectContaining({ status: 'queued' }))
+  })
+
   it('with no host and no helper on this device the person is told what is missing - no job is created', async () => {
     usePluginsStore.setState({ installed: [ytPlugin] })
     hostFor.value = { base: null, message: 'Missing: yt-dlp.' }
+    // A host is set (as on a developer machine's .env): the message is about what it lacks, not "no host" - without it CI, with no .env, said the other thing.
+    useHostUrlStore.setState({ url: 'https://host' })
     render(<TrackManagerField variantId="v1" tracks={[]} disabled={false} searchQuery="https://youtu.be/dQw4w9WgXcQ" />)
     fireEvent.click(screen.getByRole('button', { name: /Track hinzufügen/ }))
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'YouTube' }))

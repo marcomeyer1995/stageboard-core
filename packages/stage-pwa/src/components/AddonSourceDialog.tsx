@@ -8,8 +8,9 @@ import { putAsyncJob } from '../lib/asyncJobsDb'
 import { randomId } from '../lib/id'
 import { newDeviceAudioImportJob, runAudioImportOnDevice } from '../lib/addonWork/audioImportDevice'
 import { getDeviceId } from '../lib/deviceId'
-import { NO_HOST_MESSAGE } from '../lib/hostUrl'
-import { resolveHostFor } from '../lib/jobHost'
+import { getHostUrl, NO_HOST_MESSAGE } from '../lib/hostUrl'
+import { resolveExecutorFor } from '../lib/jobHost'
+import { loadOf, selfFor } from '../lib/executorSelf'
 import i18n from '../i18n'
 import { useAsyncJobsStore } from '../store/useAsyncJobsStore'
 import { putTrack } from '../lib/songVariantsDb'
@@ -50,13 +51,18 @@ export function AddonSourceDialog({ addon, variantId, query, onLeave, createWork
       const name = Object.prototype.hasOwnProperty.call(addon.contributes.methods, 'fetchAudio') ? 'fetchAudio' : null
       if (!name) return { ok: false, error: { code: 'request.invalid', message: 'This add-on fetches no audio' } }
       const input = { variantId, addonId: addon.id, method: name, args, label: label.trim() || addon.name }
-      const host = await resolveHostFor('POST', `/addons/${encodeURIComponent(addon.id)}/methods/${name}`)
-      if (host.base === null && (await localAddonMethods.canRun(addon.id))) {
+      // First this device itself when it can (the add-on's helper is here); else the job is written for a host that can - the one this device is on, or another
+      // the band lists - which takes it (sync-host's queue, #964).
+      const executor = await resolveExecutorFor(addon.id, loadOf(addon.id, name), await selfFor(addon.id))
+      if (executor.where === 'self') {
         const job = newDeviceAudioImportJob(input, getDeviceId())
         void runAudioImportOnDevice(job, { call: (a, m, a2, onProgress) => localAddonMethods.call(a, m, a2, onProgress ? { onProgress } : {}), putJob: putAsyncJob, putTrack })
         return { ok: true, body: { jobId: job.id } }
       }
-      if (host.base === null) return { ok: false, error: { code: 'host.none', message: host.message === 'no-host' ? NO_HOST_MESSAGE : host.message } }
+      if (executor.where === 'none') {
+        const message = !getHostUrl() ? NO_HOST_MESSAGE : [executor.needs ? `Missing: ${executor.needs}.` : '', executor.note ?? ''].filter(Boolean).join(' ') || `No host of this band can run "${addon.id}".`
+        return { ok: false, error: { code: 'host.none', message } }
+      }
       const now = Date.now()
       const job: AsyncJob = { id: randomId(), type: 'audio-import', status: 'queued', progress: 0, createdAt: now, updatedAt: now, ...input }
       await putAsyncJob(job)
