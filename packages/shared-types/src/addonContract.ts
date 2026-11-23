@@ -169,8 +169,10 @@ export type DeviceContribution = z.infer<typeof DeviceContributionSchema>
 export const ContributesSchema = z.object({
   // `callableByDevices`: the band's devices may call it over the host's HTTP route (a search the UI asks for); absent = only the host's own code does (a job, a cue,
   // a clip) - a method that sends a packet or runs a program must never be reachable by anyone on the network.
+  // `load: 'heavy'`: the method is compute-bound (stem separation) - a device that could do it itself hands it to a clearly stronger host instead (stage-pwa executorChoice.ts, #964);
+  // absent = light, the device does it itself when it can.
   // `timeoutMs`: how long the method may take (a download takes minutes, a look-up seconds); absent = the boundary's default. `progress: true`: it reports 0-1 as it goes.
-  methods: z.record(z.string(), z.object({ in: JsonSchema, out: JsonSchema, timeoutMs: z.number().int().min(1000).max(30 * 60_000).optional(), progress: z.boolean().optional(), callableByDevices: z.boolean().optional() })).default({}),
+  methods: z.record(z.string(), z.object({ in: JsonSchema, out: JsonSchema, timeoutMs: z.number().int().min(1000).max(30 * 60_000).optional(), progress: z.boolean().optional(), callableByDevices: z.boolean().optional(), load: z.enum(['light', 'heavy']).optional() })).default({}),
   jobs: z
     .record(z.string(), z.object({ input: JsonSchema, needs: z.object({ helper: z.string().min(1).optional() }).optional() }))
     .default({}),

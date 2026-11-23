@@ -5,7 +5,7 @@ let listed: { url: string }[] = [{ url: 'https://tablet' }, { url: 'https://lapt
 vi.mock('./hostUrl', () => ({ getHostUrl: () => current }))
 vi.mock('../store/useBandSettingsStore', () => ({ useBandSettingsStore: { getState: () => ({ settings: { hosts: listed } }) } }))
 
-import { forgetHostCapabilities, resolveHostFor } from './jobHost'
+import { forgetHostCapabilities, resolveExecutorFor, resolveHostFor } from './jobHost'
 
 const caps = (speech: boolean) => ({ kind: speech ? 'desktop' : 'android', platform: 'x', arch: 'x', database: 'builtin', plugins: [], jobs: [{ id: 'speech', available: speech, needs: speech ? null : 'an Android version (not built yet)', ...(speech ? {} : { note: 'Slow on a tablet.' }) }] })
 
@@ -50,5 +50,28 @@ describe('resolveHostFor (#962)', () => {
   it('is "no host" without a host address', async () => {
     current = undefined
     expect(await resolveHostFor('GET', '/speech')).toEqual({ base: null, message: 'no-host' })
+  })
+})
+
+describe('resolveExecutorFor: this device first, then a host (#964)', () => {
+  const yt = (can: boolean, kind: 'desktop' | 'android' = 'desktop') => ({ kind, platform: 'x', arch: 'x', database: 'builtin', cpuCores: 8, jobs: [], plugins: [{ id: 'youtube-download', available: can, needs: can ? null : 'yt-dlp' }] })
+
+  it('does a light job itself when it can - without asking any host', async () => {
+    hosts({ 'https://tablet': yt(true), 'https://laptop': yt(true) })
+    expect(await resolveExecutorFor('youtube-download', 'light', { canRun: true, power: 8 })).toEqual({ where: 'self' })
+    expect(fetch).not.toHaveBeenCalled()
+  })
+
+  it('hands a heavy job to a clearly stronger host', async () => {
+    hosts({ 'https://tablet': yt(false, 'android'), 'https://laptop': yt(true, 'desktop') })
+    expect(await resolveExecutorFor('youtube-download', 'heavy', { canRun: true, power: 8 })).toEqual({ where: 'host', url: 'https://laptop' })
+  })
+
+  it('a device that cannot goes to the host it is on when that can, else the listed one', async () => {
+    hosts({ 'https://tablet': yt(true, 'android'), 'https://laptop': yt(true) })
+    expect(await resolveExecutorFor('youtube-download', 'light', { canRun: false, power: 8 })).toEqual({ where: 'host', url: 'https://tablet' })
+    forgetHostCapabilities()
+    hosts({ 'https://tablet': yt(false, 'android'), 'https://laptop': yt(true) })
+    expect(await resolveExecutorFor('youtube-download', 'light', { canRun: false, power: 8 })).toEqual({ where: 'host', url: 'https://laptop' })
   })
 })

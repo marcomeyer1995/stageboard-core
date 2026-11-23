@@ -40,7 +40,8 @@
           "properties": {}
         },
         "timeoutMs": 1500000,
-        "progress": true
+        "progress": true,
+        "load": "heavy"
       }
     },
     "ui": [

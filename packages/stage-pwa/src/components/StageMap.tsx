@@ -222,7 +222,7 @@ export function StageMap() {
   }
   // A device box nobody named shows its device's name ("Fire Dev", not "Tablet / Handy", #815).
   const deviceName = (e: StageEquipment) => (e.kind === 'stageboard' && e.deviceId && hasModelName(e) ? devices.find((d) => d.id === e.deviceId)?.name : undefined)
-  const title = (e: StageEquipment) => (e.listener?.kind === 'signed-in' ? (personName(presence.devices[e.listener.deviceId]?.profileId) ?? t('map.nobodyShort')) : (deviceName(e) ?? e.name))
+  const title = (e: StageEquipment) => (e.listener?.kind === 'signed-in' ? (personName(presence.devices[e.listener.deviceId]?.profileId) ?? t('map.nobodyShort')) : (deviceName(e) ?? e.name ?? ''))
 
   // The band's virtual ports: Klick, Track, Ansagen and every other Logical Device.
   const virtualPorts: VirtualPort[] = useMemo(
@@ -563,7 +563,7 @@ export function StageMap() {
   const sameDevice = async (item: StageEquipment) => {
     const others = equipment.filter((e) => e.id !== item.id && (e.kind === 'stageboard' || e.kind === 'host-computer'))
     if (others.length === 0) return
-    const options = others.map((e) => ({ value: e.id, label: e.name }))
+    const options = others.map((e) => ({ value: e.id, label: e.name ?? e.id }))
     const answer = await promptFields(t('map.sameTitle', { name: item.name }), [{ key: 'other', label: t('map.sameLabel'), type: 'radio', options, defaultValue: options[0]!.value }], t('map.join'))
     const other = others.find((e) => e.id === answer?.other)
     if (!other) return
@@ -1066,7 +1066,7 @@ export function StageMap() {
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-base text-ink-muted">{t('map.offStageList')}</span>
                 {offStage.map((e) => (
-                  <AddRow key={e.id} inline label={e.name} onClick={() => placeOnStage(e)} />
+                  <AddRow key={e.id} inline label={e.name ?? e.id} onClick={() => placeOnStage(e)} />
                 ))}
               </div>
             )}
