@@ -1,4 +1,12 @@
 import { registerPlugin, type PluginListenerHandle } from '@capacitor/core'
+import { createTabletJobRunner } from './tabletJobRunner'
+import { useAsyncJobsStore } from '../store/useAsyncJobsStore'
+import { getAllAsyncJobs, putAsyncJob } from '../lib/asyncJobsDb'
+import { localAddonMethods } from '../lib/addonWork'
+import { BUILTIN_ADDONS } from '../lib/addonUi/builtinAddons'
+import { runAudioImportOnDevice } from '../lib/addonWork/audioImportDevice'
+import { putTrack } from '../lib/songVariantsDb'
+import type { AsyncJob, AudioImportJob } from 'shared-types'
 import { AccessCodeSchema } from 'shared-types'
 import { BAND_SETTINGS_DOC_ID, createBandAccounts, createBandAccountStore, createBandCatalog, createHostChannels, createHostDeviceInfo, createHostPresence, listedHostIds, createBandJoin, createBandMembers, createVerifyWithPrimary, joinBandInvite, createPinThrottle, createReplicationAccountIssuer, leaseKey, signAccountRequest, startCatchUp, type BandAccounts, type BandBootstrapStore, type BandJoin, type BandMembers, type CatchUp, createSyncHost, createWriteGuard, type SyncDatabase, type SyncRequest } from 'sync-host'
 import { useBandSettingsStore } from '../store/useBandSettingsStore'
@@ -139,6 +147,19 @@ const hostAudio = createHostAudio({
 let running = false
 let listener: PluginListenerHandle | null = null
 let tick: ReturnType<typeof setInterval> | null = null
+let unwatchJobs: (() => void) | null = null
+let tickJobs: () => void = () => undefined
+/** The add-ons this device runs itself (their helper app is installed and trusted) - what its capabilities and its job runner go by. */
+let ownPlugins: string[] = []
+let ownPluginsAt = 0
+const OWN_PLUGINS_TTL_MS = 30_000
+async function ownPluginIds(): Promise<string[]> {
+  // The helper app is asked about, not polled: this runs on every tick and every job change.
+  if (Date.now() - ownPluginsAt < OWN_PLUGINS_TTL_MS) return ownPlugins
+  ownPluginsAt = Date.now()
+  ownPlugins = (await Promise.all(BUILTIN_ADDONS.map(async (addon) => ((await localAddonMethods.canRun(addon.id).catch(() => false)) ? addon.id : null)))).filter((id): id is string => id !== null)
+  return ownPlugins
+}
 let sample: ReturnType<typeof setInterval> | null = null
 let lastPushed = ''
 let catchUp: CatchUp | null = null
@@ -539,7 +560,7 @@ export async function startAndroidHost(): Promise<void> {
     presence,
     deviceInfo,
     channels,
-    capabilities: () => createTabletCapabilities(deviceFromBrowser()),
+    capabilities: async () => createTabletCapabilities(deviceFromBrowser(), await ownPluginIds()),
     serving,
     // The tablet serves every band it founded, and the band the lease makes it host of; a flash message needs a
     // device of it (the same login as the database).
@@ -645,7 +666,30 @@ export async function startAndroidHost(): Promise<void> {
     }
   }
 
+  // The jobs this tablet can do itself (an add-on's helper app is here) are worked by this host - first myself, then hand on (#964). Looked at whenever the band's
+  // jobs change and on every tick, so a job queued while the lease was elsewhere is picked up once this host serves the band.
+  if (hasBand) {
+    const jobRunner = createTabletJobRunner({
+      hostId,
+      jobs: () => useAsyncJobsStore.getState().jobs.filter((job) => job.type === 'audio-import'),
+      canDo: (needs) => ownPlugins.includes(needs.replace(/^plugin:/, '')),
+      serving: () => servesBand(workspaceId),
+      hasPeers: () => (hostsNow()?.length ?? 0) >= 2,
+      read: async (id) => (await getAllAsyncJobs()).find((job) => job.id === id) as AsyncJob | undefined,
+      write: async (job) => void (await putAsyncJob(job)),
+      run: (job) =>
+        runAudioImportOnDevice(job as AudioImportJob, {
+          call: (addonId, method, args, onProgress) => localAddonMethods.call(addonId, method, args, onProgress ? { onProgress } : {}),
+          putJob: async (j) => void (await putAsyncJob(j)),
+          putTrack,
+        }),
+    })
+    unwatchJobs = useAsyncJobsStore.subscribe(() => void ownPluginIds().then(() => jobRunner.tick()).catch(() => undefined))
+    tickJobs = () => void ownPluginIds().then(() => jobRunner.tick()).catch(() => undefined)
+  }
+
   tick = setInterval(() => {
+    tickJobs()
     void (async () => {
       await pinHosts()
       await machine.service.takeoverCheck()
@@ -670,6 +714,9 @@ export async function stopAndroidHost(): Promise<void> {
   unwatchBand?.()
   unwatchBand = null
   if (tick !== null) clearInterval(tick)
+  unwatchJobs?.()
+  unwatchJobs = null
+  tickJobs = () => undefined
   if (sample !== null) clearInterval(sample)
   tick = null
   sample = null
