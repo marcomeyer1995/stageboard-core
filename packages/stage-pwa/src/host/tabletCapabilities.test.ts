@@ -32,4 +32,11 @@ describe('what a tablet host can do (#962)', () => {
     expect(caps).not.toHaveProperty('cpuCores')
     expect(caps).not.toHaveProperty('memoryMb')
   })
+
+  it('says a plug-in is available when this device can run it itself (its helper app is here) - and only that one (#964)', () => {
+    const caps = createTabletCapabilities({ platform: 'android' }, ['youtube-download'])
+    expect(caps.plugins.find((plugin) => plugin.id === 'youtube-download')).toMatchObject({ available: true })
+    expect(caps.plugins.find((plugin) => plugin.id === 'stem-separation')).toMatchObject({ available: false })
+    expect(HostCapabilitiesSchema.parse(caps)).toEqual(caps)
+  })
 })
