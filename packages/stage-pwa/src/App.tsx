@@ -1,4 +1,5 @@
 import i18n from './i18n'
+import { ViewErrorBoundary } from './components/ViewErrorBoundary'
 import { CRAMPED_TYPING_PX, useSettledTouchKeyboardOpen } from './lib/useTouchKeyboardOpen'
 import { useSettledVisualViewport } from './lib/useVisualViewport'
 import { useTranslation } from 'react-i18next'
@@ -354,17 +355,26 @@ function App() {
         {needsProfile && <ProfileRolePickerView />}
         {!inOnboarding && (
           <>
-            {mode === 'boards' && <Dashboard />}
+            {/* One failing screen must not take the whole app down (a black screen on stage): each is guarded and starts fresh when another is opened. */}
+            {mode === 'boards' && (
+              <ViewErrorBoundary resetKey="boards">
+                <Dashboard />
+              </ViewErrorBoundary>
+            )}
             {/* Set-up screens: the Vorbereitung size tier (docs/15 D10) - 40 px controls, 14 px secondary lines. */}
             {mode === 'library' && (
-              <PrepTier>
-                <LibraryView />
-              </PrepTier>
+              <ViewErrorBoundary resetKey="library">
+                <PrepTier>
+                  <LibraryView />
+                </PrepTier>
+              </ViewErrorBoundary>
             )}
             {mode === 'system' && (
-              <PrepTier>
-                <SystemView />
-              </PrepTier>
+              <ViewErrorBoundary resetKey="system">
+                <PrepTier>
+                  <SystemView />
+                </PrepTier>
+              </ViewErrorBoundary>
             )}
           </>
         )}
