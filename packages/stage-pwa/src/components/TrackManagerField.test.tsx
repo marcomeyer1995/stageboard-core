@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PluginInstallation, TrackMeta } from 'shared-types'
+import { useHostUrlStore } from '../store/useHostUrlStore'
 
 const db = vi.hoisted(() => ({ putAsyncJob: vi.fn(async () => {}), removeAsyncJob: vi.fn(async () => {}) }))
 vi.mock('../lib/asyncJobsDb', () => db)
@@ -226,6 +227,8 @@ describe('TrackManagerField - YouTube search in "Track hinzufügen" (#618)', () 
   it('with no host and no helper on this device the person is told what is missing - no job is created', async () => {
     usePluginsStore.setState({ installed: [ytPlugin] })
     hostFor.value = { base: null, message: 'Missing: yt-dlp.' }
+    // A host is set (as on a developer machine's .env): the message is about what it lacks, not "no host" - without it CI, with no .env, said the other thing.
+    useHostUrlStore.setState({ url: 'https://host' })
     render(<TrackManagerField variantId="v1" tracks={[]} disabled={false} searchQuery="https://youtu.be/dQw4w9WgXcQ" />)
     fireEvent.click(screen.getByRole('button', { name: /Track hinzufügen/ }))
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'YouTube' }))
