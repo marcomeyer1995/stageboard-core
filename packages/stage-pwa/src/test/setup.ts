@@ -1,5 +1,5 @@
 import { afterEach } from 'vitest'
-import { cleanup } from '@testing-library/react'
+import { cleanup, configure } from '@testing-library/react'
 import { clearLastKnownHost } from '../lib/hostUrlStatusCache'
 import '@testing-library/jest-dom/vitest'
 import i18n from '../i18n'
@@ -17,3 +17,6 @@ afterEach(() => {
 
 // The app's texts (#456): German in every test, whatever language the test environment reports.
 void i18n.changeLanguage('de')
+
+// `findBy*` / `waitFor` wait 1 s by default - too short for a cold CI run of the whole suite (a first dynamic import alone can take that long); a test that passes alone failed there.
+configure({ asyncUtilTimeout: 5000 })
