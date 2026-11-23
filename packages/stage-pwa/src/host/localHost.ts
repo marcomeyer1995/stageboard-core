@@ -151,7 +151,12 @@ let unwatchJobs: (() => void) | null = null
 let tickJobs: () => void = () => undefined
 /** The add-ons this device runs itself (their helper app is installed and trusted) - what its capabilities and its job runner go by. */
 let ownPlugins: string[] = []
+let ownPluginsAt = 0
+const OWN_PLUGINS_TTL_MS = 30_000
 async function ownPluginIds(): Promise<string[]> {
+  // The helper app is asked about, not polled: this runs on every tick and every job change.
+  if (Date.now() - ownPluginsAt < OWN_PLUGINS_TTL_MS) return ownPlugins
+  ownPluginsAt = Date.now()
   ownPlugins = (await Promise.all(BUILTIN_ADDONS.map(async (addon) => ((await localAddonMethods.canRun(addon.id).catch(() => false)) ? addon.id : null)))).filter((id): id is string => id !== null)
   return ownPlugins
 }
@@ -668,7 +673,7 @@ export async function startAndroidHost(): Promise<void> {
       hostId,
       jobs: () => useAsyncJobsStore.getState().jobs.filter((job) => job.type === 'audio-import'),
       canDo: (needs) => ownPlugins.includes(needs.replace(/^plugin:/, '')),
-      serving: () => servedBands.includes(workspaceId) && machine.state().active,
+      serving: () => servesBand(workspaceId),
       hasPeers: () => (hostsNow()?.length ?? 0) >= 2,
       read: async (id) => (await getAllAsyncJobs()).find((job) => job.id === id) as AsyncJob | undefined,
       write: async (job) => void (await putAsyncJob(job)),
