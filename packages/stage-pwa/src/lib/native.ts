@@ -140,6 +140,28 @@ export async function hostFingerprint(host: string): Promise<string> {
   return (await HostTrust.fingerprintOf({ host })).fingerprint
 }
 
+/**
+ * Makes sure the native app trusts the certificate a host presents before a call to it - the shell refuses every host it has not pinned (an untrusted
+ * certificate shows only as a failed request). A host whose pinned certificate is the one it presents is not asked about again; a new one, or one that
+ * presents another certificate than the pinned, is put to the person (`confirm` gets the question) and pinned when they agree. In a browser there is
+ * nothing to pin. The address may carry a scheme and a path.
+ */
+export async function trustHostFor(address: string, confirm: (question: { title: string; message: string }) => Promise<boolean>): Promise<'trusted' | 'declined' | 'unreachable'> {
+  if (!isNativeApp()) return 'trusted'
+  const host = address.trim().replace(/^https?:\/\//, '').replace(/\/.*$/, '')
+  let fingerprint: string
+  try {
+    fingerprint = (await hostFingerprint(host)).toLowerCase()
+  } catch {
+    return 'unreachable'
+  }
+  const pinned = (await HostTrust.pinned({ host }).catch(() => ({ fingerprint: null }))).fingerprint
+  if (pinned && pinned.toLowerCase() === fingerprint) return 'trusted'
+  if (!(await confirm(pairingConfirmation(host, host, fingerprint)))) return 'declined'
+  await HostTrust.pin({ host, fingerprint })
+  return 'trusted'
+}
+
 /** This app build's number (scripts/build-android-app.sh) - 0 for a dev/debug build. */
 export const APP_VERSION_CODE = Number(import.meta.env.VITE_APP_VERSION_CODE ?? 0)
 
