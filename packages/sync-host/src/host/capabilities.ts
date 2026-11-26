@@ -45,6 +45,10 @@ const CURRENT_JOB_ROUTES: readonly JobRoute[] = [
   { method: 'POST', pattern: '/workspaces/:workspaceId/activate-hardware', job: 'hardware' },
   { method: 'GET', pattern: '/osc-in/info', job: 'osc-in' },
   { method: 'GET', pattern: '/host/look-up', job: 'host-lookup' },
+  // The Android app this host hands out (#348): the download page, the build number the installed app compares against, the APK.
+  { method: 'GET', pattern: '/app', job: 'app-distribution' },
+  { method: 'GET', pattern: '/app/version.json', job: 'app-distribution' },
+  { method: 'GET', pattern: '/app/stageboard.apk', job: 'app-distribution' },
 ]
 
 /** The table, with the old `/server/...` path of each route as well (#964) - what a host must recognise to answer "capability_missing" for either. */
