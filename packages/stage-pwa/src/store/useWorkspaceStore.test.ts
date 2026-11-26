@@ -1083,7 +1083,7 @@ describe('joinAsMember', () => {
     const workspace = await useWorkspaceStore.getState().joinAsMember('band-c', 'Band C', '11112222', 'p1', 'wrong')
 
     expect(workspace).toBeNull()
-    expect(alertMock).toHaveBeenCalledWith(expect.stringContaining('Falscher Code oder falsches Passwort'))
+    expect(alertMock).toHaveBeenCalledWith(expect.stringContaining('Falscher Code oder falscher PIN'))
   })
 
   it('alerts with "Unbekanntes Mitglied" and returns null for a 404', async () => {
