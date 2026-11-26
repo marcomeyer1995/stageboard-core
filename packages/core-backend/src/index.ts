@@ -50,7 +50,7 @@ import { isSafePluginId, readPluginBundle } from './plugins/pluginBundleStore.js
 import { allDocs, getDoc, type DatabaseConfig, type DatabaseDoc } from './database.js'
 import * as deviceInfoStore from './deviceInfoStore.js'
 import { installShutdownHandlers, trackConnections } from './gracefulShutdown.js'
-import { registerAppRoutes } from './appDownload.js'
+import { appDir, registerAppRoutes } from './appDownload.js'
 import { certFingerprint } from './certFingerprint.js'
 import { startMdnsResponder } from './mdnsResponder.js'
 import { startPingLoop } from './pingLoop.js'
@@ -1022,7 +1022,7 @@ export async function buildApp(options: { backupService?: BackupService; databas
   // in-memory React state, so `@fastify/static`'s default file-or-404 behavior is already
   // exactly right - `/` is the only path anything ever actually requests.
   // The native Android app (#348), built by scripts/build-android-app.sh next to the host's data.
-  registerAppRoutes(app, process.env.STAGEBOARD_APP_DIR ?? join(process.env.STAGEBOARD_STATE_DIR ?? './data', 'app'))
+  registerAppRoutes(app, appDir())
 
   const pwaDist = fileURLToPath(new URL('../../stage-pwa/dist', import.meta.url))
   if (existsSync(pwaDist)) {

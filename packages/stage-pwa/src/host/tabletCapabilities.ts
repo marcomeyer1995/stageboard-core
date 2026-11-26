@@ -20,6 +20,7 @@ const NOTES: Record<string, string> = {
   'youtube-download': 'A tablet downloads YouTube itself with the add-on\'s Android helper (a separate app the band installs once); it does not yet do it for other devices. That works today on the tablet you hold.',
   'osc-in': 'Needs a network port the app can listen on; Android allows it, it is not built yet. Until then, send OSC to a laptop host.',
   backup: 'Copying the band to a drive needs the folder access Android asks for; feasible, not built yet. Until then, back up on a laptop host.',
+  'app-distribution': 'A tablet does not hand out the app yet (it would need a signed build of its own to share). A device on a tablet host gets its update from a laptop host the band lists.',
 }
 
 const HEAVY_PLUGINS = ['stem-separation', 'piper-speech', 'ultimate-guitar-import', 'youtube-download']

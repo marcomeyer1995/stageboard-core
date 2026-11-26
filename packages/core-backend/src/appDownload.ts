@@ -9,6 +9,9 @@ export interface AppVersion {
   builtAt: string
 }
 
+/** Where this host keeps the app build: `STAGEBOARD_APP_DIR`, else `<state dir>/app`. */
+export const appDir = (): string => process.env.STAGEBOARD_APP_DIR ?? join(process.env.STAGEBOARD_STATE_DIR ?? './data', 'app')
+
 /** The app build in `dir`, or null when none has been built yet. */
 export function readAppVersion(dir: string): AppVersion | null {
   const file = join(dir, 'version.json')
