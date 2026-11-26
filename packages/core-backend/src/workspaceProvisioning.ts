@@ -1,7 +1,7 @@
-import { randomInt } from 'node:crypto'
 import type { BandAccounts } from 'sync-host'
-import { ROSTER_VALIDATOR_SOURCE } from 'sync-host'
+import { createBandDocuments, ROSTER_VALIDATOR_SOURCE } from 'sync-host'
 import {
+  bandDocumentPort,
   deleteDb,
   ensureDb,
   getDoc,
@@ -99,126 +99,44 @@ export async function provisionWorkspace(
     members: { names: [], roles: ['member', 'admin'] },
   })
   await putDoc(config, db, { _id: '_design/roster', validate_doc_update: ROSTER_VALIDATOR_SOURCE })
-  await createAccessCodeDoc(config, workspaceId, workspaceName)
+  await laptopBandDocuments(config).createAccess(workspaceId, workspaceName)
 
   return founder.accounts.provisionDevice(founderId, founder.deviceId, true)
 }
 
-const ACCESS_CODE_DOC_ID = 'workspace:access'
+/**
+ * The band's access doc (standing code, name, master mode) and the Device Ledger's documents are sync-host's rules
+ * (`createBandDocuments`, #964) - the same on the tablet host. These are the laptop's entries to them, over its database.
+ */
+export const laptopBandDocuments = (config: DatabaseConfig) => createBandDocuments({ open: (workspaceId) => bandDocumentPort(config, workspaceDbName(workspaceId)) })
 
-interface AccessCodeDoc extends DatabaseDoc {
-  code: string
-  name: string
-  /** #85 - absent means 'device'. */
-  masterMode?: 'device' | 'account'
-}
-
-function generateAccessCode(): string {
-  // 8 digits, zero-padded - the "WiFi password" a band writes down/prints once, not a
-  // cryptographically-unguessable secret on its own (its real protection is that it's only
-  // ever handed out over the LAN the Host itself controls, same trust level the old
-  // ephemeral invite code and the raw workspace password before it both already had).
-  return randomInt(0, 100_000_000).toString().padStart(8, '0')
-}
-
-/** Always writes a fresh code, overwriting any existing doc's - the initial creation at
- * `provisionWorkspace` time, and the "lazy backfill" fallback in `getOrCreateAccessCode` below
- * share this. Not exported: every real caller goes through one of those two, which know exactly
- * when a fresh doc is actually warranted. Uses `putDocWithRetry` (database.ts) rather than a plain
- * fetch-then-put - the database rejects a PUT to an existing doc with no `_rev` as a 409 (confirmed
- * against a real instance; the mocked tests here don't catch this on their own), and unlike
- * `rotateAccessCode`/`renameWorkspace` below there's no separate earlier read whose `_rev` this
- * could reuse, so `putDocWithRetry`'s own fetch-then-put is exactly what's needed here too. */
-async function createAccessCodeDoc(config: DatabaseConfig, workspaceId: string, name: string): Promise<string> {
-  const code = generateAccessCode()
-  await putDocWithRetry<AccessCodeDoc>(config, workspaceDbName(workspaceId), ACCESS_CODE_DOC_ID, (existing) => ({
-    _id: ACCESS_CODE_DOC_ID,
-    _rev: existing?._rev,
-    code,
-    name,
-    ...(existing?.masterMode ? { masterMode: existing.masterMode } : {}),
-  }))
-  return code
-}
-
-/** Reads a workspace's standing access code and display name - `null` if this workspace
- * predates the 2026-09-01 redesign and has never had one created (see `getOrCreateAccessCode`
- * below for the lazy-backfill path that actually every real caller uses). */
+/** The band's standing access code and display name - null for a band that predates the standing code (2026-09-01) and never had one. */
 export async function getAccessCode(config: DatabaseConfig, workspaceId: string): Promise<{ code: string; name: string } | null> {
-  const doc = await getDoc<AccessCodeDoc>(config, workspaceDbName(workspaceId), ACCESS_CODE_DOC_ID)
-  return doc ? { code: doc.code, name: doc.name } : null
+  return laptopBandDocuments(config).accessCode(workspaceId)
 }
 
 /**
- * The actual entry point every route uses (`GET /workspaces`, `POST /workspaces/:id/roster`,
- * `POST /workspaces/:id/join/:profileId`) - reads the standing code, lazily creating one with
- * `fallbackName` if this workspace was founded before the 2026-09-01 redesign and has never had
- * a `workspace:access` doc at all. This is what makes a pre-existing workspace (like the one
- * that triggered this redesign - Marco locked out of every device at once, with no admin
- * session left anywhere to mint anything) transparently start working the moment this ships,
- * with no separate migration step: the very first request against it creates its code on the
- * spot. `fallbackName` has no better source for a workspace this old - the host never learned
- * a real name before this redesign either (see `WorkspaceProvisionRequestSchema`'s doc comment) -
- * so callers pass the raw `workspaceId` as a last resort, readable enough to distinguish bands
- * by ID even if the display name isn't pretty.
+ * The entry every route uses (`GET /workspaces`, `POST /workspaces/:id/roster`, the join): reads the standing code, creating one on the
+ * spot for a band founded before the 2026-09-01 redesign - that is what let a band whose devices were all locked out work again the
+ * moment it shipped, with no migration step. `fallbackName` is the raw id for a band that old (the host never learned a name then).
  */
-export async function getOrCreateAccessCode(
-  config: DatabaseConfig,
-  workspaceId: string,
-  fallbackName: string,
-): Promise<{ code: string; name: string }> {
-  const existing = await getAccessCode(config, workspaceId)
-  if (existing) return existing
-  const code = await createAccessCodeDoc(config, workspaceId, fallbackName)
-  return { code, name: fallbackName }
+export async function getOrCreateAccessCode(config: DatabaseConfig, workspaceId: string, fallbackName: string): Promise<{ code: string; name: string }> {
+  return laptopBandDocuments(config).ensureAccessCode(workspaceId, fallbackName)
 }
 
-/** Rotates a workspace's standing access code to a fresh one, keeping its display name -
- * admin-only (`POST /workspaces/:id/access-code/rotate`), e.g. "the code leaked" or just
- * post-tour cleanup. Immediately invalidates the old code for anyone who only knew that one.
- * Reads the existing name from the same fetch `putDocWithRetry` already needs for `_rev` -
- * rather than a separate `getAccessCode` call first - so this costs exactly one round trip per
- * attempt, not two. */
+/** A fresh standing code, keeping the name (admin-only): the old code stops working for anyone who only knew that one. */
 export async function rotateAccessCode(config: DatabaseConfig, workspaceId: string): Promise<string> {
-  const code = generateAccessCode()
-  await putDocWithRetry<AccessCodeDoc>(config, workspaceDbName(workspaceId), ACCESS_CODE_DOC_ID, (existing) => ({
-    _id: ACCESS_CODE_DOC_ID,
-    _rev: existing?._rev,
-    code,
-    name: existing?.name ?? workspaceId,
-    ...(existing?.masterMode ? { masterMode: existing.masterMode } : {}),
-  }))
-  return code
+  return laptopBandDocuments(config).rotateAccessCode(workspaceId)
 }
 
-/** Renames a workspace (#58) - the mirror image of `rotateAccessCode`: keeps the existing
- * standing access code, only the `name` field changes (same single-fetch-per-attempt shape as
- * `rotateAccessCode` above, for the same reason). Reuses the same `workspace:access` doc rather
- * than a separate metadata doc, so it needs no new sync plumbing at all - it already replicates
- * to every already-joined device via the ordinary workspace-db sync (`workspaceDb.ts`'s
- * `startWorkspaceSync`), the exact gap the issue's "warum entfernt" section identified in the
- * old, client-only `renameWorkspace`. A workspace with no `workspace:access` doc yet
- * (pre-2026-09-01, never backfilled) gets one created on the spot, same lazy-backfill approach
- * as `getOrCreateAccessCode`. */
+/** Renames a band (#58): the access doc replicates to every device that joined, so the name reaches everyone. */
 export async function renameWorkspace(config: DatabaseConfig, workspaceId: string, name: string): Promise<void> {
-  await putDocWithRetry<AccessCodeDoc>(config, workspaceDbName(workspaceId), ACCESS_CODE_DOC_ID, (existing) => ({
-    _id: ACCESS_CODE_DOC_ID,
-    _rev: existing?._rev,
-    code: existing?.code ?? generateAccessCode(),
-    name,
-    ...(existing?.masterMode ? { masterMode: existing.masterMode } : {}),
-  }))
+  await laptopBandDocuments(config).rename(workspaceId, name)
 }
 
-/** Sets who holds the Master-Token (#85) on the band's access doc, keeping code and name. */
+/** Who holds the Master-Token (#85), on the band's access doc. */
 export async function setMasterMode(config: DatabaseConfig, workspaceId: string, masterMode: 'device' | 'account'): Promise<void> {
-  await putDocWithRetry<AccessCodeDoc>(config, workspaceDbName(workspaceId), ACCESS_CODE_DOC_ID, (existing) => ({
-    _id: ACCESS_CODE_DOC_ID,
-    _rev: existing?._rev,
-    code: existing?.code ?? generateAccessCode(),
-    name: existing?.name ?? workspaceId,
-    masterMode,
-  }))
+  await laptopBandDocuments(config).setMasterMode(workspaceId, masterMode)
 }
 
 /** Every workspace the Host hosts, with a real (or lazily-backfilled) display name -

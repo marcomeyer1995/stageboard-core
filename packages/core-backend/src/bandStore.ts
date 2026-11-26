@@ -1,23 +1,7 @@
 import type { BandAccounts, BandStore } from 'sync-host'
-import { workspaceDbName } from 'sync-host'
-import { allDocs, deleteDocUnless, getDoc, listDbs, putDocWithRetry, type DatabaseConfig, type DatabaseDoc } from './database.js'
+import { listDbs, type DatabaseConfig } from './database.js'
 import { readDeletedWorkspaces, recordDeletedWorkspace } from './provisioningAuth.js'
-import {
-  deprovisionWorkspace,
-  getAccessCode,
-  getOrCreateAccessCode,
-  provisionWorkspace,
-  renameWorkspace,
-  rotateAccessCode,
-  setMasterMode,
-} from './workspaceProvisioning.js'
-
-/** The Device Ledger document (#958) as the block/remove routes read and write it. */
-interface DeviceDoc extends DatabaseDoc {
-  revoked?: boolean
-  executionTarget?: string | null
-  name?: string
-}
+import { deprovisionWorkspace, laptopBandDocuments, provisionWorkspace } from './workspaceProvisioning.js'
 
 export interface LaptopBandStoreDeps {
   database: DatabaseConfig
@@ -35,6 +19,7 @@ export interface LaptopBandStoreDeps {
  */
 export function createLaptopBandStore(deps: LaptopBandStoreDeps): BandStore {
   const { database } = deps
+  const documents = laptopBandDocuments(database)
   const basic = (username: string, password: string) => `Basic ${Buffer.from(`${username}:${password}`).toString('base64')}`
 
   return {
@@ -44,43 +29,16 @@ export function createLaptopBandStore(deps: LaptopBandStoreDeps): BandStore {
     create: (workspaceId, name, founder) =>
       provisionWorkspace(database, workspaceId, founder.founderId, name, { accounts: deps.accountsFor(workspaceId), deviceId: founder.deviceId }),
     remove: (workspaceId) => deprovisionWorkspace(database, workspaceId),
-    accessCode: (workspaceId) => getAccessCode(database, workspaceId),
-    ensureAccessCode: (workspaceId, fallbackName) => getOrCreateAccessCode(database, workspaceId, fallbackName),
-    rotateAccessCode: (workspaceId) => rotateAccessCode(database, workspaceId),
-    rename: (workspaceId, name) => renameWorkspace(database, workspaceId, name),
-    setMasterMode: (workspaceId, masterMode) => setMasterMode(database, workspaceId, masterMode),
+    accessCode: (workspaceId) => documents.accessCode(workspaceId),
+    ensureAccessCode: (workspaceId, fallbackName) => documents.ensureAccessCode(workspaceId, fallbackName),
+    rotateAccessCode: (workspaceId) => documents.rotateAccessCode(workspaceId),
+    rename: (workspaceId, name) => documents.rename(workspaceId, name),
+    setMasterMode: (workspaceId, masterMode) => documents.setMasterMode(workspaceId, masterMode),
     login: async (workspaceId, username, password) => deps.accountsFor(workspaceId).login(basic(username, password)),
     checkAdmin: (workspaceId, username, password) => deps.checkAdmin(workspaceId, username, password),
     isAdminOfAnyBand: (username, password) => deps.isAdminOfAnyBand(username, password),
-    setDeviceRevoked: async (workspaceId, deviceId, revoked) => {
-      const db = workspaceDbName(workspaceId)
-      const docId = `devices:${deviceId}`
-      const existing = await getDoc<DeviceDoc>(database, db, docId)
-      if (!existing) return 'unknown'
-      await putDocWithRetry<DeviceDoc>(database, db, docId, (current) => ({
-        ...(current ?? existing),
-        revoked,
-        _id: docId,
-        _rev: current?._rev ?? existing._rev,
-      }))
-      return 'ok'
-    },
-    forgetDevice: async (workspaceId, deviceId) => {
-      const db = workspaceDbName(workspaceId)
-      const docId = `devices:${deviceId}`
-      const existing = await getDoc<DeviceDoc>(database, db, docId)
-      if (!existing) return 'unknown'
-      if (existing.revoked) return 'blocked'
-      const hardware = await allDocs<DatabaseDoc & { name?: string; executionTarget?: string | null }>(database, db, {
-        startkey: 'logical-devices:',
-        endkey: 'logical-devices:\ufff0',
-      })
-      const usedBy = hardware.filter((doc) => doc.executionTarget === deviceId).map((doc) => doc.name ?? doc._id)
-      if (usedBy.length > 0) return { usedBy }
-      // Checked and deleted against the same revision; a write in between is a conflict - read again and check again
-      // instead of answering 204 for a delete that never happened (#426 review).
-      const result = await deleteDocUnless<DeviceDoc, 'blocked'>(database, db, docId, (current) => (current.revoked ? 'blocked' : null))
-      return result === 'missing' ? 'unknown' : result === 'blocked' ? 'blocked' : 'ok'
-    },
+    // The Device Ledger's block and cleanup are sync-host's rules, the same on the tablet host (#964).
+    setDeviceRevoked: (workspaceId, deviceId, revoked) => documents.setDeviceRevoked(workspaceId, deviceId, revoked),
+    forgetDevice: (workspaceId, deviceId) => documents.forgetDevice(workspaceId, deviceId),
   }
 }
