@@ -35,3 +35,13 @@ PASS/FAIL/SKIP per check, every timing printed. It never types a PIN. For a **la
 serves, which needs an admin PIN a script never types: found the band with `--found-only creds.json`, restart the host with
 `STAGEBOARD_WORKSPACE=<band id>`, then run with `--band <id> --creds creds.json`. A tablet host needs none of that. One laptop plays all three clients, so
 their CPU is the laptop's - the numbers compare the **hosts**, not the clients.
+
+## screen-off.mjs - does a tablet host keep serving with the screen off?
+
+```
+STAGEBOARD_DEV_APP=de.stageboard.app.dev.test node tools/host-test/screen-off.mjs <Device> [seconds=480] [https://<tablet>:8443]
+```
+
+Puts a 1 s timer on the page's main thread and one in a Worker, switches the screen off with the power key, waits, wakes it and reports the ticks, the
+longest gap and - with the host address - whether `/time` (the native server) and `/workspaces` (the page's host code) kept answering. Exit 0 = the page kept
+running. Result on the Redmi (WebView 157): it does not - docs/25, "A tablet host serves the band only while its page is visible".
