@@ -181,6 +181,18 @@ describe('a device taking on another person', () => {
     expect((await as('2943')).status).toBe(200)
   })
 
+  it('re-picking oneself answers the rights the login has now - an admin promoting or demoting reaches the device (#978)', async () => {
+    const ben = body(await join.join('ben', { code: CODE, deviceId: 'ben-tab' }))
+    const again = () => members.activate('ben', { callerUsername: ben.username as string, callerPassword: ben.password as string, deviceId: 'ben-tab' })
+    expect(body(await again())).toEqual({ username: ben.username, password: ben.password, isAdmin: false })
+    profiles.ben = { stageRoles: ['drums', 'admin'] }
+    expect((await members.setAdmin('ben', { ...admin, isAdmin: true })).status).toBe(204)
+    expect(body(await again())).toEqual({ username: ben.username, password: ben.password, isAdmin: true })
+    profiles.ben = { stageRoles: ['drums'] }
+    expect((await members.setAdmin('ben', { ...admin, isAdmin: false })).status).toBe(204)
+    expect(body(await again())).toEqual({ username: ben.username, password: ben.password, isAdmin: false })
+  })
+
   it('is 403 for a caller that is not signed in to this band', async () => {
     expect((await members.activate('ben', { callerUsername: 'stageboard-other-p~d', callerPassword: 'x', deviceId: 'd' })).status).toBe(403)
     expect((await members.activate('ben', { callerUsername: admin.adminUsername, callerPassword: 'wrong', deviceId: 'd' })).status).toBe(403)

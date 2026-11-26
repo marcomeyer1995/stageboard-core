@@ -222,7 +222,8 @@ interface WorkspaceState {
    * own PIN or the universal recovery code). Updates this workspace's stored
    * credentials/isAdmin on success; the caller is responsible for updating
    * `useActiveProfileStore`'s own "who am I displaying as" pointer afterward. */
-  activateProfile: (workspaceId: string, profileId: string, password?: string) => Promise<Workspace | null>
+  /** `silent`: no error dialogs - for the background check of this device's own admin rights (#978). */
+  activateProfile: (workspaceId: string, profileId: string, password?: string, options?: { silent?: boolean }) => Promise<Workspace | null>
 }
 
 /**
@@ -978,7 +979,10 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           return null
         }
       },
-      activateProfile: async (workspaceId, profileId, password) => {
+      activateProfile: async (workspaceId, profileId, password, options) => {
+        const alert = (message: string) => {
+          if (!options?.silent) void useDialogStore.getState().alert(message)
+        }
         const base = getHostUrl()
         const workspace = get().workspaces.find((w) => w.id === workspaceId)
         if (!base || !workspace?.username || !workspace.password) {
@@ -999,20 +1003,18 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           })
         } catch (err) {
           console.error('Failed to reach Host to activate profile', err)
-          void useDialogStore
-            .getState()
-            .alert(i18n.t('band:err.offline'))
+          alert(i18n.t('band:err.offline'))
           return null
         }
 
         if (!response.ok) {
           if (response.status === 403) {
-            void useDialogStore.getState().alert(i18n.t('band:err.wrongPassword'))
+            alert(i18n.t('band:err.wrongPassword'))
           } else if (response.status === 404) {
-            void useDialogStore.getState().alert(i18n.t('band:err.unknownMember'))
+            alert(i18n.t('band:err.unknownMember'))
           } else {
             console.error('Failed to activate profile', new Error(`HTTP ${response.status}`))
-            void useDialogStore.getState().alert(i18n.t('band:err.switchServer'))
+            alert(i18n.t('band:err.switchServer'))
           }
           return null
         }
@@ -1029,7 +1031,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           return updated
         } catch (err) {
           console.error('Failed to parse activate-profile response', err)
-          void useDialogStore.getState().alert(i18n.t('band:err.switchParse'))
+          alert(i18n.t('band:err.switchParse'))
           return null
         }
       },
