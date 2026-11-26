@@ -2,6 +2,7 @@ import { cpus, totalmem } from 'node:os'
 import { createJobRunners, type DeviceDescription, type JobRunner, type JobRunners } from 'sync-host'
 import { loadAddonInfos } from './addons/addonMethods.js'
 import { addonMissingTool } from './addons/helpers.js'
+import { appDir, readAppVersion } from './appDownload.js'
 import { hostSpeech } from './speech/hostSpeech.js'
 
 /**
@@ -18,6 +19,8 @@ export const BUILTIN_RUNNERS: readonly JobRunner[] = [
   // What a Node machine does without any extra tool.
   ...['backup', 'measure-inputs', 'calibration', 'lookup', 'plugin-runtime', 'hardware', 'osc-in', 'host-lookup'].map((id): JobRunner => ({ id, kind: 'job' })),
   { id: 'speech', kind: 'job', missing: () => needs(hostSpeech.available(), 'piper') },
+  // It hands out the app only once one is built (scripts/build-android-app.sh writes the APK and version.json).
+  { id: 'app-distribution', kind: 'job', missing: () => needs(readAppVersion(appDir()) !== null, 'an app build (scripts/build-android-app.sh)') },
   // Every add-on that gives the band a capability, and the programs its helpers need - read from its manifest (`addons/addonMethods.ts`), so a new add-on
   // adds a runner without a line here.
   ...loadAddonInfos()
