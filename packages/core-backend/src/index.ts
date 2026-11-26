@@ -27,7 +27,7 @@ import { createAudioMirror, createReplicationRunner } from 'sync-host'
 import { createBandBootstrapStore } from './bandJoin.js'
 import { withLegacyPath, createVerifyWithPrimary, joinBandInvite, effectiveHosts, joinBand } from 'sync-host'
 import { listHeldKeys, saveMirrorFile } from './audioMirrorFiles.js'
-import { tracksOfVariantDocs } from 'sync-host'
+import { BAND_STREAM_TOPICS, tracksOfVariantDocs } from 'sync-host'
 import { createPinnedFetch } from './pinnedFetch.js'
 import { corsOriginAllowed } from './corsOrigin.js'
 import { HostLookupQuerySchema, lookUpHost } from './hostLookup.js'
@@ -402,7 +402,8 @@ export async function buildApp(options: { backupService?: BackupService; databas
     const unsubscribe = subscribe((payload) => reply.raw.write(`data: ${JSON.stringify(payload)}\n\n`))
     request.raw.on('close', unsubscribe)
   }
-  for (const topic of ['show-state', 'switch-state', 'presence', 'osc-in', 'discovery', 'device-state'] as const) {
+  // The band streams are sync-host's list: a tablet host refuses the same ones it does not relay (501), never 404.
+  for (const topic of BAND_STREAM_TOPICS) {
     app.get(`/workspaces/:workspaceId/${topic}/stream`, (request, reply) => {
       const { workspaceId } = request.params as { workspaceId: string }
       openStream(request, reply, (send) => channels.subscribe(topic, workspaceId, send))
