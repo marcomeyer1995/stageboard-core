@@ -1,6 +1,6 @@
 # 34 - Host architecture at a glance (#962)
 
-*Written 2026-11-19 after #960 and #962. A map for newcomers; the reasons and the measurements stay in docs/25. Diagrams are Mermaid (GitHub renders them). Where a box says "not built", it is a gap, not a plan.*
+*Written 2026-11-19 after #960 and #962; §6 and §8 brought to the state of 2026-11-27 (#981-#985). A map for newcomers; the reasons and the measurements stay in docs/25. Diagrams are Mermaid (GitHub renders them). Where a box says "not built", it is a gap, not a plan.*
 
 **The one idea:** there is no "server" in the old sense. A **host** is a role any device can take. The code of a host lives once, in `sync-host`; a platform adds only a transport (how bytes arrive) and storage (where documents live). What a device can do on top is decided by the device alone and said by `GET /host/capabilities`.
 
@@ -126,7 +126,8 @@ flowchart TD
 | `LocalHostPlugin.java` knows the lease flag and `servedBands`, nothing finer | changes there need a real device | docs/25 |
 | The app does not yet choose a host for a job by itself | step 4/6 of #962 is the rule, not the routing UI | docs/25 |
 | Locked screen stops a tablet host | a band that runs on a tablet needs it awake | docs/25 §6g |
-| `core-backend/src/index.ts` (1,328 lines, 23 explicit routes: speech, plugins, YouTube, lookup, calibration, add-ons) | the job routes and the job execution (`asyncJobWatcher.ts`) are still Node code, not yet behind runner manifests | docs/25 #964 step 3 |
+| The laptop does not answer through `answerHostRequest` (it registers the shared table and its own tables on Fastify, with its own `/db` guard) | two request pipelines: the `/db` guards differ (laptop: account of this band + login lock; tablet: 404/503 + band login) | #964 comment of 2026-11-26 |
+| Node-only jobs (backup, speech, lookup scrapers, MIDI, OSC, calibration) are not loaded as add-ons yet | a host offers them because it is a Node host, not because it installed them | #964 step 3 |
 
 ## 7. Reading order
 
@@ -143,10 +144,13 @@ flowchart TD
 |---|---|---|
 | Band rules, accounts, join, the lease, replication, the audio mirror | `sync-host` | **once**, behind ports (storage, requests to other hosts) |
 | One request answered: route table, band guard (404/503/401), 501 for a stream or job a device lacks | `sync-host/hostRequest.ts` | **once**; the tablet calls it for every request |
-| Who takes a background job (needs, claim, settle, stop if lost) | `sync-host/jobQueue.ts` | **once** |
+| Who takes a background job (needs, claim, settle, stop if lost) | `sync-host/jobQueue.ts` (the rules), `jobClaimLoop.ts` (the loop that applies them) | **once**; the laptop watcher and the tablet host both run `createJobClaimLoop` (#981) |
+| How a host does a background job (check, fetch, store the track, clean up) | `sync-host/jobs/audioImport.ts`, `stemSeparation.ts`, `bandAddons.ts` | **once**; the tablet host runs the host recipe for a job it claimed, over its own ports (`stage-pwa/host/tabletAudioImport.ts`, #984) |
+| The documents a host writes into a band: access doc (code, name, master mode, founding host), write rules (`_design/roster`), Device Ledger block/forget | `sync-host/bandDocuments.ts` over a `BandDocumentPort` | **once** (#982, #983); the laptop's port is its database client, the tablet's its PouchDB |
 | What a host can do (`GET /host/capabilities`) | `sync-host/jobRunners.ts`: runners with manifests | **once**; laptop and tablet register different runners |
 | The database a device syncs with | `createDatabaseHost` (laptop, in-process via `/db`), `createSyncHost` + write guard (tablet) | one database protocol, two compositions |
-| Listener, TLS, HTTP/2, SSE, static files, mDNS | `core-backend` (Fastify) / `LocalHostPlugin.java` | per platform - small shells, no band logic |
+| The Node shell's own routes (app download, host settings, calibration, plugins/add-ons, join-band, take-over, look-up, activate-hardware) | `core-backend`, as `HostRoute` tables registered through `registerHostRoutes` | the same shape as the shared table (#985); only the SSE streams and `/db` are still Fastify routes |
+| Listener, TLS, HTTP/2, SSE, static files, mDNS | `core-backend` (Fastify) / `LocalHostPlugin.java` | per platform - small shells, no band logic. **Next (#964 step 2):** the laptop answers through `answerHostRequest` too (needs one decision: one `/db` guard), then a `node:http2` listener replaces Fastify |
 | Execution of heavy jobs (yt-dlp, Demucs, Piper, Chrome, backup, MIDI, OSC) | `core-backend` (about 3,700 lines) | Node-only; declared by runners, **not yet** loaded as add-ons |
 
 So `core-backend` is, at the moment, **the Node shell plus Node-only job code**; it has no second host implementation any more. It is not deleted: the shell and the jobs are still in it.
