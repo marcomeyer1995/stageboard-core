@@ -7,7 +7,7 @@ const entry = {
   id: 'youtube-download',
   name: 'YouTube',
   version: '0.0.2',
-  runtime: 'client' as const,
+  runtime: 'device' as const,
   capabilities: [],
   transports: [],
   hardwareIds: [],
