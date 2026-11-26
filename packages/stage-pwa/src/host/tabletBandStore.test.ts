@@ -76,6 +76,14 @@ describe('the tablet as a host of bands (#962)', () => {
     expect(await store.login('band-a', credentials.username, credentials.password)).toMatchObject({ roles: ['member', 'admin'] })
   })
 
+  it("brings a band's old write rules up to this version, keeping the rest of the design doc (#16, #964)", async () => {
+    const { store, storeFor } = setup()
+    storeFor('band-old').set('_design/roster', { _id: '_design/roster', _rev: '1-a', validate_doc_update: 'function () {}', views: { v: 1 } })
+    expect(await store.updateRules('band-old')).toBe(true)
+    expect(storeFor('band-old').get('_design/roster')).toMatchObject({ validate_doc_update: expect.stringContaining('admin'), views: { v: 1 } })
+    expect(await store.updateRules('band-old')).toBe(false)
+  })
+
   it('reads, rotates and renames the access code without losing who founded it', async () => {
     const { store, storeFor } = setup()
     await store.create('band-a', 'Band A', { founderId: 'p1', deviceId: 'phone' })

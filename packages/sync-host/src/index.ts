@@ -281,7 +281,7 @@ export { createJobRunners, type JobRunner, type JobRunners, type DeviceDescripti
 export { hostRunner, jobNeeds, jobsNobodyCanDo, pickNextClaimable, stillMine, stuckJobsOfHost, type JobRef, type JobWorker } from './host/jobQueue.js'
 export { BootstrapSchema, createVerifyWithPrimary, effectiveHosts, joinBand, joinBandInvite, type Bootstrap, type BandBootstrapStore, type JoinResult } from './host/hostJoin.js'
 export { createBandCatalog, type BandCatalog, type BandStore, type BandAnswer } from './host/bandCatalog.js'
-export { ACCESS_DOC_ID, createBandDocuments, generateAccessCode, type BandDocument, type BandDocumentPort, type BandDocuments } from './host/bandDocuments.js'
+export { ACCESS_DOC_ID, RULES_DOC_ID, createBandDocuments, generateAccessCode, type BandDocument, type BandDocumentPort, type BandDocuments } from './host/bandDocuments.js'
 export { JOB_ROUTES, JOB_IDS, jobOfRequest, refusalFor, unavailableJobs, parseCapabilities, canDoFromCapabilities, unmetRequirement, addonRefusal, type JobRoute, type RunsOn } from './host/capabilities.js'
 export { createBandRoutes } from './host/bandRoutes.js'
 export { createHostChannels, matchChannelStream, type HostChannels, type ChannelTopic, type ChannelPayload, type ChannelStream, type ReadBandDocs } from './host/channels/index.js'

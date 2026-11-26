@@ -1,16 +1,12 @@
 import type { BandAccounts } from 'sync-host'
-import { createBandDocuments, ROSTER_VALIDATOR_SOURCE } from 'sync-host'
+import { createBandDocuments } from 'sync-host'
 import {
   bandDocumentPort,
   deleteDb,
   ensureDb,
-  getDoc,
   listDbs,
-  putDoc,
-  putDocWithRetry,
   putSecurity,
   type DatabaseConfig,
-  type DatabaseDoc,
 } from './database.js'
 import { saveDeletedBand } from './deletedBand.js'
 import { recordDeletedWorkspace } from './provisioningAuth.js'
@@ -30,17 +26,12 @@ export { ROSTER_VALIDATOR_SOURCE } from 'sync-host'
  */
 export async function updateRosterValidators(config: DatabaseConfig, onError?: (db: string, err: unknown) => void): Promise<string[]> {
   const updated: string[] = []
+  const documents = laptopBandDocuments(config)
   for (const db of await listDbs(config)) {
     if (!db.startsWith('stageboard-')) continue
     // One band's database failing must not leave every band after it on the old rules (#401 review).
     try {
-      const current = await getDoc<DatabaseDoc & { validate_doc_update?: string }>(config, db, '_design/roster')
-      if (current === null || current.validate_doc_update === ROSTER_VALIDATOR_SOURCE) continue
-      await putDocWithRetry<DatabaseDoc & { validate_doc_update?: string }>(config, db, '_design/roster', (existing) => ({
-        ...(existing ?? { _id: '_design/roster' }),
-        validate_doc_update: ROSTER_VALIDATOR_SOURCE,
-      }))
-      updated.push(db)
+      if (await documents.updateRules(db.slice('stageboard-'.length))) updated.push(db)
     } catch (err) {
       onError?.(db, err)
     }
@@ -98,7 +89,7 @@ export async function provisionWorkspace(
     admins: { names: [], roles: ['admin'] },
     members: { names: [], roles: ['member', 'admin'] },
   })
-  await putDoc(config, db, { _id: '_design/roster', validate_doc_update: ROSTER_VALIDATOR_SOURCE })
+  await laptopBandDocuments(config).writeRules(workspaceId)
   await laptopBandDocuments(config).createAccess(workspaceId, workspaceName)
 
   return founder.accounts.provisionDevice(founderId, founder.deviceId, true)
