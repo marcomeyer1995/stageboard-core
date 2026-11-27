@@ -157,7 +157,8 @@ export class NodeHost {
   async listen(options: { port: number; host?: string }): Promise<string> {
     await new Promise<void>((done, fail) => {
       this.server.once('error', fail)
-      this.server.listen(options.port, options.host ?? 'localhost', () => {
+      // Without a host only this machine (IPv4 loopback; `localhost` may resolve to ::1 only). The real host passes 0.0.0.0.
+      this.server.listen(options.port, options.host ?? '127.0.0.1', () => {
         this.server.off('error', fail)
         done()
       })
