@@ -6,15 +6,14 @@ import { readFile } from 'node:fs/promises'
 import { CalibrationRuns } from './calibration/calibrationRuns.js'
 import { MeasureInputStore } from './calibration/measureInputs.js'
 import { startMicCapture } from './calibration/micCapture.js'
-import { registerHostSettingsRoutes } from './hostSettingsRoutes.js'
+import { hostSettingsRoutes } from './hostSettingsRoutes.js'
 import { hostSpeech, hostVoices } from './speech/hostSpeech.js'
 import { PiperSpeech } from './speech/piperSpeech.js'
 import { createServer } from 'node:http'
 import { hostname, networkInterfaces } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import cors from '@fastify/cors'
-import { registerDatabaseRoutes } from './databaseRoutes.js'
+import { laptopDatabase } from './databaseRoutes.js'
 import { startBuiltinDatabase, type BuiltinDatabase } from './builtinDatabase.js'
 import { addonHostNeeds, hostCapabilities } from './hostCapabilities.js'
 import { builtinRunners } from './builtinRunners.js'
@@ -27,14 +26,12 @@ import { createAudioMirror, createReplicationRunner } from 'sync-host'
 import { createBandBootstrapStore } from './bandJoin.js'
 import { withLegacyPath, createVerifyWithPrimary, joinBandInvite, effectiveHosts, joinBand } from 'sync-host'
 import { listHeldKeys, saveMirrorFile } from './audioMirrorFiles.js'
-import { tracksOfVariantDocs } from 'sync-host'
+import { tracksOfVariantDocs, type HostRouteResponse } from 'sync-host'
 import { createPinnedFetch } from './pinnedFetch.js'
 import { corsOriginAllowed } from './corsOrigin.js'
 import { HostLookupQuerySchema, lookUpHost } from './hostLookup.js'
 import { configuredHostEpoch } from './hostEpochConfig.js'
 import { createBandAccountsFor } from './bandAccounts.js'
-import fastifyStatic from '@fastify/static'
-import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify'
 import {
   LEGACY_HOST_TARGET,
   ActivateWorkspaceHardwareRequestSchema,
@@ -50,20 +47,19 @@ import { isSafePluginId, readPluginBundle } from './plugins/pluginBundleStore.js
 import { allDocs, getDoc, type DatabaseConfig, type DatabaseDoc } from './database.js'
 import * as deviceInfoStore from './deviceInfoStore.js'
 import { installShutdownHandlers, trackConnections } from './gracefulShutdown.js'
-import { registerAppRoutes } from './appDownload.js'
+import { appDir, appRoutes } from './appDownload.js'
 import { certFingerprint } from './certFingerprint.js'
 import { startMdnsResponder } from './mdnsResponder.js'
 import { startPingLoop } from './pingLoop.js'
 import { LOOKUP_ADDONS, LOOKUP_CATALOG } from './plugins/lookupCatalog.js'
 import { bandHasAddon } from './addons/bandAddons.js'
-import { runYtDlpSearch } from './ytDlp.js'
 import { LookupRegistry } from './plugins/lookupRegistry.js'
 import { lookupErrorBody } from './plugins/lookupError.js'
 import { presence as presenceStore } from './presenceStore.js'
-import { registerHostRoutes } from './hostRoutes.js'
+import { createNodeHost } from './nodeHost.js'
 import { addonRefusal, canDoFromCapabilities, createBandCatalog, createHostChannels } from 'sync-host'
 import { createLaptopBandStore } from './bandStore.js'
-import { createBandJoin, createBandMembers, createHostRoutes, createReplicationAccountIssuer, type BandJoin } from 'sync-host'
+import { answerHostRequest, createBandJoin, createBandMembers, createReplicationAccountIssuer, type BandJoin, type HostRequestDeps, type HostRoute, type HostRoutesDeps, type HostStream } from 'sync-host'
 import { PluginRegistry } from './plugins/registry.js'
 import { createPinThrottle } from 'sync-host'
 import { isLoopback } from './provisioningAuth.js'
@@ -98,27 +94,6 @@ const DEFAULT_FRONTEND_ORIGINS = [
   `${CERTS_AVAILABLE ? 'https' : 'http'}://stageboard.local:5173`,
   'https://localhost',
 ].join(',')
-
-/**
- * Why a request through the `/db` proxy must not reach the database, or null if it may: a path into a
- * band's database (`/db/stageboard-<band>/…`) needs Basic auth with an account of that band
- * (`stageboard-<band>-<profile>[~<device>]`). Everything else (`_security`, `_all_dbs`, …) is left to
- * the database. Band ids never extend each other (checked at provisioning), so the prefix is unambiguous.
- */
-export function bandDbProxyRefusal(url: string, authorization: string | undefined): string | null {
-  const path = url.slice('/db'.length).split('?')[0] ?? ''
-  let first: string
-  try {
-    first = path.split('/').map((segment) => decodeURIComponent(segment)).find((segment) => segment !== '') ?? ''
-  } catch {
-    return 'bad path'
-  }
-  if (first === '.' || first === '..' || first.includes('/')) return 'bad path'
-  if (!first.startsWith('stageboard-')) return null
-  const login = basicAuthCredentials(authorization)
-  if (!login) return 'no band login'
-  return login.username.startsWith(`${first}-`) ? null : 'account of another band'
-}
 
 /** Username and password from an `Authorization: Basic …` header, or null. */
 export function basicAuthCredentials(header: string | undefined): { username: string; password: string } | null {
@@ -172,31 +147,7 @@ async function readRoster(database: DatabaseConfig, workspaceId: string) {
  * admin/non-admin rules below live in exactly one place. */
 
 /**
- * Hijacks `reply` and opens it as a push SSE stream - shared by every subscription route below
- * (plugin-health, presence, trigger-stream, discovery). Copies whatever headers Fastify already
- * queued (e.g. CORS from the cors plugin's onRequest hook) individually, since `writeHead()` has
- * no overload accepting an arbitrary header record alongside a status code.
- *
- * `Connection: keep-alive` is only set for an HTTP/1.x client: HTTP/2 forbids "connection-
- * specific" header fields entirely (RFC 7540 §8.1.2.2 - h2 multiplexes many logical streams over
- * one already-persistent connection, so the header is meaningless there anyway), and Node's h2
- * compat layer throws `ERR_HTTP2_INVALID_CONNECTION_HEADER` if it's set on a real h2 stream
- * (#129's `http2: true` + `allowHTTP1: true`) - `request.raw.httpVersionMajor` tells us which
- * protocol this particular request actually negotiated.
- */
-function beginSseStream(request: FastifyRequest, reply: FastifyReply): void {
-  reply.hijack()
-  for (const [name, value] of Object.entries(reply.getHeaders())) {
-    if (value !== undefined) reply.raw.setHeader(name, value)
-  }
-  reply.raw.setHeader('Content-Type', 'text/event-stream')
-  reply.raw.setHeader('Cache-Control', 'no-cache')
-  if (request.raw.httpVersionMajor < 2) reply.raw.setHeader('Connection', 'keep-alive')
-  reply.raw.writeHead(200)
-}
-
-/**
- * Wires up the Fastify instance and every route, with fresh, empty plugin registries - no
+ * Wires up the Node host and every route, with fresh, empty plugin registries - no
  * the database sync, no LOOKUP_CATALOG registration, no `listen()`. Split out from `main()` so
  * tests can exercise real routes via `.inject()` without any of that I/O; `main()` is the
  * only caller that goes on to populate the registries and actually start the host.
@@ -210,11 +161,7 @@ export async function buildApp(options: { backupService?: BackupService; databas
   // server, but WSS/HTTPS here still matters once the PWA itself is HTTPS: an HTTPS page
   // fetching a plain-HTTP API is mixed content and gets blocked. Falls back to plain HTTP
   // if the certs haven't been generated yet, same as vite.config.ts.
-  // Cast away the HTTP-vs-HTTPS server generic once, here: every route handler, `.inject()`
-  // caller, and `main()`'s `.listen()` only use transport-agnostic Fastify methods, never
-  // the underlying `server` property directly, so one shared `FastifyInstance` type serves
-  // both branches without spreading this union through every consumer.
-  // Audio track uploads (see #30) regularly exceed Fastify's 1 MB default bodyLimit -
+  // Audio track uploads (see #30) regularly exceed a 1 MB body limit -
   // this is a LAN-only host (docs/01), so a generous ceiling costs nothing real.
   const bodyLimit = Number(process.env.MAX_AUDIO_UPLOAD_BYTES ?? 200 * 1024 * 1024)
 
@@ -296,38 +243,20 @@ export async function buildApp(options: { backupService?: BackupService; databas
   // unchanged. One physical connection per origin with 100+ multiplexed logical streams removes
   // the browser's ~6-connections-per-origin ceiling this app was already sitting at/near (5 SSE
   // streams open per tab) - see the issue for the full story.
-  const app: FastifyInstance =
-    CERTS_AVAILABLE
-      ? (Fastify({
-          logger: true,
-          bodyLimit,
-          http2: true,
-          https: { allowHTTP1: true, cert: readFileSync(certFile), key: readFileSync(keyFile) },
-        }) as unknown as FastifyInstance)
-      : Fastify({ logger: true, bodyLimit })
-
-  // Tablets fetch this cross-origin (their own dev-server or PWA origin, not this server's).
-  //
-  // `methods` isn't derived from whatever routes actually exist - @fastify/cors defaults it to
-  // the static string 'GET,HEAD,POST' if left unset, silently CORS-blocking every cross-origin
-  // PUT/DELETE/PATCH (audio upload/delete, and now DELETE /workspaces/:id) at the browser's
-  // preflight step, before the request even reaches a route handler. Found live, 2026-08-30:
-  // DELETE /workspaces/:id's own test suite never caught this because fastify.inject() doesn't
-  // go through real CORS at all.
+  // The Node host's own listener (#964 step 3), no Fastify: TLS, HTTP/2, body parsing, CORS, the app's files, and every other request
+  // through the host pipeline (`answerHostRequest`, registered below).
   // The origins of the band's listed hosts are allowed too (#926); set once the lease service exists.
   let listedHostOrigins: () => string[] = () => []
   const configuredOrigins = (process.env.FRONTEND_ORIGIN ?? DEFAULT_FRONTEND_ORIGINS).split(',')
-  await app.register(cors, {
-    origin: (origin, callback) => callback(null, corsOriginAllowed(origin, configuredOrigins, listedHostOrigins())),
-    methods: ['GET', 'HEAD', 'PUT', 'POST', 'DELETE', 'PATCH'],
-    // Every PouchDB request through the /db proxy below sends `credentials: 'include'` (it
-    // needs that for its own Basic Auth header) - without this, @fastify/cors never sends
-    // Access-Control-Allow-Credentials at all, so the browser blocks the preflight outright
-    // ("the value of the 'Access-Control-Allow-Credentials' header ... is '' which must be
-    // 'true'"), and every live PouchDB<->the database sync fails forever, retrying with backoff
-    // (Marco, 2026-09-14).
-    credentials: true,
+  const app = createNodeHost({
+    ...(CERTS_AVAILABLE ? { https: { cert: readFileSync(certFile), key: readFileSync(keyFile) } } : {}),
+    bodyLimit,
+    corsOrigin: (origin) => corsOriginAllowed(origin, configuredOrigins, listedHostOrigins()),
   })
+
+  // Tablets fetch this cross-origin (their own dev-server or PWA origin, not this server's). Every method the host has is allowed at the
+  // preflight - a default of GET/HEAD/POST silently blocked every PUT/DELETE (found live 2026-08-30) - and credentials are, since PouchDB
+  // sends its Basic login with `credentials: 'include'` (Marco, 2026-09-14). Both in `nodeHost.ts`.
 
 
   // The NTP-style "burst handshake" target (docs/00 §4, #31): clients hit this repeatedly and
@@ -357,67 +286,91 @@ export async function buildApp(options: { backupService?: BackupService; databas
     const input = measureInputs.resolve(kind)
     return startMicCapture(input.device, input.channel)
   })
-  app.post('/calibration/runs', async (request, reply) => {
-    const parsed = CalibrationRunRequestSchema.safeParse(request.body ?? {})
-    if (!parsed.success) return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
-    const run = calibrationRuns.start(parsed.data.count, parsed.data.input ?? 'mic')
-    if (!run) return reply.status(409).send({ status: 'error', ...hostMessage('calibration.busy') })
-    app.log.info({ runId: run.id, deviceId: parsed.data.deviceId, input: parsed.data.input ?? 'mic', listensOn: measureInputs.resolve(parsed.data.input ?? 'mic'), clicks: run.times.length, recordUntil: run.recordUntil }, 'Calibration run started')
-    return run
-  })
-  app.get('/calibration/runs/:id', async (request, reply) => {
-    const { id } = request.params as { id: string }
-    const status = calibrationRuns.get(id)
-    if (!status) return reply.status(404).send({ status: 'error', ...hostMessage('calibration.unknownRun') })
-    if (status.state === 'failed') app.log.error({ runId: id, error: status.error }, 'Calibration run failed')
-    if (status.state === 'done') app.log.info({ runId: id, onsets: status.onsets, result: status.result }, 'Calibration run finished')
-    return status
-  })
+  // Every route of the Node shell's own (#964, step 2), answered through the host pipeline below together with the shared ones.
+  const nodeRoutes: HostRoute[] = []
+  const ownRoutes = (routes: readonly HostRoute[]) => {
+    nodeRoutes.push(...routes)
+  }
+  // The Node shell's own routes as a table (#964, step 2): the calibration runs (a Node job, #662), who this host is, its OSC port.
+  ownRoutes([
+    {
+      method: 'POST',
+      pattern: '/calibration/runs',
+      handle: async (request) => {
+        const parsed = CalibrationRunRequestSchema.safeParse(request.body ?? {})
+        if (!parsed.success) return { status: 400, body: { status: 'error', message: parsed.error.issues[0]?.message } }
+        const run = calibrationRuns.start(parsed.data.count, parsed.data.input ?? 'mic')
+        if (!run) return { status: 409, body: { status: 'error', ...hostMessage('calibration.busy') } }
+        app.log.info({ runId: run.id, deviceId: parsed.data.deviceId, input: parsed.data.input ?? 'mic', listensOn: measureInputs.resolve(parsed.data.input ?? 'mic'), clicks: run.times.length, recordUntil: run.recordUntil }, 'Calibration run started')
+        return { status: 200, body: run }
+      },
+    },
+    {
+      method: 'GET',
+      pattern: '/calibration/runs/:id',
+      handle: async (request) => {
+        const id = decodeURIComponent(request.params.id ?? '')
+        const status = calibrationRuns.get(id)
+        if (!status) return { status: 404, body: { status: 'error', ...hostMessage('calibration.unknownRun') } }
+        if (status.state === 'failed') app.log.error({ runId: id, error: status.error }, 'Calibration run failed')
+        if (status.state === 'done') app.log.info({ runId: id, onsets: status.onsets, result: status.result }, 'Calibration run finished')
+        return { status: 200, body: status }
+      },
+    },
+    ...withLegacyPath('/host/info').map((pattern) => ({
+      method: 'GET' as const,
+      pattern,
+      handle: async () => ({
+        status: 200,
+        body: {
+          lanIp: process.env.LAN_IP ?? detectLanIp(),
+          // The port this host listens on - a host off 443 (a laptop, a second host) must put it into the invite QR, else a scan lands on
+          // whatever answers on 443 (#896).
+          port: Number(process.env.PORT ?? 3001),
+          hostname: process.env.MDNS_HOSTNAME ?? 'stageboard.local',
+          certFingerprint: CERT_FINGERPRINT,
+        },
+      }),
+    })),
+    // OSC as a trigger (#484): the UDP port is a capability of this box; what arrives goes to the band's listeners.
+    { method: 'GET', pattern: '/osc-in/info', handle: async () => ({ status: 200, body: { port: OSC_IN_PORT } }) },
+  ])
 
-  for (const path of withLegacyPath('/host/info')) app.get(path, async () => ({
-    lanIp: process.env.LAN_IP ?? detectLanIp(),
-    // The port this host listens on - a host off 443 (a laptop, a second host) must put it
-    // into the invite QR, else a scan lands on whatever answers on 443 (#896).
-    port: Number(process.env.PORT ?? 3001),
-    hostname: process.env.MDNS_HOSTNAME ?? 'stageboard.local',
-    certFingerprint: CERT_FINGERPRINT,
-  }))
-
-  // Audio tracks arrive as whatever mime type the browser's Blob carries (audio/mpeg,
-  // audio/wav, ...) - Fastify only parses application/json and text/plain by default, so
-  // anything else needs an explicit parser or gets rejected as unsupported media type.
-  // A '*' fallback only ever applies to content types with no more specific parser
-  // registered, so this doesn't touch the existing JSON routes above/below it.
-  app.addContentTypeParser('*', { parseAs: 'buffer' }, (_request, payload, done) => {
-    done(null, payload)
-  })
+  // Audio tracks arrive as whatever type the browser's Blob carries (audio/mpeg, audio/wav, ...): `nodeHost.ts` hands any body that is
+  // not JSON or text over as its bytes.
 
   // The live channels (#962, step 2) are sync-host's: what a device sends into one (show state, switches, plugin health,
   // device triggers, Discovery) is answered by the shared route table, and what it listens to is one transport here -
   // each snapshot as a host-sent event. A named '/plugin-health', not '/health': per-plugin reachability, not liveness.
   // No login on a stream: a page opens it with EventSource, which cannot send one (presence reveals only which
   // already-visible roster member is active).
-  const openStream = (request: FastifyRequest, reply: FastifyReply, subscribe: (send: (payload: unknown) => void) => () => void) => {
-    beginSseStream(request, reply)
-    const unsubscribe = subscribe((payload) => reply.raw.write(`data: ${JSON.stringify(payload)}\n\n`))
-    request.raw.on('close', unsubscribe)
+  const streamParam = (value: string) => {
+    try {
+      return decodeURIComponent(value)
+    } catch {
+      return null
+    }
   }
-  for (const topic of ['show-state', 'switch-state', 'presence', 'osc-in', 'discovery', 'device-state'] as const) {
-    app.get(`/workspaces/:workspaceId/${topic}/stream`, (request, reply) => {
-      const { workspaceId } = request.params as { workspaceId: string }
-      openStream(request, reply, (send) => channels.subscribe(topic, workspaceId, send))
-    })
+  const streamOf = (path: string): HostStream | null => {
+    const band = /^\/workspaces\/([^/]+)\/(show-state|switch-state|presence|osc-in|discovery|device-state)\/stream$/.exec(path)
+    if (band) {
+      const workspaceId = streamParam(band[1]!)
+      const topic = band[2] as 'show-state' | 'switch-state' | 'presence' | 'osc-in' | 'discovery' | 'device-state'
+      return workspaceId === null ? null : (send) => channels.subscribe(topic, workspaceId, send)
+    }
+    const health = /^\/plugin-health\/([^/]+)\/stream$/.exec(path)
+    if (health) {
+      const workspaceId = streamParam(health[1]!)
+      return workspaceId === null ? null : (send) => channels.subscribe('plugin-health', workspaceId, send)
+    }
+    const trigger = /^\/workspaces\/([^/]+)\/devices\/([^/]+)\/trigger-stream$/.exec(path)
+    if (trigger) {
+      const workspaceId = streamParam(trigger[1]!)
+      const deviceId = streamParam(trigger[2]!)
+      return workspaceId === null || deviceId === null ? null : (send) => channels.subscribeDevice(workspaceId, deviceId, send)
+    }
+    return null
   }
-  app.get('/plugin-health/:workspaceId/stream', (request, reply) => {
-    const { workspaceId } = request.params as { workspaceId: string }
-    openStream(request, reply, (send) => channels.subscribe('plugin-health', workspaceId, send))
-  })
-  app.get('/workspaces/:workspaceId/devices/:deviceId/trigger-stream', (request, reply) => {
-    const { workspaceId, deviceId } = request.params as { workspaceId: string; deviceId: string }
-    openStream(request, reply, (send) => channels.subscribeDevice(workspaceId, deviceId, send))
-  })
-  // OSC as a trigger (#484): the UDP port is a capability of this box; what arrives goes to the band's listeners.
-  app.get('/osc-in/info', async () => ({ port: OSC_IN_PORT }))
 
   const registry = new PluginRegistry()
 
@@ -517,43 +470,53 @@ export async function buildApp(options: { backupService?: BackupService; databas
   })
   // A fresh backup is told once which band it backs up and where the primary is (#933). Only from the
   // host machine itself, like the other provisioning routes: the admin on a tablet has no way here.
-  app.post('/host/join-band', async (request, reply) => {
-    if (!isLoopback(request.ip)) return reply.status(403).send({ status: 'error', message: 'Only from the host machine itself' })
-    const result = await joinBand(
-      {
-        selfHostId: hostId,
-        selfUrl,
-        activeWorkspaceId: () => workspaceHardware.getActiveWorkspaceId(),
-        fetchPrimaryId: async (url, fingerprint) => {
-          const answer = HostTimeAnswerSchema.safeParse(await getFromHost(`${url}/time`, fingerprint, 3_000))
-          return answer.success ? (answer.data.hostId ?? null) : null
-        },
-        ensureLocalDb: async (workspaceId) => void (await makeLocalBandDb(database, workspaceId)),
-        activate: (workspaceId) => workspaceHardware.activate(workspaceId),
-        store: bootstrapStore,
+  ownRoutes([
+    {
+      method: 'POST',
+      pattern: '/host/join-band',
+      handle: async (request) => {
+        if (!isLoopback(request.remoteAddress ?? '')) return { status: 403, body: { status: 'error', message: 'Only from the host machine itself' } }
+        const result = await joinBand(
+          {
+            selfHostId: hostId,
+            selfUrl,
+            activeWorkspaceId: () => workspaceHardware.getActiveWorkspaceId(),
+            fetchPrimaryId: async (url, fingerprint) => {
+              const answer = HostTimeAnswerSchema.safeParse(await getFromHost(`${url}/time`, fingerprint, 3_000))
+              return answer.success ? (answer.data.hostId ?? null) : null
+            },
+            ensureLocalDb: async (workspaceId) => void (await makeLocalBandDb(database, workspaceId)),
+            activate: (workspaceId) => workspaceHardware.activate(workspaceId),
+            store: bootstrapStore,
+          },
+          request.body,
+        )
+        return result.ok ? { status: 200, body: { status: 'ok' } } : { status: result.status, body: { status: 'error', message: result.message } }
       },
-      request.body,
-    )
-    return result.ok ? { status: 'ok' } : reply.status(result.status).send({ status: 'error', message: result.message })
-  })
-  // The admin's hand-made host change (#943): "take over now" on the backup, "hand back now" on the primary.
-  // Checked with the admin's device login of the band, as on the other admin routes.
-  for (const [path, act] of [
-    ['/host/take-over', async () => ({ result: await hostLease.takeoverNow(), ok: 'taken' })],
-    ['/host/hand-back', async () => ({ result: hostLease.requestHandback(), ok: 'requested' })],
-  ] as const) {
-    app.post(path, async (request, reply) => {
-      const parsed = HostAdminActionSchema.safeParse(request.body)
-      if (!parsed.success) return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
-      const workspaceId = workspaceHardware.getActiveWorkspaceId()
-      if (!workspaceId) return reply.status(409).send({ status: 'error', message: 'This host serves no band' })
-      if (!(await isWorkspaceAdmin(request, workspaceId, parsed.data.adminUsername, parsed.data.adminPassword))) {
-        return reply.status(403).send({ status: 'error', message: 'Not this band\'s admin' })
-      }
-      const { result, ok } = await act()
-      return result === ok ? { status: 'ok', result } : reply.status(409).send({ status: 'error', result })
-    })
-  }
+    },
+    // The admin's hand-made host change (#943): "take over now" on the backup, "hand back now" on the primary. Checked with the admin's device
+    // login of the band, as on the other admin routes.
+    ...([
+      ['/host/take-over', async () => ({ result: await hostLease.takeoverNow(), ok: 'taken' })],
+      ['/host/hand-back', async () => ({ result: hostLease.requestHandback(), ok: 'requested' })],
+    ] as const).map(([pattern, act]) => ({
+      method: 'POST' as const,
+      pattern,
+      handle: async (request: { body?: unknown; remoteAddress?: string }): Promise<HostRouteResponse> => {
+        const parsed = HostAdminActionSchema.safeParse(request.body)
+        if (!parsed.success) return { status: 400, body: { status: 'error', message: parsed.error.issues[0]?.message } }
+        const workspaceId = workspaceHardware.getActiveWorkspaceId()
+        if (!workspaceId) return { status: 409, body: { status: 'error', message: 'This host serves no band' } }
+        if (!(await checkBandAdmin(workspaceId, parsed.data.adminUsername, parsed.data.adminPassword, request.remoteAddress))) {
+          return { status: 403, body: { status: 'error', message: 'Not this band\'s admin' } }
+        }
+        const { result, ok } = await act()
+        return result === ok ? { status: 200, body: { status: 'ok', result } } : { status: 409, body: { status: 'error', result } }
+      },
+    })),
+  ])
+
+
   // A fresh backup is taught its band by the primary itself (#945): the primary sees the admin's new entry in
   // the band's host list and invites the still band-less host - the band code is the proof, checked with the
   // primary (its roster route is code-gated), and the invite names the host that must be us.
@@ -574,13 +537,20 @@ export async function buildApp(options: { backupService?: BackupService; databas
   // Who a host is (host backup, #914): the stage app asks its *own* host to look up the address the admin
   // typed, so the page never has to trust a certificate it does not know yet - in the browser that would be
   // CORS, in the app a missing pin (#945).
-  app.get('/host/look-up', async (request, reply) => {
-    const parsed = HostLookupQuerySchema.safeParse(request.query)
-    if (!parsed.success) return reply.status(400).send({ status: 'error', message: 'An https host address is needed' })
-    // A host the admin named, not yet trusted: no fingerprint to check it against.
-    const host = await lookUpHost(parsed.data.address, (url) => getFromHost(url, undefined, 3_000))
-    return host ?? reply.status(502).send({ status: 'error', message: 'That address does not answer as a Host' })
-  })
+  ownRoutes([
+    {
+      method: 'GET',
+      pattern: '/host/look-up',
+      handle: async (request) => {
+        const parsed = HostLookupQuerySchema.safeParse(request.query)
+        if (!parsed.success) return { status: 400, body: { status: 'error', message: 'An https host address is needed' } }
+        // A host the admin named, not yet trusted: no fingerprint to check it against.
+        const host = await lookUpHost(parsed.data.address, (url) => getFromHost(url, undefined, 3_000))
+        return host ? { status: 200, body: host } : { status: 502, body: { status: 'error', message: 'That address does not answer as a Host' } }
+      },
+    },
+  ])
+
   // The backup keeps its copy of the primary's database going; started in main() (#919).
   const replication = createReplicationRunner({
     selfHostId: hostId,
@@ -635,9 +605,7 @@ export async function buildApp(options: { backupService?: BackupService; databas
   })
 
   // The routes every host answers the same way - one table in sync-host, shared with the tablet's app (#949).
-  registerHostRoutes(
-    app,
-    createHostRoutes({
+  const sharedDeps: HostRoutesDeps = {
       hostId,
       lease: hostLease,
       activeWorkspaceId: () => workspaceHardware.getActiveWorkspaceId(),
@@ -689,8 +657,7 @@ export async function buildApp(options: { backupService?: BackupService; databas
       },
       capabilities: () => hostCapabilities(runners),
       log: (message, meta) => app.log.info(meta, message),
-    }),
-  )
+  }
 
   // OSC devices (#484): host and port are the device's transport config for the Host
   // (Bühnentechnik), in the band whose hardware this host serves.
@@ -718,138 +685,131 @@ export async function buildApp(options: { backupService?: BackupService; databas
     }
     return false
   }
-  async function isWorkspaceAdmin(request: FastifyRequest, workspaceId: string, username: string, password: string): Promise<boolean> {
-    return checkBandAdmin(workspaceId, username, password, request.ip)
-  }
-
   type PinCheck = { ok: true } | { ok: false; retryAfterSeconds?: number }
-  async function checkAdminPin(request: FastifyRequest, workspaceId: string, profileId: string, pin: string): Promise<PinCheck> {
+  async function checkAdminPin(remoteAddress: string | undefined, workspaceId: string, profileId: string, pin: string): Promise<PinCheck> {
     const answer = await bandJoinFor(workspaceId).verifyPin({ profileId, pin })
     if (answer.status === 200) return { ok: true }
     if (answer.status === 429) return { ok: false, retryAfterSeconds: (answer.body as { retryAfterSeconds: number }).retryAfterSeconds }
     if (pinThrottle.lockedForSeconds(`${workspaceId}:${profileId}`) > 0) {
-      app.log.warn({ workspaceId, profileId, remoteAddress: request.ip }, 'Too many wrong admin PINs - locked out temporarily')
+      app.log.warn({ workspaceId, profileId, remoteAddress }, 'Too many wrong admin PINs - locked out temporarily')
     }
     return { ok: false }
   }
 
   /** 429 with how long to wait when locked, otherwise the plain 403 for a wrong proof. */
-  function rejectPin(reply: FastifyReply, check: { ok: false; retryAfterSeconds?: number }, forbiddenMessage: string) {
+  function rejectPin(check: { ok: false; retryAfterSeconds?: number }, forbiddenMessage: string): HostRouteResponse {
     if (check.retryAfterSeconds) {
-      return reply
-        .status(429)
-        .header('Retry-After', String(check.retryAfterSeconds))
-        .send({ status: 'error', message: 'Too many wrong PINs - try again later', retryAfterSeconds: check.retryAfterSeconds })
+      return { status: 429, headers: { 'Retry-After': String(check.retryAfterSeconds) }, body: { status: 'error', message: 'Too many wrong PINs - try again later', retryAfterSeconds: check.retryAfterSeconds } }
     }
-    return reply.status(403).send({ status: 'error', message: forbiddenMessage })
+    return { status: 403, body: { status: 'error', message: forbiddenMessage } }
   }
 
-  app.get('/plugins', async () => registry.list())
 
-  // #101's Host mirror: whatever pluginSync.ts's downloadMissingBundles already
-  // cached to disk, served back out to any tablet on the LAN - same @fastify/static-style
-  // static-file-from-disk shape the app's own build output uses (see docs/03), just for one
-  // plugin bundle at a time instead of the whole PWA.
-  app.get('/plugins/:id/client.js', async (request, reply) => {
-    const { id } = request.params as { id: string }
-    if (!isSafePluginId(id)) {
-      return reply.status(400).send({ status: 'error', message: 'Invalid plugin id' })
-    }
-    const bundle = await readPluginBundle(id)
-    if (bundle === null) {
-      return reply.status(404).send({ status: 'error', message: 'No client bundle cached for this plugin' })
-    }
-    return reply.type('application/javascript').send(bundle)
-  })
-
-  // Add-ons from their own repositories (docs/32 §12, #852): the host keeps each version's files,
-  // checked against their SHA-256, and the devices load them from here - never from the internet.
-  app.get('/addons/:id/:version/:file', async (request, reply) => {
-    const { id, version, file } = request.params as { id: string; version: string; file: string }
-    const path = addonFilePath(addonRoot(), id, version, file)
-    if (!path) return reply.status(400).send({ status: 'error', message: 'Invalid add-on file' })
-    const data = await readFile(path).catch(() => null)
-    if (data === null) return reply.status(404).send({ status: 'error', message: 'No such add-on file kept' })
-    // A version's files never change - only a new version does.
-    reply.header('cache-control', 'public, max-age=31536000, immutable')
-    return reply.type(file.endsWith('.js') ? 'application/javascript' : file.endsWith('.json') ? 'application/json' : 'application/octet-stream').send(data)
-  })
-
-  /** What the admin sees before installing: the latest release's manifest, publisher, source, size. */
-  app.post('/workspaces/:workspaceId/addons/preview', async (request, reply) => {
-    const { workspaceId } = request.params as { workspaceId: string }
-    if (!(await isBandAdmin(workspaceId, request.headers.authorization))) {
-      return reply.status(403).send({ status: 'error', message: 'Only an admin of this band manages add-ons' })
-    }
-    const parsed = AddonPreviewRequestSchema.safeParse(request.body)
-    if (!parsed.success) return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
-    try {
-      const { preview } = await previewAddon(parsed.data.repository, { apiBase: process.env.STAGEBOARD_GITHUB_API })
-      // What this device lacks to run the add-on's jobs (#962): the admin sees it before installing.
-      return { ...preview, hostNeeds: addonHostNeeds(preview.manifest) }
-    } catch (err) {
-      if (err instanceof AddonError) return reply.status(422).send({ status: 'error', code: err.code, message: err.message })
-      throw err
-    }
-  })
-
-  /** Downloads and checks the latest release and keeps it (with the version before it, for
-   * rollback). `expectedVersion`: what the admin saw in the preview - a newer release in between is
-   * refused rather than installed unseen. The band's documents are written by the admin's device. */
-  app.post('/workspaces/:workspaceId/addons/install', async (request, reply) => {
-    const { workspaceId } = request.params as { workspaceId: string }
-    if (!(await isBandAdmin(workspaceId, request.headers.authorization))) {
-      return reply.status(403).send({ status: 'error', message: 'Only an admin of this band manages add-ons' })
-    }
-    const parsed = AddonInstallRequestSchema.safeParse(request.body)
-    if (!parsed.success) return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
-    const deps = { apiBase: process.env.STAGEBOARD_GITHUB_API }
-    try {
-      const { preview, release } = await previewAddon(parsed.data.repository, deps)
-      if (preview.manifest.version !== parsed.data.expectedVersion) {
-        return reply.status(409).send({ status: 'error', code: 'version-changed', message: `The repository now offers ${preview.manifest.version}`, version: preview.manifest.version })
-      }
-      const needs = addonHostNeeds(preview.manifest)
-      if (needs) {
-        app.log.warn({ workspaceId, addon: preview.manifest.id, needs }, 'Add-on refused - this device cannot run its jobs')
-        const refused = addonRefusal(preview.manifest.id, needs)
-        return reply.status(refused.status).send(refused.body)
-      }
-      await installAddonVersion(preview.manifest, release, addonRoot(), deps)
-      const keep = [preview.manifest.version, ...(parsed.data.previousVersion ? [parsed.data.previousVersion] : [])]
-      await pruneAddonVersions(addonRoot(), preview.manifest.id, keep)
-      app.log.info({ workspaceId, addon: preview.manifest.id, version: preview.manifest.version, repository: preview.repository }, 'Add-on version kept')
-      return { ...preview, keptVersions: keep }
-    } catch (err) {
-      if (err instanceof AddonError) {
-        app.log.warn({ workspaceId, repository: parsed.data.repository, code: err.code, detail: err.message }, 'Add-on install refused')
-        return reply.status(422).send({ status: 'error', code: err.code, message: err.message })
-      }
-      throw err
-    }
-  })
-
-  app.post('/plugins/:name/trigger', async (request, reply) => {
-    const { name } = request.params as { name: string }
-    const parsed = ShowControlEventSchema.safeParse(request.body)
-    if (!parsed.success) {
-      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
-    }
-
-    // scheduledAt is a Gateway-only concern (see the schema doc comment) - the plugin itself
-    // only ever sees type/payload, same shape as before #31.
-    const { scheduledAt, ...event } = parsed.data
-    if (scheduledAt !== undefined) {
-      const delayMs = scheduledAt - Date.now()
-      if (delayMs > 0) await new Promise((resolve) => setTimeout(resolve, delayMs))
-    }
-
-    const result = await registry.trigger(name, event)
-    if (result === null) {
-      return reply.status(404).send({ status: 'error', message: `Unknown plugin: ${name}` })
-    }
-    return result
-  })
+  // The plugins and add-ons this host keeps and runs, as a route table of the Node shell (#964, step 2).
+  const decoded = (value: string | undefined) => decodeURIComponent(value ?? '')
+  const notBandAdmin = { status: 403, body: { status: 'error', message: 'Only an admin of this band manages add-ons' } }
+  ownRoutes([
+    { method: 'GET', pattern: '/plugins', handle: async () => ({ status: 200, body: registry.list() }) },
+    // #101's Host mirror: whatever pluginSync.ts's downloadMissingBundles already cached to disk, served back out to any tablet on the LAN.
+    {
+      method: 'GET',
+      pattern: '/plugins/:id/client.js',
+      handle: async (request) => {
+        const id = decoded(request.params.id)
+        if (!isSafePluginId(id)) return { status: 400, body: { status: 'error', message: 'Invalid plugin id' } }
+        const bundle = await readPluginBundle(id)
+        if (bundle === null) return { status: 404, body: { status: 'error', message: 'No client bundle cached for this plugin' } }
+        return { status: 200, binary: { data: new Uint8Array(bundle), contentType: 'application/javascript' } }
+      },
+    },
+    // Add-ons from their own repositories (docs/32 §12, #852): the host keeps each version's files, checked against their SHA-256, and the
+    // devices load them from here - never from the internet.
+    {
+      method: 'GET',
+      pattern: '/addons/:id/:version/:file',
+      handle: async (request) => {
+        const file = decoded(request.params.file)
+        const path = addonFilePath(addonRoot(), decoded(request.params.id), decoded(request.params.version), file)
+        if (!path) return { status: 400, body: { status: 'error', message: 'Invalid add-on file' } }
+        const data = await readFile(path).catch(() => null)
+        if (data === null) return { status: 404, body: { status: 'error', message: 'No such add-on file kept' } }
+        const contentType = file.endsWith('.js') ? 'application/javascript' : file.endsWith('.json') ? 'application/json' : 'application/octet-stream'
+        // A version's files never change - only a new version does.
+        return { status: 200, headers: { 'cache-control': 'public, max-age=31536000, immutable' }, binary: { data: new Uint8Array(data), contentType } }
+      },
+    },
+    /** What the admin sees before installing: the latest release's manifest, publisher, source, size. */
+    {
+      method: 'POST',
+      pattern: '/workspaces/:workspaceId/addons/preview',
+      handle: async (request) => {
+        if (!(await isBandAdmin(decoded(request.params.workspaceId), request.authorization))) return notBandAdmin
+        const parsed = AddonPreviewRequestSchema.safeParse(request.body)
+        if (!parsed.success) return { status: 400, body: { status: 'error', message: parsed.error.issues[0]?.message } }
+        try {
+          const { preview } = await previewAddon(parsed.data.repository, { apiBase: process.env.STAGEBOARD_GITHUB_API })
+          // What this device lacks to run the add-on's jobs (#962): the admin sees it before installing.
+          return { status: 200, body: { ...preview, hostNeeds: addonHostNeeds(preview.manifest) } }
+        } catch (err) {
+          if (err instanceof AddonError) return { status: 422, body: { status: 'error', code: err.code, message: err.message } }
+          throw err
+        }
+      },
+    },
+    /** Downloads and checks the latest release and keeps it (with the version before it, for rollback). `expectedVersion`: what the admin saw
+     * in the preview - a newer release in between is refused rather than installed unseen. The band's documents are written by the admin's device. */
+    {
+      method: 'POST',
+      pattern: '/workspaces/:workspaceId/addons/install',
+      handle: async (request) => {
+        const workspaceId = decoded(request.params.workspaceId)
+        if (!(await isBandAdmin(workspaceId, request.authorization))) return notBandAdmin
+        const parsed = AddonInstallRequestSchema.safeParse(request.body)
+        if (!parsed.success) return { status: 400, body: { status: 'error', message: parsed.error.issues[0]?.message } }
+        const deps = { apiBase: process.env.STAGEBOARD_GITHUB_API }
+        try {
+          const { preview, release } = await previewAddon(parsed.data.repository, deps)
+          if (preview.manifest.version !== parsed.data.expectedVersion) {
+            return { status: 409, body: { status: 'error', code: 'version-changed', message: `The repository now offers ${preview.manifest.version}`, version: preview.manifest.version } }
+          }
+          const needs = addonHostNeeds(preview.manifest)
+          if (needs) {
+            app.log.warn({ workspaceId, addon: preview.manifest.id, needs }, 'Add-on refused - this device cannot run its jobs')
+            return addonRefusal(preview.manifest.id, needs)
+          }
+          await installAddonVersion(preview.manifest, release, addonRoot(), deps)
+          const keep = [preview.manifest.version, ...(parsed.data.previousVersion ? [parsed.data.previousVersion] : [])]
+          await pruneAddonVersions(addonRoot(), preview.manifest.id, keep)
+          app.log.info({ workspaceId, addon: preview.manifest.id, version: preview.manifest.version, repository: preview.repository }, 'Add-on version kept')
+          return { status: 200, body: { ...preview, keptVersions: keep } }
+        } catch (err) {
+          if (err instanceof AddonError) {
+            app.log.warn({ workspaceId, repository: parsed.data.repository, code: err.code, detail: err.message }, 'Add-on install refused')
+            return { status: 422, body: { status: 'error', code: err.code, message: err.message } }
+          }
+          throw err
+        }
+      },
+    },
+    {
+      method: 'POST',
+      pattern: '/plugins/:name/trigger',
+      handle: async (request) => {
+        const name = decoded(request.params.name)
+        const parsed = ShowControlEventSchema.safeParse(request.body)
+        if (!parsed.success) return { status: 400, body: { status: 'error', message: parsed.error.issues[0]?.message } }
+        // scheduledAt is a Gateway-only concern (see the schema doc comment) - the plugin itself only ever sees type/payload, same shape as before #31.
+        const { scheduledAt, ...event } = parsed.data
+        if (scheduledAt !== undefined) {
+          const delayMs = scheduledAt - Date.now()
+          if (delayMs > 0) await new Promise((resolve) => setTimeout(resolve, delayMs))
+        }
+        const result = await registry.trigger(name, event)
+        if (result === null) return { status: 404, body: { status: 'error', message: `Unknown plugin: ${name}` } }
+        return { status: 200, body: result }
+      },
+    },
+  ])
 
   const lookupRegistry = new LookupRegistry()
 
@@ -867,20 +827,27 @@ export async function buildApp(options: { backupService?: BackupService; databas
 
   // An add-on's method, answered by its work script in a sandbox on this device (docs/36 §3, #964). The add-on must be installed for the band; what
   // comes back is the add-on's own answer or its own error - this route knows no add-on's domain.
-  app.post('/addons/:id/methods/:method', async (request, reply) => {
-    const { id, method } = request.params as { id: string; method: string }
-    const { workspace } = request.query as { workspace?: string }
-    if (!workspace || !/^[a-z0-9_-]+$/i.test(workspace)) return reply.status(400).send({ status: 'error', message: 'Missing or invalid workspace' })
-    if (!addonMethods.has(id)) return reply.status(404).send({ ok: false, error: { code: 'addon.unknown', message: `No add-on "${id}" on this host`, params: { addon: id } } })
-    // Only what the add-on marked for devices: a method that sends a packet (OSC), runs Demucs or fetches audio is the host's own business - without this
-    // anyone on the network could make this host send UDP anywhere or start a program (found in review, 2026-11-21).
-    const declared = addonMethods.contributes(id)?.methods
-    if (!declared || !Object.prototype.hasOwnProperty.call(declared, method) || declared[method]!.callableByDevices !== true) {
-      return reply.status(403).send({ ok: false, error: { code: 'method.not-callable', message: `The method "${method}" of "${id}" is not offered to devices.`, params: { addon: id, method } } })
-    }
-    if (!(await bandHasAddon(database, workspace, id).catch(() => false))) return reply.status(403).send({ status: 'error', ...hostMessage('addon.notInstalled', { addon: id }) })
-    return addonMethods.call(id, method, request.body ?? {})
-  })
+  ownRoutes([
+    {
+      method: 'POST',
+      pattern: '/addons/:id/methods/:method',
+      handle: async (request) => {
+        const id = decoded(request.params.id)
+        const method = decoded(request.params.method)
+        const workspace = request.query.workspace
+        if (!workspace || !/^[a-z0-9_-]+$/i.test(workspace)) return { status: 400, body: { status: 'error', message: 'Missing or invalid workspace' } }
+        if (!addonMethods.has(id)) return { status: 404, body: { ok: false, error: { code: 'addon.unknown', message: `No add-on "${id}" on this host`, params: { addon: id } } } }
+        // Only what the add-on marked for devices: a method that sends a packet (OSC), runs Demucs or fetches audio is the host's own business -
+        // without this anyone on the network could make this host send UDP anywhere or start a program (found in review, 2026-11-21).
+        const declared = addonMethods.contributes(id)?.methods
+        if (!declared || !Object.prototype.hasOwnProperty.call(declared, method) || declared[method]!.callableByDevices !== true) {
+          return { status: 403, body: { ok: false, error: { code: 'method.not-callable', message: `The method "${method}" of "${id}" is not offered to devices.`, params: { addon: id, method } } } }
+        }
+        if (!(await bandHasAddon(database, workspace, id).catch(() => false))) return { status: 403, body: { status: 'error', ...hostMessage('addon.notInstalled', { addon: id }) } }
+        return { status: 200, body: await addonMethods.call(id, method, request.body ?? {}) }
+      },
+    },
+  ])
 
   // Provisions a brand-new workspace: its database, `_security` doc, roster validation doc, and
   // the founding device's own personal account (see per-person-accounts follow-up -
@@ -910,41 +877,33 @@ export async function buildApp(options: { backupService?: BackupService; databas
   // to kill the process and restart it with a different STAGEBOARD_WORKSPACE env var, for the
   // real case of one Host serving two of Marco's own bands on different days, never at
   // the same time (see workspaceHardwareController.ts).
-  app.post('/workspaces/:workspaceId/activate-hardware', async (request, reply) => {
-    const { workspaceId } = request.params as { workspaceId: string }
-    const parsed = ActivateWorkspaceHardwareRequestSchema.safeParse(request.body)
-    if (!parsed.success) {
-      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
-    }
+  ownRoutes([
+    {
+      method: 'POST',
+      pattern: '/workspaces/:workspaceId/activate-hardware',
+      handle: async (request) => {
+        const workspaceId = decodeURIComponent(request.params.workspaceId ?? '')
+        const parsed = ActivateWorkspaceHardwareRequestSchema.safeParse(request.body)
+        if (!parsed.success) return { status: 400, body: { status: 'error', message: parsed.error.issues[0]?.message } }
+        // Opening proof: an admin of the workspace being activated, checked against *that* workspace's own roster and PIN (verifyAdminPin) - an
+        // admin of some other workspace cannot satisfy it; the flat 'admin' database role never decides this.
+        const { opening, closing } = parsed.data
+        const openingCheck = await checkAdminPin(request.remoteAddress, workspaceId, opening.profileId, opening.pin)
+        if (!openingCheck.ok) return rejectPin(openingCheck, 'Not this workspace\'s admin')
+        // Closing proof: only when some *other* workspace is active on this box - the caller may interrupt what is live right now. Without it,
+        // anyone who merely knows the opening band's PIN could kill a different band's live show.
+        const currentlyActive = workspaceHardware.getActiveWorkspaceId()
+        if (currentlyActive && currentlyActive !== workspaceId) {
+          if (!closing) return { status: 400, body: { status: 'error', message: `Admin proof for the currently active workspace (${currentlyActive}) is required to switch away from it` } }
+          const closingCheck = await checkAdminPin(request.remoteAddress, currentlyActive, closing.profileId, closing.pin)
+          if (!closingCheck.ok) return rejectPin(closingCheck, 'Not the currently active workspace\'s admin')
+        }
+        await workspaceHardware.activate(workspaceId)
+        return { status: 200, body: { status: 'ok' } }
+      },
+    },
+  ])
 
-    // Opening proof: an admin of the workspace being activated. Checked against *that*
-    // workspace's own roster and PIN (verifyAdminPin), so it can't be satisfied by an admin of
-    // some other workspace - unlike a bare verifyAdmin(), the flat 'admin' the database role is never
-    // what decides this.
-    const { opening, closing } = parsed.data
-    const openingCheck = await checkAdminPin(request, workspaceId, opening.profileId, opening.pin)
-    if (!openingCheck.ok) return rejectPin(reply, openingCheck, 'Not this workspace\'s admin')
-
-    // Closing proof: only required when some *other* workspace is currently active on this
-    // box - proves the caller is allowed to interrupt whatever's actually live right now, not
-    // just that they're an admin of wherever they're switching to. Without this, anyone who
-    // merely knows the *opening* band's PIN could silently kill a different band's live show,
-    // with no relationship to it at all.
-    const currentlyActive = workspaceHardware.getActiveWorkspaceId()
-    if (currentlyActive && currentlyActive !== workspaceId) {
-      if (!closing) {
-        return reply.status(400).send({
-          status: 'error',
-          message: `Admin proof for the currently active workspace (${currentlyActive}) is required to switch away from it`,
-        })
-      }
-      const closingCheck = await checkAdminPin(request, currentlyActive, closing.profileId, closing.pin)
-      if (!closingCheck.ok) return rejectPin(reply, closingCheck, 'Not the currently active workspace\'s admin')
-    }
-
-    await workspaceHardware.activate(workspaceId)
-    return reply.status(200).send({ status: 'ok' })
-  })
 
   // Which workspace (if any) this specific box's hardware currently serves - not scoped under
   // /workspaces/:workspaceId since it describes the host, not a workspace, and needs no auth
@@ -962,20 +921,16 @@ export async function buildApp(options: { backupService?: BackupService; databas
         return state?.playbackStatus === 'playing'
       }, app.log),
     )
-  async function activeBandAdmin(request: FastifyRequest, reply: FastifyReply, body: { adminUsername: string; adminPassword: string }): Promise<boolean> {
+  async function activeBandAdmin(remoteAddress: string | undefined, body: { adminUsername: string; adminPassword: string }): Promise<HostRouteResponse | null> {
     const workspaceId = workspaceHardware.getActiveWorkspaceId()
-    if (!workspaceId) {
-      void reply.status(409).send({ status: 'error', ...hostMessage('band.noneActive') })
-      return false
+    if (!workspaceId) return { status: 409, body: { status: 'error', ...hostMessage('band.noneActive') } }
+    if (!(await checkBandAdmin(workspaceId, body.adminUsername, body.adminPassword, remoteAddress))) {
+      app.log.warn({ workspaceId, remoteAddress }, 'Server setting refused: not this band\'s admin')
+      return { status: 403, body: { status: 'error', ...hostMessage('band.activeAdminOnly') } }
     }
-    if (!(await isWorkspaceAdmin(request, workspaceId, body.adminUsername, body.adminPassword))) {
-      app.log.warn({ workspaceId, remoteAddress: request.ip }, 'Server setting refused: not this band\'s admin')
-      void reply.status(403).send({ status: 'error', ...hostMessage('band.activeAdminOnly') })
-      return false
-    }
-    return true
+    return null
   }
-  registerHostSettingsRoutes(app, { backups, activeBandAdmin, measureInputs, calibrationRuns })
+  ownRoutes(hostSettingsRoutes({ backups, activeBandAdmin, measureInputs, calibrationRuns, log: app.log }))
 
   // 2026-09-02 fourth follow-up, at Marco's explicit request: consolidates the PWA, this API,
   // and the database onto this one origin, so a new device only ever has to accept one self-signed
@@ -991,27 +946,26 @@ export async function buildApp(options: { backupService?: BackupService; databas
   // directly. `stage-pwa`'s `workspaceDb.ts` now builds its remote database URL from this
   // server's own origin plus this `/db` prefix (`VITE_HOST_URL`) instead of a separate
   // `VITE_DB_URL` pointing at the database's own port - one address to configure, not two.
-  registerDatabaseRoutes(app, {
-    handle: options.databaseHost,
-    refusal: bandDbProxyRefusal,
-    lockedForSeconds: (authorization) => {
-      const login = basicAuthCredentials(authorization)
-      return login ? adminLoginThrottle.lockedForSeconds(login.username) : 0
-    },
-    log: app.log,
-  })
-  app.addHook('onResponse', async (request, reply) => {
-    if (!request.url.startsWith('/db')) return
-    const login = basicAuthCredentials(request.headers.authorization)
-    if (!login) return
-    if (reply.statusCode === 401) {
-      if (adminLoginThrottle.recordFailure(login.username)) {
-        app.log.warn({ username: login.username, remoteAddress: request.ip }, 'Too many wrong database logins - locked out temporarily')
-      }
-    } else if (reply.statusCode < 400) {
-      adminLoginThrottle.recordSuccess(login.username)
-    }
-  })
+  // The guard is the one every host has (`guardBandDb`, #964 step 2). A laptop hosts and serves every band in its database, so it gives
+  // no `servesBand`/`serving`: only the account check and the lock after wrong logins (#396) apply here today.
+  // The laptop answers through the same pipeline as the tablet (#964 step 2): the shared routes, the Node shell's own, the live streams,
+  // and the band databases behind the guard every host has. A laptop hosts and serves every band in its database, so it gives no
+  // `servesBand` and serves always: only the account check and the lock after wrong logins (#396) apply to `/db` here today. The
+  // database host checks the login itself.
+  const hostDeps: HostRequestDeps = {
+    ...sharedDeps,
+    serving: sharedDeps.serving ?? (() => true),
+    port,
+    // The laptop's own `/host/info` is in its table (it reads the address fresh); this is the tablet's fallback.
+    address: null,
+    certFingerprint: CERT_FINGERPRINT ?? '',
+    state: () => ({ epoch: hostEpoch, active: true, outdated: false, priority: null }),
+    ownRoutes: nodeRoutes,
+    stream: streamOf,
+    loginThrottle: adminLoginThrottle,
+    ...(options.databaseHost ? { database: laptopDatabase(options.databaseHost) } : {}),
+  }
+  app.setHandler((request) => answerHostRequest(request, hostDeps))
 
   // Serves stage-pwa's `vite build` output, if present - graceful fallback, same pattern as the
   // TLS certs above (see `certFile`/`keyFile`): without a build in place, this registers
@@ -1019,14 +973,14 @@ export async function buildApp(options: { backupService?: BackupService; databas
   // working exactly as before for day-to-day iteration. Only relevant for testing "as a real
   // device would see it" - one origin, one cert exception - or an actual gig. No SPA-fallback
   // routing needed: the app has no client-side URL router at all, just one `index.html` and
-  // in-memory React state, so `@fastify/static`'s default file-or-404 behavior is already
-  // exactly right - `/` is the only path anything ever actually requests.
+  // in-memory React state, so file-or-pipeline is exactly right - `/` is the only path anything ever actually requests.
   // The native Android app (#348), built by scripts/build-android-app.sh next to the host's data.
-  registerAppRoutes(app, process.env.STAGEBOARD_APP_DIR ?? join(process.env.STAGEBOARD_STATE_DIR ?? './data', 'app'))
+  ownRoutes(appRoutes(appDir()))
 
   const pwaDist = fileURLToPath(new URL('../../stage-pwa/dist', import.meta.url))
   if (existsSync(pwaDist)) {
-    await app.register(fastifyStatic, { root: pwaDist })
+    // Only the files the build has: everything else is the host pipeline's.
+    app.serveFiles(pwaDist)
   }
 
   return { app, registry, lookupRegistry, database, workspaceHardware, pluginLog, backups, hostLease, replication, audioMirror, catchUp, channels }
@@ -1147,7 +1101,9 @@ async function main() {
       })
       oscIn.on('error', (err) => pluginLog.error('osc in: port unavailable', { port: OSC_IN_PORT, error: err.message }))
       oscIn.bind(OSC_IN_PORT)
-      app.addHook('onClose', async () => oscIn.close())
+      app.addHook('onClose', async () => {
+        oscIn.close()
+      })
     }
     app.addHook('onClose', async () => pingLoop.stop())
 

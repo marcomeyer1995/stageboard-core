@@ -27,6 +27,12 @@
   "settings": "Settings",
   "available": "Available",
   "install": "Install",
+  "updateBadge": "Update v{{to}}",
+  "updateBadgeSame": "Update",
+  "update": "Update (v{{from}} → v{{to}})",
+  "updateSame": "Update (new details)",
+  "updatePermissions": "With this update {{name}} also wants: {{permissions}}. Update?",
+  "updateConfirm": "Update",
   "ann": {
     "title": "Announcements - settings",
     "onDevice": "On this device",

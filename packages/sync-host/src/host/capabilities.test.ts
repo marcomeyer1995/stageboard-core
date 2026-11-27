@@ -22,6 +22,9 @@ describe('jobs a host can be asked for (#962)', () => {
     expect(jobOfRequest('POST', '/plugins/stem-separation/trigger')).toBe('plugin:stem-separation')
     expect(jobOfRequest('POST', '/workspaces/band/activate-hardware')).toBe('hardware')
     expect(jobOfRequest('GET', '/server/backup-status/')).toBe('backup')
+    expect(jobOfRequest('GET', '/app/version.json')).toBe('app-distribution')
+    expect(jobOfRequest('GET', '/app/stageboard.apk')).toBe('app-distribution')
+    expect(jobOfRequest('GET', '/app')).toBe('app-distribution')
     expect(jobOfRequest('GET', '/time')).toBeNull()
     expect(jobOfRequest('GET', '/server/backup/run')).toBeNull()
   })
@@ -31,6 +34,8 @@ describe('jobs a host can be asked for (#962)', () => {
     expect(refused?.status).toBe(501)
     expect(refused?.body).toMatchObject({ error: 'capability_missing', capability: 'backup', needs: 'a Node machine' })
     expect(refusalFor(tablet, 'POST', '/plugins/stem-separation/trigger')?.body).toMatchObject({ capability: 'plugin:stem-separation', needs: 'demucs' })
+    // The app update check of a device on a tablet host (#962): refused with what is missing, not "not a route".
+    expect(refusalFor(tablet, 'GET', '/app/version.json')).toMatchObject({ status: 501, body: { capability: 'app-distribution' } })
   })
 
   it('lets a job through when the device can do it, and a plugin the build does not know is refused as unknown', () => {
@@ -40,7 +45,7 @@ describe('jobs a host can be asked for (#962)', () => {
   })
 
   it('every job of the table is one a host has to say something about, and the schema accepts the answer', () => {
-    expect(JOB_IDS).toEqual(expect.arrayContaining(['backup', 'measure-inputs', 'calibration', 'speech', 'lookup', 'plugin-runtime', 'hardware', 'osc-in', 'host-lookup']))
+    expect(JOB_IDS).toEqual(expect.arrayContaining(['backup', 'measure-inputs', 'calibration', 'speech', 'lookup', 'plugin-runtime', 'hardware', 'osc-in', 'host-lookup', 'app-distribution']))
     expect(new Set(JOB_ROUTES.map((r) => `${r.method} ${r.pattern}`)).size).toBe(JOB_ROUTES.length)
     expect(HostCapabilitiesSchema.parse(tablet)).toEqual(tablet)
   })

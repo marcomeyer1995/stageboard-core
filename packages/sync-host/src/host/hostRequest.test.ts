@@ -10,6 +10,9 @@ import type { AccountDoc } from './bandAccounts.js'
 import type { SyncRequest } from '../index.js'
 import { answerHostRequest, bandOfPath, loginCheckOf, type HostRequestDeps } from './hostRequest.js'
 
+/** A device login of `band` as a device sends it; the test login accepts the password `pw`. */
+const dev = (band: string, password = 'pw') => `Basic ${Buffer.from(`stageboard-${band}-p1~dev:${password}`).toString('base64')}`
+
 /** The routes every host shares are tested once (routes.test.ts); here: the request handler every platform uses (#964) - the band guard and the answers a device that cannot do a thing gets. */
 const baseDeps = () => {
   const seen: SyncRequest[] = []
@@ -50,7 +53,7 @@ const baseDeps = () => {
       seen.push(request)
       return { status: 200, body: { answered: true } }
     }),
-    login: vi.fn(async (authorization) => (authorization === 'Basic good' ? { name: 'device', roles: ['member', 'admin'] } : null)),
+    login: vi.fn(async (authorization) => (authorization === 'Basic good' || (authorization !== undefined && authorization.startsWith('Basic ') && Buffer.from(authorization.slice(6), 'base64').toString().endsWith(':pw')) ? { name: 'device', roles: ['member', 'admin'] } : null)),
   }
   return { deps, seen }
 }
@@ -74,7 +77,7 @@ describe('what a passive backup answers (#947)', () => {
 
   it('refuses every database request, before it asks who is calling', async () => {
     const { deps } = baseDeps()
-    const refused = await answerHostRequest({ method: 'POST', path: '/db/stageboard-leasetest/_bulk_docs', query: {}, authorization: 'Basic good', body: { docs: [] } }, deps)
+    const refused = await answerHostRequest({ method: 'POST', path: '/db/stageboard-leasetest/_bulk_docs', query: {}, authorization: dev('leasetest'), body: { docs: [] } }, deps)
     expect(refused.status).toBe(503)
     expect(deps.login).not.toHaveBeenCalled()
     expect(deps.sync).not.toHaveBeenCalled()
@@ -113,16 +116,29 @@ describe('when it has taken over (#947)', () => {
   it('serves the band to a logged-in device, with the write rules in front', async () => {
     const { deps, seen } = baseDeps()
     active(deps)
-    const answer = await answerHostRequest({ method: 'GET', path: '/db/stageboard-leasetest/_changes', query: { since: '4' }, authorization: 'Basic good' }, deps)
+    const answer = await answerHostRequest({ method: 'GET', path: '/db/stageboard-leasetest/_changes', query: { since: '4' }, authorization: dev('leasetest') }, deps)
     expect(answer).toEqual({ status: 200, body: { answered: true } })
-    expect(deps.login).toHaveBeenCalledWith('Basic good', 'stageboard-leasetest')
+    expect(deps.login).toHaveBeenCalledWith(dev('leasetest'), 'stageboard-leasetest')
     expect(seen[0]).toEqual({ method: 'GET', path: '/stageboard-leasetest/_changes', query: { since: '4' }, body: undefined })
   })
 
   it('refuses a device that is not of this band', async () => {
     const { deps } = baseDeps()
     active(deps)
-    expect((await answerHostRequest({ method: 'GET', path: '/db/stageboard-leasetest/_changes', query: {}, authorization: 'Basic bad' }, deps)).status).toBe(401)
+    expect((await answerHostRequest({ method: 'GET', path: '/db/stageboard-leasetest/_changes', query: {}, authorization: dev('leasetest', 'wrong') }, deps)).status).toBe(401)
+    expect(deps.sync).not.toHaveBeenCalled()
+  })
+
+  it('refuses another band\'s login with 403 and locks a login after wrong passwords like the laptop (429, #396)', async () => {
+    const { deps } = baseDeps()
+    active(deps)
+    deps.loginThrottle = createPinThrottle({ maxFailures: 2 })
+    const ask = (authorization: string) => answerHostRequest({ method: 'GET', path: '/db/stageboard-leasetest/_changes', query: {}, authorization }, deps)
+    expect((await ask(dev('other'))).status).toBe(403)
+    expect((await ask(dev('leasetest', 'wrong'))).status).toBe(401)
+    expect((await ask(dev('leasetest', 'wrong'))).status).toBe(401)
+    // Locked: even the right password waits now.
+    expect(await ask(dev('leasetest'))).toMatchObject({ status: 429, body: { error: 'locked' } })
     expect(deps.sync).not.toHaveBeenCalled()
   })
 
@@ -176,13 +192,13 @@ describe('several bands on one tablet (#962)', () => {
 
   it('serves a band it founded even while the active band is passive - a band it only knows as a device is 404', async () => {
     const { deps } = several()
-    const founded = await answerHostRequest({ method: 'GET', path: '/db/stageboard-founded/_changes', query: {}, authorization: 'Basic good' }, deps)
+    const founded = await answerHostRequest({ method: 'GET', path: '/db/stageboard-founded/_changes', query: {}, authorization: dev('founded') }, deps)
     expect(founded.status).toBe(200)
-    expect(deps.login).toHaveBeenCalledWith('Basic good', 'stageboard-founded')
+    expect(deps.login).toHaveBeenCalledWith(dev('founded'), 'stageboard-founded')
     // The active band still follows the lease: passive means 503, not "served because it is active".
-    expect((await answerHostRequest({ method: 'GET', path: '/db/stageboard-leasetest/_changes', query: {}, authorization: 'Basic good' }, deps)).status).toBe(503)
+    expect((await answerHostRequest({ method: 'GET', path: '/db/stageboard-leasetest/_changes', query: {}, authorization: dev('leasetest') }, deps)).status).toBe(503)
     // A band this tablet merely joined is not its business - 404, before the login asks anything.
-    expect((await answerHostRequest({ method: 'GET', path: '/db/stageboard-joined/_changes', query: {}, authorization: 'Basic good' }, deps)).status).toBe(404)
+    expect((await answerHostRequest({ method: 'GET', path: '/db/stageboard-joined/_changes', query: {}, authorization: dev('joined') }, deps)).status).toBe(404)
     expect(deps.sync).toHaveBeenCalledTimes(1)
   })
 
@@ -284,5 +300,58 @@ describe('a device that cannot do a job, through the handler (#964)', () => {
       expect(refused.status, path).toBe(501)
       expect(refused.body, path).toMatchObject({ error: 'capability_missing', capability })
     }
+  })
+})
+
+describe('a Node host answers through the same pipeline (#964 step 2)', () => {
+  const nodeDeps = () => {
+    const { deps } = baseDeps()
+    const database = vi.fn(async () => ({ status: 200, body: { db: true } }))
+    const node: HostRequestDeps = {
+      ...deps,
+      serving: () => true,
+      state: () => ({ epoch: 1, active: true, outdated: false, priority: null }),
+      ownRoutes: [
+        { method: 'GET', pattern: '/host/:anything', handle: async () => ({ status: 200, body: { param: true } }) },
+        { method: 'GET', pattern: '/host/own', handle: async () => ({ status: 200, body: { own: true }, headers: { 'X-Own': '1' } }) },
+      ],
+      stream: (path) => (path === '/workspaces/leasetest/show-state/stream' ? () => () => undefined : null),
+      database,
+    }
+    delete node.login
+    delete node.sync
+    return { deps: node, database }
+  }
+
+  it('matches its own routes, the more literal pattern first, and keeps their headers; a HEAD is answered as the GET', async () => {
+    const { deps } = nodeDeps()
+    expect(await answerHostRequest({ method: 'GET', path: '/host/own', query: {} }, deps)).toEqual({ status: 200, body: { own: true }, headers: { 'X-Own': '1' } })
+    expect((await answerHostRequest({ method: 'GET', path: '/host/else', query: {} }, deps)).body).toEqual({ param: true })
+    expect((await answerHostRequest({ method: 'HEAD', path: '/host/own', query: {} }, deps)).status).toBe(200)
+  })
+
+  it('hands a stream it relays to the transport instead of refusing it', async () => {
+    const { deps } = nodeDeps()
+    const relayed = await answerHostRequest({ method: 'GET', path: '/workspaces/leasetest/show-state/stream', query: {} }, deps)
+    expect(relayed.status).toBe(200)
+    expect(typeof relayed.stream).toBe('function')
+    expect((await answerHostRequest({ method: 'GET', path: '/workspaces/leasetest/presence/stream', query: {} }, deps)).status).toBe(501)
+  })
+
+  it('hands `/db` to a database with its own logins, behind the guard, and leaves other paths alone', async () => {
+    const { deps, database } = nodeDeps()
+    deps.loginThrottle = createPinThrottle({ maxFailures: 1 })
+    expect(await answerHostRequest({ method: 'GET', path: '/db/stageboard-leasetest/', query: { a: '1' }, authorization: dev('leasetest') }, deps)).toEqual({ status: 200, body: { db: true } })
+    expect(database).toHaveBeenLastCalledWith({ method: 'GET', path: '/stageboard-leasetest/', query: { a: '1' }, body: undefined, authorization: dev('leasetest') })
+    expect((await answerHostRequest({ method: 'GET', path: '/db/_session', query: {} }, deps)).status).toBe(200)
+    expect((await answerHostRequest({ method: 'GET', path: '/db/stageboard-leasetest/', query: {}, authorization: dev('other') }, deps)).status).toBe(403)
+    // Without `/db` a Node host has no band database.
+    expect((await answerHostRequest({ method: 'GET', path: '/stageboard-leasetest/_changes', query: {}, authorization: dev('leasetest') }, deps)).status).toBe(404)
+    // The database's own 401 counts towards the lock, and the lock carries Retry-After.
+    database.mockResolvedValueOnce({ status: 401, body: { db: false } })
+    await answerHostRequest({ method: 'GET', path: '/db/stageboard-leasetest/', query: {}, authorization: dev('leasetest', 'wrong') }, deps)
+    const locked = await answerHostRequest({ method: 'GET', path: '/db/stageboard-leasetest/', query: {}, authorization: dev('leasetest', 'wrong') }, deps)
+    expect(locked.status).toBe(429)
+    expect(locked.headers?.['Retry-After']).toMatch(/^\d+$/)
   })
 })
