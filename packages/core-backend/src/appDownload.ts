@@ -1,6 +1,7 @@
-import { createReadStream, existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
+import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import type { FastifyInstance } from 'fastify'
+import type { HostRoute, HostRouteResponse } from 'sync-host'
 
 /** What scripts/build-android-app.sh writes next to the APK. */
 export interface AppVersion {
@@ -61,25 +62,26 @@ ${body}
 }
 
 /**
- * Serves the native Android app (#348) from the Host itself - no app store, works offline
- * at the venue: `/app` (download page), `/app/stageboard.apk`, `/app/version.json` (the installed
- * app compares its own build number against it and offers the update).
+ * Serves the native Android app (#348) from the Host itself - no app store, works offline at the venue: `/app` (download page),
+ * `/app/stageboard.apk`, `/app/version.json` (the installed app compares its own build number against it and offers the update).
+ * A route table of the Node shell (#964, step 2): the same shape as the routes every host shares, so any listener can serve it.
  */
-export function registerAppRoutes(app: FastifyInstance, dir: string): void {
-  app.get('/app', async (_request, reply) => reply.type('text/html; charset=utf-8').send(downloadPage(readAppVersion(dir))))
-
-  app.get('/app/version.json', async (_request, reply) => {
-    const version = readAppVersion(dir)
-    if (!version) return reply.status(404).send({ status: 'error', message: 'No app build on this Host' })
-    return version
-  })
-
-  app.get('/app/stageboard.apk', async (_request, reply) => {
-    if (!readAppVersion(dir)) return reply.status(404).send({ status: 'error', message: 'No app build on this Host' })
-    return reply
-      .type('application/vnd.android.package-archive')
-      .header('Content-Disposition', 'attachment; filename="stageboard.apk"')
-      .header('Cache-Control', 'no-cache')
-      .send(createReadStream(join(dir, 'stageboard.apk')))
-  })
+export function appRoutes(dir: string): HostRoute[] {
+  const noBuild = (): HostRouteResponse => ({ status: 404, body: { status: 'error', message: 'No app build on this Host' } })
+  return [
+    { method: 'GET', pattern: '/app', handle: async () => ({ status: 200, binary: { data: new TextEncoder().encode(downloadPage(readAppVersion(dir))), contentType: 'text/html; charset=utf-8' } }) },
+    { method: 'GET', pattern: '/app/version.json', handle: async () => readAppVersion(dir) ? { status: 200, body: readAppVersion(dir) } : noBuild() },
+    {
+      method: 'GET',
+      pattern: '/app/stageboard.apk',
+      handle: async () => {
+        if (!readAppVersion(dir)) return noBuild()
+        return {
+          status: 200,
+          headers: { 'Content-Disposition': 'attachment; filename="stageboard.apk"', 'Cache-Control': 'no-cache' },
+          binary: { data: new Uint8Array(await readFile(join(dir, 'stageboard.apk'))), contentType: 'application/vnd.android.package-archive' },
+        }
+      },
+    },
+  ]
 }

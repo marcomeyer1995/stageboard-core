@@ -8,7 +8,7 @@
 |---|---|---|---|
 | `shared-types` | Zod schemas and pure helpers: the vocabulary every other part shares (documents, requests, capabilities). No behaviour. | - | everywhere |
 | `sync-host` | **The host**: database protocol, band life cycle, accounts, live channels, lease/clock, capabilities (docs/34). | 40 files (non-test) | laptop (Node), tablet (inside the app) |
-| `core-backend` | Node/Fastify: **the Node shell** (listener, TLS, SSE, mDNS, files) plus the Node-only job code (backup, stems, speech, yt-dlp, OSC, MIDI, plugins). It has no second host implementation since #964. | about 7,600 lines non-test (was 7,834); `index.ts` 1,328 lines | laptop, dedicated Linux box |
+| `core-backend` | Node: **the Node shell** (listener, TLS, SSE, mDNS, files) plus the Node-only job code (backup, stems, speech, yt-dlp, OSC, MIDI, plugins). It has no second host implementation since #964. | about 7,600 lines non-test (was 7,834); `index.ts` 1,328 lines | laptop, dedicated Linux box |
 | `stage-pwa` | The app (React + Vite + Capacitor): UI, local database, audio, and the tablet as a host. | about 71,000 lines: `lib` 32,000 / `components` 27,000 / `widgets` 6,000 / `store` 4,700 / `host` 1,200 | browser, Android |
 | `native/engine` | C++ audio engine (click, clock map, Opus clip reader/writer), built to **WebAssembly** (`stageboard_engine.wasm`, `stageboard_opus.wasm`) and for Android. | 6 source files | inside the app |
 | Android shell | Capacitor plus 10 Java plugins and a C++ output (`native_output.cpp`, AAudio). | 14 Java files | Android |

@@ -22,8 +22,8 @@ flowchart LR
     CP[capabilities.ts<br/>JOB_ROUTES, refusalFor, unmetRequirement]
   end
 
-  subgraph laptop["core-backend (Node, Fastify) - the Node shell: listener + what only Node can do (#964)"]
-    FA[Fastify: HTTP/2, TLS, SSE, static files<br/>/db answered in-process by the database host]
+  subgraph laptop["core-backend (Node) - the Node shell: listener + what only Node can do (#964)"]
+    FA[nodeHost.ts: HTTP/2, TLS, CORS, SSE, static files<br/>every request through answerHostRequest<br/>/db answered in-process by the database host]
     LB[createLaptopBandStore<br/>over LevelDB]
     JOBS[jobs: backup, stems, speech,<br/>yt-dlp, lookup, OSC UDP, MIDI]
   end
@@ -53,7 +53,7 @@ Rule of thumb for a new function: **if it is a rule about a band, it belongs in 
 ```mermaid
 sequenceDiagram
   participant P as Phone (any device)
-  participant T as Transport<br/>(Fastify or native server)
+  participant T as Transport<br/>(nodeHost.ts or native server)
   participant R as sync-host route table
   participant G as band guard (404/503)
   participant H as handler / BandStore / HostChannels
@@ -146,7 +146,7 @@ flowchart TD
 | Who takes a background job (needs, claim, settle, stop if lost) | `sync-host/jobQueue.ts` | **once** |
 | What a host can do (`GET /host/capabilities`) | `sync-host/jobRunners.ts`: runners with manifests | **once**; laptop and tablet register different runners |
 | The database a device syncs with | `createDatabaseHost` (laptop, in-process via `/db`), `createSyncHost` + write guard (tablet) | one database protocol, two compositions |
-| Listener, TLS, HTTP/2, SSE, static files, mDNS | `core-backend` (Fastify) / `LocalHostPlugin.java` | per platform - small shells, no band logic |
+| Listener, TLS, HTTP/2, SSE, static files, mDNS | `core-backend` (`nodeHost.ts`) / `LocalHostPlugin.java` | per platform - small shells, no band logic |
 | Execution of heavy jobs (yt-dlp, Demucs, Piper, Chrome, backup, MIDI, OSC) | `core-backend` (about 3,700 lines) | Node-only; declared by runners, **not yet** loaded as add-ons |
 
 So `core-backend` is, at the moment, **the Node shell plus Node-only job code**; it has no second host implementation any more. It is not deleted: the shell and the jobs are still in it.

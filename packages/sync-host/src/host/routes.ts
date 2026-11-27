@@ -391,25 +391,30 @@ export function createHostRoutes(deps: HostRoutesDeps): HostRoute[] {
   return routes.flatMap((route) => withLegacyPath(route.pattern).map((pattern) => ({ ...route, pattern })))
 }
 
-/** The route a request path and method belong to, with its params - for a platform that has no router of its own. */
+/**
+ * The route a request path and method belong to, with its params - for a platform that has no router of its own. When several patterns
+ * match, the one with more literal segments wins (`/host/info` before `/host/:id`), as in Fastify; on a tie, the first in the table.
+ */
 export function matchHostRoute(routes: readonly HostRoute[], method: string, path: string): { route: HostRoute; params: Record<string, string> } | null {
   const clean = path.length > 1 ? path.replace(/\/+$/, '') : path
   const parts = clean.split('/')
+  let best: { route: HostRoute; params: Record<string, string>; literals: number } | null = null
   for (const route of routes) {
     if (route.method !== method.toUpperCase()) continue
     const pattern = route.pattern.split('/')
     if (pattern.length !== parts.length) continue
     const params: Record<string, string> = {}
     let ok = true
+    let literals = 0
     for (let i = 0; i < pattern.length; i++) {
       const want = pattern[i]!
       if (want.startsWith(':')) params[want.slice(1)] = parts[i]!
       else if (want !== parts[i]) {
         ok = false
         break
-      }
+      } else literals++
     }
-    if (ok) return { route, params }
+    if (ok && (!best || literals > best.literals)) best = { route, params, literals }
   }
-  return null
+  return best ? { route: best.route, params: best.params } : null
 }

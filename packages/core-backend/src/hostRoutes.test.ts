@@ -1,7 +1,6 @@
-import Fastify from 'fastify'
 import { describe, expect, it, vi } from 'vitest'
 import { createHostDeviceInfo, createHostPresence, createHostRoutes, type HostRoutesDeps } from 'sync-host'
-import { registerHostRoutes } from './hostRoutes.js'
+import { routeHost } from './test/routeHost.js'
 
 function build(over: Partial<HostRoutesDeps> = {}) {
   const files = new Map<string, Uint8Array>()
@@ -31,13 +30,11 @@ function build(over: Partial<HostRoutesDeps> = {}) {
     isBandDevice: async (_ws: string, authorization: string | undefined) => authorization === 'Basic good',
     ...over,
   }
-  const app = Fastify()
-  app.addContentTypeParser('*', { parseAs: 'buffer' }, (_request, payload, done) => done(null, payload))
-  registerHostRoutes(app, createHostRoutes(deps))
+  const app = routeHost(createHostRoutes(deps))
   return { app, deps }
 }
 
-describe('the shared host routes on Fastify (#949)', () => {
+describe('the shared host routes on the Node host (#949)', () => {
   it('answers a shared route with its status and JSON', async () => {
     const { app } = build()
     const res = await app.inject({ method: 'GET', url: '/time' })
@@ -67,7 +64,7 @@ describe('the shared host routes on Fastify (#949)', () => {
   it('refuses an id that is only unsafe once it is decoded', async () => {
     const { app } = build()
     expect((await app.inject({ method: 'GET', url: '/audio/var1/a%2Fb' })).statusCode).toBe(400)
-    expect((await app.inject({ method: 'GET', url: '/audio/%2e%2e/trk1' })).statusCode).toBe(404) // never reaches the handler: the router folds the path
+    expect((await app.inject({ method: 'GET', url: '/audio/%2e%2e/trk1' })).statusCode).toBe(400) // the path stays raw: the handler's own check refuses it
     expect((await app.inject({ method: 'GET', url: '/audio/var1/a%00b' })).statusCode).toBe(400)
   })
 
