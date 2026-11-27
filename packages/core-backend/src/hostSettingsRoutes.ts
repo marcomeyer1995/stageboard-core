@@ -1,14 +1,12 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { withLegacyPath, type HostRoute, type HostRouteRequest, type HostRouteResponse } from 'sync-host'
 import { join } from 'node:path'
-import type { FastifyInstance } from 'fastify'
 import type { z } from 'zod'
 import { BackupAdminRequestSchema, BackupSaveRequestSchema, BackupTargetRequestSchema, MeasureInputsSaveRequestSchema, MeasureLevelRequestSchema, hostMessage, type MeasureInputsOverview } from 'shared-types'
 import type { BackupService } from './backup.js'
 import { listAudioInputs, type MeasureInputStore, measureLevel } from './calibration/measureInputs.js'
 import { fallbackMicDevice } from './calibration/micCapture.js'
 import type { CalibrationRuns } from './calibration/calibrationRuns.js'
-import { registerHostRoutes } from './hostRoutes.js'
 
 /**
  * The jobs only a Node machine does for the band's admins (#962): the backups to a drive and the audio inputs to measure with.
@@ -96,9 +94,4 @@ export function hostSettingsRoutes(deps: HostSettingsDeps): HostRoute[] {
       },
     })),
   ]
-}
-
-/** The host settings on a Fastify listener. */
-export function registerHostSettingsRoutes(app: FastifyInstance, deps: HostSettingsDeps): void {
-  registerHostRoutes(app, hostSettingsRoutes(deps))
 }

@@ -302,3 +302,56 @@ describe('a device that cannot do a job, through the handler (#964)', () => {
     }
   })
 })
+
+describe('a Node host answers through the same pipeline (#964 step 2)', () => {
+  const nodeDeps = () => {
+    const { deps } = baseDeps()
+    const database = vi.fn(async () => ({ status: 200, body: { db: true } }))
+    const node: HostRequestDeps = {
+      ...deps,
+      serving: () => true,
+      state: () => ({ epoch: 1, active: true, outdated: false, priority: null }),
+      ownRoutes: [
+        { method: 'GET', pattern: '/host/:anything', handle: async () => ({ status: 200, body: { param: true } }) },
+        { method: 'GET', pattern: '/host/own', handle: async () => ({ status: 200, body: { own: true }, headers: { 'X-Own': '1' } }) },
+      ],
+      stream: (path) => (path === '/workspaces/leasetest/show-state/stream' ? () => () => undefined : null),
+      database,
+    }
+    delete node.login
+    delete node.sync
+    return { deps: node, database }
+  }
+
+  it('matches its own routes, the more literal pattern first, and keeps their headers; a HEAD is answered as the GET', async () => {
+    const { deps } = nodeDeps()
+    expect(await answerHostRequest({ method: 'GET', path: '/host/own', query: {} }, deps)).toEqual({ status: 200, body: { own: true }, headers: { 'X-Own': '1' } })
+    expect((await answerHostRequest({ method: 'GET', path: '/host/else', query: {} }, deps)).body).toEqual({ param: true })
+    expect((await answerHostRequest({ method: 'HEAD', path: '/host/own', query: {} }, deps)).status).toBe(200)
+  })
+
+  it('hands a stream it relays to the transport instead of refusing it', async () => {
+    const { deps } = nodeDeps()
+    const relayed = await answerHostRequest({ method: 'GET', path: '/workspaces/leasetest/show-state/stream', query: {} }, deps)
+    expect(relayed.status).toBe(200)
+    expect(typeof relayed.stream).toBe('function')
+    expect((await answerHostRequest({ method: 'GET', path: '/workspaces/leasetest/presence/stream', query: {} }, deps)).status).toBe(501)
+  })
+
+  it('hands `/db` to a database with its own logins, behind the guard, and leaves other paths alone', async () => {
+    const { deps, database } = nodeDeps()
+    deps.loginThrottle = createPinThrottle({ maxFailures: 1 })
+    expect(await answerHostRequest({ method: 'GET', path: '/db/stageboard-leasetest/', query: { a: '1' }, authorization: dev('leasetest') }, deps)).toEqual({ status: 200, body: { db: true } })
+    expect(database).toHaveBeenLastCalledWith({ method: 'GET', path: '/stageboard-leasetest/', query: { a: '1' }, body: undefined, authorization: dev('leasetest') })
+    expect((await answerHostRequest({ method: 'GET', path: '/db/_session', query: {} }, deps)).status).toBe(200)
+    expect((await answerHostRequest({ method: 'GET', path: '/db/stageboard-leasetest/', query: {}, authorization: dev('other') }, deps)).status).toBe(403)
+    // Without `/db` a Node host has no band database.
+    expect((await answerHostRequest({ method: 'GET', path: '/stageboard-leasetest/_changes', query: {}, authorization: dev('leasetest') }, deps)).status).toBe(404)
+    // The database's own 401 counts towards the lock, and the lock carries Retry-After.
+    database.mockResolvedValueOnce({ status: 401, body: { db: false } })
+    await answerHostRequest({ method: 'GET', path: '/db/stageboard-leasetest/', query: {}, authorization: dev('leasetest', 'wrong') }, deps)
+    const locked = await answerHostRequest({ method: 'GET', path: '/db/stageboard-leasetest/', query: {}, authorization: dev('leasetest', 'wrong') }, deps)
+    expect(locked.status).toBe(429)
+    expect(locked.headers?.['Retry-After']).toMatch(/^\d+$/)
+  })
+})
