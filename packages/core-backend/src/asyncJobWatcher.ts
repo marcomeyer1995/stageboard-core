@@ -7,7 +7,7 @@ import { allDocs, getDoc, putDocWithRetry, waitForChange, type DatabaseConfig, t
 import { workspaceDbName } from './workspaceProvisioning.js'
 import { deleteAudioFile, isSafeAudioId, readAudioFile, writeAudioFile } from './audioStore.js'
 import type { AddonMethods } from './addons/addonMethods.js'
-import { hostRunner, type JobRef, pickNextClaimable, runAudioImport, type SeparatedStem, runStemSeparation as runStemSeparationRecipe, stillMine, stuckJobsOfHost } from 'sync-host'
+import { createJobClaimLoop, type JobRef, pickNextClaimable, runAudioImport, type SeparatedStem, runStemSeparation as runStemSeparationRecipe, stuckJobsOfHost } from 'sync-host'
 import { readInstallations } from './plugins/pluginSync.js'
 import { pluginIdWorking } from './addons/addonMethods.js'
 import { bandHasAddon } from './addons/bandAddons.js'
@@ -94,7 +94,6 @@ export function createAsyncJobWatcher(options: AsyncJobWatcherOptions): AsyncJob
   const settleMs = options.settleMs ?? 2_000
   const workspaceDb = workspaceDbName(workspaceId)
   let stopped = false
-  let currentJobId: string | null = null
 
   /** What the host ever writes into a job - the fields every job type shares, plus its result. */
   type JobPatch = Partial<Pick<AsyncJob, 'status' | 'progress' | 'error' | 'errorCode' | 'errorParams' | 'runner'>> & { trackId?: string; stemTrackIds?: string[] }
@@ -134,12 +133,6 @@ export function createAsyncJobWatcher(options: AsyncJobWatcherOptions): AsyncJob
 
   async function variantExists(variantId: string): Promise<boolean> {
     return (await getDoc<DatabaseDoc>(database, workspaceDb, `${SONG_VARIANT_PREFIX}${variantId}`)) !== null
-  }
-
-  /** The change event for a job's own final write can arrive while currentJobId is still set
-   * (syncOnce then returns early), so each finished job picks up the next queued one itself. */
-  async function pickUpNext(): Promise<void> {
-    if (!stopped) await syncOnce().catch((err) => log.error('Async job sync failed', { error: String(err) }))
   }
 
   async function processJob(job: AsyncJob): Promise<void> {
@@ -193,31 +186,25 @@ export function createAsyncJobWatcher(options: AsyncJobWatcherOptions): AsyncJob
    * store on disk, and Demucs (stems/stemSeparation.ts) on a temp copy of the source for the separation.
    */
   async function processStemJob(job: StemSeparationJob): Promise<void> {
-    currentJobId = job.id
-    try {
-      await runStemSeparationRecipe(job, {
-        log,
-        patchJob: (patch) => patchJob(job.id, patch),
-        isSafeId: isSafeAudioId,
-        bandHasStemPlugin: stemPluginInstalled,
-        readVariant: (variantId) => getDoc<Record<string, unknown> & DatabaseDoc>(database, workspaceDb, `${SONG_VARIANT_PREFIX}${variantId}`),
-        readAudio: readAudioFile,
-        // The separation is the stem add-on's method, run in its sandbox on this host (docs/36); the Demucs program is its helper.
-        separate: async (audio, separateOptions, onProgress) => {
-          if (!options.addonMethods) throw new Error('This device runs no add-ons')
-          return createStemAddonSeparate(options.addonMethods)(audio, separateOptions, onProgress)
-        },
-        writeAudio: (variantId, trackId, data) => writeAudioFile(variantId, trackId, Buffer.from(data.buffer, data.byteOffset, data.byteLength)),
-        deleteAudio: deleteAudioFile,
-        replaceStems,
-        newId: randomUUID,
-        now: Date.now,
-        progressIntervalMs: PROGRESS_WRITE_INTERVAL_MS,
-      })
-    } finally {
-      currentJobId = null
-    }
-    await pickUpNext()
+    await runStemSeparationRecipe(job, {
+      log,
+      patchJob: (patch) => patchJob(job.id, patch),
+      isSafeId: isSafeAudioId,
+      bandHasStemPlugin: stemPluginInstalled,
+      readVariant: (variantId) => getDoc<Record<string, unknown> & DatabaseDoc>(database, workspaceDb, `${SONG_VARIANT_PREFIX}${variantId}`),
+      readAudio: readAudioFile,
+      // The separation is the stem add-on's method, run in its sandbox on this host (docs/36); the Demucs program is its helper.
+      separate: async (audio, separateOptions, onProgress) => {
+        if (!options.addonMethods) throw new Error('This device runs no add-ons')
+        return createStemAddonSeparate(options.addonMethods)(audio, separateOptions, onProgress)
+      },
+      writeAudio: (variantId, trackId, data) => writeAudioFile(variantId, trackId, Buffer.from(data.buffer, data.byteOffset, data.byteLength)),
+      deleteAudio: deleteAudioFile,
+      replaceStems,
+      newId: randomUUID,
+      now: Date.now,
+      progressIntervalMs: PROGRESS_WRITE_INTERVAL_MS,
+    })
   }
 
   /**
@@ -225,33 +212,27 @@ export function createAsyncJobWatcher(options: AsyncJobWatcherOptions): AsyncJob
    * sandbox on this host. This host knows nothing of the service behind it.
    */
   async function processAudioImportJob(job: AudioImportJob): Promise<void> {
-    currentJobId = job.id
-    try {
-      await runAudioImport(job, {
-        log,
-        patchJob: (patch) => patchJob(job.id, patch),
-        bandHasAddon: (addonId) => bandHasAddon(database, workspaceId, addonId),
-        isSafeVariantId: isSafeAudioId,
-        variantExists,
-        fetchAudio: async (addonId, method, args, onProgress) => {
-          if (!options.addonMethods) throw new Error('This device runs no add-ons')
-          const result = await options.addonMethods.call(addonId, method, args, { onProgress })
-          if (!result.ok) throw new Error(result.error.message)
-          const body = result.body as { audio: Uint8Array; ext: string }
-          return { data: body.audio, ext: body.ext }
-        },
-        writeAudio: (variantId, trackId, data) => writeAudioFile(variantId, trackId, Buffer.from(data.buffer, data.byteOffset, data.byteLength)),
-        deleteAudio: deleteAudioFile,
-        appendTrack,
-        queueOpusConvert,
-        newId: randomUUID,
-        now: Date.now,
-        progressIntervalMs: PROGRESS_WRITE_INTERVAL_MS,
-      })
-    } finally {
-      currentJobId = null
-    }
-    await pickUpNext()
+    await runAudioImport(job, {
+      log,
+      patchJob: (patch) => patchJob(job.id, patch),
+      bandHasAddon: (addonId) => bandHasAddon(database, workspaceId, addonId),
+      isSafeVariantId: isSafeAudioId,
+      variantExists,
+      fetchAudio: async (addonId, method, args, onProgress) => {
+        if (!options.addonMethods) throw new Error('This device runs no add-ons')
+        const result = await options.addonMethods.call(addonId, method, args, { onProgress })
+        if (!result.ok) throw new Error(result.error.message)
+        const body = result.body as { audio: Uint8Array; ext: string }
+        return { data: body.audio, ext: body.ext }
+      },
+      writeAudio: (variantId, trackId, data) => writeAudioFile(variantId, trackId, Buffer.from(data.buffer, data.byteOffset, data.byteLength)),
+      deleteAudio: deleteAudioFile,
+      appendTrack,
+      queueOpusConvert,
+      newId: randomUUID,
+      now: Date.now,
+      progressIntervalMs: PROGRESS_WRITE_INTERVAL_MS,
+    })
   }
 
   async function loadJobs(): Promise<AsyncJob[]> {
@@ -260,51 +241,43 @@ export function createAsyncJobWatcher(options: AsyncJobWatcherOptions): AsyncJob
     )
   }
 
-  async function syncOnce(): Promise<void> {
-    if (currentJobId !== null) return // already processing one job; the next syncOnce (its own status writes trigger one) picks up whatever is queued after it
-    // A job this host cannot do is left for another host only when the band lists one that might; the only host takes it and ends it
-    // with its own message ("no demucs"), as before - the person must not wait for nothing.
-    const peers = (await options.hasPeers?.()) ?? false
-    const next = pickNextClaimable(await loadJobs(), { hostId, ...(options.needsOf ? { needsOf: options.needsOf } : {}), ...(peers && options.canDo ? { canDo: options.canDo } : {}) })
-    // Re-checked after the await: a change-feed pass and the startup pass can overlap.
-    if (next && currentJobId === null) void claimAndProcess(next, peers)
-  }
+  // The claim loop is sync-host's (#964): pick, claim, settle when the band lists another host, run - the same as the tablet host's.
+  // A job this host cannot do is left for another host only when the band lists one that might; the only host takes it and ends it
+  // with its own message ("no demucs"), as before - the person must not wait for nothing.
+  const loop = createJobClaimLoop({
+    hostId,
+    jobs: loadJobs,
+    ...(options.needsOf ? { needsOf: options.needsOf } : {}),
+    ...(options.canDo ? { canDo: options.canDo } : {}),
+    takeAllWhenAlone: true,
+    hasPeers: async () => (await options.hasPeers?.()) ?? false,
+    read: async (id) => readAsyncJobs([await getDoc<DatabaseDoc>(database, workspaceDb, jobDocId(id))]).find((j) => j.id === id),
+    claim: (claimed) => patchJob(claimed.id, { status: 'running', progress: 0, runner: claimed.runner }),
+    run: processJob,
+    settleMs,
+    log,
+  })
 
-  /**
-   * Takes the job: writes this host as its runner, and - when the band lists another host that might do the same - waits for the
-   * claim to settle in replication and goes on only if the job still names this host (sync-host's `stillMine`). Two hosts that claim
-   * at once get the same winning revision, so exactly one of them goes on.
-   */
-  async function claimAndProcess(job: AsyncJob, peers: boolean): Promise<void> {
-    currentJobId = job.id
-    try {
-      await patchJob(job.id, { status: 'running', progress: 0, runner: hostRunner(hostId) })
-      if (peers) {
-        await new Promise((resolve) => setTimeout(resolve, settleMs))
-        const after = readAsyncJobs([await getDoc<DatabaseDoc>(database, workspaceDb, jobDocId(job.id))]).find((j) => j.id === job.id)
-        if (!stillMine(after, hostId)) {
-          log.info('Another host took the job', { jobId: job.id, runner: after?.runner })
-          currentJobId = null
-          return
-        }
-      }
-    } catch (err) {
-      log.error('Could not claim the async job', { jobId: job.id, error: String(err) })
-      currentJobId = null
-      return
+  /** Works the queue until nothing claimable is left: a job that ran may have another queued behind it, and the change event of its
+   * own final write can arrive while it still runs. */
+  async function drain(): Promise<void> {
+    while (!stopped && (await loop.tick())) {
+      /* the next queued job */
     }
-    await processJob(job)
   }
 
-  /** Only at startup: within one process the only `running` job is the one this watcher itself
-   * runs, so any other is left over from a previous process. Sweeping on every pass instead
-   * raced with a job finishing between the `allDocs` read and the sweep, overwriting `done`
-   * with `error`. */
+  /** One pass, not waiting for the job: the change feed keeps going while a job runs (its own progress writes come through it). */
+  async function syncOnce(): Promise<void> {
+    if (loop.current() !== null) return
+    void drain().catch((err) => log.error('Async job sync failed', { error: String(err) }))
+  }
+
+  /** Only at startup: a job of this host left `running` by a previous process is marked failed. */
   async function failJobsLeftRunning(): Promise<void> {
-    for (const stuck of stuckJobsOfHost(await loadJobs(), hostId, currentJobId, options.needsOf)) {
+    await loop.failLeftRunning(async (stuck) => {
       log.error('Async job was left running by a previous process - marking it failed', { jobId: stuck.id })
       await patchJob(stuck.id, errorPatch(new HostMessageError('job.interrupted')))
-    }
+    })
   }
 
   async function watchChanges(): Promise<void> {

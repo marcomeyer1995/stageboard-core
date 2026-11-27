@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createChannelRoutes } from './channelRoutes.js'
-import { createHostChannels, matchChannelStream } from './channels/index.js'
+import { BAND_STREAM_TOPICS, createHostChannels, matchChannelStream } from './channels/index.js'
 import * as resets from './channels/resets.js'
 import { createHostPresence } from './presence.js'
 import { matchHostRoute, type HostRouteResponse } from './routes.js'
@@ -108,6 +108,9 @@ describe('matchChannelStream', () => {
     expect(matchChannelStream('/workspaces/band/osc-in/stream')).toEqual({ topic: 'osc-in', workspaceId: 'band' })
     expect(matchChannelStream('/plugin-health/band/stream')).toEqual({ topic: 'plugin-health', workspaceId: 'band' })
     expect(matchChannelStream('/workspaces/b%20c/devices/fire/trigger-stream')).toEqual({ topic: 'device-trigger', workspaceId: 'b c', deviceId: 'fire' })
+    // Every band stream of the one list - device-state was missing here, so a tablet answered it 404 instead of 501.
+    for (const topic of BAND_STREAM_TOPICS) expect(matchChannelStream(`/workspaces/band/${topic}/stream`)).toEqual({ topic, workspaceId: 'band' })
+    expect(matchChannelStream('/workspaces/band/nonsense/stream')).toBeNull()
     expect(matchChannelStream('/workspaces/band/show-state/push')).toBeNull()
     expect(matchChannelStream('/workspaces/band/roster')).toBeNull()
   })

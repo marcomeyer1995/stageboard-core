@@ -1,14 +1,15 @@
 import { registerPlugin, type PluginListenerHandle } from '@capacitor/core'
-import { createTabletJobRunner } from './tabletJobRunner'
 import { useAsyncJobsStore } from '../store/useAsyncJobsStore'
 import { getAllAsyncJobs, putAsyncJob } from '../lib/asyncJobsDb'
 import { localAddonMethods } from '../lib/addonWork'
 import { BUILTIN_ADDONS } from '../lib/addonUi/builtinAddons'
-import { runAudioImportOnDevice } from '../lib/addonWork/audioImportDevice'
-import { putTrack } from '../lib/songVariantsDb'
+import { getVariantsDb, putTrack } from '../lib/songVariantsDb'
+import { getAllPlugins } from '../lib/pluginsDb'
+import { randomId } from '../lib/id'
+import { tabletAudioImportContext } from './tabletAudioImport'
 import type { AsyncJob, AudioImportJob } from 'shared-types'
 import { AccessCodeSchema } from 'shared-types'
-import { BAND_SETTINGS_DOC_ID, createBandAccounts, createBandAccountStore, createBandCatalog, createHostChannels, createHostDeviceInfo, createHostPresence, listedHostIds, createBandJoin, createBandMembers, createVerifyWithPrimary, joinBandInvite, createPinThrottle, guardBandDb, noteBandDbLogin, createReplicationAccountIssuer, leaseKey, signAccountRequest, startCatchUp, type BandAccounts, type BandBootstrapStore, type BandJoin, type BandMembers, type CatchUp, createSyncHost, createWriteGuard, type SyncDatabase, type SyncRequest } from 'sync-host'
+import { BAND_SETTINGS_DOC_ID, createBandAccounts, createBandAccountStore, createBandCatalog, createHostChannels, createHostDeviceInfo, createHostPresence, listedHostIds, createBandJoin, createBandMembers, createJobClaimLoop, jobNeeds, runAudioImport, bandHasAddonIn, createVerifyWithPrimary, joinBandInvite, createPinThrottle, guardBandDb, noteBandDbLogin, createReplicationAccountIssuer, leaseKey, signAccountRequest, startCatchUp, type BandAccounts, type BandBootstrapStore, type BandJoin, type BandMembers, type CatchUp, createSyncHost, createWriteGuard, type SyncDatabase, type SyncRequest } from 'sync-host'
 import { useBandSettingsStore } from '../store/useBandSettingsStore'
 import { useAndroidHostStore } from '../store/useAndroidHostStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
@@ -685,20 +686,33 @@ export async function startAndroidHost(): Promise<void> {
   // The jobs this tablet can do itself (an add-on's helper app is here) are worked by this host - first myself, then hand on (#964). Looked at whenever the band's
   // jobs change and on every tick, so a job queued while the lease was elsewhere is picked up once this host serves the band.
   if (hasBand) {
-    const jobRunner = createTabletJobRunner({
+    // The claim loop is sync-host's, the same as the laptop's (#964); a job this tablet cannot do stays queued for a host or device that can.
+    const jobRunner = createJobClaimLoop({
       hostId,
       jobs: () => useAsyncJobsStore.getState().jobs.filter((job) => job.type === 'audio-import'),
+      needsOf: jobNeeds,
       canDo: (needs) => ownPlugins.includes(needs.replace(/^plugin:/, '')),
       serving: () => servesBand(workspaceId),
       hasPeers: () => (hostsNow()?.length ?? 0) >= 2,
       read: async (id) => (await getAllAsyncJobs()).find((job) => job.id === id) as AsyncJob | undefined,
-      write: async (job) => void (await putAsyncJob(job)),
+      claim: async (job) => void (await putAsyncJob(job)),
+      // A job claimed as a host runs the host's recipe - the same checks and steps as the laptop's (sync-host's runAudioImport).
       run: (job) =>
-        runAudioImportOnDevice(job as AudioImportJob, {
-          call: (addonId, method, args, onProgress) => localAddonMethods.call(addonId, method, args, onProgress ? { onProgress } : {}),
-          putJob: async (j) => void (await putAsyncJob(j)),
-          putTrack,
-        }),
+        runAudioImport(
+          job as AudioImportJob,
+          tabletAudioImportContext(job as AudioImportJob, {
+            readJob: async (id) => (await getAllAsyncJobs()).find((j) => j.id === id) as AsyncJob | undefined,
+            putJob: async (j) => void (await putAsyncJob(j)),
+            pluginDocs: async () => await getAllPlugins(),
+            bandHasAddon: bandHasAddonIn,
+            variantExists: async (variantId) => (await getVariantsDb().get(`song-variants:${variantId}`).catch(() => null)) !== null,
+            call: (addonId, method, args, onProgress) => localAddonMethods.call(addonId, method, args, { onProgress }),
+            putTrack,
+            newId: randomId,
+            now: Date.now,
+            log: { info: (msg, meta) => console.info(`[host] ${msg}`, meta ?? ''), error: (msg, meta) => console.error(`[host] ${msg}`, meta ?? '') },
+          }),
+        ),
     })
     unwatchJobs = useAsyncJobsStore.subscribe(() => void ownPluginIds().then(() => jobRunner.tick()).catch(() => undefined))
     tickJobs = () => void ownPluginIds().then(() => jobRunner.tick()).catch(() => undefined)
