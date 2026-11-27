@@ -285,7 +285,7 @@ export { BootstrapSchema, createVerifyWithPrimary, effectiveHosts, joinBand, joi
 export { createBandCatalog, type BandCatalog, type BandStore, type BandAnswer } from './host/bandCatalog.js'
 export { JOB_ROUTES, JOB_IDS, jobOfRequest, refusalFor, unavailableJobs, parseCapabilities, canDoFromCapabilities, unmetRequirement, addonRefusal, type JobRoute, type RunsOn } from './host/capabilities.js'
 export { createBandRoutes } from './host/bandRoutes.js'
-export { createHostChannels, matchChannelStream, type HostChannels, type ChannelTopic, type ChannelPayload, type ChannelStream, type ReadBandDocs } from './host/channels/index.js'
+export { BAND_STREAM_TOPICS, createHostChannels, matchChannelStream, type HostChannels, type ChannelTopic, type ChannelPayload, type ChannelStream, type ReadBandDocs } from './host/channels/index.js'
 export * as channelResets from './host/channels/resets.js'
 export { createChannelRoutes, type ChannelRoutesDeps } from './host/channelRoutes.js'
 export * as discoverySessions from './host/channels/discoverySessionStore.js'
