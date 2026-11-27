@@ -600,6 +600,9 @@ export async function startAndroidHost(): Promise<void> {
     if (doc?.hostId === hostId) {
       founded.add(band)
       subscribePresence(band)
+      // Its write rules come up to this app version, as the laptop does at every start (#16) - only for a band founded here: a band it
+      // joined gets its rules from the host that holds it, and two hosts of different versions must not take turns rewriting them.
+      void bandStore.updateRules(band).catch(() => undefined)
     }
   }
   setServedBands(founded)

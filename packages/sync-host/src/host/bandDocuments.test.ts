@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createBandDocuments, type BandDocument, type BandDocumentPort } from './bandDocuments.js'
+import { ROSTER_VALIDATOR_SOURCE } from './rosterValidator.js'
 
 /** One band's documents in memory, CouchDB-like: a write needs the current `_rev`, a stale one is a conflict. */
 function memoryBand(initial: BandDocument[] = []) {
@@ -113,5 +114,23 @@ describe('the Device Ledger: block and clean up (#958, #964)', () => {
     const documents = createBandDocuments({ open: () => port })
     expect(await documents.forgetDevice('b', 'fire')).toBe('blocked')
     expect(band.docs.has('devices:fire')).toBe(true)
+  })
+})
+
+describe("a band's write rules (_design/roster) - written at founding, brought up to date on every host (#16, #964)", () => {
+  it('founding writes the current rules', async () => {
+    const { band, documents } = setUp()
+    await documents.writeRules('b')
+    expect(band.docs.get('_design/roster')).toMatchObject({ validate_doc_update: ROSTER_VALIDATOR_SOURCE })
+  })
+
+  it('old rules are replaced, current ones left alone, a band without rules is not given any', async () => {
+    const old = setUp([{ _id: '_design/roster', validate_doc_update: 'function () {}', views: { x: 1 } }])
+    expect(await old.documents.updateRules('b')).toBe(true)
+    expect(old.band.docs.get('_design/roster')).toMatchObject({ validate_doc_update: ROSTER_VALIDATOR_SOURCE, views: { x: 1 } })
+    expect(await old.documents.updateRules('b')).toBe(false)
+    const none = setUp()
+    expect(await none.documents.updateRules('b')).toBe(false)
+    expect(none.band.docs.has('_design/roster')).toBe(false)
   })
 })

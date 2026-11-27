@@ -1,4 +1,4 @@
-import { createBandAccountStore, createBandAccounts, createBandDocuments, ROSTER_VALIDATOR_SOURCE, type BandAccounts, type BandDocument, type BandDocumentPort, type BandStore } from 'sync-host'
+import { createBandAccountStore, createBandAccounts, createBandDocuments, type BandAccounts, type BandDocument, type BandDocumentPort, type BandStore } from 'sync-host'
 
 /**
  * The tablet's bands (#962): the same life cycle every host answers, over the PouchDB databases the app already
@@ -72,7 +72,10 @@ export function pouchBandPort(db: BandDatabase): BandDocumentPort {
   }
 }
 
-export function createTabletBandStore(deps: TabletBandStoreDeps): BandStore {
+/** The band life cycle, plus bringing a band's write rules up to this version (`updateRules`, sync-host's). */
+export type TabletBandStore = BandStore & { updateRules: (workspaceId: string) => Promise<boolean> }
+
+export function createTabletBandStore(deps: TabletBandStoreDeps): TabletBandStore {
   // Accounts are bound to the database handle they were built on; when the host opens a band's handle again (the browser closed
   // the connection), the accounts follow it.
   const accountsPerBand = new Map<string, { handle: unknown; accounts: BandAccounts }>()
@@ -94,10 +97,9 @@ export function createTabletBandStore(deps: TabletBandStoreDeps): BandStore {
     markDeleted: (workspaceId) => deps.deleted.mark(workspaceId),
 
     async create(workspaceId, name, founder) {
-      const db = deps.open(workspaceId)
       await documents.createAccess(workspaceId, name, deps.hostId)
       // The same write rules the laptop puts into a band database: a band founded here can move to a laptop unchanged.
-      await db.put({ _id: '_design/roster', validate_doc_update: ROSTER_VALIDATOR_SOURCE })
+      await documents.writeRules(workspaceId)
       return accountsFor(workspaceId).provisionDevice(founder.founderId, founder.deviceId, true)
     },
 
@@ -128,6 +130,7 @@ export function createTabletBandStore(deps: TabletBandStoreDeps): BandStore {
     },
     setDeviceRevoked: (workspaceId, deviceId, revoked) => documents.setDeviceRevoked(workspaceId, deviceId, revoked),
     forgetDevice: (workspaceId, deviceId) => documents.forgetDevice(workspaceId, deviceId),
+    updateRules: (workspaceId) => documents.updateRules(workspaceId),
   }
 }
 

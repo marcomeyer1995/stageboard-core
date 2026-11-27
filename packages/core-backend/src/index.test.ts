@@ -1261,6 +1261,7 @@ describe('host routes', () => {
         { ok: true, status: 200, json: async () => ['stageboard-band-a'] }, // _all_dbs (is it taken?)
         { ok: true, status: 201 }, // ensureDb
         { ok: true, status: 200 }, // putSecurity
+        { ok: false, status: 404 }, // the rules doc is read first (sync-host's writeRules, #964)
         { ok: true, status: 201 }, // putDoc (_design/roster)
         { ok: false, status: 404 }, // writeAccessCodeDoc's own getDoc (for _rev) -> missing
         { ok: true, status: 201 }, // putDoc (workspace:access)
@@ -1312,6 +1313,7 @@ describe('host routes', () => {
       { ok: true, status: 200, json: async () => ['stageboard-band-a'] }, // _all_dbs (is the id taken?)
       { ok: true, status: 201 }, // ensureDb
       { ok: true, status: 200 }, // putSecurity
+      { ok: false, status: 404 }, // the rules doc is read first (sync-host's writeRules, #964)
       { ok: true, status: 201 }, // putDoc (_design/roster)
       { ok: false, status: 404 }, // access code getDoc
       { ok: true, status: 201 }, // putDoc (workspace:access)

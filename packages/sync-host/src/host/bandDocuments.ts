@@ -1,5 +1,6 @@
 import type { MasterMode } from 'shared-types'
 import type { BandStore } from './bandCatalog.js'
+import { ROSTER_VALIDATOR_SOURCE } from './rosterValidator.js'
 
 /**
  * The documents of a band a host writes itself (#964, step 1): the access doc (standing code, name, master mode, the founding
@@ -24,6 +25,7 @@ export interface BandDocumentPort {
 }
 
 export const ACCESS_DOC_ID = 'workspace:access'
+export const RULES_DOC_ID = '_design/roster'
 const DEVICE_PREFIX = 'devices:'
 
 /** 8 digits, zero-padded - the "WiFi password" a band writes down once; its protection is that only the band's own network hands it out. */
@@ -45,6 +47,13 @@ function accessDoc(existing: BandDocument | null, change: { code?: string; name?
 export type BandDocuments = Pick<BandStore, 'accessCode' | 'ensureAccessCode' | 'rotateAccessCode' | 'rename' | 'setMasterMode' | 'setDeviceRevoked' | 'forgetDevice'> & {
   /** The access doc of a band just founded (on the host that founds it, with that host's id). */
   createAccess(workspaceId: string, name: string, hostId?: string): Promise<string>
+  /** The write rules of a band just founded (`_design/roster`: only an admin changes the roster, ...). */
+  writeRules(workspaceId: string): Promise<void>
+  /**
+   * Brings the write rules of a band up to this version (they used to be written at founding only, so a band founded before a rule
+   * was added never got it, #16). A band without rules is left as it is. True when they were replaced.
+   */
+  updateRules(workspaceId: string): Promise<boolean>
 }
 
 export interface BandDocumentsOptions {
@@ -65,6 +74,19 @@ export function createBandDocuments(options: BandDocumentsOptions): BandDocument
       const code = newCode()
       await options.open(workspaceId).update(ACCESS_DOC_ID, (existing) => ({ ...accessDoc(existing, { code, name }, name, newCode), ...(hostId ? { hostId } : {}) }))
       return code
+    },
+    async writeRules(workspaceId) {
+      await options.open(workspaceId).update(RULES_DOC_ID, (existing) => ({ ...(existing ?? {}), _id: RULES_DOC_ID, validate_doc_update: ROSTER_VALIDATOR_SOURCE }))
+    },
+    async updateRules(workspaceId) {
+      let replaced = false
+      await options.open(workspaceId).update(RULES_DOC_ID, (existing) => {
+        replaced = false
+        if (!existing || existing.validate_doc_update === ROSTER_VALIDATOR_SOURCE) return undefined
+        replaced = true
+        return { ...existing, validate_doc_update: ROSTER_VALIDATOR_SOURCE }
+      })
+      return replaced
     },
     accessCode: readAccess,
     async ensureAccessCode(workspaceId, fallbackName) {
