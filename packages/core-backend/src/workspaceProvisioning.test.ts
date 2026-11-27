@@ -48,6 +48,7 @@ describe('provisionWorkspace', () => {
       { ok: true, status: 200, json: async () => ['stageboard-band-a'] }, // _all_dbs: the id is free
       { ok: true, status: 201 }, // ensureDb
       { ok: true, status: 200 }, // putSecurity
+      { ok: false, status: 404 }, // the rules doc is read first (sync-host's writeRules, #964)
       { ok: true, status: 201 }, // putDoc (_design/roster)
       { ok: false, status: 404 }, // getDoc (workspace:access) - doesn't exist yet
       { ok: true, status: 201 }, // putDoc (workspace:access)
@@ -67,7 +68,7 @@ describe('provisionWorkspace', () => {
       members: { names: [], roles: ['member', 'admin'] },
     })
 
-    const designDocCall = fetchMock.mock.calls[3]
+    const designDocCall = fetchMock.mock.calls[4]
     expect(designDocCall[0]).toBe('http://localhost:5984/stageboard-band-c/_design%2Froster')
     const designDocBody = JSON.parse(designDocCall[1].body)
     expect(designDocBody._id).toBe('_design/roster')
@@ -76,12 +77,12 @@ describe('provisionWorkspace', () => {
     expect(designDocBody.validate_doc_update).toContain('userCtx.roles')
     expect(designDocBody.validate_doc_update).toContain("indexOf('admin')")
 
-    const accessCodeCall = fetchMock.mock.calls[5]
+    const accessCodeCall = fetchMock.mock.calls[6]
     expect(accessCodeCall[0]).toBe('http://localhost:5984/stageboard-band-c/workspace%3Aaccess')
     expect(JSON.parse(accessCodeCall[1].body)).toEqual({ _id: 'workspace:access', code: expect.stringMatching(/^\d{8}$/), name: 'Band C' })
 
     // The founder's login is a document of the band: a verifier and the admin role, never the password.
-    const loginCall = fetchMock.mock.calls[7]
+    const loginCall = fetchMock.mock.calls[8]
     expect(loginCall[0]).toBe('http://localhost:5984/stageboard-band-c/account%3Astageboard-band-c-p1~dev-1')
     const login = JSON.parse(loginCall[1].body)
     expect(login).toMatchObject({ roles: ['member', 'admin'], pbkdf2_prf: 'sha256' })

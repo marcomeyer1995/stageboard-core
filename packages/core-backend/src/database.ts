@@ -3,6 +3,8 @@
  * Host only needs to read the replicated plugin documents and write its own
  * heartbeat, and docs/03 keeps this package lean on purpose.
  */
+
+import type { BandDocument, BandDocumentPort } from 'sync-host'
 export interface DatabaseConfig {
   url: string
   user: string
@@ -156,6 +158,30 @@ export async function putDocWithRetry<T extends DatabaseDoc>(
     if (response.status !== 409 || attempt === 5) {
       throw new Error(`Failed to write ${db}/${id}: HTTP ${response.status}`)
     }
+  }
+}
+
+/**
+ * The documents of one band as sync-host's band rules read and write them (`BandDocumentPort`, #964): read, change, write - on a
+ * write conflict read again and change again (up to 5 times). `change` returning undefined writes nothing; `_deleted: true` deletes.
+ */
+export function bandDocumentPort(config: DatabaseConfig, db: string): BandDocumentPort {
+  return {
+    get: (id) => getDoc<DatabaseDoc>(config, db, id) as Promise<BandDocument | null>,
+    async update(id, change) {
+      for (let attempt = 1; attempt <= 5; attempt++) {
+        const next = change((await getDoc<DatabaseDoc>(config, db, id)) as BandDocument | null)
+        if (!next) return
+        const url = `${dbUrl(config, db)}/${encodeURIComponent(id)}`
+        const response = next._deleted
+          ? await request(config, `${url}?rev=${encodeURIComponent(next._rev ?? '')}`, { method: 'DELETE' })
+          : await request(config, url, { method: 'PUT', body: JSON.stringify(next) })
+        if (response.ok) return
+        if (response.status === 404 && next._deleted) return
+        if (response.status !== 409 || attempt === 5) throw new Error(`Failed to write ${db}/${id}: HTTP ${response.status}`)
+      }
+    },
+    list: (prefix) => allDocs<BandDocument>(config, db, { startkey: prefix, endkey: `${prefix}\ufff0` }),
   }
 }
 

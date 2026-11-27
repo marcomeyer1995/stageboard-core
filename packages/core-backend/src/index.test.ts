@@ -7,7 +7,7 @@ import { request as httpsRequest, Server as HttpsServer } from 'node:https'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { FastifyInstance } from 'fastify'
+import type { NodeHost } from './nodeHost.js'
 import type { ILookupPlugin, IShowControlPlugin, PluginContext } from 'shared-types'
 
 // The activate-hardware route (below) reaches real createPluginSync/createMidiWatcher through
@@ -24,7 +24,7 @@ import {
   getSnapshot as getDeviceInfoSnapshot,
   setEntry as setDeviceInfoEntry,
 } from './deviceInfoStore.js'
-import { bandDbProxyRefusal, buildApp } from './index.js'
+import { buildApp } from './index.js'
 import { LookupError } from './plugins/lookupError.js'
 const { __resetHealthStoreForTests, __resetDiscoverySessionStoreForTests } = channelResets
 const getDiscoverySnapshot = discoverySessions.getSnapshot
@@ -69,31 +69,21 @@ function accountDoc(name: string, roles: string[], password = 'correct-pw') {
   return { _id: `account:${name}`, _rev: '1-a', name, roles, iterations: 1000, salt, derived_key: pbkdf2Sync(password, salt, 1000, 32, 'sha256').toString('hex'), pbkdf2_prf: 'sha256' }
 }
 
-describe('/db proxy - a band database only for that band\'s accounts', () => {
-  const basic = (username: string) => `Basic ${Buffer.from(`${username}:pw`).toString('base64')}`
-
-  it('lets an account of the band into its own database', () => {
-    expect(bandDbProxyRefusal('/db/stageboard-band-a/_changes?since=0', basic('stageboard-band-a-p1~dev'))).toBeNull()
-    expect(bandDbProxyRefusal('/db/stageboard-band-a', basic('stageboard-band-a-p1'))).toBeNull()
-  })
-
-  it('refuses another band\'s account and requests without a login', () => {
-    expect(bandDbProxyRefusal('/db/stageboard-band-a/_all_docs', basic('stageboard-band-b-p1'))).toBe('account of another band')
-    expect(bandDbProxyRefusal('/db/stageboard-band-a/_all_docs', undefined)).toBe('no band login')
-    expect(bandDbProxyRefusal('/db//stageboard-band-a/x', basic('stageboard-band-b-p1'))).toBe('account of another band')
-    expect(bandDbProxyRefusal('/db/%73tageboard-band-a/x', basic('stageboard-band-b-p1'))).toBe('account of another band')
-    expect(bandDbProxyRefusal('/db/../stageboard-band-a', basic('stageboard-band-b-p1'))).toBe('bad path')
-    expect(bandDbProxyRefusal('/db/stageboard-band-a%2Fx', basic('stageboard-band-b-p1'))).toBe('bad path')
-  })
-
-  it('leaves the database\'s own endpoints to the database', () => {
-    expect(bandDbProxyRefusal('/db/_session', undefined)).toBeNull()
-    expect(bandDbProxyRefusal('/db/', undefined)).toBeNull()
+describe('the laptop answers through the host pipeline (#964 step 2)', () => {
+  it('answers a path no route has with the pipeline\'s 404, a HEAD like the GET, and a stream it does not relay with 501', async () => {
+    const { app } = await buildApp()
+    const missing = await app.inject({ method: 'GET', url: '/no/such/route' })
+    expect(missing.statusCode).toBe(404)
+    expect(missing.json()).toEqual({ error: 'not_found', reason: 'Not a route of this host.' })
+    expect((await app.inject({ method: 'HEAD', url: '/time' })).statusCode).toBe(200)
+    // Without a database host in this process a band database is not reachable - but still behind the guard first.
+    expect((await app.inject({ method: 'GET', url: '/db/stageboard-band-a/' })).statusCode).toBe(401)
+    await app.close()
   })
 })
 
-describe('Fastify routes', () => {
-  let app: FastifyInstance
+describe('host routes', () => {
+  let app: NodeHost
   let registry: Awaited<ReturnType<typeof buildApp>>['registry']
   let lookupRegistry: Awaited<ReturnType<typeof buildApp>>['lookupRegistry']
 
@@ -977,9 +967,8 @@ describe('Fastify routes', () => {
       const existingDoc = { _id: 'devices:device-1', _rev: '1-a', id: 'device-1', name: 'Marcos iPad', lastSeenAt: 100, firstSeenAt: 50, revoked: false }
       const fetchMock = stubFetch([
         stubAdminVerify(),
-        { ok: true, status: 200, json: async () => existingDoc }, // getDoc pre-check
-        { ok: true, status: 200, json: async () => existingDoc }, // putDocWithRetry's own getDoc
-        { ok: true, status: 200 }, // putDocWithRetry's PUT
+        { ok: true, status: 200, json: async () => existingDoc }, // the read of sync-host's update (#964)
+        { ok: true, status: 200 }, // its PUT
       ])
 
       const response = await app.inject({
@@ -989,7 +978,7 @@ describe('Fastify routes', () => {
       })
 
       expect(response.statusCode).toBe(204)
-      const putBody = JSON.parse(fetchMock.mock.calls[3][1].body)
+      const putBody = JSON.parse(fetchMock.mock.calls[2][1].body)
       expect(putBody).toMatchObject({ id: 'device-1', name: 'Marcos iPad', revoked: true, _rev: '1-a' })
     })
 
@@ -1272,6 +1261,7 @@ describe('Fastify routes', () => {
         { ok: true, status: 200, json: async () => ['stageboard-band-a'] }, // _all_dbs (is it taken?)
         { ok: true, status: 201 }, // ensureDb
         { ok: true, status: 200 }, // putSecurity
+        { ok: false, status: 404 }, // the rules doc is read first (sync-host's writeRules, #964)
         { ok: true, status: 201 }, // putDoc (_design/roster)
         { ok: false, status: 404 }, // writeAccessCodeDoc's own getDoc (for _rev) -> missing
         { ok: true, status: 201 }, // putDoc (workspace:access)
@@ -1323,6 +1313,7 @@ describe('Fastify routes', () => {
       { ok: true, status: 200, json: async () => ['stageboard-band-a'] }, // _all_dbs (is the id taken?)
       { ok: true, status: 201 }, // ensureDb
       { ok: true, status: 200 }, // putSecurity
+      { ok: false, status: 404 }, // the rules doc is read first (sync-host's writeRules, #964)
       { ok: true, status: 201 }, // putDoc (_design/roster)
       { ok: false, status: 404 }, // access code getDoc
       { ok: true, status: 201 }, // putDoc (workspace:access)
