@@ -13,7 +13,6 @@ import { createServer } from 'node:http'
 import { hostname, networkInterfaces } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import cors from '@fastify/cors'
 import { laptopDatabase } from './databaseRoutes.js'
 import { startBuiltinDatabase, type BuiltinDatabase } from './builtinDatabase.js'
 import { addonHostNeeds, hostCapabilities } from './hostCapabilities.js'
@@ -33,8 +32,6 @@ import { corsOriginAllowed } from './corsOrigin.js'
 import { HostLookupQuerySchema, lookUpHost } from './hostLookup.js'
 import { configuredHostEpoch } from './hostEpochConfig.js'
 import { createBandAccountsFor } from './bandAccounts.js'
-import fastifyStatic from '@fastify/static'
-import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify'
 import {
   LEGACY_HOST_TARGET,
   ActivateWorkspaceHardwareRequestSchema,
@@ -59,7 +56,7 @@ import { bandHasAddon } from './addons/bandAddons.js'
 import { LookupRegistry } from './plugins/lookupRegistry.js'
 import { lookupErrorBody } from './plugins/lookupError.js'
 import { presence as presenceStore } from './presenceStore.js'
-import { registerHostPipeline } from './hostPipeline.js'
+import { createNodeHost } from './nodeHost.js'
 import { addonRefusal, canDoFromCapabilities, createBandCatalog, createHostChannels } from 'sync-host'
 import { createLaptopBandStore } from './bandStore.js'
 import { answerHostRequest, createBandJoin, createBandMembers, createReplicationAccountIssuer, type BandJoin, type HostRequestDeps, type HostRoute, type HostRoutesDeps, type HostStream } from 'sync-host'
@@ -150,7 +147,7 @@ async function readRoster(database: DatabaseConfig, workspaceId: string) {
  * admin/non-admin rules below live in exactly one place. */
 
 /**
- * Wires up the Fastify instance and every route, with fresh, empty plugin registries - no
+ * Wires up the Node host and every route, with fresh, empty plugin registries - no
  * the database sync, no LOOKUP_CATALOG registration, no `listen()`. Split out from `main()` so
  * tests can exercise real routes via `.inject()` without any of that I/O; `main()` is the
  * only caller that goes on to populate the registries and actually start the host.
@@ -164,11 +161,7 @@ export async function buildApp(options: { backupService?: BackupService; databas
   // server, but WSS/HTTPS here still matters once the PWA itself is HTTPS: an HTTPS page
   // fetching a plain-HTTP API is mixed content and gets blocked. Falls back to plain HTTP
   // if the certs haven't been generated yet, same as vite.config.ts.
-  // Cast away the HTTP-vs-HTTPS server generic once, here: every route handler, `.inject()`
-  // caller, and `main()`'s `.listen()` only use transport-agnostic Fastify methods, never
-  // the underlying `server` property directly, so one shared `FastifyInstance` type serves
-  // both branches without spreading this union through every consumer.
-  // Audio track uploads (see #30) regularly exceed Fastify's 1 MB default bodyLimit -
+  // Audio track uploads (see #30) regularly exceed a 1 MB body limit -
   // this is a LAN-only host (docs/01), so a generous ceiling costs nothing real.
   const bodyLimit = Number(process.env.MAX_AUDIO_UPLOAD_BYTES ?? 200 * 1024 * 1024)
 
@@ -250,38 +243,20 @@ export async function buildApp(options: { backupService?: BackupService; databas
   // unchanged. One physical connection per origin with 100+ multiplexed logical streams removes
   // the browser's ~6-connections-per-origin ceiling this app was already sitting at/near (5 SSE
   // streams open per tab) - see the issue for the full story.
-  const app: FastifyInstance =
-    CERTS_AVAILABLE
-      ? (Fastify({
-          logger: true,
-          bodyLimit,
-          http2: true,
-          https: { allowHTTP1: true, cert: readFileSync(certFile), key: readFileSync(keyFile) },
-        }) as unknown as FastifyInstance)
-      : Fastify({ logger: true, bodyLimit })
-
-  // Tablets fetch this cross-origin (their own dev-server or PWA origin, not this server's).
-  //
-  // `methods` isn't derived from whatever routes actually exist - @fastify/cors defaults it to
-  // the static string 'GET,HEAD,POST' if left unset, silently CORS-blocking every cross-origin
-  // PUT/DELETE/PATCH (audio upload/delete, and now DELETE /workspaces/:id) at the browser's
-  // preflight step, before the request even reaches a route handler. Found live, 2026-08-30:
-  // DELETE /workspaces/:id's own test suite never caught this because fastify.inject() doesn't
-  // go through real CORS at all.
+  // The Node host's own listener (#964 step 3), no Fastify: TLS, HTTP/2, body parsing, CORS, the app's files, and every other request
+  // through the host pipeline (`answerHostRequest`, registered below).
   // The origins of the band's listed hosts are allowed too (#926); set once the lease service exists.
   let listedHostOrigins: () => string[] = () => []
   const configuredOrigins = (process.env.FRONTEND_ORIGIN ?? DEFAULT_FRONTEND_ORIGINS).split(',')
-  await app.register(cors, {
-    origin: (origin, callback) => callback(null, corsOriginAllowed(origin, configuredOrigins, listedHostOrigins())),
-    methods: ['GET', 'HEAD', 'PUT', 'POST', 'DELETE', 'PATCH'],
-    // Every PouchDB request through the /db proxy below sends `credentials: 'include'` (it
-    // needs that for its own Basic Auth header) - without this, @fastify/cors never sends
-    // Access-Control-Allow-Credentials at all, so the browser blocks the preflight outright
-    // ("the value of the 'Access-Control-Allow-Credentials' header ... is '' which must be
-    // 'true'"), and every live PouchDB<->the database sync fails forever, retrying with backoff
-    // (Marco, 2026-09-14).
-    credentials: true,
+  const app = createNodeHost({
+    ...(CERTS_AVAILABLE ? { https: { cert: readFileSync(certFile), key: readFileSync(keyFile) } } : {}),
+    bodyLimit,
+    corsOrigin: (origin) => corsOriginAllowed(origin, configuredOrigins, listedHostOrigins()),
   })
+
+  // Tablets fetch this cross-origin (their own dev-server or PWA origin, not this server's). Every method the host has is allowed at the
+  // preflight - a default of GET/HEAD/POST silently blocked every PUT/DELETE (found live 2026-08-30) - and credentials are, since PouchDB
+  // sends its Basic login with `credentials: 'include'` (Marco, 2026-09-14). Both in `nodeHost.ts`.
 
 
   // The NTP-style "burst handshake" target (docs/00 §4, #31): clients hit this repeatedly and
@@ -361,14 +336,8 @@ export async function buildApp(options: { backupService?: BackupService; databas
     { method: 'GET', pattern: '/osc-in/info', handle: async () => ({ status: 200, body: { port: OSC_IN_PORT } }) },
   ])
 
-  // Audio tracks arrive as whatever mime type the browser's Blob carries (audio/mpeg,
-  // audio/wav, ...) - Fastify only parses application/json and text/plain by default, so
-  // anything else needs an explicit parser or gets rejected as unsupported media type.
-  // A '*' fallback only ever applies to content types with no more specific parser
-  // registered, so this doesn't touch the existing JSON routes above/below it.
-  app.addContentTypeParser('*', { parseAs: 'buffer' }, (_request, payload, done) => {
-    done(null, payload)
-  })
+  // Audio tracks arrive as whatever type the browser's Blob carries (audio/mpeg, audio/wav, ...): `nodeHost.ts` hands any body that is
+  // not JSON or text over as its bytes.
 
   // The live channels (#962, step 2) are sync-host's: what a device sends into one (show state, switches, plugin health,
   // device triggers, Discovery) is answered by the shared route table, and what it listens to is one transport here -
@@ -996,7 +965,7 @@ export async function buildApp(options: { backupService?: BackupService; databas
     loginThrottle: adminLoginThrottle,
     ...(options.databaseHost ? { database: laptopDatabase(options.databaseHost) } : {}),
   }
-  registerHostPipeline(app, (request) => answerHostRequest(request, hostDeps))
+  app.setHandler((request) => answerHostRequest(request, hostDeps))
 
   // Serves stage-pwa's `vite build` output, if present - graceful fallback, same pattern as the
   // TLS certs above (see `certFile`/`keyFile`): without a build in place, this registers
@@ -1004,15 +973,14 @@ export async function buildApp(options: { backupService?: BackupService; databas
   // working exactly as before for day-to-day iteration. Only relevant for testing "as a real
   // device would see it" - one origin, one cert exception - or an actual gig. No SPA-fallback
   // routing needed: the app has no client-side URL router at all, just one `index.html` and
-  // in-memory React state, so `@fastify/static`'s default file-or-404 behavior is already
-  // exactly right - `/` is the only path anything ever actually requests.
+  // in-memory React state, so file-or-pipeline is exactly right - `/` is the only path anything ever actually requests.
   // The native Android app (#348), built by scripts/build-android-app.sh next to the host's data.
   ownRoutes(appRoutes(appDir()))
 
   const pwaDist = fileURLToPath(new URL('../../stage-pwa/dist', import.meta.url))
   if (existsSync(pwaDist)) {
-    // Only the files the build has (no wildcard route): everything else is the host pipeline's.
-    await app.register(fastifyStatic, { root: pwaDist, wildcard: false })
+    // Only the files the build has: everything else is the host pipeline's.
+    app.serveFiles(pwaDist)
   }
 
   return { app, registry, lookupRegistry, database, workspaceHardware, pluginLog, backups, hostLease, replication, audioMirror, catchUp, channels }
@@ -1133,7 +1101,9 @@ async function main() {
       })
       oscIn.on('error', (err) => pluginLog.error('osc in: port unavailable', { port: OSC_IN_PORT, error: err.message }))
       oscIn.bind(OSC_IN_PORT)
-      app.addHook('onClose', async () => oscIn.close())
+      app.addHook('onClose', async () => {
+        oscIn.close()
+      })
     }
     app.addHook('onClose', async () => pingLoop.stop())
 

@@ -7,7 +7,7 @@ import { request as httpsRequest, Server as HttpsServer } from 'node:https'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { FastifyInstance } from 'fastify'
+import type { NodeHost } from './nodeHost.js'
 import type { ILookupPlugin, IShowControlPlugin, PluginContext } from 'shared-types'
 
 // The activate-hardware route (below) reaches real createPluginSync/createMidiWatcher through
@@ -82,8 +82,8 @@ describe('the laptop answers through the host pipeline (#964 step 2)', () => {
   })
 })
 
-describe('Fastify routes', () => {
-  let app: FastifyInstance
+describe('host routes', () => {
+  let app: NodeHost
   let registry: Awaited<ReturnType<typeof buildApp>>['registry']
   let lookupRegistry: Awaited<ReturnType<typeof buildApp>>['lookupRegistry']
 
