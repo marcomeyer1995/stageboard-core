@@ -94,6 +94,9 @@ export function createHostChannels(deps: { presence: HostPresence; readBandDocs:
 /** The stream a path names (`/workspaces/<band>/show-state/stream`, `/plugin-health/<band>/stream`, ...): what a transport opens. */
 export type ChannelStream = { topic: ChannelTopic; workspaceId: string } | { topic: 'device-trigger'; workspaceId: string; deviceId: string }
 
+/** The band streams a device can open at `/workspaces/<band>/<topic>/stream` - one list, so every transport serves (or refuses) the same ones. */
+export const BAND_STREAM_TOPICS = ['show-state', 'switch-state', 'presence', 'osc-in', 'discovery', 'device-state'] as const satisfies readonly ChannelTopic[]
+
 export function matchChannelStream(path: string): ChannelStream | null {
   const decode = (part: string): string => {
     try {
@@ -102,8 +105,8 @@ export function matchChannelStream(path: string): ChannelStream | null {
       return ''
     }
   }
-  const band = /^\/workspaces\/([^/]+)\/(show-state|switch-state|presence|osc-in|discovery)\/stream$/.exec(path)
-  if (band) return { topic: band[2] as ChannelTopic, workspaceId: decode(band[1]!) }
+  const band = /^\/workspaces\/([^/]+)\/([a-z-]+)\/stream$/.exec(path)
+  if (band && (BAND_STREAM_TOPICS as readonly string[]).includes(band[2]!)) return { topic: band[2] as ChannelTopic, workspaceId: decode(band[1]!) }
   const health = /^\/plugin-health\/([^/]+)\/stream$/.exec(path)
   if (health) return { topic: 'plugin-health', workspaceId: decode(health[1]!) }
   const device = /^\/workspaces\/([^/]+)\/devices\/([^/]+)\/trigger-stream$/.exec(path)
