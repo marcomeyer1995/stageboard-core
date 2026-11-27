@@ -1,5 +1,4 @@
 import { registerPlugin, type PluginListenerHandle } from '@capacitor/core'
-import { createTabletJobRunner } from './tabletJobRunner'
 import { useAsyncJobsStore } from '../store/useAsyncJobsStore'
 import { getAllAsyncJobs, putAsyncJob } from '../lib/asyncJobsDb'
 import { localAddonMethods } from '../lib/addonWork'
@@ -8,7 +7,7 @@ import { runAudioImportOnDevice } from '../lib/addonWork/audioImportDevice'
 import { putTrack } from '../lib/songVariantsDb'
 import type { AsyncJob, AudioImportJob } from 'shared-types'
 import { AccessCodeSchema } from 'shared-types'
-import { BAND_SETTINGS_DOC_ID, createBandAccounts, createBandAccountStore, createBandCatalog, createHostChannels, createHostDeviceInfo, createHostPresence, listedHostIds, createBandJoin, createBandMembers, createVerifyWithPrimary, joinBandInvite, createPinThrottle, guardBandDb, noteBandDbLogin, createReplicationAccountIssuer, leaseKey, signAccountRequest, startCatchUp, type BandAccounts, type BandBootstrapStore, type BandJoin, type BandMembers, type CatchUp, createSyncHost, createWriteGuard, type SyncDatabase, type SyncRequest } from 'sync-host'
+import { BAND_SETTINGS_DOC_ID, createBandAccounts, createBandAccountStore, createBandCatalog, createHostChannels, createHostDeviceInfo, createHostPresence, listedHostIds, createBandJoin, createBandMembers, createJobClaimLoop, jobNeeds, createVerifyWithPrimary, joinBandInvite, createPinThrottle, guardBandDb, noteBandDbLogin, createReplicationAccountIssuer, leaseKey, signAccountRequest, startCatchUp, type BandAccounts, type BandBootstrapStore, type BandJoin, type BandMembers, type CatchUp, createSyncHost, createWriteGuard, type SyncDatabase, type SyncRequest } from 'sync-host'
 import { useBandSettingsStore } from '../store/useBandSettingsStore'
 import { useAndroidHostStore } from '../store/useAndroidHostStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
@@ -682,14 +681,16 @@ export async function startAndroidHost(): Promise<void> {
   // The jobs this tablet can do itself (an add-on's helper app is here) are worked by this host - first myself, then hand on (#964). Looked at whenever the band's
   // jobs change and on every tick, so a job queued while the lease was elsewhere is picked up once this host serves the band.
   if (hasBand) {
-    const jobRunner = createTabletJobRunner({
+    // The claim loop is sync-host's, the same as the laptop's (#964); a job this tablet cannot do stays queued for a host or device that can.
+    const jobRunner = createJobClaimLoop({
       hostId,
       jobs: () => useAsyncJobsStore.getState().jobs.filter((job) => job.type === 'audio-import'),
+      needsOf: jobNeeds,
       canDo: (needs) => ownPlugins.includes(needs.replace(/^plugin:/, '')),
       serving: () => servesBand(workspaceId),
       hasPeers: () => (hostsNow()?.length ?? 0) >= 2,
       read: async (id) => (await getAllAsyncJobs()).find((job) => job.id === id) as AsyncJob | undefined,
-      write: async (job) => void (await putAsyncJob(job)),
+      claim: async (job) => void (await putAsyncJob(job)),
       run: (job) =>
         runAudioImportOnDevice(job as AudioImportJob, {
           call: (addonId, method, args, onProgress) => localAddonMethods.call(addonId, method, args, onProgress ? { onProgress } : {}),
