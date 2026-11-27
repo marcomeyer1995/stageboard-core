@@ -27,6 +27,12 @@
   "settings": "Einstellungen",
   "available": "Verfügbar",
   "install": "Installieren",
+  "updateBadge": "Update v{{to}}",
+  "updateBadgeSame": "Update",
+  "update": "Aktualisieren (v{{from}} → v{{to}})",
+  "updateSame": "Aktualisieren (neue Angaben)",
+  "updatePermissions": "{{name}} möchte mit dem Update zusätzlich: {{permissions}}. Aktualisieren?",
+  "updateConfirm": "Aktualisieren",
   "ann": {
     "title": "Ansagen - Einstellungen",
     "onDevice": "Auf diesem Gerät",
