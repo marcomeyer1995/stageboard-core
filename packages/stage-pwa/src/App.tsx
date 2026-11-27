@@ -37,6 +37,7 @@ import { useFullscreenOnLaunch } from './lib/useFullscreen'
 import { useDeviceInfoReporter } from './lib/useDeviceInfoReporter'
 import { useHostFollower } from './lib/useHostFollower'
 import { useTargetWorldSync } from './lib/targetWorldSync'
+import { useOwnAdminSync } from './lib/useOwnAdminSync'
 import { resumeAndroidHost } from './host/localHost'
 import { useDiscoveryTrigger } from './lib/useDiscoveryTrigger'
 import { useHardwareDetection } from './lib/useHardwareDetection'
@@ -267,6 +268,8 @@ function App() {
   // The host with the highest epoch is the one to follow (host backup, #916).
   useHostFollower()
   useTargetWorldSync()
+  // Admin rights given or taken by another admin reach this device's own gate (#978).
+  useOwnAdminSync()
   // This tablet as the band's host (#947): the switch survived the restart - bring it back up.
   useEffect(() => {
     void resumeAndroidHost()

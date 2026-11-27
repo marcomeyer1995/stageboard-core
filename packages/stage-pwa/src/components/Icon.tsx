@@ -46,6 +46,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronUp,
+  CircleArrowUp,
   Cloud,
   Star,
   Crown,
@@ -157,6 +158,8 @@ export const ICONS = {
   textTools: WandSparkles,
   invisibles: Pilcrow,
   import: Download,
+  /** An add-on update (#834). */
+  update: CircleArrowUp,
   tapSync: Pointer,
   transpose: ArrowUpDown,
   merge: Merge,

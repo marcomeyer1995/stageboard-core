@@ -1,6 +1,8 @@
+import { guardBandDb, noteBandDbLogin } from './bandDbGuard.js'
 import { jobOfRequest, refusalFor } from './capabilities.js'
 import { matchChannelStream } from './channels/index.js'
 import { createHostRoutes, matchHostRoute, type HostRoute, type HostRoutesDeps } from './routes.js'
+import type { PinThrottle } from './pinThrottle.js'
 import type { SyncRequest, SyncResponse } from '../index.js'
 
 /** A request as a platform's transport hands it to the host (the native server of the tablet, Fastify on a laptop) (#964). */
@@ -12,14 +14,37 @@ export interface HostRequest {
   authorization?: string
   /** The address the connection came from, as the native host saw it. */
   remoteAddress?: string
-  /** JSON parsed; an upload as `{ data, contentType }`. */
+  /** JSON parsed; an upload as `{ data, contentType }` (the tablet) or as bytes (Node). */
   body?: unknown
+  /** The request's `Content-Type`, for a database that takes an attachment as bytes. */
+  contentType?: string
+  /** Aborted when the device goes away (a long poll on the band database is given up). */
+  signal?: AbortSignal
 }
 
-export type HostAnswer = SyncResponse
+/** What a live stream sends: `send` for every message; the returned function stops it. */
+export type HostStream = (send: (payload: unknown) => void) => () => void
+
+export interface HostAnswer extends SyncResponse {
+  /** Extra response headers (`Retry-After`). */
+  headers?: Record<string, string>
+  /** A live stream (server-sent events) instead of a body: the transport keeps the connection open and writes each message. */
+  stream?: HostStream
+}
+
+/** A band database that checks its own logins (the laptop's database host): what it is handed. `path` is without `/db`. */
+export interface HostDatabaseRequest {
+  method: string
+  path: string
+  query: Readonly<Record<string, string>>
+  body?: unknown
+  contentType?: string
+  authorization?: string
+  signal?: AbortSignal
+}
 
 /**
- * One host answers a request (#964): the shared route table first, then the host's own `/host/info`, the live streams a platform does not
+ * One host answers a request (#964): the shared route table and the platform's own routes first, then the host's own `/host/info`, the live streams a platform does not
  * relay (501), the jobs a device cannot do (501), and last the band database behind its band guard (404 not a band of this host, 503 not
  * serving it now, 401 not a device of the band). The same function for every platform; what a platform brings is its deps.
  *
@@ -35,10 +60,21 @@ export interface HostRequestDeps extends HostRoutesDeps {
   address: string | null
   certFingerprint: string
   state: () => { epoch: number; active: boolean; outdated: boolean; priority: 1 | 2 | null }
-  /** A band database request, already past login: sync-host plus the write rules. */
-  sync: (ctx: { name: string; roles: string[] }, request: SyncRequest) => Promise<SyncResponse>
-  /** The band's device logins (`host-accounts`); null when the login is not one of the band. */
-  login: (authorization: string | undefined, db: string) => Promise<{ name: string; roles: string[] } | null>
+  /** A band database request, already past login: sync-host plus the write rules (the tablet). */
+  sync?: (ctx: { name: string; roles: string[] }, request: SyncRequest) => Promise<SyncResponse>
+  /** The band's device logins (`host-accounts`); null when the login is not one of the band (the tablet). */
+  login?: (authorization: string | undefined, db: string) => Promise<{ name: string; roles: string[] } | null>
+  /**
+   * A database that checks its own logins, at `/db/…` (the laptop's database host): replaces `login` + `sync`, and also answers what under
+   * `/db` is not a band database (`/db/`, `_session`).
+   */
+  database?: (request: HostDatabaseRequest) => Promise<SyncResponse>
+  /** The platform's own routes (the Node shell's table, #964 step 2), matched together with the shared ones. */
+  ownRoutes?: readonly HostRoute[]
+  /** A live stream this platform relays itself (server-sent events on Node): its subscriber, or null when it does not relay `path`. */
+  stream?: (path: string) => HostStream | null
+  /** The lock after wrong band logins (#396), by username; absent: no lock. */
+  loginThrottle?: PinThrottle
 }
 
 const json = (status: number, body: unknown): HostAnswer => ({ status, body })
@@ -61,12 +97,12 @@ export function loginCheckOf(path: string): string | null {
   return db !== null && db.startsWith('stageboard-') ? db : null
 }
 
-/** The shared table, built once per set of deps. */
+/** The shared table and the platform's own routes, built once per set of deps. */
 const tables = new WeakMap<object, HostRoute[]>()
 const tableOf = (deps: HostRequestDeps): HostRoute[] => {
   let table = tables.get(deps)
   if (!table) {
-    table = createHostRoutes({ ...deps, serving: deps.serving ?? (() => deps.state().active) })
+    table = [...createHostRoutes({ ...deps, serving: deps.serving ?? (() => deps.state().active) }), ...(deps.ownRoutes ?? [])]
     tables.set(deps, table)
   }
   return table
@@ -85,39 +121,66 @@ export async function answerHostRequest(request: HostRequest, deps: HostRequestD
   const path = request.path.length > 1 ? request.path.replace(/\/+$/, '') : request.path
   const state = deps.state()
 
-  const hit = matchHostRoute(tableOf(deps), method, path)
+  // A HEAD asks what a GET would answer, without the body (the transport sends none).
+  const hit = matchHostRoute(tableOf(deps), method === 'HEAD' ? 'GET' : method, path)
   if (hit) {
     const answer = await hit.route.handle({ method, path, params: hit.params, query: request.query, body: bodyOf(request.body), ...(request.authorization ? { authorization: request.authorization } : {}), ...(request.remoteAddress ? { remoteAddress: request.remoteAddress } : {}) })
-    return { status: answer.status, body: answer.body ?? null, ...(answer.binary ? { binary: answer.binary } : {}) }
+    return { status: answer.status, body: answer.body ?? null, ...(answer.binary ? { binary: answer.binary } : {}), ...(answer.headers ? { headers: answer.headers } : {}) }
   }
 
   if ((path === '/host/info' || path === '/server-info') && method === 'GET') {
     return json(200, { lanIp: deps.address, port: deps.port, hostname: 'stageboard.local', certFingerprint: deps.certFingerprint })
   }
-  // A live stream the native host does not relay yet (it carries show state, switches and presence): the device
-  // lacks the capability - never a plain 404 (#962).
-  const stream = method === 'GET' ? matchChannelStream(path) : null
-  if (stream) {
-    return json(501, { error: 'capability_missing', capability: `live-stream:${stream.topic}`, reason: `This host does not relay the ${stream.topic} stream yet.` })
+  if (method === 'GET') {
+    const relayed = deps.stream?.(path) ?? null
+    if (relayed) return { status: 200, body: null, stream: relayed }
+    // A live stream this host does not relay (the tablet's native host does not carry show state, switches and presence yet): the device
+    // lacks the capability - never a plain 404 (#962).
+    const stream = matchChannelStream(path)
+    if (stream) {
+      return json(501, { error: 'capability_missing', capability: `live-stream:${stream.topic}`, reason: `This host does not relay the ${stream.topic} stream yet.` })
+    }
   }
   // A job this device cannot do (backup, speech, a plugin that needs Node, ...): 501 and what it lacks - never 404 (#962).
   if (deps.capabilities && jobOfRequest(method, path) !== null) {
     const refused = refusalFor(await deps.capabilities(), method, path)
     if (refused) return json(refused.status, refused.body)
   }
+  return answerBandDatabase(request, path, state, deps)
+}
+
+/** The band database behind the guard every host has (#964 step 2, `guardBandDb`). */
+async function answerBandDatabase(request: HostRequest, path: string, state: ReturnType<HostRequestDeps['state']>, deps: HostRequestDeps): Promise<HostAnswer> {
+  const notFound = json(404, { error: 'not_found', reason: 'Not a route of this host.' })
+  // A database with its own logins sits at `/db` only; the tablet's native server also hands `stageboard-<id>/…` without it.
+  const underDb = path === '/db' || path.startsWith('/db/')
+  if (deps.database && !underDb) return notFound
   const band = bandOfPath(path)
-  if (!band) return json(404, { error: 'not_found', reason: 'Not a route of this host.' })
-  const workspaceId = band.db.slice('stageboard-'.length)
-  // A band this tablet does not host is not its business - answering it as a wrong login would still tell a device
-  // that the name is a band (the shared routes' reasoning, #958).
-  if (deps.servesBand && !(await deps.servesBand(workspaceId))) {
-    return json(404, { error: 'not_found', reason: 'Not a band of this host.' })
+  if (!band && !deps.database) return notFound
+  const guard = await guardBandDb(band ? band.inner : path, request.authorization, {
+    ...(deps.servesBand ? { servesBand: deps.servesBand } : {}),
+    serving: deps.serving ?? (() => state.active),
+    ...(deps.loginThrottle ? { loginThrottle: deps.loginThrottle } : {}),
+  })
+  if (guard.kind === 'refused') return { ...guard.answer, ...retryAfter(guard.answer) }
+
+  if (deps.database) {
+    // The raw path, trailing slash and all: the database host tells `/db/x/` from `/db/x` itself.
+    const out = await deps.database({
+      method: request.method,
+      path: request.path.slice('/db'.length) || '/',
+      query: request.query,
+      body: request.body,
+      ...(request.contentType !== undefined ? { contentType: request.contentType } : {}),
+      ...(request.authorization ? { authorization: request.authorization } : {}),
+      ...(request.signal ? { signal: request.signal } : {}),
+    })
+    if (guard.kind === 'band') noteBandDbLogin(deps.loginThrottle, guard.username, out.status)
+    return out
   }
-  // A passive backup holds the band as a device but serves none of it: a device must follow the primary.
-  if (!(deps.serving ? deps.serving(workspaceId) : state.active)) {
-    return json(503, { error: 'passive', reason: 'This host is not serving the band right now.' })
-  }
+  if (guard.kind !== 'band' || !band || !deps.login || !deps.sync) return notFound
   const ctx = await deps.login(request.authorization, band.db)
+  noteBandDbLogin(deps.loginThrottle, guard.username, ctx ? 200 : 401)
   if (!ctx) return unauthorized()
   return deps.sync(ctx, {
     method: request.method,
@@ -125,4 +188,10 @@ export async function answerHostRequest(request: HostRequest, deps: HostRequestD
     query: request.query,
     body: request.body,
   })
+}
+
+/** A lock's wait as the `Retry-After` header too. */
+const retryAfter = (answer: SyncResponse): { headers?: Record<string, string> } => {
+  const seconds = (answer.body as { retryAfterSeconds?: unknown } | null)?.retryAfterSeconds
+  return typeof seconds === 'number' ? { headers: { 'Retry-After': String(seconds) } } : {}
 }

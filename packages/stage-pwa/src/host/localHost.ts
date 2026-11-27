@@ -8,7 +8,7 @@ import { runAudioImportOnDevice } from '../lib/addonWork/audioImportDevice'
 import { putTrack } from '../lib/songVariantsDb'
 import type { AsyncJob, AudioImportJob } from 'shared-types'
 import { AccessCodeSchema } from 'shared-types'
-import { BAND_SETTINGS_DOC_ID, createBandAccounts, createBandAccountStore, createBandCatalog, createHostChannels, createHostDeviceInfo, createHostPresence, listedHostIds, createBandJoin, createBandMembers, createVerifyWithPrimary, joinBandInvite, createPinThrottle, createReplicationAccountIssuer, leaseKey, signAccountRequest, startCatchUp, type BandAccounts, type BandBootstrapStore, type BandJoin, type BandMembers, type CatchUp, createSyncHost, createWriteGuard, type SyncDatabase, type SyncRequest } from 'sync-host'
+import { BAND_SETTINGS_DOC_ID, createBandAccounts, createBandAccountStore, createBandCatalog, createHostChannels, createHostDeviceInfo, createHostPresence, listedHostIds, createBandJoin, createBandMembers, createVerifyWithPrimary, joinBandInvite, createPinThrottle, guardBandDb, noteBandDbLogin, createReplicationAccountIssuer, leaseKey, signAccountRequest, startCatchUp, type BandAccounts, type BandBootstrapStore, type BandJoin, type BandMembers, type CatchUp, createSyncHost, createWriteGuard, type SyncDatabase, type SyncRequest } from 'sync-host'
 import { useBandSettingsStore } from '../store/useBandSettingsStore'
 import { useAndroidHostStore } from '../store/useAndroidHostStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
@@ -199,6 +199,11 @@ function publish(machine: TabletHost, url: string | null, error: string | null =
 }
 
 /** Is the switch on (and is this the native app)? Read by the UI and at app start. */
+
+/** The lock after wrong logins (#396), by username, for every band this tablet hosts: the band database, the live channels and the
+ * admin routes count together, as on the laptop. Kept across host restarts, so switching the host off and on is no way around it. */
+const bandLoginThrottle = createPinThrottle()
+
 export function androidHostSwitchOn(): boolean {
   return isNativeApp() && localStorage.getItem(SWITCH_KEY) === 'on'
 }
@@ -378,7 +383,7 @@ export async function startAndroidHost(): Promise<void> {
         accounts: accountsFor(band),
         join: joinBandFor(band),
         workspaceId: band,
-        loginThrottle: createPinThrottle(),
+        loginThrottle: bandLoginThrottle,
         profile: profileOf(band),
         adminProfileIds: async () => {
           const rows = await dbFor(band).allDocs({ startkey: 'profiles:', endkey: 'profiles:￰', include_docs: true })
@@ -528,6 +533,7 @@ export async function startAndroidHost(): Promise<void> {
   // route table is cached on it.
   const hostDeps: AppHostDeps = {
     hostId,
+    loginThrottle: bandLoginThrottle,
     port: PORT,
     get address() {
       return startedAddress
@@ -607,7 +613,14 @@ export async function startAndroidHost(): Promise<void> {
       // The native host asks this before it relays a live channel: a device of this band, or nothing.
       const checkDb = loginCheckOf(req.path)
       if (checkDb !== null) {
+        // The same lock as the band database (#396): a channel is no way around it.
+        const guard = await guardBandDb(`/${checkDb}`, req.authorization, { loginThrottle: bandLoginThrottle })
+        if (guard.kind === 'refused') {
+          await LocalHost.respond({ id: req.id, status: guard.answer.status, contentType: 'application/json', text: JSON.stringify(guard.answer.body) })
+          return
+        }
         const ctx = await login(req.authorization, checkDb)
+        if (guard.kind === 'band') noteBandDbLogin(bandLoginThrottle, guard.username, ctx ? 200 : 401)
         await LocalHost.respond({ id: req.id, status: ctx ? 200 : 401, contentType: 'application/json', text: JSON.stringify(ctx ? { ok: true } : { error: 'unauthorized' }) })
         return
       }
