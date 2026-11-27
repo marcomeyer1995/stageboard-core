@@ -69,6 +69,19 @@ function accountDoc(name: string, roles: string[], password = 'correct-pw') {
   return { _id: `account:${name}`, _rev: '1-a', name, roles, iterations: 1000, salt, derived_key: pbkdf2Sync(password, salt, 1000, 32, 'sha256').toString('hex'), pbkdf2_prf: 'sha256' }
 }
 
+describe('the laptop answers through the host pipeline (#964 step 2)', () => {
+  it('answers a path no route has with the pipeline\'s 404, a HEAD like the GET, and a stream it does not relay with 501', async () => {
+    const { app } = await buildApp()
+    const missing = await app.inject({ method: 'GET', url: '/no/such/route' })
+    expect(missing.statusCode).toBe(404)
+    expect(missing.json()).toEqual({ error: 'not_found', reason: 'Not a route of this host.' })
+    expect((await app.inject({ method: 'HEAD', url: '/time' })).statusCode).toBe(200)
+    // Without a database host in this process a band database is not reachable - but still behind the guard first.
+    expect((await app.inject({ method: 'GET', url: '/db/stageboard-band-a/' })).statusCode).toBe(401)
+    await app.close()
+  })
+})
+
 describe('Fastify routes', () => {
   let app: FastifyInstance
   let registry: Awaited<ReturnType<typeof buildApp>>['registry']

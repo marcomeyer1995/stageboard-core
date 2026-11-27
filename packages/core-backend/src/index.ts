@@ -6,7 +6,7 @@ import { readFile } from 'node:fs/promises'
 import { CalibrationRuns } from './calibration/calibrationRuns.js'
 import { MeasureInputStore } from './calibration/measureInputs.js'
 import { startMicCapture } from './calibration/micCapture.js'
-import { registerHostSettingsRoutes } from './hostSettingsRoutes.js'
+import { hostSettingsRoutes } from './hostSettingsRoutes.js'
 import { hostSpeech, hostVoices } from './speech/hostSpeech.js'
 import { PiperSpeech } from './speech/piperSpeech.js'
 import { createServer } from 'node:http'
@@ -14,7 +14,7 @@ import { hostname, networkInterfaces } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import cors from '@fastify/cors'
-import { registerDatabaseRoutes } from './databaseRoutes.js'
+import { laptopDatabase } from './databaseRoutes.js'
 import { startBuiltinDatabase, type BuiltinDatabase } from './builtinDatabase.js'
 import { addonHostNeeds, hostCapabilities } from './hostCapabilities.js'
 import { builtinRunners } from './builtinRunners.js'
@@ -50,7 +50,7 @@ import { isSafePluginId, readPluginBundle } from './plugins/pluginBundleStore.js
 import { allDocs, getDoc, type DatabaseConfig, type DatabaseDoc } from './database.js'
 import * as deviceInfoStore from './deviceInfoStore.js'
 import { installShutdownHandlers, trackConnections } from './gracefulShutdown.js'
-import { appDir, registerAppRoutes } from './appDownload.js'
+import { appDir, appRoutes } from './appDownload.js'
 import { certFingerprint } from './certFingerprint.js'
 import { startMdnsResponder } from './mdnsResponder.js'
 import { startPingLoop } from './pingLoop.js'
@@ -59,10 +59,10 @@ import { bandHasAddon } from './addons/bandAddons.js'
 import { LookupRegistry } from './plugins/lookupRegistry.js'
 import { lookupErrorBody } from './plugins/lookupError.js'
 import { presence as presenceStore } from './presenceStore.js'
-import { registerHostRoutes } from './hostRoutes.js'
+import { registerHostPipeline } from './hostPipeline.js'
 import { addonRefusal, canDoFromCapabilities, createBandCatalog, createHostChannels } from 'sync-host'
 import { createLaptopBandStore } from './bandStore.js'
-import { createBandJoin, createBandMembers, createHostRoutes, createReplicationAccountIssuer, type BandJoin } from 'sync-host'
+import { answerHostRequest, createBandJoin, createBandMembers, createReplicationAccountIssuer, type BandJoin, type HostRequestDeps, type HostRoute, type HostRoutesDeps, type HostStream } from 'sync-host'
 import { PluginRegistry } from './plugins/registry.js'
 import { createPinThrottle } from 'sync-host'
 import { isLoopback } from './provisioningAuth.js'
@@ -148,30 +148,6 @@ async function readRoster(database: DatabaseConfig, workspaceId: string) {
  * (below) returns, shared by both routes that can resolve "who is this profile, really" (the
  * public band-code-gated join route and the caller-credential-gated activate route) so the
  * admin/non-admin rules below live in exactly one place. */
-
-/**
- * Hijacks `reply` and opens it as a push SSE stream - shared by every subscription route below
- * (plugin-health, presence, trigger-stream, discovery). Copies whatever headers Fastify already
- * queued (e.g. CORS from the cors plugin's onRequest hook) individually, since `writeHead()` has
- * no overload accepting an arbitrary header record alongside a status code.
- *
- * `Connection: keep-alive` is only set for an HTTP/1.x client: HTTP/2 forbids "connection-
- * specific" header fields entirely (RFC 7540 §8.1.2.2 - h2 multiplexes many logical streams over
- * one already-persistent connection, so the header is meaningless there anyway), and Node's h2
- * compat layer throws `ERR_HTTP2_INVALID_CONNECTION_HEADER` if it's set on a real h2 stream
- * (#129's `http2: true` + `allowHTTP1: true`) - `request.raw.httpVersionMajor` tells us which
- * protocol this particular request actually negotiated.
- */
-function beginSseStream(request: FastifyRequest, reply: FastifyReply): void {
-  reply.hijack()
-  for (const [name, value] of Object.entries(reply.getHeaders())) {
-    if (value !== undefined) reply.raw.setHeader(name, value)
-  }
-  reply.raw.setHeader('Content-Type', 'text/event-stream')
-  reply.raw.setHeader('Cache-Control', 'no-cache')
-  if (request.raw.httpVersionMajor < 2) reply.raw.setHeader('Connection', 'keep-alive')
-  reply.raw.writeHead(200)
-}
 
 /**
  * Wires up the Fastify instance and every route, with fresh, empty plugin registries - no
@@ -335,8 +311,13 @@ export async function buildApp(options: { backupService?: BackupService; databas
     const input = measureInputs.resolve(kind)
     return startMicCapture(input.device, input.channel)
   })
+  // Every route of the Node shell's own (#964, step 2), answered through the host pipeline below together with the shared ones.
+  const nodeRoutes: HostRoute[] = []
+  const ownRoutes = (routes: readonly HostRoute[]) => {
+    nodeRoutes.push(...routes)
+  }
   // The Node shell's own routes as a table (#964, step 2): the calibration runs (a Node job, #662), who this host is, its OSC port.
-  registerHostRoutes(app, [
+  ownRoutes([
     {
       method: 'POST',
       pattern: '/calibration/runs',
@@ -394,25 +375,33 @@ export async function buildApp(options: { backupService?: BackupService; databas
   // each snapshot as a host-sent event. A named '/plugin-health', not '/health': per-plugin reachability, not liveness.
   // No login on a stream: a page opens it with EventSource, which cannot send one (presence reveals only which
   // already-visible roster member is active).
-  const openStream = (request: FastifyRequest, reply: FastifyReply, subscribe: (send: (payload: unknown) => void) => () => void) => {
-    beginSseStream(request, reply)
-    const unsubscribe = subscribe((payload) => reply.raw.write(`data: ${JSON.stringify(payload)}\n\n`))
-    request.raw.on('close', unsubscribe)
+  const streamParam = (value: string) => {
+    try {
+      return decodeURIComponent(value)
+    } catch {
+      return null
+    }
   }
-  for (const topic of ['show-state', 'switch-state', 'presence', 'osc-in', 'discovery', 'device-state'] as const) {
-    app.get(`/workspaces/:workspaceId/${topic}/stream`, (request, reply) => {
-      const { workspaceId } = request.params as { workspaceId: string }
-      openStream(request, reply, (send) => channels.subscribe(topic, workspaceId, send))
-    })
+  const streamOf = (path: string): HostStream | null => {
+    const band = /^\/workspaces\/([^/]+)\/(show-state|switch-state|presence|osc-in|discovery|device-state)\/stream$/.exec(path)
+    if (band) {
+      const workspaceId = streamParam(band[1]!)
+      const topic = band[2] as 'show-state' | 'switch-state' | 'presence' | 'osc-in' | 'discovery' | 'device-state'
+      return workspaceId === null ? null : (send) => channels.subscribe(topic, workspaceId, send)
+    }
+    const health = /^\/plugin-health\/([^/]+)\/stream$/.exec(path)
+    if (health) {
+      const workspaceId = streamParam(health[1]!)
+      return workspaceId === null ? null : (send) => channels.subscribe('plugin-health', workspaceId, send)
+    }
+    const trigger = /^\/workspaces\/([^/]+)\/devices\/([^/]+)\/trigger-stream$/.exec(path)
+    if (trigger) {
+      const workspaceId = streamParam(trigger[1]!)
+      const deviceId = streamParam(trigger[2]!)
+      return workspaceId === null || deviceId === null ? null : (send) => channels.subscribeDevice(workspaceId, deviceId, send)
+    }
+    return null
   }
-  app.get('/plugin-health/:workspaceId/stream', (request, reply) => {
-    const { workspaceId } = request.params as { workspaceId: string }
-    openStream(request, reply, (send) => channels.subscribe('plugin-health', workspaceId, send))
-  })
-  app.get('/workspaces/:workspaceId/devices/:deviceId/trigger-stream', (request, reply) => {
-    const { workspaceId, deviceId } = request.params as { workspaceId: string; deviceId: string }
-    openStream(request, reply, (send) => channels.subscribeDevice(workspaceId, deviceId, send))
-  })
 
   const registry = new PluginRegistry()
 
@@ -512,7 +501,7 @@ export async function buildApp(options: { backupService?: BackupService; databas
   })
   // A fresh backup is told once which band it backs up and where the primary is (#933). Only from the
   // host machine itself, like the other provisioning routes: the admin on a tablet has no way here.
-  registerHostRoutes(app, [
+  ownRoutes([
     {
       method: 'POST',
       pattern: '/host/join-band',
@@ -579,7 +568,7 @@ export async function buildApp(options: { backupService?: BackupService; databas
   // Who a host is (host backup, #914): the stage app asks its *own* host to look up the address the admin
   // typed, so the page never has to trust a certificate it does not know yet - in the browser that would be
   // CORS, in the app a missing pin (#945).
-  registerHostRoutes(app, [
+  ownRoutes([
     {
       method: 'GET',
       pattern: '/host/look-up',
@@ -647,9 +636,7 @@ export async function buildApp(options: { backupService?: BackupService; databas
   })
 
   // The routes every host answers the same way - one table in sync-host, shared with the tablet's app (#949).
-  registerHostRoutes(
-    app,
-    createHostRoutes({
+  const sharedDeps: HostRoutesDeps = {
       hostId,
       lease: hostLease,
       activeWorkspaceId: () => workspaceHardware.getActiveWorkspaceId(),
@@ -701,8 +688,7 @@ export async function buildApp(options: { backupService?: BackupService; databas
       },
       capabilities: () => hostCapabilities(runners),
       log: (message, meta) => app.log.info(meta, message),
-    }),
-  )
+  }
 
   // OSC devices (#484): host and port are the device's transport config for the Host
   // (Bühnentechnik), in the band whose hardware this host serves.
@@ -753,7 +739,7 @@ export async function buildApp(options: { backupService?: BackupService; databas
   // The plugins and add-ons this host keeps and runs, as a route table of the Node shell (#964, step 2).
   const decoded = (value: string | undefined) => decodeURIComponent(value ?? '')
   const notBandAdmin = { status: 403, body: { status: 'error', message: 'Only an admin of this band manages add-ons' } }
-  registerHostRoutes(app, [
+  ownRoutes([
     { method: 'GET', pattern: '/plugins', handle: async () => ({ status: 200, body: registry.list() }) },
     // #101's Host mirror: whatever pluginSync.ts's downloadMissingBundles already cached to disk, served back out to any tablet on the LAN.
     {
@@ -872,7 +858,7 @@ export async function buildApp(options: { backupService?: BackupService; databas
 
   // An add-on's method, answered by its work script in a sandbox on this device (docs/36 §3, #964). The add-on must be installed for the band; what
   // comes back is the add-on's own answer or its own error - this route knows no add-on's domain.
-  registerHostRoutes(app, [
+  ownRoutes([
     {
       method: 'POST',
       pattern: '/addons/:id/methods/:method',
@@ -922,7 +908,7 @@ export async function buildApp(options: { backupService?: BackupService; databas
   // to kill the process and restart it with a different STAGEBOARD_WORKSPACE env var, for the
   // real case of one Host serving two of Marco's own bands on different days, never at
   // the same time (see workspaceHardwareController.ts).
-  registerHostRoutes(app, [
+  ownRoutes([
     {
       method: 'POST',
       pattern: '/workspaces/:workspaceId/activate-hardware',
@@ -975,7 +961,7 @@ export async function buildApp(options: { backupService?: BackupService; databas
     }
     return null
   }
-  registerHostSettingsRoutes(app, { backups, activeBandAdmin, measureInputs, calibrationRuns, log: app.log })
+  ownRoutes(hostSettingsRoutes({ backups, activeBandAdmin, measureInputs, calibrationRuns, log: app.log }))
 
   // 2026-09-02 fourth follow-up, at Marco's explicit request: consolidates the PWA, this API,
   // and the database onto this one origin, so a new device only ever has to accept one self-signed
@@ -993,11 +979,24 @@ export async function buildApp(options: { backupService?: BackupService; databas
   // `VITE_DB_URL` pointing at the database's own port - one address to configure, not two.
   // The guard is the one every host has (`guardBandDb`, #964 step 2). A laptop hosts and serves every band in its database, so it gives
   // no `servesBand`/`serving`: only the account check and the lock after wrong logins (#396) apply here today.
-  registerDatabaseRoutes(app, {
-    handle: options.databaseHost,
-    guard: { loginThrottle: adminLoginThrottle },
-    log: app.log,
-  })
+  // The laptop answers through the same pipeline as the tablet (#964 step 2): the shared routes, the Node shell's own, the live streams,
+  // and the band databases behind the guard every host has. A laptop hosts and serves every band in its database, so it gives no
+  // `servesBand` and serves always: only the account check and the lock after wrong logins (#396) apply to `/db` here today. The
+  // database host checks the login itself.
+  const hostDeps: HostRequestDeps = {
+    ...sharedDeps,
+    serving: sharedDeps.serving ?? (() => true),
+    port,
+    // The laptop's own `/host/info` is in its table (it reads the address fresh); this is the tablet's fallback.
+    address: null,
+    certFingerprint: CERT_FINGERPRINT ?? '',
+    state: () => ({ epoch: hostEpoch, active: true, outdated: false, priority: null }),
+    ownRoutes: nodeRoutes,
+    stream: streamOf,
+    loginThrottle: adminLoginThrottle,
+    ...(options.databaseHost ? { database: laptopDatabase(options.databaseHost) } : {}),
+  }
+  registerHostPipeline(app, (request) => answerHostRequest(request, hostDeps))
 
   // Serves stage-pwa's `vite build` output, if present - graceful fallback, same pattern as the
   // TLS certs above (see `certFile`/`keyFile`): without a build in place, this registers
@@ -1008,11 +1007,12 @@ export async function buildApp(options: { backupService?: BackupService; databas
   // in-memory React state, so `@fastify/static`'s default file-or-404 behavior is already
   // exactly right - `/` is the only path anything ever actually requests.
   // The native Android app (#348), built by scripts/build-android-app.sh next to the host's data.
-  registerAppRoutes(app, appDir())
+  ownRoutes(appRoutes(appDir()))
 
   const pwaDist = fileURLToPath(new URL('../../stage-pwa/dist', import.meta.url))
   if (existsSync(pwaDist)) {
-    await app.register(fastifyStatic, { root: pwaDist })
+    // Only the files the build has (no wildcard route): everything else is the host pipeline's.
+    await app.register(fastifyStatic, { root: pwaDist, wildcard: false })
   }
 
   return { app, registry, lookupRegistry, database, workspaceHardware, pluginLog, backups, hostLease, replication, audioMirror, catchUp, channels }
