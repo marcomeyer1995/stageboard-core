@@ -6,7 +6,7 @@ Da das Projekt hochkomplex ist (Hardware, Plugins, Timecode) und mithilfe von KI
 
 Node wird über [nvm](https://github.com/nvm-sh/nvm) verwaltet (installiert unter `~/.nvm`), nicht über das System-`apt`-Paket — Ubuntus eigenes Repo bietet nur ein eingefrorenes Node 18 an, das seit April 2025 keine Sicherheitspatches mehr bekommt. Die Projekt-Node-Version steht in `.nvmrc` (aktuell 24, aktuelle LTS). In einem neuen Terminal `nvm use` ausführen, um sie zu aktivieren; `nvm alias default 'lts/*'` ist bereits gesetzt, neue Shells sollten automatisch auf der richtigen Version starten.
 
-Alle Kern-Pakete laufen auf ihren aktuellen Major-Versionen (Fastify 5, Vite 8, Vitest 4) — keine künstlichen Downgrades mehr nötig.
+Alle Kern-Pakete laufen auf ihren aktuellen Major-Versionen (Vite 8, Vitest 4; der Host braucht seit #964 kein Web-Framework mehr) — keine künstlichen Downgrades mehr nötig.
 
 **Bekannte Stolperfalle:** In manchen (insbesondere nicht-interaktiven) Shells ist die Umgebungsvariable `npm_config_prefix` bereits gesetzt (z.B. auf `/usr/local`). nvm verweigert dann das automatische Aktivieren der Default-Version beim Sourcen und meldet das nur als Warnung, nicht als Fehler. Fix: `unset npm_config_prefix` **vor** dem Sourcen von `nvm.sh` ausführen, dann `node --version` zur Kontrolle prüfen.
 
@@ -90,7 +90,7 @@ WantedBy=default.target
 **Redeploy nach dem Mergen eines PRs:**
 1. `cd ~/stageboard-deploy && git fetch && git checkout --detach origin/main`
 2. `npm ci`, falls sich Abhängigkeiten geändert haben; dann `npm run build -w shared-types`, `npm run build -w core-backend` (nur falls Backend-Code sich geändert hat) und `npm run build -w stage-pwa`.
-3. Reine Frontend-Änderungen brauchen keinen Neustart - `@fastify/static` liefert `packages/stage-pwa/dist` frisch pro Request aus. Prüfen: der Hash aus `curl -sk https://stageboard.local/ | grep -o 'assets/index-[a-zA-Z0-9_-]*\.js'` muss zum neuen Build passen.
+3. Reine Frontend-Änderungen brauchen keinen Neustart - der Host (`nodeHost.ts`) liefert `packages/stage-pwa/dist` aus und liest die Dateiliste neu ein, sobald eine Datei fehlt (neue Asset-Namen eines neuen Builds). Prüfen: der Hash aus `curl -sk https://stageboard.local/ | grep -o 'assets/index-[a-zA-Z0-9_-]*\.js'` muss zum neuen Build passen.
 4. Backend-Änderungen: `systemctl --user restart stageboard`. Danach `GET /server/active-workspace` prüfen (darf nicht `null` sein, siehe oben).
 5. Hat sich `stage-pwa` geändert: `./scripts/build-android-app.sh` (baut auch den Web-Build aus Schritt 2 neu und legt das signierte APK nach `~/stageboard-data/app`, siehe 0c) - danach bieten die installierten Apps das Update an.
 

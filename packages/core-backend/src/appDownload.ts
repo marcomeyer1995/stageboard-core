@@ -1,9 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import type { FastifyInstance } from 'fastify'
 import type { HostRoute, HostRouteResponse } from 'sync-host'
-import { registerHostRoutes } from './hostRoutes.js'
 
 /** What scripts/build-android-app.sh writes next to the APK. */
 export interface AppVersion {
@@ -86,9 +84,4 @@ export function appRoutes(dir: string): HostRoute[] {
       },
     },
   ]
-}
-
-/** The app routes on a Fastify listener. */
-export function registerAppRoutes(app: FastifyInstance, dir: string): void {
-  registerHostRoutes(app, appRoutes(dir))
 }
