@@ -1,4 +1,4 @@
-import { createBandAccountStore, createBandAccounts, ROSTER_VALIDATOR_SOURCE, type BandAccounts, type BandStore } from 'sync-host'
+import { createBandAccountStore, createBandAccounts, createBandDocuments, ROSTER_VALIDATOR_SOURCE, type BandAccounts, type BandDocument, type BandDocumentPort, type BandStore } from 'sync-host'
 
 /**
  * The tablet's bands (#962): the same life cycle every host answers, over the PouchDB databases the app already
@@ -30,18 +30,7 @@ export interface TabletBandStoreDeps {
 /** `stageboard-<id>`, the same name the app's `localDbName` derives (one definition of the rule, one of the name). */
 export const bandDbName = (workspaceId: string): string => `stageboard-${workspaceId}`
 
-const ACCESS_DOC_ID = 'workspace:access'
-const DEVICE_PREFIX = 'devices:'
 const PROFILE_PREFIX = 'profiles:'
-
-interface AccessDoc extends Record<string, unknown> {
-  _id: string
-  _rev?: string
-  code: string
-  name: string
-  hostId?: string
-  masterMode?: 'device' | 'account'
-}
 
 /** A Basic header from a name and password, as UTF-8 like the laptop's - `btoa` alone throws on a character beyond Latin-1, and a
  * wrong login must be answered as one, not crash into a 500. */
@@ -52,11 +41,35 @@ function basicHeader(username: string, password: string): string {
   return `Basic ${btoa(binary)}`
 }
 
-/** 8 digits, zero-padded - the "WiFi password" a band writes down once (the laptop's rule, in the browser). */
-function generateAccessCode(): string {
-  const value = new Uint32Array(1)
-  crypto.getRandomValues(value)
-  return (value[0]! % 100_000_000).toString().padStart(8, '0')
+/** A band's documents in the app's PouchDB, as sync-host's band rules read and write them: a write that lost against another
+ * (409) is made again on the stored revision. */
+export function pouchBandPort(db: BandDatabase): BandDocumentPort {
+  const get = (id: string) =>
+    db.get(id).then(
+      (doc) => doc as BandDocument,
+      (err: { status?: number }) => {
+        if (err.status === 404) return null
+        throw err
+      },
+    )
+  return {
+    get,
+    async update(id, change) {
+      for (let attempt = 1; attempt <= 5; attempt++) {
+        const next = change(await get(id))
+        if (!next) return
+        try {
+          await db.put(next)
+          return
+        } catch (err) {
+          const status = (err as { status?: number }).status
+          if (status === 404 && next._deleted) return
+          if (status !== 409 || attempt === 5) throw err
+        }
+      }
+    },
+    list: async (prefix) => (await db.allDocs({ startkey: prefix, endkey: `${prefix}\ufff0`, include_docs: true })).rows.flatMap((row) => (row.doc ? [row.doc as BandDocument] : [])),
+  }
 }
 
 export function createTabletBandStore(deps: TabletBandStoreDeps): BandStore {
@@ -72,31 +85,8 @@ export function createTabletBandStore(deps: TabletBandStoreDeps): BandStore {
     }
     return known.accounts
   }
-  const read = (workspaceId: string, id: string) => deps.open(workspaceId).get(id).catch((err: { status?: number }) => {
-    if (err.status === 404) return null
-    throw err
-  })
-  const write = async (workspaceId: string, id: string, change: (existing: Record<string, unknown> | null) => Record<string, unknown>) => {
-    const existing = await read(workspaceId, id)
-    await deps.open(workspaceId).put(change(existing))
-  }
-  const accessDoc = (existing: Record<string, unknown> | null, code: string, name: string, masterMode?: 'device' | 'account'): AccessDoc => ({
-    ...(existing ?? {}),
-    _id: ACCESS_DOC_ID,
-    ...(typeof existing?._rev === 'string' ? { _rev: existing._rev } : {}),
-    code,
-    name,
-    ...(masterMode ? { masterMode } : {}),
-    ...(typeof existing?.hostId === 'string' ? { hostId: existing.hostId } : {}),
-  })
-
-  const ensureAccess = async (workspaceId: string, fallbackName: string): Promise<AccessDoc> => {
-    const existing = (await read(workspaceId, ACCESS_DOC_ID)) as AccessDoc | null
-    if (existing) return existing
-    const doc = accessDoc(null, generateAccessCode(), fallbackName)
-    await deps.open(workspaceId).put(doc)
-    return doc
-  }
+  // The access doc and the Device Ledger: sync-host's rules, the same as the laptop's (#964).
+  const documents = createBandDocuments({ open: (workspaceId) => pouchBandPort(deps.open(workspaceId)) })
 
   return {
     bands: () => deps.bandIds(),
@@ -105,7 +95,7 @@ export function createTabletBandStore(deps: TabletBandStoreDeps): BandStore {
 
     async create(workspaceId, name, founder) {
       const db = deps.open(workspaceId)
-      await db.put({ ...accessDoc(null, generateAccessCode(), name), hostId: deps.hostId })
+      await documents.createAccess(workspaceId, name, deps.hostId)
       // The same write rules the laptop puts into a band database: a band founded here can move to a laptop unchanged.
       await db.put({ _id: '_design/roster', validate_doc_update: ROSTER_VALIDATOR_SOURCE })
       return accountsFor(workspaceId).provisionDevice(founder.founderId, founder.deviceId, true)
@@ -119,25 +109,11 @@ export function createTabletBandStore(deps: TabletBandStoreDeps): BandStore {
       await (deps.open(workspaceId) as BandDatabase & { destroy?: () => Promise<void> }).destroy?.()
     },
 
-    accessCode: async (workspaceId) => {
-      const doc = (await read(workspaceId, ACCESS_DOC_ID)) as AccessDoc | null
-      return doc ? { code: doc.code, name: doc.name } : null
-    },
-    ensureAccessCode: async (workspaceId, fallbackName) => {
-      const doc = await ensureAccess(workspaceId, fallbackName)
-      return { code: doc.code, name: doc.name }
-    },
-    async rotateAccessCode(workspaceId) {
-      const code = generateAccessCode()
-      await write(workspaceId, ACCESS_DOC_ID, (existing) => accessDoc(existing, code, (existing as AccessDoc | null)?.name ?? workspaceId, (existing as AccessDoc | null)?.masterMode))
-      return code
-    },
-    async rename(workspaceId, name) {
-      await write(workspaceId, ACCESS_DOC_ID, (existing) => accessDoc(existing, (existing as AccessDoc | null)?.code ?? generateAccessCode(), name, (existing as AccessDoc | null)?.masterMode))
-    },
-    async setMasterMode(workspaceId, masterMode) {
-      await write(workspaceId, ACCESS_DOC_ID, (existing) => accessDoc(existing, (existing as AccessDoc | null)?.code ?? generateAccessCode(), (existing as AccessDoc | null)?.name ?? workspaceId, masterMode))
-    },
+    accessCode: (workspaceId) => documents.accessCode(workspaceId),
+    ensureAccessCode: (workspaceId, fallbackName) => documents.ensureAccessCode(workspaceId, fallbackName),
+    rotateAccessCode: (workspaceId) => documents.rotateAccessCode(workspaceId),
+    rename: (workspaceId, name) => documents.rename(workspaceId, name),
+    setMasterMode: (workspaceId, masterMode) => documents.setMasterMode(workspaceId, masterMode),
     login: (workspaceId, username, password) => accountsFor(workspaceId).login(basicHeader(username, password)),
     checkAdmin: async (workspaceId, username, password) => {
       const login = await accountsFor(workspaceId).login(basicHeader(username, password))
@@ -150,27 +126,8 @@ export function createTabletBandStore(deps: TabletBandStoreDeps): BandStore {
       }
       return false
     },
-    async setDeviceRevoked(workspaceId, deviceId, revoked) {
-      const id = `${DEVICE_PREFIX}${deviceId}`
-      const existing = await read(workspaceId, id)
-      if (!existing) return 'unknown'
-      await write(workspaceId, id, () => ({ ...existing, revoked }))
-      return 'ok'
-    },
-    async forgetDevice(workspaceId, deviceId) {
-      const id = `${DEVICE_PREFIX}${deviceId}`
-      const existing = (await read(workspaceId, id)) as { revoked?: boolean } | null
-      if (!existing) return 'unknown'
-      if (existing.revoked) return 'blocked'
-      const rows = await deps.open(workspaceId).allDocs({ startkey: 'logical-devices:', endkey: 'logical-devices:\ufff0', include_docs: true })
-      const usedBy = rows.rows
-        .flatMap((row) => (row.doc ? [row.doc as { executionTarget?: string | null; name?: string; _id?: string }] : []))
-        .filter((doc) => doc.executionTarget === deviceId)
-        .map((doc) => doc.name ?? doc._id ?? '')
-      if (usedBy.length > 0) return { usedBy }
-      await write(workspaceId, id, () => ({ _id: id, _rev: (existing as { _rev?: string })._rev, _deleted: true }))
-      return 'ok'
-    },
+    setDeviceRevoked: (workspaceId, deviceId, revoked) => documents.setDeviceRevoked(workspaceId, deviceId, revoked),
+    forgetDevice: (workspaceId, deviceId) => documents.forgetDevice(workspaceId, deviceId),
   }
 }
 

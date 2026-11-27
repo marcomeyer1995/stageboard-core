@@ -967,9 +967,8 @@ describe('host routes', () => {
       const existingDoc = { _id: 'devices:device-1', _rev: '1-a', id: 'device-1', name: 'Marcos iPad', lastSeenAt: 100, firstSeenAt: 50, revoked: false }
       const fetchMock = stubFetch([
         stubAdminVerify(),
-        { ok: true, status: 200, json: async () => existingDoc }, // getDoc pre-check
-        { ok: true, status: 200, json: async () => existingDoc }, // putDocWithRetry's own getDoc
-        { ok: true, status: 200 }, // putDocWithRetry's PUT
+        { ok: true, status: 200, json: async () => existingDoc }, // the read of sync-host's update (#964)
+        { ok: true, status: 200 }, // its PUT
       ])
 
       const response = await app.inject({
@@ -979,7 +978,7 @@ describe('host routes', () => {
       })
 
       expect(response.statusCode).toBe(204)
-      const putBody = JSON.parse(fetchMock.mock.calls[3][1].body)
+      const putBody = JSON.parse(fetchMock.mock.calls[2][1].body)
       expect(putBody).toMatchObject({ id: 'device-1', name: 'Marcos iPad', revoked: true, _rev: '1-a' })
     })
 
