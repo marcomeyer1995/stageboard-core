@@ -170,14 +170,30 @@ export interface AppUpdate {
   versionName: string
 }
 
-/** The app build the paired Host offers - null without a host, when it has no app
+/** The host the offered build came from, so the APK is downloaded from the same one. */
+let offeredBy: string | null = null
+
+/**
+ * The host that hands out the app (#962): the paired host when it can, else another host the band lists. A tablet host does not hand
+ * out the app yet and says so (501 `app-distribution`), so a device on a tablet host gets its update from the band's laptop host.
+ * Loaded when needed: choosing a host reads the band's settings, which pull in the database.
+ */
+async function appHost(): Promise<string | null> {
+  if (!getHostUrl()) return null
+  const { resolveHostFor } = await import('./jobHost')
+  const resolved = await resolveHostFor('GET', '/app/version.json')
+  return resolved.base
+}
+
+/** The app build a host of the band offers - null without a host, when none hands out an app
  * build, or when it can't be reached. */
 export async function fetchOfferedAppVersion(): Promise<AppUpdate | null> {
-  const base = getHostUrl()
+  const base = await appHost().catch(() => null)
   if (!base) return null
   try {
     const response = await fetch(`${base}/app/version.json`)
     if (!response.ok) return null
+    offeredBy = base
     return (await response.json()) as AppUpdate
   } catch {
     return null
@@ -192,9 +208,9 @@ export async function checkForAppUpdate(): Promise<AppUpdate | null> {
   return offered && offered.versionCode > APP_VERSION_CODE ? offered : null
 }
 
-/** Downloads the host's app build and opens Android's installer. */
+/** Downloads the offered app build (from the host that offered it) and opens Android's installer. */
 export async function installAppUpdate(): Promise<void> {
-  const base = getHostUrl()
+  const base = offeredBy ?? (await appHost().catch(() => null))
   if (!base) throw new Error('Kein Host verbunden')
   await HostTrust.downloadAndInstall({ url: `${base}/app/stageboard.apk` })
 }

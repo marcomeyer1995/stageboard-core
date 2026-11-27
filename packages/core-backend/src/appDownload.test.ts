@@ -1,9 +1,9 @@
 import { mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import Fastify from 'fastify'
 import { describe, expect, it } from 'vitest'
-import { downloadPage, registerAppRoutes } from './appDownload.js'
+import { appRoutes, downloadPage } from './appDownload.js'
+import { routeHost } from './test/routeHost.js'
 
 function server(withBuild: boolean) {
   const dir = mkdtempSync(join(tmpdir(), 'app-'))
@@ -11,9 +11,7 @@ function server(withBuild: boolean) {
     writeFileSync(join(dir, 'stageboard.apk'), 'APK')
     writeFileSync(join(dir, 'version.json'), JSON.stringify({ versionCode: 420, versionName: '1.420 (abc1234)', builtAt: '2026-10-04T08:00:00Z' }))
   }
-  const app = Fastify()
-  registerAppRoutes(app, dir)
-  return app
+  return routeHost(appRoutes(dir))
 }
 
 describe('app download (#348)', () => {

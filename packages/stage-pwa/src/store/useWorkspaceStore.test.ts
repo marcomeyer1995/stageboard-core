@@ -1083,7 +1083,7 @@ describe('joinAsMember', () => {
     const workspace = await useWorkspaceStore.getState().joinAsMember('band-c', 'Band C', '11112222', 'p1', 'wrong')
 
     expect(workspace).toBeNull()
-    expect(alertMock).toHaveBeenCalledWith(expect.stringContaining('Falscher Code oder falsches Passwort'))
+    expect(alertMock).toHaveBeenCalledWith(expect.stringContaining('Falscher Code oder falscher PIN'))
   })
 
   it('alerts with "Unbekanntes Mitglied" and returns null for a 404', async () => {
@@ -1232,6 +1232,26 @@ describe('activateProfile', () => {
       password: undefined,
       deviceId: expect.any(String),
     })
+  })
+
+  it('takes the admin rights the host answers - the background check of the own person (#978)', async () => {
+    stubFetch({ ok: true, status: 200, json: async () => ({ username: 'stageboard-band-a-p1~device-1', password: 'old-pw', isAdmin: true }) })
+    await useWorkspaceStore.getState().activateProfile('band-a', 'p1', undefined, { silent: true })
+    expect(useWorkspaceStore.getState().workspaces[0]?.isAdmin).toBe(true)
+  })
+
+  it('silent: a refusal or no host shows no dialog and changes nothing; without silent the dialog stays', async () => {
+    const alertMock = vi.fn().mockResolvedValue(undefined)
+    useDialogStore.setState({ alert: alertMock })
+    stubFetch({ ok: false, status: 403, json: async () => ({}) })
+    expect(await useWorkspaceStore.getState().activateProfile('band-a', 'p1', undefined, { silent: true })).toBeNull()
+    vi.stubGlobal('fetch', vi.fn(async () => Promise.reject(new Error('offline'))))
+    expect(await useWorkspaceStore.getState().activateProfile('band-a', 'p1', undefined, { silent: true })).toBeNull()
+    expect(alertMock).not.toHaveBeenCalled()
+    expect(useWorkspaceStore.getState().workspaces[0]).toMatchObject({ password: 'old-pw', isAdmin: false })
+    stubFetch({ ok: false, status: 403, json: async () => ({}) })
+    await useWorkspaceStore.getState().activateProfile('band-a', 'p1', '0000')
+    expect(alertMock).toHaveBeenCalledTimes(1)
   })
 
   it('returns null without calling fetch when this workspace has no cached credentials yet', async () => {
