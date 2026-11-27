@@ -24,7 +24,7 @@ import {
   getSnapshot as getDeviceInfoSnapshot,
   setEntry as setDeviceInfoEntry,
 } from './deviceInfoStore.js'
-import { bandDbProxyRefusal, buildApp } from './index.js'
+import { buildApp } from './index.js'
 import { LookupError } from './plugins/lookupError.js'
 const { __resetHealthStoreForTests, __resetDiscoverySessionStoreForTests } = channelResets
 const getDiscoverySnapshot = discoverySessions.getSnapshot
@@ -68,29 +68,6 @@ function accountDoc(name: string, roles: string[], password = 'correct-pw') {
   const salt = 'a1b2c3d4e5f60718293a4b5c6d7e8f90'
   return { _id: `account:${name}`, _rev: '1-a', name, roles, iterations: 1000, salt, derived_key: pbkdf2Sync(password, salt, 1000, 32, 'sha256').toString('hex'), pbkdf2_prf: 'sha256' }
 }
-
-describe('/db proxy - a band database only for that band\'s accounts', () => {
-  const basic = (username: string) => `Basic ${Buffer.from(`${username}:pw`).toString('base64')}`
-
-  it('lets an account of the band into its own database', () => {
-    expect(bandDbProxyRefusal('/db/stageboard-band-a/_changes?since=0', basic('stageboard-band-a-p1~dev'))).toBeNull()
-    expect(bandDbProxyRefusal('/db/stageboard-band-a', basic('stageboard-band-a-p1'))).toBeNull()
-  })
-
-  it('refuses another band\'s account and requests without a login', () => {
-    expect(bandDbProxyRefusal('/db/stageboard-band-a/_all_docs', basic('stageboard-band-b-p1'))).toBe('account of another band')
-    expect(bandDbProxyRefusal('/db/stageboard-band-a/_all_docs', undefined)).toBe('no band login')
-    expect(bandDbProxyRefusal('/db//stageboard-band-a/x', basic('stageboard-band-b-p1'))).toBe('account of another band')
-    expect(bandDbProxyRefusal('/db/%73tageboard-band-a/x', basic('stageboard-band-b-p1'))).toBe('account of another band')
-    expect(bandDbProxyRefusal('/db/../stageboard-band-a', basic('stageboard-band-b-p1'))).toBe('bad path')
-    expect(bandDbProxyRefusal('/db/stageboard-band-a%2Fx', basic('stageboard-band-b-p1'))).toBe('bad path')
-  })
-
-  it('leaves the database\'s own endpoints to the database', () => {
-    expect(bandDbProxyRefusal('/db/_session', undefined)).toBeNull()
-    expect(bandDbProxyRefusal('/db/', undefined)).toBeNull()
-  })
-})
 
 describe('Fastify routes', () => {
   let app: FastifyInstance

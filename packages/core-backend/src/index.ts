@@ -98,27 +98,6 @@ const DEFAULT_FRONTEND_ORIGINS = [
   'https://localhost',
 ].join(',')
 
-/**
- * Why a request through the `/db` proxy must not reach the database, or null if it may: a path into a
- * band's database (`/db/stageboard-<band>/…`) needs Basic auth with an account of that band
- * (`stageboard-<band>-<profile>[~<device>]`). Everything else (`_security`, `_all_dbs`, …) is left to
- * the database. Band ids never extend each other (checked at provisioning), so the prefix is unambiguous.
- */
-export function bandDbProxyRefusal(url: string, authorization: string | undefined): string | null {
-  const path = url.slice('/db'.length).split('?')[0] ?? ''
-  let first: string
-  try {
-    first = path.split('/').map((segment) => decodeURIComponent(segment)).find((segment) => segment !== '') ?? ''
-  } catch {
-    return 'bad path'
-  }
-  if (first === '.' || first === '..' || first.includes('/')) return 'bad path'
-  if (!first.startsWith('stageboard-')) return null
-  const login = basicAuthCredentials(authorization)
-  if (!login) return 'no band login'
-  return login.username.startsWith(`${first}-`) ? null : 'account of another band'
-}
-
 /** Username and password from an `Authorization: Basic …` header, or null. */
 export function basicAuthCredentials(header: string | undefined): { username: string; password: string } | null {
   if (!header?.startsWith('Basic ')) return null
@@ -1012,26 +991,12 @@ export async function buildApp(options: { backupService?: BackupService; databas
   // directly. `stage-pwa`'s `workspaceDb.ts` now builds its remote database URL from this
   // server's own origin plus this `/db` prefix (`VITE_HOST_URL`) instead of a separate
   // `VITE_DB_URL` pointing at the database's own port - one address to configure, not two.
+  // The guard is the one every host has (`guardBandDb`, #964 step 2). A laptop hosts and serves every band in its database, so it gives
+  // no `servesBand`/`serving`: only the account check and the lock after wrong logins (#396) apply here today.
   registerDatabaseRoutes(app, {
     handle: options.databaseHost,
-    refusal: bandDbProxyRefusal,
-    lockedForSeconds: (authorization) => {
-      const login = basicAuthCredentials(authorization)
-      return login ? adminLoginThrottle.lockedForSeconds(login.username) : 0
-    },
+    guard: { loginThrottle: adminLoginThrottle },
     log: app.log,
-  })
-  app.addHook('onResponse', async (request, reply) => {
-    if (!request.url.startsWith('/db')) return
-    const login = basicAuthCredentials(request.headers.authorization)
-    if (!login) return
-    if (reply.statusCode === 401) {
-      if (adminLoginThrottle.recordFailure(login.username)) {
-        app.log.warn({ username: login.username, remoteAddress: request.ip }, 'Too many wrong database logins - locked out temporarily')
-      }
-    } else if (reply.statusCode < 400) {
-      adminLoginThrottle.recordSuccess(login.username)
-    }
   })
 
   // Serves stage-pwa's `vite build` output, if present - graceful fallback, same pattern as the

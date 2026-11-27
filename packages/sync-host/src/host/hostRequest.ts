@@ -1,6 +1,8 @@
+import { guardBandDb, noteBandDbLogin } from './bandDbGuard.js'
 import { jobOfRequest, refusalFor } from './capabilities.js'
 import { matchChannelStream } from './channels/index.js'
 import { createHostRoutes, matchHostRoute, type HostRoute, type HostRoutesDeps } from './routes.js'
+import type { PinThrottle } from './pinThrottle.js'
 import type { SyncRequest, SyncResponse } from '../index.js'
 
 /** A request as a platform's transport hands it to the host (the native server of the tablet, Fastify on a laptop) (#964). */
@@ -39,6 +41,8 @@ export interface HostRequestDeps extends HostRoutesDeps {
   sync: (ctx: { name: string; roles: string[] }, request: SyncRequest) => Promise<SyncResponse>
   /** The band's device logins (`host-accounts`); null when the login is not one of the band. */
   login: (authorization: string | undefined, db: string) => Promise<{ name: string; roles: string[] } | null>
+  /** The lock after wrong band logins (#396), by username; absent: no lock. */
+  loginThrottle?: PinThrottle
 }
 
 const json = (status: number, body: unknown): HostAnswer => ({ status, body })
@@ -107,17 +111,17 @@ export async function answerHostRequest(request: HostRequest, deps: HostRequestD
   }
   const band = bandOfPath(path)
   if (!band) return json(404, { error: 'not_found', reason: 'Not a route of this host.' })
-  const workspaceId = band.db.slice('stageboard-'.length)
-  // A band this tablet does not host is not its business - answering it as a wrong login would still tell a device
-  // that the name is a band (the shared routes' reasoning, #958).
-  if (deps.servesBand && !(await deps.servesBand(workspaceId))) {
-    return json(404, { error: 'not_found', reason: 'Not a band of this host.' })
-  }
-  // A passive backup holds the band as a device but serves none of it: a device must follow the primary.
-  if (!(deps.serving ? deps.serving(workspaceId) : state.active)) {
-    return json(503, { error: 'passive', reason: 'This host is not serving the band right now.' })
-  }
+  // The guard every host has (#964 step 2): not a band of this host 404, not serving it now 503, no or another band's login 401/403,
+  // locked after wrong logins 429.
+  const guard = await guardBandDb(band.inner, request.authorization, {
+    ...(deps.servesBand ? { servesBand: deps.servesBand } : {}),
+    serving: deps.serving ?? (() => state.active),
+    ...(deps.loginThrottle ? { loginThrottle: deps.loginThrottle } : {}),
+  })
+  if (guard.kind === 'refused') return guard.answer
+  if (guard.kind !== 'band') return json(404, { error: 'not_found', reason: 'Not a route of this host.' })
   const ctx = await deps.login(request.authorization, band.db)
+  noteBandDbLogin(deps.loginThrottle, guard.username, ctx ? 200 : 401)
   if (!ctx) return unauthorized()
   return deps.sync(ctx, {
     method: request.method,
