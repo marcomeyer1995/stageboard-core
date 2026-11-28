@@ -1,9 +1,11 @@
 import i18n from '../i18n'
 /**
  * The MIDI vocabulary of the devices StageBoard talks to over WebMIDI, in one store-free module:
- * the translators (kemperTranslator.ts, mg30Translator.ts, rc500Translator.ts) SEND with it, and
- * the Cue Recorder's decoders (midiCueDecoders.ts) READ with it - one table, so what a translator
- * can fire and what the recorder can capture never drift apart. Kept free of any store import so
+ * the translators (mg30Translator.ts, rc500Translator.ts) SEND with it, and the Cue Recorder's
+ * decoders (midiCueDecoders.ts) READ with it - one table, so what a translator can fire and what the
+ * recorder can capture never drift apart. The Kemper's sender is its add-on since #964
+ * (`core-backend/scripts/addons/kemper/work.js`, the same table): keep `KEMPER_*` below and the
+ * add-on's table in step until the recorder reads the add-on's too. Kept free of any store import so
  * decoders stay unit-testable without workspaceDb.ts's top-level `new PouchDB(...)`.
  */
 

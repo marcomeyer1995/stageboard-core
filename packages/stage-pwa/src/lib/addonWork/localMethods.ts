@@ -1,7 +1,7 @@
 import { callMethod, type MethodResult } from 'sync-host'
 import { BUILTIN_ADDONS } from '../addonUi/builtinAddons'
 import type { AppHelper } from './appHelpers'
-import { startWorkHost, type WorkHost, type WorkWorkerFactory } from './workHost'
+import { startWorkHost, type WorkHost, type WorkMidi, type WorkWorkerFactory } from './workHost'
 
 /**
  * The add-ons whose methods this device answers itself (docs/36 §2, #964): their work script in a Worker of the app, the device's own helpers behind
@@ -11,7 +11,8 @@ import { startWorkHost, type WorkHost, type WorkWorkerFactory } from './workHost
 export interface LocalAddonMethods {
   /** Whether this device has every helper the add-on needs. */
   canRun(addonId: string): Promise<boolean>
-  call(addonId: string, method: string, body: unknown, options?: { onProgress?: (fraction: number) => void }): Promise<MethodResult>
+  /** `midi`: the device this call is for (a device add-on's `event`) - the add-on may send to it while it answers, nowhere else. */
+  call(addonId: string, method: string, body: unknown, options?: { onProgress?: (fraction: number) => void; midi?: WorkMidi }): Promise<MethodResult>
 }
 
 export interface LocalAddonMethodsDeps {
@@ -29,6 +30,8 @@ export function createLocalAddonMethods(deps: LocalAddonMethodsDeps): LocalAddon
   const hasHelpers = async (id: string): Promise<Record<string, AppHelper> | null> => {
     const addon = entry(id)
     if (!addon?.workScript) return null
+    // An add-on that needs no helper (a MIDI device's) runs on any device.
+    if (needed(addon.permissions).length === 0) return {}
     const helpers = await deps.helpersFor(id)
     return helpers && needed(addon.permissions).every((name) => Object.prototype.hasOwnProperty.call(helpers, name)) ? helpers : null
   }
@@ -46,7 +49,9 @@ export function createLocalAddonMethods(deps: LocalAddonMethodsDeps): LocalAddon
         hosts.set(id, host)
       }
       const running = host
-      return callMethod({ request: (m, b, timeoutMs, onProgress) => running.request(m, b, { timeoutMs, ...(onProgress ? { onProgress } : {}) }) }, addon.contributes, method, body, options)
+      const midi = options?.midi
+      const methodOptions = options?.onProgress ? { onProgress: options.onProgress } : {}
+      return callMethod({ request: (m, b, timeoutMs, onProgress) => running.request(m, b, { timeoutMs, ...(onProgress ? { onProgress } : {}), ...(midi ? { midi } : {}) }) }, addon.contributes, method, body, methodOptions)
     },
   }
 }

@@ -10,13 +10,15 @@ import stemWork from '../../../../core-backend/scripts/addons/stem-separation/wo
 import oscManifest from '../../../../core-backend/scripts/addons/osc/manifest.json'
 import oscView from '../../../../core-backend/scripts/addons/osc/view.js?raw'
 import oscWork from '../../../../core-backend/scripts/addons/osc/work.js?raw'
+import kemperManifest from '../../../../core-backend/scripts/addons/kemper/manifest.json'
+import kemperWork from '../../../../core-backend/scripts/addons/kemper/work.js?raw'
 
 /** An add-on that ships with the app: what it declared, and the script that fills its UI slots. */
 export interface BuiltinAddon {
   id: string
   name: string
   contributes: Contributes
-  /** The view script's source (docs/36 §2). */
+  /** The view script's source (docs/36 §2); empty for an add-on with no UI (a MIDI device's). */
   viewScript: string
   /** The work script's source: what this device runs when it answers the add-on's methods itself (no host can). */
   workScript: string
@@ -38,7 +40,7 @@ function fromManifest(manifest: { id: string; name: string; permissions?: string
   }
 }
 
-export const BUILTIN_ADDONS: readonly BuiltinAddon[] = [fromManifest(youtubeManifest, youtubeView, youtubeWork), fromManifest(oscManifest, oscView, oscWork), fromManifest(stemManifest, stemView, stemWork)]
+export const BUILTIN_ADDONS: readonly BuiltinAddon[] = [fromManifest(youtubeManifest, youtubeView, youtubeWork), fromManifest(oscManifest, oscView, oscWork), fromManifest(stemManifest, stemView, stemWork), fromManifest(kemperManifest, '', kemperWork)]
 
 /** The installed add-ons that fill `slot`, with the entry each declared for it - in the order the band installed them. */
 export function addonsForSlot(slot: SlotId, installedIds: readonly string[]): { addon: BuiltinAddon; entry: { id: string; title: string; icon?: string } }[] {

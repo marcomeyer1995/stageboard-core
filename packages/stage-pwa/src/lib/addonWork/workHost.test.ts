@@ -90,3 +90,48 @@ describe('the app\'s host for an add-on\'s work script (docs/36 §2, §5, #964)'
     expect(response(await pending)).toMatchObject({ ok: false, error: { code: 'addon.crashed', message: expect.stringContaining('boom') } })
   })
 })
+
+describe('midi-out in the app\'s work host: only to the device of the request the add-on serves (docs/36 §5, #964)', () => {
+  const MIDI_ADDON = `
+    var waiting = {}; var next = 1
+    function ask(method, body) { return new Promise(function (resolve) { var id = next++; waiting[id] = resolve; self.postMessage({ kind: 'request', id: id, method: method, body: body }) }) }
+    self.onmessage = function (e) {
+      var m = e.data
+      if (m.kind === 'response') { var w = waiting[m.id]; delete waiting[m.id]; if (w) w(m) }
+      else if (m.kind === 'request') {
+        var body = Object.assign({}, m.body, { forRequest: m.body.forRequest === 'none' ? undefined : m.id })
+        ask('capability.midi-out', body).then(function (answer) { self.postMessage({ kind: 'response', id: m.id, ok: true, body: answer }) })
+      }
+    }`
+  const midiHost = (permissions: string[]) => {
+    const w = inProcess(MIDI_ADDON)
+    return startWorkHost({ code: MIDI_ADDON, name: 'midi', permissions, language: 'de', helpers: {}, createWorker: w.factory })
+  }
+  const device = () => {
+    const sent: number[][] = []
+    return { sent, midi: { send: (bytes: number[]) => void sent.push(bytes), sendAndWait: async (bytes: number[], prefix: number[]) => (sent.push(bytes), Uint8Array.from([...prefix, 9])) } }
+  }
+
+  it('sends the bytes to the device the request is for', async () => {
+    const d = device()
+    const answer = response(await midiHost(['midi-out:*']).request('go', { bytes: [0xc0, 5] }, { midi: d.midi }))
+    expect(answer).toMatchObject({ ok: true, body: { ok: true, body: { sent: true } } })
+    expect(d.sent).toEqual([[0xc0, 5]])
+  })
+
+  it('answers the device\'s reply when the add-on waits for one', async () => {
+    const d = device()
+    const answer = response(await midiHost(['midi-out:*']).request('go', { bytes: [0xf0, 0xf7], expectReply: { prefix: [0xf0, 0x43], timeoutMs: 500 } }, { midi: d.midi }))
+    expect(answer).toMatchObject({ ok: true, body: { ok: true, body: { sent: true, reply: [0xf0, 0x43, 9] } } })
+  })
+
+  it('refuses without a device, without the permission, and bytes that are not MIDI - nothing is sent', async () => {
+    const d = device()
+    expect(response(await midiHost(['midi-out:*']).request('go', { bytes: [0xc0, 5] }))).toMatchObject({ body: { ok: false, error: { code: 'permission.denied' } } })
+    expect(response(await midiHost(['midi-out:*']).request('go', { bytes: [0xc0, 5], forRequest: 'none' }, { midi: d.midi }))).toMatchObject({ body: { ok: false, error: { code: 'permission.denied' } } })
+    expect(response(await midiHost([]).request('go', { bytes: [0xc0, 5] }, { midi: d.midi }))).toMatchObject({ body: { ok: false, error: { code: 'permission.denied' } } })
+    expect(response(await midiHost(['midi-out:*']).request('go', { bytes: [256] }, { midi: d.midi }))).toMatchObject({ body: { ok: false, error: { code: 'capability.invalid' } } })
+    expect(response(await midiHost(['midi-out:*']).request('go', { bytes: [0xf0], expectReply: { prefix: [0xf0], timeoutMs: 60_000 } }, { midi: d.midi }))).toMatchObject({ body: { ok: false, error: { code: 'capability.invalid' } } })
+    expect(d.sent).toEqual([])
+  })
+})

@@ -16,7 +16,7 @@ import { resolveTargetDevice } from './hardwareRouting'
  * keyed one-Translator-per-capability, globally, and that slot is already the built-in local
  * mock-mixer store (`useLocalMixerStore`) - reusing 'mixer' here wouldn't make this plugin drive
  * that widget, it would just silently replace the mock mixer's own translator. Same reasoning
- * kemperTranslator.ts's `KEMPER_CAPABILITY` already documents.
+ * midiDeviceProtocols.ts's `KEMPER_CAPABILITY` already documents.
  */
 export const CQ18T_CAPABILITY = 'cq18t-control'
 
@@ -79,8 +79,9 @@ interface Cq18tOutput {
   channel: number // 0-indexed
 }
 
-/** Same resolution as (the device the event names, else the first with this capability) -
- * kemperTranslator.ts's `resolveKemperOutput` - see its own doc comment for why. */
+/** The device the event names, else the first with this capability (#149: two of the same kind
+ * each get their own cues) - the same resolution the add-on device translator uses
+ * (addonWork/deviceTranslator.ts). */
 async function resolveCq18tOutput(logicalDeviceId?: string, sendAt?: number): Promise<Cq18tOutput | null> {
   const logicalDevice = resolveTargetDevice(useLogicalDevicesStore.getState().devices, CQ18T_CAPABILITY, logicalDeviceId)
   if (!logicalDevice) return null

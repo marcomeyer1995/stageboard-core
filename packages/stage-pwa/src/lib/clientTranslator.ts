@@ -3,7 +3,8 @@ import { AddonSandbox } from './addonSandbox/sandboxHost'
 import { sandboxTranslator } from './addonSandbox/sandboxTranslator'
 import { CAPABILITIES, type CapabilityId, type PluginInstallation, type ShowControlEvent, type ShowControlResult, apiVersionFits } from 'shared-types'
 import { CQ18T_CAPABILITY, cq18tTranslator } from './cq18tTranslator'
-import { KEMPER_CAPABILITY, kemperTranslator } from './kemperTranslator'
+import { KEMPER_CAPABILITY } from './midiDeviceProtocols'
+import { addonDeviceTranslator } from './addonWork/deviceTranslator'
 import { MG30_CAPABILITY, mg30Translator } from './mg30Translator'
 import { MIDI_CLOCK_CAPABILITY, midiClockTranslator } from './midiClockOutputs'
 import { RC500_CAPABILITY, rc500Translator } from './rc500Translator'
@@ -70,7 +71,8 @@ const TRANSLATORS: Partial<Record<CapabilityId, Translator>> = {
   [CAPABILITIES.mixer]: (event) => useLocalMixerStore.getState().applyEvent(event),
   [CAPABILITIES.lighting]: (event) => useLocalLightingStore.getState().applyEvent(event),
   [CAPABILITIES.clickTrack]: applyClickTrackEvent,
-  [KEMPER_CAPABILITY]: kemperTranslator,
+  // The Kemper's MIDI is its add-on's (docs/36, #964) - the same work script a laptop host runs for a Kemper plugged into it. Loaded when first used.
+  [KEMPER_CAPABILITY]: addonDeviceTranslator(KEMPER_CAPABILITY, 'kemper-profiler', 'Kemper', () => import('./addonWork').then((module) => module.localAddonMethods)),
   [CQ18T_CAPABILITY]: cq18tTranslator,
   [MG30_CAPABILITY]: mg30Translator,
   [RC500_CAPABILITY]: rc500Translator,
