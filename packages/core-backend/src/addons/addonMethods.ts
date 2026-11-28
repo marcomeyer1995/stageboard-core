@@ -13,7 +13,7 @@ export type HelperRunFn = ReturnType<typeof helperRunnerFor>
 
 /**
  * The add-ons this device can answer method calls for (docs/36 §3, #964): each one a work script in a sandbox of its own, with the methods its
- * manifest declared and the permissions the band confirmed. Everything about an add-on is its directory under `scripts/addons/` - `manifest.json` and
+ * manifest declared and the permissions the band confirmed. Everything about an add-on is its directory under `addons/` at the repository's root - `manifest.json` and
  * `work.js` - so a device that installs one from a repository (#17) registers the same two files. The device runs a method only if it has what the
  * add-on needs (its helpers); otherwise the answer says so and the caller can go to another device.
  */
@@ -90,7 +90,8 @@ interface Entry {
   contributes: Contributes
 }
 
-const defaultRoot = fileURLToPath(new URL('../../scripts/addons/', import.meta.url))
+// The add-ons sit at the repository's root (`addons/`): the app runs them too, they are not Node code. src/addons and dist/addons are both four levels below it.
+const defaultRoot = fileURLToPath(new URL('../../../../addons/', import.meta.url))
 
 function loadEntries(root: string, dirs: readonly string[]): Map<string, Entry> {
   const scriptsDir = (dir: string, file: string) => join(root, dir, file)

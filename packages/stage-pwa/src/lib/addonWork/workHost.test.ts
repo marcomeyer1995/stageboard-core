@@ -1,4 +1,4 @@
-import WORK from '../../../../core-backend/scripts/addons/youtube/work.js?raw'
+import WORK from '../../../../../addons/youtube/work.js?raw'
 import { describe, expect, it, vi } from 'vitest'
 import type { Envelope } from 'shared-types'
 import { startWorkHost, type WorkWorkerFactory } from './workHost'
