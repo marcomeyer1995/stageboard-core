@@ -12,6 +12,10 @@ import oscView from '../../../../core-backend/scripts/addons/osc/view.js?raw'
 import oscWork from '../../../../core-backend/scripts/addons/osc/work.js?raw'
 import kemperManifest from '../../../../core-backend/scripts/addons/kemper/manifest.json'
 import kemperWork from '../../../../core-backend/scripts/addons/kemper/work.js?raw'
+import mg30Manifest from '../../../../core-backend/scripts/addons/nux-mg30/manifest.json'
+import mg30Work from '../../../../core-backend/scripts/addons/nux-mg30/work.js?raw'
+import rc500Manifest from '../../../../core-backend/scripts/addons/boss-rc500/manifest.json'
+import rc500Work from '../../../../core-backend/scripts/addons/boss-rc500/work.js?raw'
 
 /** An add-on that ships with the app: what it declared, and the script that fills its UI slots. */
 export interface BuiltinAddon {
@@ -40,7 +44,7 @@ function fromManifest(manifest: { id: string; name: string; permissions?: string
   }
 }
 
-export const BUILTIN_ADDONS: readonly BuiltinAddon[] = [fromManifest(youtubeManifest, youtubeView, youtubeWork), fromManifest(oscManifest, oscView, oscWork), fromManifest(stemManifest, stemView, stemWork), fromManifest(kemperManifest, '', kemperWork)]
+export const BUILTIN_ADDONS: readonly BuiltinAddon[] = [fromManifest(youtubeManifest, youtubeView, youtubeWork), fromManifest(oscManifest, oscView, oscWork), fromManifest(stemManifest, stemView, stemWork), fromManifest(kemperManifest, '', kemperWork), fromManifest(mg30Manifest, '', mg30Work), fromManifest(rc500Manifest, '', rc500Work)]
 
 /** The installed add-ons that fill `slot`, with the entry each declared for it - in the order the band installed them. */
 export function addonsForSlot(slot: SlotId, installedIds: readonly string[]): { addon: BuiltinAddon; entry: { id: string; title: string; icon?: string } }[] {

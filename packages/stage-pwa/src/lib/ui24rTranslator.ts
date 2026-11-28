@@ -38,7 +38,7 @@ interface Ui24rTarget {
 }
 
 /** Same resolution as (the device the event names, else the first with this capability) -
- * addonWork/deviceTranslator.ts/cq18tTranslator.ts/mg30Translator.ts/rc500Translator.ts - see their
+ * addonWork/deviceTranslator.ts/cq18tTranslator.ts - see their
  * own doc comments for why. */
 async function resolveUi24r(logicalDeviceId?: string): Promise<Ui24rTarget | null> {
   const logicalDevice = resolveTargetDevice(useLogicalDevicesStore.getState().devices, UI24R_CAPABILITY, logicalDeviceId)

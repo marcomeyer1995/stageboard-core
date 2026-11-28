@@ -91,7 +91,8 @@ const ascii = (bytes: number[]) => String.fromCharCode(...bytes.filter((b) => b 
 
 describe.skipIf(!enabled)('client translators against the device emulators', () => {
   let ports: ReturnType<typeof installAlsaWebMidi>
-  let translators: { kemperTranslator: import('./clientTranslator').Translator } & typeof import('./rc500Translator') & typeof import('./mg30Translator') & typeof import('./cq18tTranslator')
+  type T = import('./clientTranslator').Translator
+  let translators: { kemperTranslator: T; mg30Translator: T; rc500Translator: T } & typeof import('./cq18tTranslator')
 
   beforeAll(async () => {
     ports = installAlsaWebMidi()
@@ -126,7 +127,12 @@ describe.skipIf(!enabled)('client translators against the device emulators', () 
       return worker
     }
     const methods = createLocalAddonMethods({ helpersFor: async () => null, language: () => 'de', createWorker: inProcessWorker })
-    translators = { kemperTranslator: addonDeviceTranslator('kemper-control', 'kemper-profiler', 'Kemper', async () => methods), ...(await import('./rc500Translator')), ...(await import('./mg30Translator')), ...(await import('./cq18tTranslator')) }
+    translators = {
+      kemperTranslator: addonDeviceTranslator('kemper-control', 'kemper-profiler', 'Kemper', async () => methods),
+      mg30Translator: addonDeviceTranslator('mg30-control', 'nux-mg30', 'MG-30', async () => methods),
+      rc500Translator: addonDeviceTranslator('rc500-control', 'boss-rc500', 'RC-500', async () => methods),
+      ...(await import('./cq18tTranslator')),
+    }
   })
 
   afterAll(() => opened.forEach((p) => p.closePort()))

@@ -20,7 +20,7 @@ export type HelperRunFn = ReturnType<typeof helperRunnerFor>
 export type Log = { info: (msg: string, meta?: Record<string, unknown>) => void; error: (msg: string, meta?: Record<string, unknown>) => void }
 
 /** The add-ons that ship with a device, by directory. */
-const ADDON_DIRS = ['youtube', 'metadata-lookup', 'ultimate-guitar', 'osc', 'piper-speech', 'stem-separation', 'kemper'] as const
+const ADDON_DIRS = ['youtube', 'metadata-lookup', 'ultimate-guitar', 'osc', 'piper-speech', 'stem-separation', 'kemper', 'nux-mg30', 'boss-rc500'] as const
 
 interface ManifestFile {
   id: string

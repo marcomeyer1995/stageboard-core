@@ -3,11 +3,9 @@ import { AddonSandbox } from './addonSandbox/sandboxHost'
 import { sandboxTranslator } from './addonSandbox/sandboxTranslator'
 import { CAPABILITIES, type CapabilityId, type PluginInstallation, type ShowControlEvent, type ShowControlResult, apiVersionFits } from 'shared-types'
 import { CQ18T_CAPABILITY, cq18tTranslator } from './cq18tTranslator'
-import { KEMPER_CAPABILITY } from './midiDeviceProtocols'
+import { KEMPER_CAPABILITY, MG30_CAPABILITY, RC500_CAPABILITY } from './midiDeviceProtocols'
 import { addonDeviceTranslator } from './addonWork/deviceTranslator'
-import { MG30_CAPABILITY, mg30Translator } from './mg30Translator'
 import { MIDI_CLOCK_CAPABILITY, midiClockTranslator } from './midiClockOutputs'
-import { RC500_CAPABILITY, rc500Translator } from './rc500Translator'
 import { UI24R_CAPABILITY, ui24rTranslator } from './ui24rTranslator'
 import { fetchClientBundle, isRepositoryAddon, loadClientPlugin } from './loadClientPlugin'
 import { useLocalLightingStore } from '../store/useLocalLightingStore'
@@ -67,15 +65,17 @@ async function applyClickTrackEvent(event: ShowControlEvent): Promise<ShowContro
  */
 export type Translator = (event: ShowControlEvent) => Promise<ShowControlResult> | ShowControlResult
 
+const localMethods = () => import('./addonWork').then((module) => module.localAddonMethods)
+
 const TRANSLATORS: Partial<Record<CapabilityId, Translator>> = {
   [CAPABILITIES.mixer]: (event) => useLocalMixerStore.getState().applyEvent(event),
   [CAPABILITIES.lighting]: (event) => useLocalLightingStore.getState().applyEvent(event),
   [CAPABILITIES.clickTrack]: applyClickTrackEvent,
-  // The Kemper's MIDI is its add-on's (docs/36, #964) - the same work script a laptop host runs for a Kemper plugged into it. Loaded when first used.
-  [KEMPER_CAPABILITY]: addonDeviceTranslator(KEMPER_CAPABILITY, 'kemper-profiler', 'Kemper', () => import('./addonWork').then((module) => module.localAddonMethods)),
+  // A MIDI device's MIDI is its add-on's (docs/36, #964) - the same work script a laptop host runs for the device plugged into it. Loaded when first used.
+  [KEMPER_CAPABILITY]: addonDeviceTranslator(KEMPER_CAPABILITY, 'kemper-profiler', 'Kemper', localMethods),
+  [MG30_CAPABILITY]: addonDeviceTranslator(MG30_CAPABILITY, 'nux-mg30', 'MG-30', localMethods),
+  [RC500_CAPABILITY]: addonDeviceTranslator(RC500_CAPABILITY, 'boss-rc500', 'RC-500', localMethods),
   [CQ18T_CAPABILITY]: cq18tTranslator,
-  [MG30_CAPABILITY]: mg30Translator,
-  [RC500_CAPABILITY]: rc500Translator,
   [UI24R_CAPABILITY]: ui24rTranslator,
   [MIDI_CLOCK_CAPABILITY]: midiClockTranslator,
 }
