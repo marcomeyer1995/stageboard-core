@@ -70,8 +70,10 @@ export function reconcile(
   const unavailable: string[] = []
 
   for (const installation of installations) {
-    // Client-side plugins (WebMIDI) run on the tablet; the host has nothing to start.
-    if (!installation.enabled || installation.runtime === 'device') continue
+    if (!installation.enabled) continue
+    // A device plugin (a MIDI device) runs on the device it is plugged into. This host starts one only when it has the device's add-on (#964), for
+    // a device plugged in here; one it has no add-on for is a tablet's alone - not "unavailable".
+    if (installation.runtime === 'device' && !catalog.includes(installation.id)) continue
     if (!catalog.includes(installation.id)) {
       unavailable.push(installation.id)
       continue

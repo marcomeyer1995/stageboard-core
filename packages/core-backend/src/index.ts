@@ -65,6 +65,7 @@ import { createPinThrottle } from 'sync-host'
 import { isLoopback } from './provisioningAuth.js'
 import { listDbs } from './database.js'
 import { decodeOscPacket, oscTargetFromConfig, setOscTargetResolver } from './plugins/oscPlugin.js'
+import { midiTargetFromConfig, setMidiTargetResolver } from './plugins/midiDevicePlugin.js'
 import { createWorkspaceHardwareController } from './workspaceHardwareController.js'
 import { migrateHostTarget } from './migrations/hostTarget.js'
 import { registerHostDevice } from './migrations/registerHostDevice.js'
@@ -668,6 +669,21 @@ export async function buildApp(options: { backupService?: BackupService; databas
     // Stored under this host's id; a config made before ids (#964) is still under the legacy word.
     const read = (owner: string) => getDoc<DatabaseDoc>(database, workspaceDbName(workspaceId), `device-transport-config:${owner}:${logicalDeviceId}`)
     return oscTargetFromConfig((await read(hostId)) ?? (await read(LEGACY_HOST_TARGET)))
+  })
+
+  // A MIDI device plugged into this host (#964): its port and channel are the transport config Discovery wrote for this host. A cue that names no device
+  // goes to the first device of that add-on bound to this host.
+  setMidiTargetResolver(async (pluginId, logicalDeviceId) => {
+    const workspaceId = workspaceHardware.getActiveWorkspaceId()
+    if (!workspaceId) return null
+    const db = workspaceDbName(workspaceId)
+    const ours = (target: unknown) => target === hostId || target === LEGACY_HOST_TARGET
+    const deviceId =
+      logicalDeviceId ??
+      (await allDocs<{ _id: string; pluginId?: string; executionTarget?: string }>(database, db, { startkey: 'logical-devices:', endkey: 'logical-devices:\ufff0' })).find((doc) => doc.pluginId === pluginId && ours(doc.executionTarget))?._id.slice('logical-devices:'.length)
+    if (!deviceId) return null
+    const read = (owner: string) => getDoc<DatabaseDoc>(database, db, `device-transport-config:${owner}:${deviceId}`)
+    return midiTargetFromConfig((await read(hostId)) ?? (await read(LEGACY_HOST_TARGET)))
   })
 
   async function checkBandAdmin(workspaceId: string, username: string, password: string, remoteAddress?: string): Promise<boolean> {

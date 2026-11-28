@@ -31,7 +31,8 @@
     "notInstalled": "Piper or voice {{voice}} not installed"
   },
   "plugin": {
-    "unknownEvent": "{{plugin}}: unknown event type \"{{type}}\"."
+    "unknownEvent": "{{plugin}}: unknown event type \"{{type}}\".",
+    "noMidiOut": "{{device}}: no MIDI output set up on this host."
   },
   "stems": {
     "demucsMissing": "Demucs is not installed on the Host (docs/03).",

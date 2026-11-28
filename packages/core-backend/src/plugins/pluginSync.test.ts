@@ -50,6 +50,13 @@ describe('reconcile', () => {
     expect(result.unavailable).toEqual([])
   })
 
+  it('starts a device plugin it has the add-on for - a MIDI device plugged into this host gets its cues here (#964)', () => {
+    const kemper = installation({ id: 'kemper-profiler', runtime: 'device' })
+    const result = reconcile([kemper], [], [...CATALOG, 'kemper-profiler'])
+    expect(result.toRegister).toEqual(['kemper-profiler'])
+    expect(result.unavailable).toEqual([])
+  })
+
   it('reports an installed plugin this server build cannot construct', () => {
     const result = reconcile([installation({ id: 'fancy-mixer' })], [], CATALOG)
     expect(result.toRegister).toEqual([])

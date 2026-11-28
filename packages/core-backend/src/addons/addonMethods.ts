@@ -20,7 +20,7 @@ export type HelperRunFn = ReturnType<typeof helperRunnerFor>
 export type Log = { info: (msg: string, meta?: Record<string, unknown>) => void; error: (msg: string, meta?: Record<string, unknown>) => void }
 
 /** The add-ons that ship with a device, by directory. */
-const ADDON_DIRS = ['youtube', 'metadata-lookup', 'ultimate-guitar', 'osc', 'piper-speech', 'stem-separation'] as const
+const ADDON_DIRS = ['youtube', 'metadata-lookup', 'ultimate-guitar', 'osc', 'piper-speech', 'stem-separation', 'kemper'] as const
 
 interface ManifestFile {
   id: string
@@ -38,6 +38,8 @@ interface ManifestFile {
   lookup?: { requiresInstall: boolean }
   /** The background job type this add-on is the worker of. */
   asyncJobType?: AsyncJob['type']
+  /** It drives a MIDI device: a cue for a device of it that is plugged into this machine goes to its `event` method, with that device's port. */
+  midiDevice?: boolean
 }
 
 /** What the core needs to know about a built-in add-on without running it - read from its manifest, never from a table of ids kept in the core. */
@@ -52,6 +54,8 @@ export interface AddonInfo {
   asyncJobType: AsyncJob['type'] | null
   /** The helper programs it needs (`helper:` permissions). */
   helpers: string[]
+  /** It drives a MIDI device (manifest `midiDevice`). */
+  midiDevice: boolean
 }
 
 /** The id of the installation that provides a capability on this build (the add-on's manifest says), or null. */
@@ -73,6 +77,7 @@ export function loadAddonInfos(root: string = defaultRoot, dirs: readonly string
       lookup: manifest.lookup ?? null,
       asyncJobType: manifest.asyncJobType ?? null,
       helpers: (manifest.permissions ?? []).filter((p) => p.startsWith('helper:')).map((p) => p.slice('helper:'.length)),
+      midiDevice: manifest.midiDevice === true,
     }
   })
 }
