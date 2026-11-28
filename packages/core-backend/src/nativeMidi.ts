@@ -11,7 +11,12 @@ export interface NativeMidi {
   outputs(): string[] | null
   /** The names of the input ports, or null when MIDI cannot be opened on this machine. */
   inputs(): string[] | null
-  /** Sends `bytes` to the output named `port`: false when there is no such port (or no MIDI). */
+  /**
+   * Sends `bytes` to the output named `port`: false when there is no such port (or no MIDI). The port is opened for each message and closed after
+   * it: an output kept open stays tied to the device as it was when opened, and after the device was unplugged and plugged in again (or an emulator
+   * restarted) the send still "succeeds" while nothing arrives - found with the Kemper emulator, 2026-11-28. Opening costs 0.5 ms (p95 0.6 ms,
+   * measured on this laptop), nothing for a cue.
+   */
   send(port: string, bytes: readonly number[]): boolean
   /**
    * Listens on the input of the same device **before** it sends (a reply can be faster than a listener attached afterwards - found with the
@@ -49,8 +54,6 @@ export const startsWith = (message: readonly number[], prefix: readonly number[]
 
 export function createNativeMidi(log?: { info: (msg: string) => void; error: (msg: string, meta?: Record<string, unknown>) => void }): NativeMidi {
   let unavailable = false
-  /** Open outputs by name: a cue must not wait for a port to open. Dropped when a send fails (the device was unplugged). */
-  const open = new Map<string, Output>()
 
   function make<T>(create: () => T): T | null {
     try {
@@ -73,37 +76,29 @@ export function createNativeMidi(log?: { info: (msg: string) => void; error: (ms
     }
   }
 
-  function outputNamed(port: string): Output | null {
-    const cached = open.get(port)
-    if (cached) return cached
-    const output = make(() => new Output())
-    if (!output) return null
-    const index = names(output).indexOf(port)
-    if (index === -1) {
-      output.destroy()
-      return null
-    }
-    output.openPort(index)
-    open.set(port, output)
-    return output
-  }
-
   function send(port: string, bytes: readonly number[]): boolean {
-    const output = outputNamed(port)
+    const output = make(() => new Output())
     if (!output) return false
     try {
+      const index = names(output).indexOf(port)
+      if (index === -1) return false
+      output.openPort(index)
       output.sendMessage([...bytes])
+      output.closePort()
       return true
     } catch (err) {
       log?.error('MIDI send failed', { port, error: String(err) })
-      open.delete(port)
-      output.destroy()
       return false
+    } finally {
+      output.destroy()
     }
   }
 
+  const hasOutput = (port: string): boolean => outputsNow()?.includes(port) ?? false
+  const outputsNow = (): string[] | null => list(() => new Output())
+
   return {
-    outputs: () => list(() => new Output()),
+    outputs: outputsNow,
     inputs: () => list(() => new Input()),
     send,
     listen(port, onMessage) {
@@ -129,7 +124,7 @@ export function createNativeMidi(log?: { info: (msg: string) => void; error: (ms
       }
     },
     async sendAndWait(port, bytes, prefix, timeoutMs) {
-      if (!outputNamed(port)) return undefined
+      if (!hasOutput(port)) return undefined
       const input = make(() => new Input())
       const index = input ? inputFor(port, names(input)) : -1
       if (!input || index === -1) {

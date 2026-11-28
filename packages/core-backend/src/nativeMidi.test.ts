@@ -63,22 +63,20 @@ describe('this machine\'s MIDI ports (#964)', () => {
     expect(inputFor('RtMidiIn Client:NUX MG-30 Emulator 128:0', ['Midi Through:Midi Through Port-0 14:0', 'RtMidiOut Client:NUX MG-30 Emulator 129:0'])).toBe(1)
   })
 
-  it('sends to the named output and keeps it open for the next cue', () => {
+  it('opens the named output for each message, so a device plugged in again is reached (an output kept open would still point at the old one)', () => {
     const midi = createNativeMidi()
     expect(midi.send('MG-30:MG-30 MIDI 1 24:0', [0xc0, 3])).toBe(true)
     expect(midi.send('MG-30:MG-30 MIDI 1 24:0', [0xc0, 4])).toBe(true)
-    expect(machine.events).toEqual(['open-out 0', 'send 192,3', 'send 192,4'])
+    expect(machine.events).toEqual(['open-out 0', 'send 192,3', 'open-out 0', 'send 192,4'])
     expect(midi.send('Other', [0xc0, 4])).toBe(false)
   })
 
-  it('forgets an output whose send failed (unplugged), and opens it again next time', () => {
+  it('a send that fails is false, and the next one opens the port again', () => {
     const midi = createNativeMidi()
-    midi.send('MG-30:MG-30 MIDI 1 24:0', [1])
     machine.failSend = true
     expect(midi.send('MG-30:MG-30 MIDI 1 24:0', [2])).toBe(false)
     machine.failSend = false
     expect(midi.send('MG-30:MG-30 MIDI 1 24:0', [3])).toBe(true)
-    expect(machine.events.filter((e) => e.startsWith('open-out'))).toHaveLength(2)
   })
 
   it('listens before it sends, takes SysEx, and answers the first message with the prefix', async () => {
