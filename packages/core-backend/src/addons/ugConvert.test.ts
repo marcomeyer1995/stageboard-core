@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest'
 
 // Ultimate Guitar's markup -> ChordPro is the Ultimate Guitar add-on's business (#964), so its tests run the add-on's own file: the script is
 // evaluated the way the sandbox does and its conversion function is called directly.
-const script = readFileSync(new URL('../../scripts/addons/ultimate-guitar/work.js', import.meta.url), 'utf8')
+const script = readFileSync(new URL('../../../../addons/ultimate-guitar/work.js', import.meta.url), 'utf8')
 const sandbox: Record<string, unknown> = { self: { postMessage: () => undefined }, TextEncoder }
 runInNewContext(script, sandbox)
 const convertUltimateGuitarContent = sandbox.convertUltimateGuitarContent as (raw: string) => string

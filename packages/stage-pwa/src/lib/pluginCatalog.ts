@@ -233,7 +233,7 @@ export const PLUGIN_CATALOG: Array<Omit<PluginInstallation, 'installedAt' | 'ena
     name: 'NUX MG-30',
     version: '0.0.1',
     runtime: 'device',
-    // Own dedicated capability (its add-on, scripts/addons/nux-mg30) - a multi-effects unit's patch/knob
+    // Own dedicated capability (its add-on, addons/nux-mg30) - a multi-effects unit's patch/knob
     // vocabulary doesn't fit any of capability.ts's core CAPABILITIES.
     capabilities: ['mg30-control'],
     timing: [{ capability: 'mg30-control', timingClass: 'realtime', honoursScheduledAt: true }],
@@ -259,7 +259,7 @@ export const PLUGIN_CATALOG: Array<Omit<PluginInstallation, 'installedAt' | 'ena
     name: 'BOSS RC-500',
     version: '0.0.1',
     runtime: 'device',
-    // Own dedicated capability (its add-on, scripts/addons/boss-rc500) - a looper's memory/track vocabulary
+    // Own dedicated capability (its add-on, addons/boss-rc500) - a looper's memory/track vocabulary
     // doesn't fit any of capability.ts's core CAPABILITIES.
     capabilities: ['rc500-control'],
     timing: [{ capability: 'rc500-control', timingClass: 'realtime', honoursScheduledAt: true }],

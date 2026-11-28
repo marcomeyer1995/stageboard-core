@@ -16,7 +16,7 @@ export interface DecodedEvent {
 
 /**
  * Turns the raw MIDI a device sends into the plugin event that would make its translator send the
- * same thing back - the inverse of the devices' add-ons (core-backend/scripts/addons/kemper, nux-mg30, boss-rc500), so a
+ * same thing back - the inverse of the devices' add-ons (addons/kemper, nux-mg30, boss-rc500), so a
  * recorded cue replays through the existing translator unchanged and reads as 'Kemper Rig 3'
  * rather than hex. Returns null for anything the device's translator has no event for (realtime
  * bytes, an unmapped CC, another channel), which the recorder counts as ignored.

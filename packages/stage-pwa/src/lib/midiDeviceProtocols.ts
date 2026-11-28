@@ -2,7 +2,7 @@ import i18n from '../i18n'
 /**
  * The MIDI vocabulary of the devices StageBoard talks to over WebMIDI, in one store-free module:
  * the Cue Recorder's decoders (midiCueDecoders.ts) READ with it. The senders are the devices'
- * add-ons since #964 (`core-backend/scripts/addons/kemper`, `nux-mg30`, `boss-rc500`: the same
+ * add-ons since #964 (`addons/kemper`, `nux-mg30`, `boss-rc500`: the same
  * work script on a tablet and on a laptop host), each with the same table: keep the constants
  * below and the add-ons' tables in step until the recorder reads the add-ons' too. Kept free of any store import so
  * decoders stay unit-testable without workspaceDb.ts's top-level `new PouchDB(...)`.

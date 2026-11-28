@@ -1,4 +1,4 @@
-import KEMPER_WORK from '../../../../core-backend/scripts/addons/kemper/work.js?raw'
+import KEMPER_WORK from '../../../../../addons/kemper/work.js?raw'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DeviceTransportConfig, LogicalDevice } from 'shared-types'
 

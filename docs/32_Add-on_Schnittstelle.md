@@ -100,7 +100,7 @@ Antwort (`ShowControlResult`): `status: 'ok' | 'error'`, Meldung als Text oder b
 
 **Es gibt keinen Server.** Ein Add-on läuft auf den Geräten, die es können, und auf anderen nicht: `runsOn` im Manifest (Plattform, Kerne, Speicher) und die Hilfsprogramme (§8) entscheiden, nicht eine Rolle des Geräts. Dasselbe Skript spricht dieselben Nachrichten (die **Hülle** des Vertrags, `shared-types/addonContract.ts`) - auf einem Tablet in einem Worker der App, auf einem Laptop in einem eigenen Node-Prozess mit Nodes Permission-Modell (`--permission`: nur die eigene Datei lesbar, nichts schreibbar, kein Programmstart, keine Umgebung).
 
-**Ein eingebautes Add-on ist ein Ordner** unter `core-backend/scripts/addons/<id>/`: `manifest.json` (Rechte, `contributes.methods` mit Schema, Zeitlimit, Fortschritt, `callableByDevices`, Geräte und ihr Zustand, UI-Plätze) und `work.js`; Add-ons mit Oberfläche haben zusätzlich `view.js`. `addons/addonMethods.ts` lädt die Ordner und beantwortet jeden Aufruf über die eine Grenze (`callMethod` in sync-host: Eingabe und Antwort werden gegen das Manifest geprüft). Heute so gebaut: YouTube (mit Dialog im Song-Editor), MusicBrainz, Ultimate Guitar, OSC (mit Gerätezustand und Panel), Sprache, Stem-Trennung.
+**Ein eingebautes Add-on ist ein Ordner** unter `addons/<id>/` (repository root, since 2026-11-28): `manifest.json` (Rechte, `contributes.methods` mit Schema, Zeitlimit, Fortschritt, `callableByDevices`, Geräte und ihr Zustand, UI-Plätze) und `work.js`; Add-ons mit Oberfläche haben zusätzlich `view.js`. `addons/addonMethods.ts` lädt die Ordner und beantwortet jeden Aufruf über die eine Grenze (`callMethod` in sync-host: Eingabe und Antwort werden gegen das Manifest geprüft). Heute so gebaut: YouTube (mit Dialog im Song-Editor), MusicBrainz, Ultimate Guitar, OSC (mit Gerätezustand und Panel), Sprache, Stem-Trennung.
 
 **Was ein Add-on von der Welt bekommt, fragt es an** (`capability.http`, `capability.udp`, `capability.helper`) und StageBoard prüft es gegen die Rechte der Band (§7). Hilfsprogramme (§8) startet StageBoard, nie das Add-on.
 
@@ -168,7 +168,7 @@ Im Manifest (*gebaut*, #756 – `HelpersSchema`; `certSha256` ist eine Liste, da
 | Heute eingebaut | wird | Hilfsprogramm |
 |---|---|---|
 | Kemper, MG-30, RC-500, CQ-18T, Ui24R (Translatoren in `stage-pwa/src/lib/*Translator.ts`), MIDI-Clock | JS-Add-on | – |
-| OSC (`scripts/addons/osc/`, Hilfsprogramm `udp-send`) | JS-Add-on (Work-Skript, Methode `send`) | – |
+| OSC (`addons/osc/`, Hilfsprogramm `udp-send`) | JS-Add-on (Work-Skript, Methode `send`) | – |
 | Sprachausgabe Piper | JS-Add-on | Laptop: Piper; Android: offen |
 | Stem-Trennung | JS-Add-on | Laptop: Python + Demucs; Android: offen (zu schwer?) |
 | Ultimate-Guitar-Import (Chrome über puppeteer) | JS-Add-on | Laptop: Chrome; Android: offen |
