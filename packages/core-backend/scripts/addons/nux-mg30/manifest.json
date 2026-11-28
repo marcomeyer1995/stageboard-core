@@ -1,0 +1,50 @@
+{
+  "id": "nux-mg30",
+  "name": "NUX MG-30",
+  "version": "1.0.0",
+  "protocol": 3,
+  "workFile": "work.js",
+  "permissions": [
+    "midi-out:mg-30"
+  ],
+  "provides": [
+    "mg30-control"
+  ],
+  "midiDevice": true,
+  "contributes": {
+    "methods": {
+      "event": {
+        "in": {
+          "type": "object",
+          "required": [
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "payload": {
+              "type": "object"
+            },
+            "midiChannel": {
+              "type": "integer"
+            }
+          }
+        },
+        "out": {
+          "type": "object",
+          "required": [
+            "status"
+          ],
+          "properties": {
+            "status": {
+              "type": "string"
+            }
+          }
+        },
+        "timeoutMs": 5000
+      }
+    }
+  }
+}

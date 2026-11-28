@@ -78,3 +78,29 @@ describe('a MIDI device plugged into the host gets its cues through its add-on (
     expect(sent.map((s) => s.bytes)).toEqual([[0xb0, 31, 127], [0xb0, 31, 0]])
   })
 })
+
+describe('the MG-30 and RC-500 add-ons on a host (#964)', () => {
+  const info = (id: string) => loadAddonInfos().find((addon) => addon.id === id)!
+  it('MG-30 "Testen" asks for its identity and reads the firmware from the reply the host waited for', async () => {
+    const asked: { port: string; bytes: readonly number[]; prefix: readonly number[] }[] = []
+    const midi: NativeMidi = {
+      outputs: () => ['MG-30'],
+      inputs: () => ['MG-30'],
+      send: () => true,
+      sendAndWait: async (port, bytes, prefix) => (asked.push({ port, bytes, prefix }), [0xf0, 0x43, 0x58, 0x10, ...Array.from('v4.0.3', (c) => c.charCodeAt(0)), 0, 0xf7]),
+      listen: () => null,
+    }
+    setMidiTargetResolver(async () => ({ port: 'MG-30', channel: 1 }))
+    const plugin = createMidiDeviceAddonPlugin(info('nux-mg30'), { methods: createAddonMethods({ dirs: ['nux-mg30'], midi, log }) })
+    expect(await plugin.trigger({ type: 'test', payload: {} })).toEqual({ status: 'ok', message: 'Firmware v4.0.3' })
+    expect(asked).toEqual([{ port: 'MG-30', bytes: [0xf0, 0x43, 0x58, 0x00, 0xf7], prefix: [0xf0, 0x43, 0x58, 0x10] }])
+  })
+
+  it('RC-500: a memory goes out as Program Change memory - 1', async () => {
+    const { midi, sent } = recordingMidi()
+    setMidiTargetResolver(async () => ({ port: 'Kemper:Kemper MIDI 1 24:0', channel: 2 }))
+    const plugin = createMidiDeviceAddonPlugin(info('boss-rc500'), { methods: createAddonMethods({ dirs: ['boss-rc500'], midi, log }) })
+    expect(await plugin.trigger({ type: 'rc500.selectMemory', payload: { memory: 12 } })).toEqual({ status: 'ok', data: { memory: 12 } })
+    expect(sent.map((s) => s.bytes)).toEqual([[0xc1, 11]])
+  })
+})
