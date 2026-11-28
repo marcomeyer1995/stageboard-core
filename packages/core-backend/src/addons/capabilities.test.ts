@@ -121,3 +121,52 @@ describe('capability.udp and capability.helper', () => {
     expect(await caps([])('capability.teleport', {})).toMatchObject({ ok: false, error: { code: 'capability.unknown' } })
   })
 })
+
+describe('capability.midi-out - StageBoard sends to the port of the device the add-on drives, never one the add-on names (#964)', () => {
+  const fakeMidi = () => {
+    const sent: { port: string; bytes: readonly number[] }[] = []
+    const midi = {
+      outputs: () => ['MG-30 MIDI 1'],
+      inputs: () => ['MG-30 MIDI 1'],
+      send: (port: string, bytes: readonly number[]) => (port === 'MG-30 MIDI 1' ? (sent.push({ port, bytes }), true) : false),
+      listen: () => null,
+      sendAndWait: async (port: string, bytes: readonly number[], prefix: readonly number[]) => (port === 'MG-30 MIDI 1' ? (sent.push({ port, bytes }), [...prefix, 1, 2]) : undefined),
+    }
+    return { midi, sent }
+  }
+  const midiCaps = (permissions: string[], midi = fakeMidi()) => ({ run: createCapabilities({ permissions, helpers: async () => ({ result: {}, files: [] }), midi: midi.midi }), sent: midi.sent })
+
+  it('sends the bytes to the granted port of this one cue', async () => {
+    const { run, sent } = midiCaps(['midi-out:*'])
+    expect(await run('capability.midi-out', { bytes: [0xc0, 5] }, { grants: ['midi-out:MG-30 MIDI 1'] })).toEqual({ ok: true, body: { sent: true } })
+    expect(sent).toEqual([{ port: 'MG-30 MIDI 1', bytes: [0xc0, 5] }])
+  })
+
+  it('refuses without a grant, without the permission in the manifest, and a port the add-on names itself - nothing is sent', async () => {
+    const { run, sent } = midiCaps(['midi-out:*'])
+    expect(await run('capability.midi-out', { bytes: [0xc0, 5] })).toMatchObject({ ok: false, error: { code: 'permission.denied' } })
+    expect(await run('capability.midi-out', { bytes: [0xc0, 5], port: 'Other' } as never)).toMatchObject({ ok: false, error: { code: 'permission.denied' } })
+    const noPermission = midiCaps([])
+    expect(await noPermission.run('capability.midi-out', { bytes: [0xc0, 5] }, { grants: ['midi-out:MG-30 MIDI 1'] })).toMatchObject({ ok: false, error: { code: 'permission.denied' } })
+    expect([...sent, ...noPermission.sent]).toEqual([])
+  })
+
+  it('refuses bytes that are not MIDI bytes and a reply wait beyond 5 s', async () => {
+    const { run, sent } = midiCaps(['midi-out:*'])
+    for (const body of [{ bytes: [256] }, { bytes: [-1] }, { bytes: [] }, { bytes: 'c0' }, { bytes: [0xf0], expectReply: { prefix: [0xf0], timeoutMs: 60_000 } }]) {
+      expect(await run('capability.midi-out', body, { grants: ['midi-out:MG-30 MIDI 1'] }), JSON.stringify(body)).toMatchObject({ ok: false, error: { code: 'capability.invalid' } })
+    }
+    expect(sent).toEqual([])
+  })
+
+  it('answers with the reply when the add-on waits for one, and says when the device is not there', async () => {
+    const { run } = midiCaps(['midi-out:*'])
+    expect(await run('capability.midi-out', { bytes: [0xf0, 0x7e, 0x7f, 0x06, 0x01, 0xf7], expectReply: { prefix: [0xf0, 0x7e], timeoutMs: 500 } }, { grants: ['midi-out:MG-30 MIDI 1'] })).toEqual({ ok: true, body: { sent: true, reply: [0xf0, 0x7e, 1, 2] } })
+    expect(await run('capability.midi-out', { bytes: [0xc0, 1] }, { grants: ['midi-out:Unplugged'] })).toMatchObject({ ok: false, error: { code: 'midi.no-port', params: { port: 'Unplugged' } } })
+  })
+
+  it('says a device without MIDI has none', async () => {
+    const run = createCapabilities({ permissions: ['midi-out:*'], helpers: async () => ({ result: {}, files: [] }) })
+    expect(await run('capability.midi-out', { bytes: [0xc0, 1] }, { grants: ['midi-out:MG-30 MIDI 1'] })).toMatchObject({ ok: false, error: { code: 'midi.unavailable' } })
+  })
+})

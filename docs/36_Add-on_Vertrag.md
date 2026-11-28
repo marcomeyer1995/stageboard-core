@@ -66,7 +66,7 @@ The add-on never touches a socket, a file or a program. It **asks** StageBoard, 
 |---|---|---|---|
 | `http:<origin>` | a request to exactly that origin (answer read with a cap of 8 MB, as it arrives) | StageBoard performs it (an add-on does *not* get `fetch`) | none - this is the fix for today's gap: Node's permission model cannot cut the network, so the add-on must not hold a network handle at all |
 | `udp:<host:port>` / `osc:<host:port>` | one datagram | StageBoard sends | – |
-| `midi-out:<port pattern>`, `midi-in:…` | bytes out / a stream in | the page owns WebMIDI; Workers have none | latency of one message hop |
+| `midi-out:<port pattern>`, `midi-in:…` | bytes out / a stream in | the page owns WebMIDI; Workers have none. **On a Node host** (2026-11-28, #964): `capability.midi-out` `{bytes, expectReply?}` - StageBoard sends through the machine's own ports (`core-backend/nativeMidi.ts`, the module the Discovery watcher uses too), to the port it **grants for the one cue** it hands over (`midi-out:<port>`, the device's own setting); the add-on names no port, and a manifest without `midi-out` gets nothing. `midi-in` is not built on Node | latency of one message hop (measured against the MG-30 emulator: identity round trip 1-2 ms) |
 | `helper:<id>` | run the device's declared helper (yt-dlp, Demucs, Piper, Chrome) | StageBoard starts it in a work folder | helpers are the device's programs, not the add-on's |
 | `audio-store` | read/write the band's tracks through methods, not paths | StageBoard | – |
 | `songs:read`, `songs:write` | read/change songs through methods | StageBoard (the band's data never enters the sandbox as a database) | – |
