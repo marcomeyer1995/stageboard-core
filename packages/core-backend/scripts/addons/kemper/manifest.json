@@ -1,0 +1,31 @@
+{
+  "id": "kemper-profiler",
+  "name": "Kemper Profiler",
+  "version": "1.0.0",
+  "protocol": 3,
+  "workFile": "work.js",
+  "permissions": ["midi-out:kemper"],
+  "provides": ["kemper-control"],
+  "midiDevice": true,
+  "contributes": {
+    "methods": {
+      "event": {
+        "in": {
+          "type": "object",
+          "required": ["type"],
+          "properties": {
+            "type": { "type": "string", "maxLength": 100 },
+            "payload": { "type": "object" },
+            "midiChannel": { "type": "integer" }
+          }
+        },
+        "out": {
+          "type": "object",
+          "required": ["status"],
+          "properties": { "status": { "type": "string" } }
+        },
+        "timeoutMs": 5000
+      }
+    }
+  }
+}

@@ -7,6 +7,7 @@ import { createMockClickPlugin } from './mockClickPlugin.js'
 import { createMockLightingPlugin } from './mockLightingPlugin.js'
 import { createMockMixerPlugin } from './mockMixerPlugin.js'
 import { createMockPlaybackPlugin } from './mockPlaybackPlugin.js'
+import { createMidiDeviceAddonPlugin } from './midiDevicePlugin.js'
 import { OSC_PLUGIN_ID } from './oscPlugin.js'
 
 /** A sale build leaves out the add-ons their manifest marks as legally risky (#546). */
@@ -28,6 +29,7 @@ export const PLUGIN_CATALOG: Record<string, () => IShowControlPlugin> = {
   ...Object.fromEntries(
     loadAddonInfos()
       .filter((info) => info.provides.length > 0 && !(SALE_BUILD && info.legalRisk))
-      .map((info) => [info.pluginId, () => createAddonPlugin(info)] as const),
+      // A MIDI device's add-on gets the cues for a device of it plugged into this host; any other add-on is the registry's handle for its methods.
+      .map((info) => [info.pluginId, () => (info.midiDevice ? createMidiDeviceAddonPlugin(info) : createAddonPlugin(info))] as const),
   ),
 }

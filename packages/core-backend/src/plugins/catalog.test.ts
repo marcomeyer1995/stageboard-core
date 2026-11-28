@@ -24,7 +24,7 @@ describe('what the core knows of the add-ons comes from their manifests (#964)',
   })
 
   it('a plug-in made from a manifest tests ok when its helpers are there, and names the missing program when not', async () => {
-    const base = { id: 'x', pluginId: 'x-plugin', name: 'X', provides: ['video-download'], legalRisk: false, lookup: null, asyncJobType: null }
+    const base = { id: 'x', pluginId: 'x-plugin', name: 'X', provides: ['video-download'], legalRisk: false, lookup: null, asyncJobType: null, midiDevice: false }
     expect(await createAddonPlugin({ ...base, helpers: [] }).trigger({ type: 'test', payload: {}, logicalDeviceId: 'l' })).toEqual({ status: 'ok' })
     const before = process.env.YT_DLP_PATH
     process.env.YT_DLP_PATH = '/no/such/yt-dlp'

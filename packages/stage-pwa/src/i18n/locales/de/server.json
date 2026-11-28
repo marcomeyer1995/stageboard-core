@@ -31,7 +31,8 @@
     "notInstalled": "Piper oder Stimme {{voice}} nicht installiert"
   },
   "plugin": {
-    "unknownEvent": "{{plugin}}: unbekannter Event-Typ \"{{type}}\"."
+    "unknownEvent": "{{plugin}}: unbekannter Event-Typ \"{{type}}\".",
+    "noMidiOut": "{{device}}: kein MIDI-Ausgang an diesem Host eingerichtet."
   },
   "stems": {
     "demucsMissing": "Demucs ist auf dem Host nicht installiert (docs/03).",

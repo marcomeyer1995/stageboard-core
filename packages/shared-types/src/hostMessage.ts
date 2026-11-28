@@ -35,6 +35,7 @@ export const SERVER_MESSAGES_DE = {
   'speech.downloadBusy': 'Gerade läuft schon ein Download, oder die Stimme ist unbekannt.',
   'speech.notInstalled': 'Piper oder Stimme {{voice}} nicht installiert',
   'plugin.unknownEvent': '{{plugin}}: unbekannter Event-Typ "{{type}}".',
+  'plugin.noMidiOut': '{{device}}: kein MIDI-Ausgang an diesem Host eingerichtet.',
   'stems.demucsMissing': 'Demucs ist auf dem Host nicht installiert (docs/03).',
   'job.interrupted': 'Durch einen Neustart des Hosts unterbrochen.',
   'addon.notInstalled': 'Das Add-on „{{addon}}“ ist für diese Band nicht installiert.',
