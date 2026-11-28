@@ -2,6 +2,7 @@ import { createSocket } from 'node:dgram'
 import { z } from 'zod'
 import type { AddonError } from 'shared-types'
 import type { helperRunnerFor } from './helpers.js'
+import type { NativeMidi } from '../nativeMidi.js'
 
 /**
  * What an add-on may ask the world for (docs/36 §5, #964). The add-on holds no network handle, no socket and starts no program: it **asks**, with a
@@ -27,6 +28,12 @@ const denied = (capability: string, target: string): CapabilityResult => fail('p
 
 const HttpRequest = z.object({ url: z.string(), method: z.enum(['GET', 'POST', 'PUT', 'DELETE']).optional(), headers: z.record(z.string(), z.string()).optional(), body: z.string().optional() })
 const UdpRequest = z.object({ forRequest: z.number().int().optional(), host: z.string().min(1), port: z.number().int().min(1).max(65535), bytes: z.instanceof(Uint8Array).refine((b) => b.length <= 8192, 'at most 8192 bytes') })
+const MidiBytes = z.array(z.number().int().min(0).max(255))
+const MidiOutRequest = z.object({
+  forRequest: z.number().int().optional(),
+  bytes: MidiBytes.min(1).max(65536),
+  expectReply: z.object({ prefix: MidiBytes.max(16), timeoutMs: z.number().int().min(1).max(5000) }).optional(),
+})
 const HelperRequest = z.object({ helper: z.string().min(1), args: z.array(z.string()), forRequest: z.number().int().optional(), files: z.array(z.object({ name: z.string(), bytes: z.instanceof(Uint8Array) })).default([]) })
 
 /** The body of a response, or `null` as soon as it is larger than `max` bytes - the rest is never read. */
@@ -69,10 +76,13 @@ export function createCapabilities(options: {
   permissions: readonly string[]
   helpers: ReturnType<typeof helperRunnerFor>
   fetchImpl?: typeof fetch
+  /** This machine's MIDI ports (`nativeMidi.ts`); absent: no `midi-out` on this device. */
+  midi?: NativeMidi
 }): Capabilities {
   const doFetch = options.fetchImpl ?? fetch
   const allowedOrigins = new Set(options.permissions.filter((p) => p.startsWith('http:')).map((p) => p.slice('http:'.length)))
   const udpTargets = new Set(options.permissions.filter((p) => p.startsWith('udp:') || p.startsWith('osc:')).map((p) => p.slice(p.indexOf(':') + 1)))
+  const mayMidiOut = options.permissions.some((p) => p.startsWith('midi-out:'))
   const declaredHelpers = new Set(options.permissions.filter((p) => p.startsWith('helper:')).map((p) => p.slice('helper:'.length)))
   let udp: ReturnType<typeof createSocket> | null = null
 
@@ -116,6 +126,23 @@ export function createCapabilities(options: {
     return new Promise((resolve) => socket.send(bytes, port, host, (err) => resolve(err ? fail('udp.failed', err.message) : { ok: true, body: {} })))
   }
 
+  /**
+   * Bytes for the device the add-on drives (docs/32 §4, the app's `midi-out` on the envelope). The add-on never names a port: StageBoard grants,
+   * for the one cue it hands over, the output of that device (`midi-out:<port>`, from the device's own settings). The manifest must ask for
+   * `midi-out` at all; a request without a grant sends nothing.
+   */
+  async function midiOut(raw: unknown, hooks?: Parameters<Capabilities>[2]): Promise<CapabilityResult> {
+    const parsed = MidiOutRequest.safeParse(raw)
+    if (!parsed.success) return fail('capability.invalid', 'capability.midi-out needs {bytes (0-255), expectReply?: {prefix, timeoutMs <= 5000}}')
+    const port = (hooks?.grants ?? []).find((p) => p.startsWith('midi-out:'))?.slice('midi-out:'.length)
+    if (!mayMidiOut || !port) return denied('midi-out', port ?? 'without a device')
+    if (!options.midi) return fail('midi.unavailable', 'This device has no MIDI')
+    const { bytes, expectReply } = parsed.data
+    if (!expectReply) return options.midi.send(port, bytes) ? { ok: true, body: { sent: true } } : fail('midi.no-port', `No MIDI output ${port}`, { port })
+    const reply = await options.midi.sendAndWait(port, bytes, expectReply.prefix, expectReply.timeoutMs)
+    return reply === undefined ? fail('midi.no-port', `No MIDI output ${port}`, { port }) : { ok: true, body: { sent: true, reply } }
+  }
+
   async function helper(raw: unknown, hooks?: Parameters<Capabilities>[2]): Promise<CapabilityResult> {
     const parsed = HelperRequest.safeParse(raw)
     if (!parsed.success) return fail('capability.invalid', 'capability.helper needs {helper, args, files?}')
@@ -131,6 +158,7 @@ export function createCapabilities(options: {
     if (method === 'capability.http') return http(body)
     if (method === 'capability.udp') return sendUdp(body, hooks)
     if (method === 'capability.helper') return helper(body, hooks)
+    if (method === 'capability.midi-out') return midiOut(body, hooks)
     return fail('capability.unknown', `Unknown capability ${method}`)
   }
 }

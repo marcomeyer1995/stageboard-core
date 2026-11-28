@@ -1,4 +1,3 @@
-import { Input, Output } from '@julusian/midi'
 import {
   DeviceTransportConfigSchema,
   LogicalDeviceSchema,
@@ -12,6 +11,7 @@ import {
 import { putDoc, putDocWithRetry, type DatabaseConfig } from './database.js'
 import { discoverySessions as discoverySessionStore } from 'sync-host'
 import { workspaceDbName } from './workspaceProvisioning.js'
+import { createNativeMidi, type NativeMidi } from './nativeMidi.js'
 
 /** Same cadence discoverySessionStore.ts's own candidate-settle debounce uses - this is just
  * "keep the port list fresh", not latency-sensitive. */
@@ -26,6 +26,8 @@ export interface MidiWatcherOptions {
   /** The id this host goes by (`STAGEBOARD_HOST_ID`, #964): what it reports under and what a role it detects is bound to. Absent: the legacy word. */
   hostId?: string
   log: { info: (msg: string, meta?: Record<string, unknown>) => void; error: (msg: string, meta?: Record<string, unknown>) => void }
+  /** This machine's MIDI ports (`nativeMidi.ts`, the module the add-ons send through); default: its own handle, so an outage is logged as the watcher's. */
+  midi?: NativeMidi
 }
 
 export interface MidiWatcherHandle {
@@ -51,30 +53,11 @@ export function createMidiWatcher(options: MidiWatcherOptions): MidiWatcherHandl
   const { database, workspaceId, log } = options
   const hostTarget = options.hostId ?? LEGACY_HOST_TARGET
   let stopped = false
-  let triggerListener: { input: Input; hardwareKey: string } | null = null
+  let triggerListener: { stop: () => void; hardwareKey: string } | null = null
   const written = new Set<string>() // hardwareKeys already written, so a role only gets written once
-  let unavailable = false
-
-  /** Creates a native RtMidi port, or null when the ALSA sequencer can't be opened (e.g.
-   * `/dev/snd/seq` not accessible at boot before a desktop login, #336). MIDI is optional - the
-   * Host must keep running without it, and the poll keeps retrying, so ports appear as
-   * soon as access exists. Logged once per outage, not every poll. */
-  function openNative<T>(make: () => T): T | null {
-    try {
-      const port = make()
-      if (unavailable) {
-        unavailable = false
-        log.info('Native MIDI available again')
-      }
-      return port
-    } catch (err) {
-      if (!unavailable) {
-        unavailable = true
-        log.error('Native MIDI unavailable - running without the Host\'s own MIDI ports, retrying', { error: String(err) })
-      }
-      return null
-    }
-  }
+  // MIDI is optional - the Host must keep running without it (no ALSA sequencer before a desktop login, #336); the module says so once per
+  // outage, and the poll keeps retrying, so ports appear as soon as access exists.
+  const midi = options.midi ?? createNativeMidi(log)
 
   /**
    * Resolves the real *output* port to actually send to and writes the DeviceTransportConfig
@@ -99,15 +82,11 @@ export function createMidiWatcher(options: MidiWatcherOptions): MidiWatcherHandl
       )?.namePattern
       if (!namePattern) continue
 
-      const output = openNative(() => new Output())
-      if (!output) return
-      try {
-        const count = output.getPortCount()
-        let outputIndex = -1
-        for (let i = 0; i < count; i++) {
-          if (output.getPortName(i).toLowerCase().includes(namePattern.toLowerCase())) outputIndex = i
-        }
-        if (outputIndex === -1) continue // No matching output yet - try again next poll.
+      const outputs = midi.outputs()
+      if (!outputs) return
+      {
+        const outputName = [...outputs].reverse().find((name) => name.toLowerCase().includes(namePattern.toLowerCase()))
+        if (outputName === undefined) continue // No matching output yet - try again next poll.
 
         const logicalDeviceId = candidate.assignedLogicalDeviceId
         const doc = DeviceTransportConfigSchema.parse({
@@ -115,7 +94,7 @@ export function createMidiWatcher(options: MidiWatcherOptions): MidiWatcherHandl
           deviceId: hostTarget,
           logicalDeviceId,
           transportId: null,
-          values: { midiOutputId: output.getPortName(outputIndex) },
+          values: { midiOutputId: outputName },
         })
         void putDoc(database, workspaceDbName(workspaceId), { ...doc, _id: `${DEVICE_TRANSPORT_CONFIG_PREFIX}${doc.id}` }).catch((err) =>
           log.error('Failed to write DeviceTransportConfig for a Host-plugged device', { error: String(err) }),
@@ -146,31 +125,17 @@ export function createMidiWatcher(options: MidiWatcherOptions): MidiWatcherHandl
         ).catch((err) => log.error('Failed to write Logical Device binding for a Host-plugged device', { error: String(err) }))
 
         written.add(candidate.hardwareKey)
-      } finally {
-        output.destroy()
       }
     }
   }
 
   function reportCurrentPorts(): void {
-    const probe = openNative(() => new Input())
-    if (!probe) return
-    try {
-      const count = probe.getPortCount()
-      for (let i = 0; i < count; i++) {
-        discoverySessionStore.reportCandidate(workspaceId, hostTarget, detectedFor(probe.getPortName(i)))
-      }
-    } catch (err) {
-      log.error('Failed to enumerate native MIDI ports', { error: String(err) })
-    } finally {
-      probe.destroy()
-    }
+    for (const name of midi.inputs() ?? []) discoverySessionStore.reportCandidate(workspaceId, hostTarget, detectedFor(name))
   }
 
   function stopTriggerListener(): void {
     if (!triggerListener) return
-    triggerListener.input.closePort()
-    triggerListener.input.destroy()
+    triggerListener.stop()
     triggerListener = null
   }
 
@@ -213,30 +178,14 @@ export function createMidiWatcher(options: MidiWatcherOptions): MidiWatcherHandl
 
     stopTriggerListener()
 
-    const probe = openNative(() => new Input())
-    if (!probe) return
-    try {
-      const count = probe.getPortCount()
-      let index = -1
-      for (let i = 0; i < count; i++) {
-        if (hardwareKeyFor(detectedFor(probe.getPortName(i))) === ownCandidate.hardwareKey) index = i
-      }
-      if (index === -1) {
-        probe.destroy()
-        return
-      }
-
-      const handleMessage = makeSequenceMatcher(identifying.matchCcSequence, () => {
-        discoverySessionStore.reportTriggered(workspaceId, hostTarget, ownCandidate.hardwareKey)
-      })
-      probe.on('message', (_deltaTime: number, message: number[]) => handleMessage(message))
-      probe.openPort(index)
-      triggerListener = { input: probe, hardwareKey: ownCandidate.hardwareKey }
-    } catch (err) {
-      // The port vanished between listing and opening - the next poll tries again.
-      log.error('Failed to open native MIDI port for identification', { error: String(err) })
-      probe.destroy()
-    }
+    const port = [...(midi.inputs() ?? [])].reverse().find((name) => hardwareKeyFor(detectedFor(name)) === ownCandidate.hardwareKey)
+    if (port === undefined) return
+    const handleMessage = makeSequenceMatcher(identifying.matchCcSequence, () => {
+      discoverySessionStore.reportTriggered(workspaceId, hostTarget, ownCandidate.hardwareKey)
+    })
+    // null: the port vanished between listing and opening - the next poll tries again.
+    const stop = midi.listen(port, handleMessage)
+    if (stop) triggerListener = { stop, hardwareKey: ownCandidate.hardwareKey }
   }
 
   reportCurrentPorts()

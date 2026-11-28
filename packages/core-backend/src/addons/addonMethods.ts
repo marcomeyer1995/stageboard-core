@@ -5,6 +5,7 @@ import { callMethod, type MethodResult, type MethodSandbox } from 'sync-host'
 import { parseContributes, type AddonError, type AsyncJob, type Contributes, type StateField } from 'shared-types'
 import { createCapabilities } from './capabilities.js'
 import { helperRunnerFor } from './helpers.js'
+import { sharedNativeMidi, type NativeMidi } from '../nativeMidi.js'
 import { startNodeSandbox, type NodeSandbox } from './nodeSandbox.js'
 
 /** What runs a helper for an add-on: this device's own programs (`helpers.ts`), or a test's stand-in. */
@@ -132,6 +133,8 @@ export interface AddonMethodsOptions {
   /** Where the add-on directories are, and which (a test brings its own add-ons; default: the ones that ship with the device). */
   root?: string
   dirs?: readonly string[]
+  /** This machine's MIDI ports, for an add-on that drives a device plugged into it (`capability.midi-out`); default: the process's own. */
+  midi?: NativeMidi
 }
 
 export function createAddonMethods(options: AddonMethodsOptions = {}): AddonMethods {
@@ -150,7 +153,7 @@ export function createAddonMethods(options: AddonMethodsOptions = {}): AddonMeth
         name: found.id,
         permissions,
         language: 'de',
-        capabilities: createCapabilities({ permissions, helpers: runHelper }),
+        capabilities: createCapabilities({ permissions, helpers: runHelper, midi: options.midi ?? sharedNativeMidi(options.log) }),
         ...(options.settings?.[found.id] ? { settings: options.settings[found.id]! } : {}),
         // Late-bound: the adapters create their sandboxes at import time, the host that listens exists later (`methods.onState(...)`).
         onState: (body: unknown) => stateListener?.(found.id, body),
